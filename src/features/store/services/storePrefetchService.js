@@ -4,7 +4,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { DEFAULT_BUSINESS_SETTINGS } from '../../../shared/utils/businessHours';
 import { normalizeTaxRounding, TAX_ROUNDING_MODES } from '../../../shared/utils/tax';
 
-const STORE_PREFETCH_CACHE_PREFIX = 'pitto_store_prefetch::';
+const STORE_PREFETCH_CACHE_PREFIX = 'akuto_store_prefetch::';
 const STORE_PREFETCH_TTL_MS = 5 * 60 * 1000;
 
 const safeSessionStorage = {

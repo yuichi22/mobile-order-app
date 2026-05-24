@@ -76,4 +76,4 @@ firebase deploy
 ## 遒ｺ隱榊・
 - 譛ｬ逡ｪ URL: [https://haus-qr-order-system.web.app](https://haus-qr-order-system.web.app)
 
-譛ｬ繝峨く繝･繝｡繝ｳ繝亥・縺ｮ繧ｵ繝ｼ繝薙せ陦ｨ險倥・ `Pitto Order System` 繧呈ｭ｣蠑丞錐縲～Pitto` 繧堤洒邵ｮ蜷阪→縺励※謇ｱ縺・∪縺吶・- 逕ｻ髱｢縺悟商縺・→縺阪・ `Ctrl + F5` 縺ｧ蠑ｷ蛻ｶ蜀崎ｪｭ縺ｿ霎ｼ縺ｿ
+譛ｬ繝峨く繝･繝｡繝ｳ繝亥・縺ｮ繧ｵ繝ｼ繝薙せ陦ｨ險倥・ `Akuto Order System` 繧呈ｭ｣蠑丞錐縲～Akuto` 繧堤洒邵ｮ蜷阪→縺励※謇ｱ縺・∪縺吶・- 逕ｻ髱｢縺悟商縺・→縺阪・ `Ctrl + F5` 縺ｧ蠑ｷ蛻ｶ蜀崎ｪｭ縺ｿ霎ｼ縺ｿ

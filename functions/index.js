@@ -185,12 +185,12 @@ const buildPasswordResetMail = ({ email, resetUrl }) => {
   const safeResetUrl = escapeHtml(resetUrl);
 
   return {
-    subject: '【Pitto Order System】パスワード再設定のご案内',
+    subject: '【Akuto Order System】パスワード再設定のご案内',
     html: `
       <div style="background:#f8fafc;padding:32px 16px;font-family:Arial,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;color:#0f172a;">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px rgba(15,23,42,0.08);">
           <div style="background:#111827;padding:32px;text-align:center;">
-            <div style="display:inline-block;background:#2563eb;color:#ffffff;border-radius:18px;padding:14px 18px;font-size:14px;font-weight:700;letter-spacing:0.08em;">Pitto Order System</div>
+            <div style="display:inline-block;background:#2563eb;color:#ffffff;border-radius:18px;padding:14px 18px;font-size:14px;font-weight:700;letter-spacing:0.08em;">Akuto Order System</div>
             <h1 style="margin:18px 0 0;font-size:26px;line-height:1.3;font-weight:800;color:#ffffff;">パスワード再設定のご案内</h1>
             <p style="margin:10px 0 0;font-size:14px;line-height:1.8;color:#d1d5db;">ご本人による再設定操作として受け付けました。</p>
           </div>
@@ -208,7 +208,7 @@ const buildPasswordResetMail = ({ email, resetUrl }) => {
       </div>
     `,
     text: [
-      '【Pitto Order System】パスワード再設定のご案内',
+      '【Akuto Order System】パスワード再設定のご案内',
       '',
       `${email} 宛てに、パスワード再設定用のリンクをご案内します。`,
       '以下の URL から新しいパスワードを設定してください。',
@@ -224,12 +224,12 @@ const buildEmailVerificationMail = ({ email, verificationUrl }) => {
   const safeVerificationUrl = escapeHtml(verificationUrl);
 
   return {
-    subject: '【Pitto Order System】メールアドレス確認のお願い',
+    subject: '【Akuto Order System】メールアドレス確認のお願い',
     html: `
       <div style="background:#f8fafc;padding:32px 16px;font-family:Arial,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;color:#0f172a;">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px rgba(15,23,42,0.08);">
           <div style="background:#111827;padding:32px;text-align:center;">
-            <div style="display:inline-block;background:#ea580c;color:#ffffff;border-radius:18px;padding:14px 18px;font-size:14px;font-weight:700;letter-spacing:0.08em;">Pitto Order System</div>
+            <div style="display:inline-block;background:#ea580c;color:#ffffff;border-radius:18px;padding:14px 18px;font-size:14px;font-weight:700;letter-spacing:0.08em;">Akuto Order System</div>
             <h1 style="margin:18px 0 0;font-size:26px;line-height:1.3;font-weight:800;color:#ffffff;">メールアドレス確認のお願い</h1>
             <p style="margin:10px 0 0;font-size:14px;line-height:1.8;color:#d1d5db;">アカウント登録を完了するため、メールアドレスの確認をお願いします。</p>
           </div>
@@ -247,7 +247,7 @@ const buildEmailVerificationMail = ({ email, verificationUrl }) => {
       </div>
     `,
     text: [
-      '【Pitto Order System】メールアドレス確認のお願い',
+      '【Akuto Order System】メールアドレス確認のお願い',
       '',
       `${email} 宛ての確認メールです。`,
       '以下の URL からメールアドレスの確認を完了してください。',

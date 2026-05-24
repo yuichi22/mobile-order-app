@@ -97,7 +97,7 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
 
       <div className="hidden w-[58mm] bg-white p-0 text-[10px] leading-tight text-black print:mx-auto print:block print:font-mono">
         <div className="mb-4 border-b border-dashed border-black pb-2 text-center">
-          <h1 className="mb-1 text-lg font-bold">{settings.name || 'Pitto Order System'}</h1>
+          <h1 className="mb-1 text-lg font-bold">{settings.name || 'Akuto Order System'}</h1>
           {settings.address && <p>{settings.address}</p>}
           {settings.tel && <p>TEL: {settings.tel}</p>}
           {settings.invoiceNumber && <p className="mt-1">登録番号: {settings.invoiceNumber}</p>}

@@ -38,7 +38,7 @@ const LoginPage = () => {
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
         <div className="bg-gray-900 p-8 text-center">
           <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg"><Store size={32} /></div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Pitto Order System</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Akuto Order System</h1>
           <p className="mt-2 text-sm font-medium text-gray-400">店舗管理コンソール</p>
         </div>
 

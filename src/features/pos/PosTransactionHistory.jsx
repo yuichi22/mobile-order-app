@@ -186,7 +186,7 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
       <body>
         <div class="paper">
           <div class="section title">
-            <h1>${settings?.name || 'Pitto Order System'}</h1>
+            <h1>${settings?.name || 'Akuto Order System'}</h1>
             ${settings?.address ? `<p>${settings.address}</p>` : ''}
             ${settings?.tel ? `<p>TEL: ${settings.tel}</p>` : ''}
             ${settings?.invoiceNumber ? `<p>登録番号: ${settings.invoiceNumber}</p>` : ''}

@@ -62,7 +62,7 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     0;
 
   return {
-    storeName: settings?.name || 'Pitto Order System',
+    storeName: settings?.name || 'Akuto Order System',
     address: settings?.address || '',
     tel: settings?.tel || '',
     invoiceNumber: settings?.invoiceNumber || '',

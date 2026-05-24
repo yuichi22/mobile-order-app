@@ -75,7 +75,7 @@ const LauncherScreen = ({ onModeSelect }) => {
       <div className="grid w-full max-w-5xl gap-6 md:grid-cols-6">
         <div className="col-span-full mb-8 text-center">
           <h1 className="mb-2 text-3xl font-bold text-slate-800">
-            Pitto Order System
+            Akuto Order System
           </h1>
           <p className="text-slate-500">
             最初のモードを選択して作業を開始してください。
