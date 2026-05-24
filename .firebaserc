@@ -1,0 +1,24 @@
+{
+  "projects": {
+    "default": "mobile-order-dev-5f7fd",
+    "dev": "mobile-order-dev-5f7fd",
+    "prod": "mobile-order-prod"
+  },
+  "targets": {
+    "mobile-order-dev-5f7fd": {
+      "hosting": {
+        "app": [
+          "mobile-order-dev-5f7fd"
+        ]
+      }
+    },
+    "mobile-order-prod": {
+      "hosting": {
+        "app": [
+          "mobile-order-prod"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

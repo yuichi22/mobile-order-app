@@ -1,0 +1,419 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAnonymous() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function hasUserProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userRole() {
+      return hasUserProfile() ? userProfile().role : null;
+    }
+
+    function isOwnerRole() {
+      return userRole() == 'owner' || userRole() == 'admin';
+    }
+
+    function isManagerRole() {
+      return userRole() == 'manager';
+    }
+
+    function isStaffRole() {
+      return userRole() == 'staff';
+    }
+
+    function hasPlatformAdminProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function platformAdminProfile() {
+      return get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn()
+        && !isAnonymous()
+        && hasPlatformAdminProfile()
+        && platformAdminProfile().role == 'super_admin';
+    }
+
+    function isStoreMember(storeId) {
+      return signedIn()
+        && !isAnonymous()
+        && hasUserProfile()
+        && userProfile().storeId == storeId;
+    }
+
+    function isStoreOwner(storeId) {
+      return isStoreMember(storeId) && isOwnerRole();
+    }
+
+    function isStoreManager(storeId) {
+      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole());
+    }
+
+    function isStoreStaff(storeId) {
+      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole() || isStaffRole());
+    }
+
+    function isInviteExpired(inviteData) {
+      return inviteData.expiresAt != null && inviteData.expiresAt <= request.time;
+    }
+
+    function isManagerWritableSetting(documentId) {
+      return documentId == 'business'
+        || documentId == 'categories'
+        || documentId == 'periods';
+    }
+
+    function hasSessionDoc(storeId, sessionId) {
+      return exists(/databases/$(database)/documents/stores/$(storeId)/sessions/$(sessionId));
+    }
+
+    function isResettingTableSession(tableId) {
+      return request.resource.data.currentSessionId == null
+        && request.resource.data.currentSessionStatus == 'idle'
+        && (
+          !('tableId' in request.resource.data)
+          || request.resource.data.tableId == tableId
+        );
+    }
+
+    function isStaffTableSessionWrite(tableId) {
+      return request.resource.data.keys().hasOnly([
+        'tableId',
+        'currentSessionId',
+        'currentSessionStatus',
+        'updatedAt'
+      ])
+      && (
+        !('tableId' in request.resource.data)
+        || request.resource.data.tableId == tableId
+      )
+      && request.resource.data.updatedAt == request.time
+      && (
+        (
+          request.resource.data.currentSessionId == null
+          && request.resource.data.currentSessionStatus == 'idle'
+        )
+        ||
+        (
+          request.resource.data.currentSessionId is string
+          && request.resource.data.currentSessionStatus == 'active'
+        )
+      );
+    }
+
+    function isStaffTableEntryGuardWrite(tableId) {
+      return request.resource.data.keys().hasOnly([
+        'tableId',
+        'sessionId',
+        'movedFromTableId',
+        'updatedAt'
+      ])
+      && request.resource.data.tableId == tableId
+      && request.resource.data.sessionId is string
+      && request.resource.data.updatedAt == request.time;
+    }
+
+    function isSessionMember(storeId, sessionId) {
+      return signedIn()
+        && hasSessionDoc(storeId, sessionId)
+        && request.auth.uid in get(/databases/$(database)/documents/stores/$(storeId)/sessions/$(sessionId)).data.members;
+    }
+
+    function hasValidStaffInvite(storeId, inviteCode, inviteRole) {
+      return exists(/databases/$(database)/documents/stores/$(storeId)/staffInvites/$(inviteCode))
+        && get(/databases/$(database)/documents/stores/$(storeId)/staffInvites/$(inviteCode)).data.status == 'active'
+        && !isInviteExpired(get(/databases/$(database)/documents/stores/$(storeId)/staffInvites/$(inviteCode)).data)
+        && get(/databases/$(database)/documents/stores/$(storeId)/staffInvites/$(inviteCode)).data.role == inviteRole;
+    }
+
+    match /platformAdmins/{adminId} {
+      allow read: if isPlatformAdmin() || isSelf(adminId);
+      allow write: if isPlatformAdmin();
+    }
+
+    match /platformAdminInvites/{inviteId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /platformContracts/{storeId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /platformPlans/{planId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /platformAuditLogs/{logId} {
+      allow read: if isPlatformAdmin();
+      allow create: if isPlatformAdmin();
+      allow update, delete: if false;
+    }
+
+    match /platformSupportTickets/{ticketId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /stores/{storeId} {
+      allow read, write: if isStoreOwner(storeId) || isPlatformAdmin();
+
+      match /settings/{documentId} {
+        allow read: if true;
+        allow write: if isPlatformAdmin()
+          || isStoreOwner(storeId)
+          || (isStoreManager(storeId) && isManagerWritableSetting(documentId));
+      }
+
+      match /menuItems/{itemId} {
+        allow read: if true;
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /discounts/{discountId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /tables/{tableId} {
+        allow get: if isPlatformAdmin() || isStoreManager(storeId) || isAnonymous();
+        allow list: if isPlatformAdmin() || isStoreManager(storeId);
+
+        allow create: if isPlatformAdmin() || isStoreManager(storeId)
+          || (
+            isStoreStaff(storeId)
+            && isStaffTableSessionWrite(tableId)
+          );
+
+        allow update: if isPlatformAdmin() || isStoreManager(storeId)
+          || (
+            isStoreStaff(storeId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'tableId',
+              'currentSessionId',
+              'currentSessionStatus',
+              'updatedAt'
+            ])
+            && isStaffTableSessionWrite(tableId)
+          );
+
+        allow delete: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /staffInvites/{inviteId} {
+        allow get: if resource.data.status == 'active' && !isInviteExpired(resource.data);
+        allow list: if isStoreOwner(storeId);
+
+        allow create: if isStoreOwner(storeId)
+          && request.resource.data.keys().hasOnly([
+            'storeId',
+            'role',
+            'status',
+            'createdBy',
+            'createdAt',
+            'expiresAt'
+          ])
+          && request.resource.data.storeId == storeId
+          && (request.resource.data.role == 'manager' || request.resource.data.role == 'staff')
+          && request.resource.data.status == 'active'
+          && request.resource.data.createdBy == request.auth.uid;
+
+        allow update: if isStoreOwner(storeId)
+          || (
+            signedIn()
+            && resource.data.status == 'active'
+            && !isInviteExpired(resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'usedBy', 'usedAt'])
+            && request.resource.data.status == 'used'
+            && request.resource.data.usedBy == request.auth.uid
+          );
+
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      match /sessions/{sessionId} {
+        allow read: if isStoreStaff(storeId)
+          || isSessionMember(storeId, sessionId)
+          || (isAnonymous() && resource.data.status == 'active');
+
+        allow create: if isStoreStaff(storeId);
+
+        allow update: if isStoreStaff(storeId)
+          || (
+            signedIn()
+            && isSessionMember(storeId, sessionId)
+            && resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).changedKeys()
+              .hasOnly([
+                'partySize',
+                'partySizeConfirmedAt'
+              ])
+            && request.resource.data.partySize is int
+            && request.resource.data.partySize >= 1
+            && request.resource.data.partySize <= 20
+            && request.resource.data.partySizeConfirmedAt == request.time
+          );
+
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      match /tableSessions/{tableId} {
+        allow get: if isStoreStaff(storeId) || isAnonymous();
+        allow list: if isStoreStaff(storeId);
+
+        allow create, update: if isStoreStaff(storeId);
+
+        allow delete: if isStoreStaff(storeId);
+      }
+
+      match /tableEntryGuards/{tableId} {
+        allow get, list: if isStoreStaff(storeId);
+
+        allow create, update: if isStoreStaff(storeId)
+          && isStaffTableEntryGuardWrite(tableId);
+
+        allow delete: if isStoreStaff(storeId);
+      }
+
+      match /tableMenuOverrides/{tableId} {
+        allow get: if isStoreStaff(storeId) || isAnonymous();
+        allow list: if isStoreStaff(storeId);
+
+        allow create, update, delete: if isStoreStaff(storeId);
+      }
+
+      match /sessionInvites/{inviteId} {
+        allow get: if resource.data.status == 'active'
+          && (isStoreStaff(storeId) || isAnonymous());
+        allow list: if isStoreStaff(storeId);
+
+        allow create, update: if false;
+        allow delete: if isStoreStaff(storeId);
+      }
+
+      match /orders/{orderId} {
+        allow read: if isStoreStaff(storeId)
+          || isSessionMember(storeId, resource.data.sessionId);
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly([
+            'tableId',
+            'sessionId',
+            'timestamp',
+            'status',
+            'customerId',
+            'userId',
+            'participantId',
+            'items',
+            'totalPrice',
+            'externalCustomer'
+          ])
+          && request.resource.data.status == 'pending'
+          && request.resource.data.customerId is string
+          && request.resource.data.customerId.size() > 0
+          && request.resource.data.customerId == request.resource.data.participantId
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.participantId is string
+          && request.resource.data.participantId.size() > 0
+          && isSessionMember(storeId, request.resource.data.sessionId);
+
+        allow update, delete: if isStoreStaff(storeId);
+      }
+
+      match /serviceRequests/{requestId} {
+        allow read: if isStoreStaff(storeId)
+          || isSessionMember(storeId, resource.data.sessionId);
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly([
+            'tableId',
+            'sessionId',
+            'type',
+            'status',
+            'createdAt'
+          ])
+          && (request.resource.data.type == 'call' || request.resource.data.type == 'check')
+          && request.resource.data.status == 'pending'
+          && isSessionMember(storeId, request.resource.data.sessionId);
+
+        allow update, delete: if isStoreStaff(storeId);
+      }
+
+      match /receipts/{receiptId} {
+        allow read: if isStoreStaff(storeId)
+          || isSessionMember(storeId, resource.data.sessionId);
+
+        allow create, update, delete: if isStoreStaff(storeId);
+      }
+      match /transactions/{transactionId} {
+        allow read: if isStoreManager(storeId);
+        allow write: if isStoreStaff(storeId);
+      }
+      match /dailyClosings/{closingId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreStaff(storeId);
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || (isStoreOwner(resource.data.storeId) && resource.data.storeId == userProfile().storeId);
+
+      allow create: if isSelf(userId)
+        && request.resource.data.uid == request.auth.uid
+        && (
+          request.resource.data.role == 'owner'
+          || (
+            (request.resource.data.role == 'manager' || request.resource.data.role == 'staff')
+            && request.resource.data.inviteCode is string
+            && hasValidStaffInvite(
+              request.resource.data.storeId,
+              request.resource.data.inviteCode,
+              request.resource.data.role
+            )
+          )
+        );
+
+      allow update: if (
+        isSelf(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.storeId == resource.data.storeId
+        && request.resource.data.role == resource.data.role
+      ) || (
+        isStoreOwner(resource.data.storeId)
+        && resource.data.storeId == request.resource.data.storeId
+        && request.resource.data.uid == resource.data.uid
+        && (
+          request.resource.data.role == 'owner'
+          || request.resource.data.role == 'manager'
+          || request.resource.data.role == 'staff'
+        )
+      );
+
+      allow delete: if isStoreOwner(resource.data.storeId)
+        && resource.data.storeId == userProfile().storeId
+        && request.auth.uid != userId
+        && resource.data.role != 'owner'
+        && resource.data.role != 'admin';
+    }
+  }
+}

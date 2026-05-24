@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html,
+body,
+#root {
+  min-height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+@media print {
+  .receipt-print-hidden {
+    display: none !important;
+  }
+}
+@keyframes cross-sell-tab-nudge {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  12% {
+    transform: translateY(-3px);
+  }
+
+  24% {
+    transform: translateY(0);
+  }
+}
+
+.animate-cross-sell-tab-nudge {
+  animation: cross-sell-tab-nudge 2.2s ease-in-out infinite;
+  will-change: transform;
+}

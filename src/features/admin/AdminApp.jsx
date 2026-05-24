@@ -1,0 +1,357 @@
+﻿import React, { Suspense, useEffect, useState } from 'react';
+import {
+  BarChart3,
+  CalendarCheck,
+  ChefHat,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  Utensils
+} from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { useStoreSettings } from '../store/hooks';
+
+import { useAuth } from '../../app/providers/useAuth';
+import { auth, db } from '../../shared/api/firebase/client';
+import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import NotificationToast from '../../shared/components/feedback/NotificationToast';
+import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
+import {
+  canAccessAdminTab,
+  canAccessAnalytics,
+  canAccessSettings,
+  normalizeUserRole
+} from '../../shared/utils/roles';
+
+const loadAnalyticsPage = () => import('./Analytics/pages/AnalyticsPage');
+const loadStoreSettingsPage = () => import('./settings/pages/StoreSettingsPage');
+const loadPosHomePage = () => import('../pos/pages/PosHomePage');
+const loadPosRegisterPage = () => import('../pos/pages/PosRegisterPage');
+const loadPosReceiptPage = () => import('../pos/pages/PosReceiptPage');
+
+const AnalyticsPage = lazyWithRetry(loadAnalyticsPage, 'analytics-page');
+const StoreSettingsPage = lazyWithRetry(loadStoreSettingsPage, 'store-settings-page');
+const PosHomePage = lazyWithRetry(loadPosHomePage, 'pos-home-page');
+const PosRegisterPage = lazyWithRetry(loadPosRegisterPage, 'pos-register-page');
+const PosReceiptPage = lazyWithRetry(loadPosReceiptPage, 'pos-receipt-page');
+
+const TabLoader = () => (
+  <div className="flex h-full items-center justify-center">
+    <LoadingSpinner />
+  </div>
+);
+
+const OperationTabButton = ({ active, icon: Icon, label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
+      active
+        ? 'border-orange-200 bg-orange-50 text-orange-600'
+        : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+    }`}
+  >
+    <Icon size={17} strokeWidth={2.7} />
+    {label}
+  </button>
+);
+
+const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
+  const { currentUser: user, storeId, role } = useAuth();
+  const { settings: storeSettings } = useStoreSettings(storeId);
+
+  const [activeTab, setActiveTab] = useState('pos');
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [posView, setPosView] = useState('scan');
+  const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
+  const [lastPaymentData, setLastPaymentData] = useState(null);
+
+  const normalizedRole = normalizeUserRole(role);
+  const canViewAnalytics = canAccessAnalytics(normalizedRole);
+  const canViewSettings = canAccessSettings(normalizedRole);
+  const showAdminHeader = canViewAnalytics || canViewSettings;
+
+  const activeAdminTab = (() => {
+    if (activeTab === 'dailyClosing') {
+      return canViewAnalytics ? 'dailyClosing' : 'pos';
+    }
+
+    return canAccessAdminTab(normalizedRole, activeTab) ? activeTab : 'pos';
+  })();
+
+  useEffect(() => {
+    if (!storeId) return undefined;
+
+    return preloadOnIdle([
+      loadPosHomePage,
+      loadPosRegisterPage,
+      loadPosReceiptPage,
+      ...(canViewAnalytics ? [loadAnalyticsPage] : []),
+      ...(canViewSettings ? [loadStoreSettingsPage] : [])
+    ]);
+  }, [storeId, canViewAnalytics, canViewSettings]);
+
+  useEffect(() => {
+    if (!user || !storeId || activeAdminTab !== 'pos') return undefined;
+
+    const sessionsCollectionRef = collection(db, 'stores', storeId, 'sessions');
+
+    const unsubscribe = onSnapshot(sessionsCollectionRef, (snapshot) => {
+      const allSessions = snapshot.docs
+        .map((sessionDoc) => ({
+          id: sessionDoc.id,
+          ...sessionDoc.data(),
+          createdAt: sessionDoc.data().createdAt?.toDate
+            ? sessionDoc.data().createdAt.toDate()
+            : new Date()
+        }))
+        .sort((left, right) => right.createdAt - left.createdAt);
+
+      const latestByTable = new Map();
+
+      allSessions.forEach((session) => {
+        if (
+          session.tableId &&
+          !latestByTable.has(session.tableId) &&
+          session.status !== 'archived'
+        ) {
+          latestByTable.set(session.tableId, session);
+        }
+      });
+
+      setActiveSessions(Array.from(latestByTable.values()));
+    });
+
+    return () => unsubscribe();
+  }, [user, storeId, activeAdminTab]);
+
+  const handlePosScan = (id) => {
+    setCurrentPosSessionId(id);
+    setPosView('register');
+  };
+
+  const handlePosComplete = async (data) => {
+    let nextData = data;
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+
+      if (idToken && storeId && data?.sessionId && data?.transactionId) {
+        const response = await fetch('/api/issuePostpayReceipt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            storeId,
+            sessionId: data.sessionId,
+            transactionId: data.transactionId
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (response.ok && payload?.ok) {
+          nextData = {
+            ...data,
+            receiptId: payload.receiptId,
+            receiptNo: payload.receiptNo
+          };
+        } else {
+          console.warn('[issuePostpayReceipt] failed', payload);
+        }
+      }
+    } catch (error) {
+      console.warn('[issuePostpayReceipt] failed', error);
+    }
+
+    setLastPaymentData(nextData);
+    setPosView('receipt');
+  };
+
+  const handlePosNext = () => {
+    setPosView('scan');
+    setCurrentPosSessionId(null);
+    setLastPaymentData(null);
+  };
+
+  const mainClassName =
+    activeAdminTab === 'pos'
+      ? showAdminHeader
+        ? 'h-[calc(100vh-72px)] overflow-hidden'
+        : 'h-screen overflow-hidden'
+      : 'w-full px-6 py-6';
+
+  if (user && !storeId) {
+    return <TabLoader />;
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-gray-100 font-sans text-gray-800">
+      {toast && (
+        <NotificationToast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {showAdminHeader && (
+        <header className="sticky top-0 z-40 h-[72px] w-full border-b border-gray-100 bg-white/95 px-5 shadow-sm backdrop-blur-md print:hidden">
+          <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              {canViewSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeAdminTab === 'settings') {
+                      setActiveTab('pos');
+                      return;
+                    }
+
+                    setActiveTab('settings');
+                  }}
+                  className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+                  aria-label={activeAdminTab === 'settings' ? 'レジ画面に戻る' : '設定画面を開く'}
+                  title={activeAdminTab === 'settings' ? 'レジ画面に戻る' : '設定画面を開く'}
+                >
+                  {activeAdminTab === 'settings' ? (
+                    <ChevronLeft size={22} strokeWidth={3} />
+                  ) : (
+                    <ChevronRight size={22} strokeWidth={3} />
+                  )}
+                </button>
+              )}
+
+              <OperationTabButton
+                active={activeAdminTab === 'pos'}
+                icon={CreditCard}
+                label="レジ"
+                onClick={() => setActiveTab('pos')}
+              />
+
+              {canViewAnalytics && (
+                <>
+                  <OperationTabButton
+                    active={activeAdminTab === 'dailyClosing'}
+                    icon={CalendarCheck}
+                    label="日計"
+                    onClick={() => setActiveTab('dailyClosing')}
+                  />
+
+                  <OperationTabButton
+                    active={activeAdminTab === 'analytics'}
+                    icon={BarChart3}
+                    label="分析"
+                    onClick={() => setActiveTab('analytics')}
+                  />
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('pos')}
+              className="flex min-w-0 flex-col items-center justify-center rounded-2xl px-5 py-2 transition-all hover:bg-gray-50 active:scale-95"
+            >
+              {storeSettings?.customerLogoUrl ? (
+                <img
+                  src={storeSettings.customerLogoUrl}
+                  alt={storeSettings?.name || '店舗ロゴ'}
+                  className="max-h-6 max-w-[120px] object-contain"
+                />
+              ) : (
+                <div className="max-w-[160px] truncate text-sm font-black tracking-tight text-gray-900">
+                  {storeSettings?.name || 'AKUTO'}
+                </div>
+              )}
+
+              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-300">
+                Connected by AKUTO
+              </div>
+            </button>
+
+            <div className="flex min-w-0 justify-end gap-3">
+              <button
+                type="button"
+                onClick={onSwitchToKitchen || onBack}
+                className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
+              >
+                <ChefHat size={18} strokeWidth={2.8} />
+                キッチンモードへ
+              </button>
+
+              {typeof onSwitchToServe === 'function' && (
+                <button
+                  type="button"
+                  onClick={onSwitchToServe}
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95"
+                >
+                  <Utensils size={18} strokeWidth={2.8} />
+                  提供モードへ
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+      )}
+
+      <main className={`flex-grow ${mainClassName}`}>
+        {activeAdminTab === 'pos' && (
+          <div className="h-full">
+            <Suspense fallback={<TabLoader />}>
+              {posView === 'scan' && (
+                <PosHomePage
+                  activeSessions={activeSessions}
+                  onScanSession={handlePosScan}
+                  onSelectSession={handlePosScan}
+                  storeId={storeId}
+                  onBack={!showAdminHeader ? onBack : undefined}
+                />
+              )}
+
+              {posView === 'register' && currentPosSessionId && (
+                <PosRegisterPage
+                  sessionId={currentPosSessionId}
+                  onBack={() => setPosView('scan')}
+                  onComplete={handlePosComplete}
+                  storeId={storeId}
+                />
+              )}
+
+              {posView === 'receipt' && lastPaymentData && (
+                <PosReceiptPage
+                  data={lastPaymentData}
+                  onNext={handlePosNext}
+                  storeId={storeId}
+                />
+              )}
+            </Suspense>
+          </div>
+        )}
+
+        {activeAdminTab === 'dailyClosing' && canViewAnalytics && (
+          <Suspense fallback={<TabLoader />}>
+            <AnalyticsPage storeId={storeId} mode="dailyClosing" />
+          </Suspense>
+        )}
+
+        {activeAdminTab === 'analytics' && canViewAnalytics && (
+          <Suspense fallback={<TabLoader />}>
+            <AnalyticsPage storeId={storeId} mode="analytics" />
+          </Suspense>
+        )}
+
+        {activeAdminTab === 'settings' && canViewSettings && (
+          <Suspense fallback={<TabLoader />}>
+            <StoreSettingsPage user={user} storeId={storeId} />
+          </Suspense>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default AdminApp;
