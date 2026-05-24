@@ -157,6 +157,10 @@ service cloud.firestore {
       allow read, write: if isPlatformAdmin();
     }
 
+    match /platformOrganizations/{organizationId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
     match /platformContracts/{storeId} {
       allow read, write: if isPlatformAdmin();
     }

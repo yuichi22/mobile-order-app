@@ -38,7 +38,7 @@ export const getInitialMode = (urlParams) => {
   if (urlParams.get('session')) return 'customer';
 
   const mode = urlParams.get('mode');
-  if (['launcher', 'admin', 'kitchen', 'serve'].includes(mode)) {
+  if (['launcher', 'admin', 'kitchen', 'serve', 'platform'].includes(mode)) {
     return mode;
   }
 

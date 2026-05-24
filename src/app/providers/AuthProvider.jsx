@@ -223,6 +223,14 @@ export const AuthProvider = ({ children }) => {
               detectedRole = normalizeUserRole(userData.role);
               setProfileName(userData.name || '');
 
+              const platformAdminSnapshot = await getDoc(doc(db, 'platformAdmins', user.uid));
+              if (
+                platformAdminSnapshot.exists() &&
+                normalizeUserRole(platformAdminSnapshot.data()?.role) === USER_ROLES.SUPER_ADMIN
+              ) {
+                detectedRole = USER_ROLES.SUPER_ADMIN;
+              }
+
               if (detectedStoreId) {
                 const accessSnapshot = await getDoc(doc(db, 'stores', detectedStoreId, 'settings', 'platformAccess'));
                 if (accessSnapshot.exists()) {

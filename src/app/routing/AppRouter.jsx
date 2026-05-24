@@ -24,6 +24,7 @@ const loadSessionStartPage = () => import('../../features/customer/pages/Session
 const loadCustomerPage = () => import('../../features/customer/pages/CustomerPage');
 const loadKitchenPage = () => import('../../features/kitchen/pages/KitchenPage');
 const loadAdminPage = () => import('../../features/admin/pages/AdminPage');
+const loadPlatformAdminPage = () => import('../../features/platform/pages/PlatformAdminPage');
 const loadServePage = () => import('../../features/serve/pages/ServePage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
@@ -39,6 +40,7 @@ const SessionStartPage = lazyWithRetry(loadSessionStartPage, 'session-start-page
 const CustomerPage = lazyWithRetry(loadCustomerPage, 'customer-page');
 const KitchenPage = lazyWithRetry(loadKitchenPage, 'kitchen-page');
 const AdminPage = lazyWithRetry(loadAdminPage, 'admin-page');
+const PlatformAdminPage = lazyWithRetry(loadPlatformAdminPage, 'platform-admin-page');
 
 const RouteLoader = () => <CustomerLoadingScreen message="読み込み中..." />;
 
@@ -109,6 +111,7 @@ const AppRouter = () => {
   const effectiveMode = useMemo(() => {
     if (resolvedMode === 'kitchen' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'serve' && !canAccessKitchen(normalizedRole)) return 'launcher';
+    if (resolvedMode === 'platform' && normalizedRole !== 'super_admin') return 'launcher';
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
   }, [resolvedMode, normalizedRole]);
@@ -119,6 +122,7 @@ const AppRouter = () => {
     return preloadOnIdle([
       loadLauncherPage,
       loadAdminPage,
+      ...(normalizedRole === 'super_admin' ? [loadPlatformAdminPage] : []),
       ...(canAccessKitchen(normalizedRole) ? [loadKitchenPage, loadServePage] : []),
       ...(currentUser.isAnonymous ? [loadCustomerPage] : [])
     ]);
@@ -333,6 +337,15 @@ const AppRouter = () => {
             <AdminPage
               onBack={() => switchMode('launcher')}
               onSwitchToKitchen={() => switchMode('kitchen')}
+            />
+          </Suspense>
+        );
+
+      case 'platform':
+        return (
+          <Suspense fallback={<RouteLoader />}>
+            <PlatformAdminPage
+              onOpenOwnStoreAdmin={() => switchMode('admin')}
             />
           </Suspense>
         );

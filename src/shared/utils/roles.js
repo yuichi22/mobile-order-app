@@ -1,11 +1,13 @@
 //roles.js
 export const USER_ROLES = {
+  SUPER_ADMIN: 'super_admin',
   OWNER: 'owner',
   MANAGER: 'manager',
   STAFF: 'staff'
 };
 
 const ROLE_LEVELS = {
+  [USER_ROLES.SUPER_ADMIN]: 4,
   [USER_ROLES.OWNER]: 3,
   [USER_ROLES.MANAGER]: 2,
   [USER_ROLES.STAFF]: 1
@@ -13,7 +15,12 @@ const ROLE_LEVELS = {
 
 export const normalizeUserRole = (role) => {
   if (role === 'admin') return USER_ROLES.OWNER;
-  if (role === USER_ROLES.OWNER || role === USER_ROLES.MANAGER || role === USER_ROLES.STAFF) {
+  if (
+    role === USER_ROLES.SUPER_ADMIN ||
+    role === USER_ROLES.OWNER ||
+    role === USER_ROLES.MANAGER ||
+    role === USER_ROLES.STAFF
+  ) {
     return role;
   }
   return null;
@@ -43,7 +50,7 @@ export const canAccessAdminTab = (role, tab) => {
 export const canAccessSettingsSection = (role, sectionId) => {
   const normalizedRole = normalizeUserRole(role);
 
-  if (normalizedRole === USER_ROLES.OWNER) return true;
+  if (normalizedRole === USER_ROLES.SUPER_ADMIN || normalizedRole === USER_ROLES.OWNER) return true;
   if (normalizedRole !== USER_ROLES.MANAGER) return false;
 
   return ['business', 'category', 'crossSell', 'period', 'menu', 'discount', 'qrcode'].includes(sectionId);
