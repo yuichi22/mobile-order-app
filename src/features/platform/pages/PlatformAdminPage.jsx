@@ -19,7 +19,7 @@ const getStoreId = (storeDoc) => {
   return data.id || storeDoc.id;
 };
 
-const PlatformAdminPage = ({ onOpenOwnStoreAdmin }) => {
+const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const { role, storeId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [organizations, setOrganizations] = useState([]);
@@ -260,7 +260,7 @@ const PlatformAdminPage = ({ onOpenOwnStoreAdmin }) => {
 
                     <button
                       type="button"
-                      onClick={() => onOpenOwnStoreAdmin?.(store.id)}
+                      onClick={() => onOpenStoreAdmin?.(store.id)}
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
                     >
                       <Store size={16} strokeWidth={3} />

@@ -54,10 +54,11 @@ const AppRouter = () => {
   const navigationState = location.state || {};
   const urlStoreId = routeState.storeId;
   const urlInviteToken = routeState.inviteToken;
-  const activeStoreId = currentUser && !currentUser.isAnonymous
-    ? contextStoreId
-    : (urlStoreId || contextStoreId);
   const normalizedRole = normalizeUserRole(role);
+  const isSuperAdmin = normalizedRole === 'super_admin';
+  const activeStoreId = currentUser && !currentUser.isAnonymous
+    ? (isSuperAdmin && urlStoreId ? urlStoreId : contextStoreId)
+    : (urlStoreId || contextStoreId);
   const isMobileViewport = useMemo(() => {
     if (typeof window === 'undefined') return false;
 
@@ -111,10 +112,10 @@ const AppRouter = () => {
   const effectiveMode = useMemo(() => {
     if (resolvedMode === 'kitchen' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'serve' && !canAccessKitchen(normalizedRole)) return 'launcher';
-    if (resolvedMode === 'platform' && normalizedRole !== 'super_admin') return 'launcher';
+    if (resolvedMode === 'platform' && !isSuperAdmin) return 'launcher';
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
-  }, [resolvedMode, normalizedRole]);
+  }, [resolvedMode, isSuperAdmin, normalizedRole]);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -122,11 +123,11 @@ const AppRouter = () => {
     return preloadOnIdle([
       loadLauncherPage,
       loadAdminPage,
-      ...(normalizedRole === 'super_admin' ? [loadPlatformAdminPage] : []),
+      ...(isSuperAdmin ? [loadPlatformAdminPage] : []),
       ...(canAccessKitchen(normalizedRole) ? [loadKitchenPage, loadServePage] : []),
       ...(currentUser.isAnonymous ? [loadCustomerPage] : [])
     ]);
-  }, [currentUser, normalizedRole]);
+  }, [currentUser, isSuperAdmin, normalizedRole]);
 
   useEffect(() => {
     if (effectiveMode !== 'entry' && effectiveMode !== 'joining') return undefined;
@@ -345,7 +346,27 @@ const AppRouter = () => {
         return (
           <Suspense fallback={<RouteLoader />}>
             <PlatformAdminPage
-              onOpenOwnStoreAdmin={() => switchMode('admin')}
+              onOpenStoreAdmin={(targetStoreId) => {
+                const params = new URLSearchParams(location.search);
+                params.set('store_id', targetStoreId);
+                params.delete('start_table');
+                params.delete('table_token');
+                params.delete('session');
+                params.delete('action');
+                params.delete('customer_entry');
+                params.delete('invite');
+                params.delete('mode');
+
+                navigate(
+                  {
+                    pathname: '/',
+                    search: `?${params.toString()}`
+                  },
+                  { replace: true }
+                );
+
+                setMode('admin');
+              }}
             />
           </Suspense>
         );
