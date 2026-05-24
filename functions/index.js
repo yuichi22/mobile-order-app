@@ -20,6 +20,7 @@ const TOKYO_DATE_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
 });
 
 const USER_ROLES = {
+  SUPER_ADMIN: 'super_admin',
   OWNER: 'owner',
   MANAGER: 'manager',
   STAFF: 'staff'
@@ -43,7 +44,11 @@ const APP_ERROR_MESSAGES = {
   'app/permission-denied': 'この操作を行う権限がありません。',
   'app/platform-invite-not-found': '管理者招待リンクが見つかりません。',
   'app/platform-invite-unavailable': 'この管理者招待リンクは現在利用できません。',
-  'app/platform-admin-register-failed': '管理者アカウントの登録に失敗しました。'
+  'app/platform-admin-register-failed': '管理者アカウントの登録に失敗しました。',
+  'app/platform-admin-auth-required': 'スーパーアドミン確認が必要です。',
+  'app/platform-admin-auth-failed': '確認コードが正しくありません。',
+  'app/platform-admin-auth-expired': '確認コードの有効期限が切れています。',
+  'app/platform-admin-session-invalid': 'スーパーアドミン確認セッションが無効です。'
 };
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
@@ -51,10 +56,17 @@ const MAIL_FROM = process.env.MAIL_FROM || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://haus-qr-order-system.web.app';
 const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const TABLE_ENTRY_REUSE_GUARD_TTL_MS = 30 * 60 * 1000;
+const PLATFORM_ADMIN_CODE_TTL_MS = 10 * 60 * 1000;
+const PLATFORM_ADMIN_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 
 const normalizeUserRole = (role) => {
   if (role === 'admin') return USER_ROLES.OWNER;
-  if (role === USER_ROLES.OWNER || role === USER_ROLES.MANAGER || role === USER_ROLES.STAFF) {
+  if (
+    role === USER_ROLES.SUPER_ADMIN ||
+    role === USER_ROLES.OWNER ||
+    role === USER_ROLES.MANAGER ||
+    role === USER_ROLES.STAFF
+  ) {
     return role;
   }
   return null;
@@ -164,6 +176,59 @@ const escapeHtml = (value) => String(value || '')
   .replaceAll("'", '&#39;');
 
 const isCustomMailConfigured = () => Boolean(resendClient && MAIL_FROM);
+
+const createNumericCode = (length = 6) => {
+  const max = 10 ** length;
+  const value = Number.parseInt(randomBytes(4).toString('hex'), 16) % max;
+  return String(value).padStart(length, '0');
+};
+
+const hashPlatformAdminSecret = (value) => createHash('sha256').update(String(value || '')).digest('hex');
+
+const assertPlatformAdminUser = async (uid) => {
+  const adminSnapshot = await getPlatformAdminSnapshot(uid);
+
+  if (!adminSnapshot.exists) {
+    throw new Error('app/permission-denied');
+  }
+
+  const adminData = adminSnapshot.data() || {};
+  if (normalizeUserRole(adminData.role) !== USER_ROLES.SUPER_ADMIN) {
+    throw new Error('app/permission-denied');
+  }
+
+  return adminData;
+};
+
+const buildPlatformAdminAccessCodeMail = ({ email, code }) => {
+  const safeEmail = escapeHtml(email);
+  const safeCode = escapeHtml(code);
+
+  return {
+    subject: 'Akuto スーパーアドミン確認コード',
+    text: [
+      'Akuto スーパーアドミン画面へのアクセス確認コードです。',
+      '',
+      `確認コード: ${code}`,
+      '',
+      'このコードは10分間有効です。',
+      '心当たりがない場合は、このメールを破棄してください。'
+    ].join('\n'),
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.8;color:#0f172a;">
+        <p>${safeEmail} 様</p>
+        <p>Akuto スーパーアドミン画面へのアクセス確認コードです。</p>
+        <div style="margin:24px 0;padding:18px 22px;border-radius:16px;background:#f8fafc;font-size:28px;font-weight:800;letter-spacing:0.18em;text-align:center;">
+          ${safeCode}
+        </div>
+        <p>このコードは10分間有効です。</p>
+        <p style="color:#64748b;font-size:13px;">心当たりがない場合は、このメールを破棄してください。</p>
+      </div>
+    `
+  };
+};
+
+const resolvePlatformAdminSessionDocId = (uid, sessionToken) => `${uid}_${hashPlatformAdminSecret(sessionToken).slice(0, 48)}`;
 
 const resolveRedirectUrl = (value, fallbackPath = '/login') => {
   const fallbackUrl = new URL(fallbackPath, APP_BASE_URL).toString();
@@ -1187,6 +1252,224 @@ export const ensureSessionInvite = onRequest({ region: REGION, cors: true, invok
 
     console.error('ensureSessionInvite error:', error);
     return sendAppError(response, 500, 'app/invite-register-failed', '招待リンクの準備に失敗しました。');
+  }
+});
+
+export const requestPlatformAdminAccessCode = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    if (!isCustomMailConfigured()) {
+      return sendAppError(response, 503, 'app/custom-mail-not-configured');
+    }
+
+    const authUser = await verifyRequestUser(request);
+    const adminData = await assertPlatformAdminUser(authUser.uid);
+    const userRecord = await adminAuth.getUser(authUser.uid);
+    const email = userRecord.email || adminData.email;
+
+    if (!email) {
+      return sendAppError(response, 400, 'app/email-verification-mail-failed');
+    }
+
+    const code = createNumericCode(6);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + PLATFORM_ADMIN_CODE_TTL_MS);
+
+    await db.collection('platformAdminAccessCodes').doc(authUser.uid).set({
+      uid: authUser.uid,
+      email,
+      codeHash: hashPlatformAdminSecret(code),
+      status: 'active',
+      attempts: 0,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt
+    }, { merge: true });
+
+    const message = buildPlatformAdminAccessCodeMail({ email, code });
+
+    await resendClient.emails.send({
+      from: MAIL_FROM,
+      to: [email],
+      subject: message.subject,
+      html: message.html,
+      text: message.text
+    });
+
+    await db.collection('platformAuditLogs').add({
+      action: 'platform_admin_access_code_requested',
+      uid: authUser.uid,
+      email,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      delivery: 'custom',
+      expiresInSeconds: Math.floor(PLATFORM_ADMIN_CODE_TTL_MS / 1000)
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/custom-mail-not-configured': 503
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('requestPlatformAdminAccessCode error:', error);
+    return sendAppError(response, 500, 'app/platform-admin-auth-required');
+  }
+});
+
+export const verifyPlatformAdminAccessCode = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const authUser = await verifyRequestUser(request);
+    const { code } = parseJsonBody(request);
+    const normalizedCode = String(code || '').trim();
+
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      return sendAppError(response, 400, 'app/platform-admin-auth-failed');
+    }
+
+    await assertPlatformAdminUser(authUser.uid);
+
+    const codeRef = db.collection('platformAdminAccessCodes').doc(authUser.uid);
+    const codeSnapshot = await codeRef.get();
+
+    if (!codeSnapshot.exists) {
+      return sendAppError(response, 400, 'app/platform-admin-auth-required');
+    }
+
+    const codeData = codeSnapshot.data() || {};
+    const expiresAt = codeData.expiresAt?.toDate?.() || null;
+
+    if (codeData.status !== 'active' || !expiresAt || expiresAt <= new Date()) {
+      await codeRef.set({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return sendAppError(response, 400, 'app/platform-admin-auth-expired');
+    }
+
+    if ((Number(codeData.attempts) || 0) >= 5) {
+      await codeRef.set({ status: 'locked', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return sendAppError(response, 400, 'app/platform-admin-auth-failed');
+    }
+
+    const codeHash = hashPlatformAdminSecret(normalizedCode);
+    if (codeHash !== codeData.codeHash) {
+      await codeRef.set({
+        attempts: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      return sendAppError(response, 400, 'app/platform-admin-auth-failed');
+    }
+
+    const sessionToken = randomBytes(32).toString('hex');
+    const sessionExpiresAt = new Date(Date.now() + PLATFORM_ADMIN_SESSION_TTL_MS);
+    const sessionRef = db.collection('platformAdminSessions').doc(resolvePlatformAdminSessionDocId(authUser.uid, sessionToken));
+
+    await db.runTransaction(async (transaction) => {
+      transaction.set(sessionRef, {
+        uid: authUser.uid,
+        sessionTokenHash: hashPlatformAdminSecret(sessionToken),
+        status: 'active',
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: sessionExpiresAt
+      }, { merge: true });
+
+      transaction.set(codeRef, {
+        status: 'used',
+        usedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      transaction.create(db.collection('platformAuditLogs').doc(), {
+        action: 'platform_admin_access_code_verified',
+        uid: authUser.uid,
+        createdAt: FieldValue.serverTimestamp()
+      });
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      sessionToken,
+      expiresAt: sessionExpiresAt.toISOString()
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/platform-admin-auth-required': 401,
+        'app/platform-admin-auth-failed': 400,
+        'app/platform-admin-auth-expired': 400
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('verifyPlatformAdminAccessCode error:', error);
+    return sendAppError(response, 500, 'app/platform-admin-auth-failed');
+  }
+});
+
+export const verifyPlatformAdminSession = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const authUser = await verifyRequestUser(request);
+    const { sessionToken } = parseJsonBody(request);
+    const normalizedSessionToken = String(sessionToken || '').trim();
+
+    if (!normalizedSessionToken) {
+      return sendAppError(response, 401, 'app/platform-admin-session-invalid');
+    }
+
+    await assertPlatformAdminUser(authUser.uid);
+
+    const sessionRef = db.collection('platformAdminSessions').doc(resolvePlatformAdminSessionDocId(authUser.uid, normalizedSessionToken));
+    const sessionSnapshot = await sessionRef.get();
+
+    if (!sessionSnapshot.exists) {
+      return sendAppError(response, 401, 'app/platform-admin-session-invalid');
+    }
+
+    const sessionData = sessionSnapshot.data() || {};
+    const expiresAt = sessionData.expiresAt?.toDate?.() || null;
+
+    if (
+      sessionData.status !== 'active' ||
+      sessionData.sessionTokenHash !== hashPlatformAdminSecret(normalizedSessionToken) ||
+      !expiresAt ||
+      expiresAt <= new Date()
+    ) {
+      await sessionRef.set({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return sendAppError(response, 401, 'app/platform-admin-session-invalid');
+    }
+
+    return sendJson(response, 200, {
+      ok: true,
+      expiresAt: expiresAt.toISOString()
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/platform-admin-session-invalid': 401
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('verifyPlatformAdminSession error:', error);
+    return sendAppError(response, 500, 'app/platform-admin-session-invalid');
   }
 });
 

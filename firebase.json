@@ -106,6 +106,27 @@
         }
       },
       {
+        "source": "/api/requestPlatformAdminAccessCode",
+        "function": {
+          "functionId": "requestPlatformAdminAccessCode",
+          "region": "asia-northeast1"
+        }
+      },
+      {
+        "source": "/api/verifyPlatformAdminAccessCode",
+        "function": {
+          "functionId": "verifyPlatformAdminAccessCode",
+          "region": "asia-northeast1"
+        }
+      },
+      {
+        "source": "/api/verifyPlatformAdminSession",
+        "function": {
+          "functionId": "verifyPlatformAdminSession",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/requestPasswordResetMail",
         "function": {
           "functionId": "requestPasswordResetMail",

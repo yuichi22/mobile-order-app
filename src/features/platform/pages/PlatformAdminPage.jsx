@@ -10,18 +10,54 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../../../app/providers/useAuth';
-import { db } from '../../../shared/api/firebase/client';
+import { auth, db } from '../../../shared/api/firebase/client';
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import { USER_ROLES, normalizeUserRole } from '../../../shared/utils/roles';
+
+const PLATFORM_ADMIN_SESSION_STORAGE_KEY = 'akuto_platform_admin_session_token';
 
 const getStoreId = (storeDoc) => {
   const data = storeDoc.data() || {};
   return data.id || storeDoc.id;
 };
 
+const callPlatformAdminApi = async (path, body = {}) => {
+  const idToken = await auth.currentUser?.getIdToken();
+
+  if (!idToken) {
+    throw new Error('app/unauthenticated');
+  }
+
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok || !payload?.ok) {
+    const error = new Error(payload?.error?.message || '認証に失敗しました。');
+    error.code = payload?.error?.code || 'app/request-failed';
+    throw error;
+  }
+
+  return payload;
+};
+
 const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const { role, storeId } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authVerified, setAuthVerified] = useState(false);
+  const [codeSending, setCodeSending] = useState(false);
+  const [codeVerifying, setCodeVerifying] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [authError, setAuthError] = useState('');
   const [organizations, setOrganizations] = useState([]);
   const [stores, setStores] = useState([]);
   const [error, setError] = useState('');
@@ -31,8 +67,100 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   useEffect(() => {
     let cancelled = false;
 
-    const loadPlatformData = async () => {
+    const verifyStoredSession = async () => {
       if (!isSuperAdmin) {
+        setAuthChecking(false);
+        setAuthVerified(false);
+        return;
+      }
+
+      const storedToken = window.localStorage.getItem(PLATFORM_ADMIN_SESSION_STORAGE_KEY);
+      if (!storedToken) {
+        setAuthChecking(false);
+        setAuthVerified(false);
+        return;
+      }
+
+      setAuthChecking(true);
+      setAuthError('');
+
+      try {
+        await callPlatformAdminApi('/api/verifyPlatformAdminSession', {
+          sessionToken: storedToken
+        });
+
+        if (!cancelled) {
+          setAuthVerified(true);
+        }
+      } catch (sessionError) {
+        console.warn('[PlatformAdminPage] stored session invalid', sessionError);
+        window.localStorage.removeItem(PLATFORM_ADMIN_SESSION_STORAGE_KEY);
+
+        if (!cancelled) {
+          setAuthVerified(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthChecking(false);
+        }
+      }
+    };
+
+    verifyStoredSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, authVerified]);
+
+  const handleSendCode = async () => {
+    setCodeSending(true);
+    setAuthError('');
+
+    try {
+      await callPlatformAdminApi('/api/requestPlatformAdminAccessCode');
+      setCodeSent(true);
+    } catch (sendError) {
+      console.error('[PlatformAdminPage] code request failed', sendError);
+      setAuthError(sendError.message || '確認コードの送信に失敗しました。');
+    } finally {
+      setCodeSending(false);
+    }
+  };
+
+  const handleVerifyCode = async (event) => {
+    event.preventDefault();
+
+    const normalizedCode = code.trim();
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      setAuthError('6桁の確認コードを入力してください。');
+      return;
+    }
+
+    setCodeVerifying(true);
+    setAuthError('');
+
+    try {
+      const payload = await callPlatformAdminApi('/api/verifyPlatformAdminAccessCode', {
+        code: normalizedCode
+      });
+
+      window.localStorage.setItem(PLATFORM_ADMIN_SESSION_STORAGE_KEY, payload.sessionToken);
+      setAuthVerified(true);
+      setCode('');
+    } catch (verifyError) {
+      console.error('[PlatformAdminPage] code verification failed', verifyError);
+      setAuthError(verifyError.message || '確認コードが正しくありません。');
+    } finally {
+      setCodeVerifying(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPlatformData = async () => {
+      if (!isSuperAdmin || !authVerified) {
         setLoading(false);
         return;
       }
@@ -107,7 +235,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, authVerified]);
 
   const organizationCards = useMemo(() => {
     const knownOrganizationIds = new Set(organizations.map((organization) => organization.id));
@@ -141,6 +269,71 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
             この画面はスーパーアドミン専用です。
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!authVerified) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm">
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white">
+            <ShieldCheck size={26} strokeWidth={3} />
+          </div>
+
+          <h1 className="text-2xl font-black text-slate-900">
+            スーパーアドミン確認
+          </h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
+            登録メールアドレスに6桁の確認コードを送信し、本人確認を行います。
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={codeSending}
+              className="h-12 w-full rounded-2xl bg-slate-900 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {codeSending ? '送信中...' : codeSent ? '確認コードを再送する' : '確認コードを送信する'}
+            </button>
+
+            {codeSent && (
+              <form onSubmit={handleVerifyCode} className="space-y-3">
+                <input
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  className="h-14 w-full rounded-2xl border-2 border-slate-100 px-5 text-center text-xl font-black tracking-[0.3em] text-slate-900 outline-none focus:border-slate-900"
+                  placeholder="000000"
+                />
+
+                <button
+                  type="submit"
+                  disabled={codeVerifying}
+                  className="h-12 w-full rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {codeVerifying ? '確認中...' : '確認して入室する'}
+                </button>
+              </form>
+            )}
+
+            {authError && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                {authError}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
