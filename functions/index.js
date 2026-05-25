@@ -5,6 +5,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
 import { createHash, randomBytes } from 'node:crypto';
 import { Resend } from 'resend';
+import Stripe from 'stripe';
 
 
 initializeApp();
@@ -48,13 +49,19 @@ const APP_ERROR_MESSAGES = {
   'app/platform-admin-auth-required': 'スーパーアドミン確認が必要です。',
   'app/platform-admin-auth-failed': '確認コードが正しくありません。',
   'app/platform-admin-auth-expired': '確認コードの有効期限が切れています。',
-  'app/platform-admin-session-invalid': 'スーパーアドミン確認セッションが無効です。'
+  'app/platform-admin-session-invalid': 'スーパーアドミン確認セッションが無効です。',
+  'app/stripe-not-configured': 'Stripe設定が見つかりません。',
+  'app/platform-plan-not-found': '料金プランが見つかりません。',
+  'app/platform-contract-not-found': '契約情報が見つかりません。',
+  'app/mobile-order-checkout-failed': 'Checkoutの作成に失敗しました。'
 };
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const MAIL_FROM = process.env.MAIL_FROM || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://haus-qr-order-system.web.app';
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const stripeClient = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const TABLE_ENTRY_REUSE_GUARD_TTL_MS = 30 * 60 * 1000;
 const PLATFORM_ADMIN_CODE_TTL_MS = 10 * 60 * 1000;
 const PLATFORM_ADMIN_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
@@ -198,6 +205,47 @@ const assertPlatformAdminUser = async (uid) => {
   }
 
   return adminData;
+};
+
+const getStripeClient = () => {
+  if (!stripeClient) {
+    throw new Error('app/stripe-not-configured');
+  }
+
+  return stripeClient;
+};
+
+const getPlatformPlan = async (planId) => {
+  const planSnapshot = await db.collection('platformPlans').doc(planId).get();
+
+  if (!planSnapshot.exists) {
+    throw new Error('app/platform-plan-not-found');
+  }
+
+  return {
+    id: planSnapshot.id,
+    ref: planSnapshot.ref,
+    data: planSnapshot.data() || {}
+  };
+};
+
+const getPlatformContract = async (contractId) => {
+  const contractSnapshot = await db.collection('platformContracts').doc(contractId).get();
+
+  if (!contractSnapshot.exists) {
+    throw new Error('app/platform-contract-not-found');
+  }
+
+  return {
+    id: contractSnapshot.id,
+    ref: contractSnapshot.ref,
+    data: contractSnapshot.data() || {}
+  };
+};
+
+const resolveAppUrl = (path = '/') => {
+  const normalizedPath = String(path || '/');
+  return new URL(normalizedPath, APP_BASE_URL).toString();
 };
 
 const buildPlatformAdminAccessCodeMail = ({ email, code }) => {
@@ -1470,6 +1518,161 @@ export const verifyPlatformAdminSession = onRequest({ region: REGION, cors: true
 
     console.error('verifyPlatformAdminSession error:', error);
     return sendAppError(response, 500, 'app/platform-admin-session-invalid');
+  }
+});
+
+export const createMobileOrderCheckoutSession = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const authUser = await verifyRequestUser(request);
+    await assertPlatformAdminUser(authUser.uid);
+
+    const {
+      contractId,
+      planId = 'standard',
+      includeInitialSetup = true,
+      successUrl,
+      cancelUrl
+    } = parseJsonBody(request);
+
+    const normalizedContractId = String(contractId || '').trim();
+    if (!normalizedContractId) {
+      return sendAppError(response, 400, 'app/platform-contract-not-found');
+    }
+
+    const stripe = getStripeClient();
+    const [contract, plan] = await Promise.all([
+      getPlatformContract(normalizedContractId),
+      getPlatformPlan(String(planId || 'standard').trim())
+    ]);
+
+    const contractData = contract.data;
+    const planData = plan.data;
+    const stripePriceId = String(planData.stripePriceId || '').trim();
+    const initialSetupStripePriceId = String(planData.initialSetupStripePriceId || '').trim();
+
+    if (!stripePriceId) {
+      return sendAppError(response, 400, 'app/platform-plan-not-found');
+    }
+
+    let stripeCustomerId = String(contractData.stripe?.customerId || '').trim();
+
+    if (!stripeCustomerId) {
+      const organizationId = String(contractData.organizationId || '').trim();
+      const storeId = String(contractData.storeId || '').trim();
+
+      let customerEmail = '';
+      let customerName = contractData.planName || 'Akuto Mobile Order';
+
+      if (organizationId) {
+        const organizationSnapshot = await db.collection('platformOrganizations').doc(organizationId).get();
+        const organizationData = organizationSnapshot.data() || {};
+        customerEmail = organizationData.ownerEmail || '';
+        customerName = organizationData.name || customerName;
+      }
+
+      const customer = await stripe.customers.create({
+        email: customerEmail || undefined,
+        name: customerName,
+        metadata: {
+          service: 'akuto_mobile_order',
+          organizationId,
+          storeId,
+          contractId: contract.id
+        }
+      });
+
+      stripeCustomerId = customer.id;
+    }
+
+    const lineItems = [
+      {
+        price: stripePriceId,
+        quantity: 1
+      }
+    ];
+
+    if (includeInitialSetup && initialSetupStripePriceId) {
+      lineItems.push({
+        price: initialSetupStripePriceId,
+        quantity: 1
+      });
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: stripeCustomerId,
+      line_items: lineItems,
+      success_url: resolveRedirectUrl(successUrl, `/?mode=platform&checkout=success&contract_id=${encodeURIComponent(contract.id)}`),
+      cancel_url: resolveRedirectUrl(cancelUrl, `/?mode=platform&checkout=cancel&contract_id=${encodeURIComponent(contract.id)}`),
+      allow_promotion_codes: false,
+      subscription_data: {
+        metadata: {
+          service: 'akuto_mobile_order',
+          organizationId: String(contractData.organizationId || ''),
+          storeId: String(contractData.storeId || ''),
+          contractId: contract.id,
+          planId: plan.id,
+          partnerId: String(contractData.partnerId || '')
+        }
+      },
+      metadata: {
+        service: 'akuto_mobile_order',
+        organizationId: String(contractData.organizationId || ''),
+        storeId: String(contractData.storeId || ''),
+        contractId: contract.id,
+        planId: plan.id,
+        partnerId: String(contractData.partnerId || ''),
+        includeInitialSetup: includeInitialSetup ? 'true' : 'false'
+      }
+    });
+
+    await contract.ref.set({
+      status: contractData.status || 'draft',
+      billingStatus: 'not_started',
+      stripe: {
+        ...(contractData.stripe || {}),
+        customerId: stripeCustomerId,
+        checkoutSessionId: checkoutSession.id,
+        productId: planData.stripeProductId || '',
+        priceId: stripePriceId
+      },
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await db.collection('platformAuditLogs').add({
+      action: 'mobile_order_checkout_session_created',
+      uid: authUser.uid,
+      contractId: contract.id,
+      organizationId: contractData.organizationId || '',
+      storeId: contractData.storeId || '',
+      checkoutSessionId: checkoutSession.id,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      url: checkoutSession.url,
+      sessionId: checkoutSession.id,
+      customerId: stripeCustomerId
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/stripe-not-configured': 503,
+        'app/platform-plan-not-found': 404,
+        'app/platform-contract-not-found': 404
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('createMobileOrderCheckoutSession error:', error);
+    return sendAppError(response, 500, 'app/mobile-order-checkout-failed');
   }
 });
 

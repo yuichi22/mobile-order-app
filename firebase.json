@@ -106,6 +106,13 @@
         }
       },
       {
+        "source": "/api/createMobileOrderCheckoutSession",
+        "function": {
+          "functionId": "createMobileOrderCheckoutSession",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/requestPlatformAdminAccessCode",
         "function": {
           "functionId": "requestPlatformAdminAccessCode",

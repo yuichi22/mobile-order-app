@@ -62,6 +62,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [stores, setStores] = useState([]);
   const [plans, setPlans] = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -155,6 +156,34 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setAuthError(verifyError.message || '確認コードが正しくありません。');
     } finally {
       setCodeVerifying(false);
+    }
+  };
+
+  const handleCreateCheckout = async (contractId) => {
+    if (!contractId) return;
+
+    setCheckoutLoadingContractId(contractId);
+    setError('');
+
+    try {
+      const payload = await callPlatformAdminApi('/api/createMobileOrderCheckoutSession', {
+        contractId,
+        planId: 'standard',
+        includeInitialSetup: true,
+        successUrl: `${window.location.origin}/?mode=platform&checkout=success&contract_id=${encodeURIComponent(contractId)}`,
+        cancelUrl: `${window.location.origin}/?mode=platform&checkout=cancel&contract_id=${encodeURIComponent(contractId)}`
+      });
+
+      if (payload?.url) {
+        window.open(payload.url, '_blank', 'noopener,noreferrer');
+      } else {
+        setError('Checkout URLを取得できませんでした。');
+      }
+    } catch (checkoutError) {
+      console.error('[PlatformAdminPage] checkout creation failed', checkoutError);
+      setError(checkoutError.message || 'Checkoutの作成に失敗しました。');
+    } finally {
+      setCheckoutLoadingContractId('');
     }
   };
 
@@ -585,15 +614,31 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onOpenStoreAdmin?.(store.id)}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
-                    >
-                      <Store size={16} strokeWidth={3} />
-                      店舗管理を開く
-                      <ChevronRight size={16} strokeWidth={3} />
-                    </button>
+                    <div className="flex flex-col gap-2 md:items-end">
+                      {store.contract && (
+                        <button
+                          type="button"
+                          onClick={() => handleCreateCheckout(store.contract.contractId || store.contract.id)}
+                          disabled={checkoutLoadingContractId === (store.contract.contractId || store.contract.id)}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {checkoutLoadingContractId === (store.contract.contractId || store.contract.id)
+                            ? 'Checkout作成中...'
+                            : 'Checkoutを作成'}
+                          <ChevronRight size={16} strokeWidth={3} />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenStoreAdmin?.(store.id)}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                      >
+                        <Store size={16} strokeWidth={3} />
+                        店舗管理を開く
+                        <ChevronRight size={16} strokeWidth={3} />
+                      </button>
+                    </div>
                   </article>
                 ))}
 
