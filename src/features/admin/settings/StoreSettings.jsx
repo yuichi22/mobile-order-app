@@ -266,7 +266,7 @@ export const StoreSettings = ({ storeId }) => {
     updateCookingCategories
   } = useCookingCategoryData(storeId);
 
-  const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'basic');
+  const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
