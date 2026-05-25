@@ -617,6 +617,19 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: false });
 
+      const relatedLead = leads.find((lead) => (
+        lead.organizationId === organizationId || lead.storeId === storeId
+      ));
+
+      if (relatedLead?.id) {
+        await setDoc(doc(db, 'platformSignupLeads', relatedLead.id), {
+          status: 'contract_created',
+          contractId,
+          contractCreatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
       window.location.reload();
     } catch (createError) {
       console.error('[PlatformAdminPage] contract creation failed', createError);
