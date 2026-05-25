@@ -25,6 +25,7 @@ const loadCustomerPage = () => import('../../features/customer/pages/CustomerPag
 const loadKitchenPage = () => import('../../features/kitchen/pages/KitchenPage');
 const loadAdminPage = () => import('../../features/admin/pages/AdminPage');
 const loadPlatformAdminPage = () => import('../../features/platform/pages/PlatformAdminPage');
+const loadPlatformSignupPage = () => import('../../features/platform/pages/PlatformSignupPage');
 const loadServePage = () => import('../../features/serve/pages/ServePage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
@@ -41,6 +42,7 @@ const CustomerPage = lazyWithRetry(loadCustomerPage, 'customer-page');
 const KitchenPage = lazyWithRetry(loadKitchenPage, 'kitchen-page');
 const AdminPage = lazyWithRetry(loadAdminPage, 'admin-page');
 const PlatformAdminPage = lazyWithRetry(loadPlatformAdminPage, 'platform-admin-page');
+const PlatformSignupPage = lazyWithRetry(loadPlatformSignupPage, 'platform-signup-page');
 
 const RouteLoader = () => <CustomerLoadingScreen message="読み込み中..." />;
 
@@ -193,6 +195,14 @@ const AppRouter = () => {
 
   if (loading) {
     return <RouteLoader />;
+  }
+
+  if (location.pathname === '/signup') {
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <PlatformSignupPage />
+      </Suspense>
+    );
   }
 
   if (location.pathname === '/reset-password/confirm') {

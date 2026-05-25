@@ -50,6 +50,8 @@ const APP_ERROR_MESSAGES = {
   'app/platform-admin-auth-failed': '確認コードが正しくありません。',
   'app/platform-admin-auth-expired': '確認コードの有効期限が切れています。',
   'app/platform-admin-session-invalid': 'スーパーアドミン確認セッションが無効です。',
+  'app/platform-signup-invalid': '申込内容を確認してください。',
+  'app/platform-signup-failed': '申込の送信に失敗しました。',
   'app/stripe-not-configured': 'Stripe設定が見つかりません。',
   'app/platform-plan-not-found': '料金プランが見つかりません。',
   'app/platform-contract-not-found': '契約情報が見つかりません。',
@@ -2064,6 +2066,69 @@ export const stripeWebhook = onRequest({ region: REGION, cors: false, invoker: '
   } catch (error) {
     console.error('stripeWebhook handler error:', error);
     return response.status(500).send('Webhook handler failed');
+  }
+});
+
+export const submitPlatformSignupLead = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const {
+      companyName,
+      storeName,
+      contactName,
+      email,
+      tel,
+      message,
+      source = 'signup_page'
+    } = parseJsonBody(request);
+
+    const normalizedCompanyName = String(companyName || '').trim();
+    const normalizedStoreName = String(storeName || '').trim();
+    const normalizedContactName = String(contactName || '').trim();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedTel = String(tel || '').trim();
+    const normalizedMessage = String(message || '').trim();
+
+    if (!normalizedStoreName || !normalizedContactName || !normalizedEmail) {
+      return sendAppError(response, 400, 'app/platform-signup-invalid');
+    }
+
+    const leadRef = db.collection('platformSignupLeads').doc();
+
+    await leadRef.set({
+      id: leadRef.id,
+      service: 'akuto_mobile_order',
+      companyName: normalizedCompanyName,
+      storeName: normalizedStoreName,
+      contactName: normalizedContactName,
+      email: normalizedEmail,
+      tel: normalizedTel,
+      message: normalizedMessage,
+      source: String(source || 'signup_page').trim(),
+      status: 'new',
+      salesChannel: 'direct',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    await db.collection('platformAuditLogs').add({
+      action: 'platform_signup_lead_submitted',
+      leadId: leadRef.id,
+      email: normalizedEmail,
+      storeName: normalizedStoreName,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      leadId: leadRef.id
+    });
+  } catch (error) {
+    console.error('submitPlatformSignupLead error:', error);
+    return sendAppError(response, 500, 'app/platform-signup-failed');
   }
 });
 

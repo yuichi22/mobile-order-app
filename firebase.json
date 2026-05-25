@@ -148,6 +148,13 @@
         }
       },
       {
+        "source": "/api/submitPlatformSignupLead",
+        "function": {
+          "functionId": "submitPlatformSignupLead",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/requestPasswordResetMail",
         "function": {
           "functionId": "requestPasswordResetMail",
