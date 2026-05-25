@@ -836,6 +836,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             currency: data.currency || 'jpy',
             salesChannel: data.salesChannel || '',
             partnerId: data.partnerId || '',
+            referralCode: data.referralCode || '',
+            commission: data.commission || {},
             stripeCustomerId: data.stripe?.customerId || '',
             stripeSubscriptionId: data.stripe?.subscriptionId || '',
             onboardingStatus: data.onboarding?.status || ''
@@ -950,6 +952,51 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     () => leads.filter((lead) => lead.status === 'lost' || lead.status === 'archived'),
     [leads]
   );
+
+  const partnerCommissionSummaries = useMemo(() => {
+    const storeNameById = new Map(stores.map((store) => [store.id, store.name]));
+    const partnerNameById = new Map(partners.map((partner) => [partner.id, partner.name]));
+
+    const summaryMap = new Map();
+
+    contracts
+      .filter((contract) => contract.commission?.eligible && contract.commission?.partnerId)
+      .forEach((contract) => {
+        const partnerId = contract.commission.partnerId || contract.partnerId || '';
+        if (!partnerId) return;
+
+        const current = summaryMap.get(partnerId) || {
+          partnerId,
+          partnerName: contract.commission.partnerName || partnerNameById.get(partnerId) || partnerId,
+          contractCount: 0,
+          initialCommissionTotal: 0,
+          monthlyCommissionTotal: 0,
+          contracts: []
+        };
+
+        const initialCommissionAmount = Number(contract.commission.initialCommissionAmount) || 0;
+        const monthlyCommissionAmount = Number(contract.commission.monthlyCommissionAmount) || 0;
+
+        current.contractCount += 1;
+        current.initialCommissionTotal += initialCommissionAmount;
+        current.monthlyCommissionTotal += monthlyCommissionAmount;
+        current.contracts.push({
+          contractId: contract.contractId || contract.id,
+          storeId: contract.storeId,
+          storeName: storeNameById.get(contract.storeId) || contract.storeId,
+          planName: contract.planName || contract.planId,
+          billingStatus: contract.billingStatus || 'not_started',
+          initialCommissionAmount,
+          monthlyCommissionAmount,
+          referralCode: contract.commission.referralCode || contract.referralCode || ''
+        });
+
+        summaryMap.set(partnerId, current);
+      });
+
+    return Array.from(summaryMap.values())
+      .sort((a, b) => b.monthlyCommissionTotal - a.monthlyCommissionTotal);
+  }, [contracts, partners, stores]);
 
   const organizationCards = useMemo(() => {
     const knownOrganizationIds = new Set(organizations.map((organization) => organization.id));
@@ -1641,6 +1688,89 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             {!partners.length && (
               <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
                 代理店はまだ登録されていません。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">代理店報酬サマリー</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                契約作成時にスナップショット保存されたcommissionを代理店別に集計します。
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {partnerCommissionSummaries.map((summary) => (
+              <article key={summary.partnerId} className="rounded-2xl border border-slate-100 p-4">
+                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      {summary.partnerName}
+                    </h3>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {summary.partnerId} / {summary.contractCount}契約
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-right">
+                    <div className="rounded-2xl bg-indigo-50 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-400">
+                        Initial
+                      </div>
+                      <div className="mt-1 text-sm font-black text-indigo-700">
+                        ¥{summary.initialCommissionTotal.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-400">
+                        Monthly
+                      </div>
+                      <div className="mt-1 text-sm font-black text-emerald-700">
+                        ¥{summary.monthlyCommissionTotal.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  {summary.contracts.map((contract) => (
+                    <div
+                      key={contract.contractId}
+                      className="grid gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 md:grid-cols-[1.3fr_1fr_1fr_1fr]"
+                    >
+                      <div>
+                        <div className="font-black text-slate-700">{contract.storeName}</div>
+                        <div className="mt-0.5 break-all text-[11px] text-slate-400">{contract.contractId}</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">billing</span>
+                        <div className="mt-0.5 font-black text-slate-700">{contract.billingStatus}</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">初期報酬</span>
+                        <div className="mt-0.5 font-black text-slate-700">
+                          ¥{contract.initialCommissionAmount.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">月額報酬</span>
+                        <div className="mt-0.5 font-black text-slate-700">
+                          ¥{contract.monthlyCommissionAmount.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+
+            {!partnerCommissionSummaries.length && (
+              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                代理店報酬対象の契約はまだありません。
               </div>
             )}
           </div>
