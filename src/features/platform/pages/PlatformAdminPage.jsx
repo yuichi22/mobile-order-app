@@ -141,7 +141,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     storeId: '',
     planId: 'standard',
     initialSetupFee: '100000',
-    salesChannel: 'admin_created'
+    salesChannel: 'admin_created',
+    partnerId: '',
+    referralCode: '',
+    initialCommissionRate: '0',
+    monthlyCommissionRate: '0'
   });
   const [error, setError] = useState('');
 
@@ -377,7 +381,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       organizationId: nextOrganizationId,
       storeId: nextStoreId,
       planId: current.planId || 'standard',
-      salesChannel: lead.salesChannel || 'direct'
+      salesChannel: lead.salesChannel || 'direct',
+      partnerId: '',
+      referralCode: '',
+      initialCommissionRate: '0',
+      monthlyCommissionRate: '0'
     }));
 
     setError('');
@@ -667,6 +675,12 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     const selectedPlan = plans.find((plan) => plan.id === planId);
     const initialSetupFee = Math.max(Number(contractForm.initialSetupFee) || 0, 0);
     const salesChannel = String(contractForm.salesChannel || 'admin_created').trim();
+    const partnerId = String(contractForm.partnerId || '').trim();
+    const selectedPartner = partnerId ? partners.find((partner) => partner.id === partnerId) : null;
+    const referralCode = String(contractForm.referralCode || selectedPartner?.referralCode || '').trim();
+    const initialCommissionRate = Math.max(Number(contractForm.initialCommissionRate) || 0, 0) / 100;
+    const monthlyCommissionRate = Math.max(Number(contractForm.monthlyCommissionRate) || 0, 0) / 100;
+    const hasPartner = Boolean(selectedPartner);
 
     if (!organizationId || !storeId || !planId || !selectedPlan) {
       setError('組織・店舗・プランを選択してください。');
@@ -697,8 +711,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         initialSetupFee,
         currency: selectedPlan.currency || 'jpy',
         salesChannel,
-        partnerId: '',
-        referralCode: '',
+        partnerId: hasPartner ? selectedPartner.id : '',
+        referralCode,
         stripe: {
           customerId: '',
           subscriptionId: '',
@@ -710,13 +724,16 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           cancelAtPeriodEnd: false
         },
         commission: {
-          eligible: false,
-          partnerId: '',
-          initialRate: 0,
-          monthlyRate: 0,
-          initialCommissionAmount: 0,
-          monthlyCommissionAmount: 0,
-          durationMonths: null
+          eligible: hasPartner,
+          partnerId: hasPartner ? selectedPartner.id : '',
+          partnerName: hasPartner ? selectedPartner.name : '',
+          referralCode,
+          initialRate: hasPartner ? initialCommissionRate : 0,
+          monthlyRate: hasPartner ? monthlyCommissionRate : 0,
+          initialCommissionAmount: hasPartner ? Math.round(initialSetupFee * initialCommissionRate) : 0,
+          monthlyCommissionAmount: hasPartner ? Math.round((Number(selectedPlan.monthlyAmount) || 0) * monthlyCommissionRate) : 0,
+          durationMonths: null,
+          snapshotAt: hasPartner ? serverTimestamp() : null
         },
         onboarding: {
           status: 'created',
@@ -1639,7 +1656,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </div>
           </div>
 
-          <form onSubmit={handleCreateContract} className="grid gap-3 md:grid-cols-5">
+          <form onSubmit={handleCreateContract} className="grid gap-3 md:grid-cols-4">
             <label className="grid gap-2">
               <span className="text-xs font-black text-slate-400">組織</span>
               <select
@@ -1711,7 +1728,19 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <span className="text-xs font-black text-slate-400">販売経路</span>
               <select
                 value={contractForm.salesChannel}
-                onChange={(event) => setContractForm((current) => ({ ...current, salesChannel: event.target.value }))}
+                onChange={(event) => {
+                  const nextSalesChannel = event.target.value;
+                  setContractForm((current) => ({
+                    ...current,
+                    salesChannel: nextSalesChannel,
+                    ...(nextSalesChannel !== 'partner' ? {
+                      partnerId: '',
+                      referralCode: '',
+                      initialCommissionRate: '0',
+                      monthlyCommissionRate: '0'
+                    } : {})
+                  }));
+                }}
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
               >
                 <option value="admin_created">admin_created</option>
@@ -1720,7 +1749,79 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               </select>
             </label>
 
-            <div className="md:col-span-5">
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">代理店</span>
+              <select
+                value={contractForm.partnerId}
+                disabled={contractForm.salesChannel !== 'partner'}
+                onChange={(event) => {
+                  const nextPartner = partners.find((partner) => partner.id === event.target.value);
+                  setContractForm((current) => ({
+                    ...current,
+                    partnerId: nextPartner?.id || '',
+                    referralCode: nextPartner?.referralCode || '',
+                    initialCommissionRate: String(Math.round((Number(nextPartner?.defaultInitialCommissionRate) || 0) * 100)),
+                    monthlyCommissionRate: String(Math.round((Number(nextPartner?.defaultMonthlyCommissionRate) || 0) * 100))
+                  }));
+                }}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">なし</option>
+                {partners
+                  .filter((partner) => partner.status === 'active')
+                  .map((partner) => (
+                    <option key={partner.id} value={partner.id}>
+                      {partner.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">紹介コード</span>
+              <input
+                value={contractForm.referralCode}
+                disabled={contractForm.salesChannel !== 'partner'}
+                onChange={(event) => setContractForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">初期報酬率（%）</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={contractForm.initialCommissionRate}
+                disabled={contractForm.salesChannel !== 'partner'}
+                onChange={(event) => setContractForm((current) => ({ ...current, initialCommissionRate: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">月額報酬率（%）</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={contractForm.monthlyCommissionRate}
+                disabled={contractForm.salesChannel !== 'partner'}
+                onChange={(event) => setContractForm((current) => ({ ...current, monthlyCommissionRate: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </label>
+
+            {contractForm.salesChannel === 'partner' && contractForm.partnerId && (
+              <div className="rounded-2xl bg-indigo-50 px-4 py-3 text-xs font-black leading-5 text-indigo-700 md:col-span-4">
+                初期報酬: ¥{Math.round((Number(contractForm.initialSetupFee) || 0) * ((Number(contractForm.initialCommissionRate) || 0) / 100)).toLocaleString()}
+                {' / '}
+                月額報酬: ¥{Math.round(((plans.find((plan) => plan.id === contractForm.planId)?.monthlyAmount || 0) * ((Number(contractForm.monthlyCommissionRate) || 0) / 100))).toLocaleString()}
+              </div>
+            )}
+
+            <div className="md:col-span-4">
               <button
                 type="submit"
                 disabled={contractCreating}
