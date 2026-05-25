@@ -62,6 +62,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [stores, setStores] = useState([]);
   const [plans, setPlans] = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [leads, setLeads] = useState([]);
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
   const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
@@ -455,11 +456,12 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError('');
 
       try {
-        const [organizationSnapshot, storeSnapshot, planSnapshot, contractSnapshot] = await Promise.all([
+        const [organizationSnapshot, storeSnapshot, planSnapshot, contractSnapshot, leadSnapshot] = await Promise.all([
           getDocs(collection(db, 'platformOrganizations')),
           getDocs(collection(db, 'stores')),
           getDocs(collection(db, 'platformPlans')),
-          getDocs(collection(db, 'platformContracts'))
+          getDocs(collection(db, 'platformContracts')),
+          getDocs(collection(db, 'platformSignupLeads'))
         ]);
 
         const organizationRows = organizationSnapshot.docs.map((organizationDoc) => {
@@ -511,6 +513,28 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           };
         });
 
+        const leadRows = leadSnapshot.docs.map((leadDoc) => {
+          const data = leadDoc.data() || {};
+          const createdAt = data.createdAt?.toDate?.() || null;
+
+          return {
+            id: leadDoc.id,
+            companyName: data.companyName || '',
+            storeName: data.storeName || '',
+            contactName: data.contactName || '',
+            email: data.email || '',
+            tel: data.tel || '',
+            message: data.message || '',
+            status: data.status || 'new',
+            salesChannel: data.salesChannel || '',
+            source: data.source || '',
+            createdAt,
+            createdAtText: createdAt
+              ? createdAt.toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+              : ''
+          };
+        }).sort((a, b) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0));
+
         const contractByStoreId = new Map(contractRows.map((contract) => [contract.storeId, contract]));
 
         const storeRows = await Promise.all(
@@ -548,6 +572,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           setStores(storeRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
           setPlans(planRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
           setContracts(contractRows.sort((a, b) => a.contractId.localeCompare(b.contractId, 'ja')));
+          setLeads(leadRows);
         }
       } catch (loadError) {
         console.error('[PlatformAdminPage] load failed', loadError);
@@ -730,6 +755,14 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   {contracts.length}
                 </div>
               </div>
+              <div className="rounded-2xl bg-emerald-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-500">
+                  Leads
+                </div>
+                <div className="mt-1 text-2xl font-black text-emerald-700">
+                  {leads.length}
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -739,6 +772,78 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             {error}
           </div>
         )}
+
+        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">申込リード</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                /signup から送信された無料デモ・導入相談の申込です。
+              </p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+              {leads.filter((lead) => lead.status === 'new').length}件 new
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {leads.slice(0, 8).map((lead) => (
+              <article key={lead.id} className="rounded-2xl border border-slate-100 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-black text-slate-900">
+                        {lead.storeName || '店舗名未入力'}
+                      </h3>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                        lead.status === 'new'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {lead.status}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {lead.companyName || '会社名未入力'} / {lead.contactName || '担当者未入力'}
+                    </p>
+
+                    <div className="mt-3 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-2">
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        Email: {lead.email || '-'}
+                      </div>
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        Tel: {lead.tel || '-'}
+                      </div>
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        Source: {lead.source || '-'}
+                      </div>
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        Created: {lead.createdAtText || '-'}
+                      </div>
+                    </div>
+
+                    {lead.message && (
+                      <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-700">
+                        {lead.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-400">
+                    {lead.salesChannel || 'direct'}
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            {!leads.length && (
+              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                申込リードはまだありません。
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
           <section className="rounded-3xl bg-white p-5 shadow-sm">
