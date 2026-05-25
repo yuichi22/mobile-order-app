@@ -21,6 +21,20 @@ const getStoreId = (storeDoc) => {
   return data.id || storeDoc.id;
 };
 
+const toSafeIdSegment = (value, fallback = 'item') => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+
+  return normalized || `${fallback}_${Math.random().toString(36).substring(2, 7)}`;
+};
+
+const createOrganizationIdFromLead = (lead) => `org_${toSafeIdSegment(lead.companyName || lead.storeName, 'organization')}`;
+const createStoreIdFromLead = (lead) => `store_${toSafeIdSegment(lead.storeName, 'store')}`;
+
 const callPlatformAdminApi = async (path, body = {}) => {
   const idToken = await auth.currentUser?.getIdToken();
 
@@ -68,6 +82,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
   const [organizationCreating, setOrganizationCreating] = useState(false);
   const [storeCreating, setStoreCreating] = useState(false);
+  const [leadCreatingId, setLeadCreatingId] = useState('');
   const [organizationForm, setOrganizationForm] = useState({
     organizationId: '',
     name: '',
@@ -261,6 +276,117 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError(syncError.message || '契約情報の同期に失敗しました。');
     } finally {
       setSyncLoadingContractId('');
+    }
+  };
+
+  const handleApplyLeadToForms = (lead) => {
+    if (!lead) return;
+
+    const nextOrganizationId = createOrganizationIdFromLead(lead);
+    const nextStoreId = createStoreIdFromLead(lead);
+
+    setOrganizationForm({
+      organizationId: nextOrganizationId,
+      name: lead.companyName || lead.storeName || '',
+      ownerEmail: lead.email || '',
+      type: 'single',
+      status: 'active'
+    });
+
+    setStoreForm({
+      storeId: nextStoreId,
+      organizationId: nextOrganizationId,
+      name: lead.storeName || '',
+      address: '',
+      tel: lead.tel || '',
+      status: 'active'
+    });
+
+    setContractForm((current) => ({
+      ...current,
+      organizationId: nextOrganizationId,
+      storeId: nextStoreId,
+      planId: current.planId || 'standard',
+      salesChannel: lead.salesChannel || 'direct'
+    }));
+
+    setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCreateOrganizationAndStoreFromLead = async (lead) => {
+    if (!lead) return;
+
+    const nextOrganizationId = createOrganizationIdFromLead(lead);
+    const nextStoreId = createStoreIdFromLead(lead);
+    const organizationName = lead.companyName || lead.storeName || '';
+    const storeName = lead.storeName || '';
+
+    if (!organizationName || !storeName) {
+      setError('リードの会社名または店舗名が不足しています。');
+      return;
+    }
+
+    if (organizations.some((organization) => organization.id === nextOrganizationId)) {
+      setError('同じ組織IDがすでに存在します。必要に応じてフォームへ反映してIDを手動調整してください。');
+      return;
+    }
+
+    if (stores.some((store) => store.id === nextStoreId)) {
+      setError('同じ店舗IDがすでに存在します。必要に応じてフォームへ反映してIDを手動調整してください。');
+      return;
+    }
+
+    setLeadCreatingId(lead.id);
+    setError('');
+
+    try {
+      await setDoc(doc(db, 'platformOrganizations', nextOrganizationId), {
+        id: nextOrganizationId,
+        name: organizationName,
+        ownerEmail: lead.email || '',
+        type: 'single',
+        status: 'active',
+        leadId: lead.id,
+        createdBy: auth.currentUser?.uid || 'super_admin',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: false });
+
+      await setDoc(doc(db, 'stores', nextStoreId), {
+        id: nextStoreId,
+        organizationId: nextOrganizationId,
+        organizationName,
+        organizationType: 'single',
+        status: 'active',
+        leadId: lead.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: false });
+
+      await setDoc(doc(db, 'stores', nextStoreId, 'settings', 'basic'), {
+        name: storeName,
+        address: '',
+        tel: lead.tel || '',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await setDoc(doc(db, 'platformSignupLeads', lead.id), {
+        status: 'converted_to_store',
+        organizationId: nextOrganizationId,
+        storeId: nextStoreId,
+        convertedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      window.location.reload();
+    } catch (createError) {
+      console.error('[PlatformAdminPage] create organization/store from lead failed', createError);
+      setError(createError.message || 'リードから組織・店舗の作成に失敗しました。');
+    } finally {
+      setLeadCreatingId('');
     }
   };
 
@@ -830,8 +956,31 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     )}
                   </div>
 
-                  <div className="shrink-0 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-400">
-                    {lead.salesChannel || 'direct'}
+                  <div className="flex shrink-0 flex-col gap-2">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-400">
+                      {lead.salesChannel || 'direct'}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyLeadToForms(lead)}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                    >
+                      フォームへ反映
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCreateOrganizationAndStoreFromLead(lead)}
+                      disabled={leadCreatingId === lead.id || lead.status === 'converted_to_store'}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {leadCreatingId === lead.id
+                        ? '作成中...'
+                        : lead.status === 'converted_to_store'
+                          ? '作成済み'
+                          : '組織・店舗を作成'}
+                    </button>
                   </div>
                 </div>
               </article>
