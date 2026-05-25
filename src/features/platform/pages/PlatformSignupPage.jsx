@@ -87,19 +87,20 @@ const PlatformSignupPage = () => {
           </div>
 
           <h1 className="max-w-3xl text-4xl font-black tracking-tight md:text-6xl">
-            POS・モバイルオーダー・キッチンを、ひとつの店舗OSに。
+            お店の注文体験を、<br className="hidden md:block" />
+            もっとスマートに。
           </h1>
 
           <p className="mt-6 max-w-2xl text-base font-bold leading-8 text-slate-300 md:text-lg">
-            固定QR注文、POSレジ、キッチンモニター、レシートプリンター連携まで。
-            小さな飲食店のオペレーションを、導入しやすく、続けやすく整えます。
+            固定QR注文、スマートメニュー、キッチンモニター、売上分析まで。
+            省人化と売上アップを、ひとつのシンプルな店舗システムで支えます。
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-3">
             {[
-              { icon: QrCode, title: '固定QR注文', text: 'テーブルごとのQRで注文導線を簡単に。' },
-              { icon: ReceiptText, title: 'POSレジ', text: '店内会計・日計・割引まで一体管理。' },
-              { icon: MonitorSmartphone, title: 'キッチン表示', text: '注文を厨房・提供側へすばやく共有。' }
+              { icon: QrCode, title: '固定QR注文', text: '会計ごとのQR発行・設置作業から解放。' },
+              { icon: ReceiptText, title: 'スマートメニュー', text: 'ミニマルな画面とクロスセルで注文体験を向上。' },
+              { icon: MonitorSmartphone, title: 'キッチン・分析', text: '提供タイミングと売上トレンドを見える化。' }
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -117,8 +118,7 @@ const PlatformSignupPage = () => {
               Standard 月額 14,800円 / 店舗
             </p>
             <p className="mt-2 text-xs font-bold leading-6 text-slate-300">
-              初期設定費は店舗規模やメニュー登録内容に応じて個別にご案内します。
-              まずは無料デモ・導入相談から進めます。
+              固定QR、POS、キッチン表示、売上分析に対応。SNS画像URLを活用したメニュー登録や、売り上げUPに直結する、ビジュアルを使ったスタイリッシュなおすすめ機能。
             </p>
           </div>
         </section>
@@ -131,8 +131,8 @@ const PlatformSignupPage = () => {
               </div>
               <h2 className="text-2xl font-black">送信しました</h2>
               <p className="mt-3 text-sm font-bold leading-7 text-slate-500">
-                内容を確認のうえ、Akuto担当者よりご連絡します。
-                デモ環境や初期設定について、店舗の状況に合わせてご案内します。
+                お申し込み内容を確認のうえ、Akuto担当者よりご連絡します。
+                デモ画面、初期設定、メニュー登録、プリンター接続など、店舗の状況に合わせてご案内します。
               </p>
               <button
                 type="button"
@@ -146,12 +146,12 @@ const PlatformSignupPage = () => {
             <>
               <h2 className="text-2xl font-black">無料デモ・導入相談</h2>
               <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                店舗情報を入力してください。スーパーアドミン側で導入準備を進めます。
+                店舗情報を入力してください。担当者より、デモのご案内と導入方法についてご連絡します。
               </p>
 
               <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">会社名 / 運営名</span>
+                  <span className="text-xs font-black text-slate-400">会社名・運営名</span>
                   <input
                     value={form.companyName}
                     onChange={(event) => updateField('companyName', event.target.value)}
@@ -204,12 +204,12 @@ const PlatformSignupPage = () => {
                 </div>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">相談内容</span>
+                  <span className="text-xs font-black text-slate-400">ご相談内容</span>
                   <textarea
                     value={form.message}
                     onChange={(event) => updateField('message', event.target.value)}
                     className="min-h-28 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-slate-900"
-                    placeholder="例：メニュー登録やレシートプリンター接続も相談したい"
+                    placeholder="例：QR注文を試したい、SNS画像URLからメニュー登録したい、レシートプリンター接続も確認したい"
                   />
                 </label>
 
@@ -231,7 +231,7 @@ const PlatformSignupPage = () => {
                     </>
                   ) : (
                     <>
-                      無料デモを申し込む
+                      無料デモを相談する
                       <ArrowRight size={16} strokeWidth={3} />
                     </>
                   )}
