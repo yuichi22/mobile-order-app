@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import {
   Building2,
   ChevronRight,
@@ -65,6 +65,14 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
   const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
+  const [contractCreating, setContractCreating] = useState(false);
+  const [contractForm, setContractForm] = useState({
+    organizationId: '',
+    storeId: '',
+    planId: 'standard',
+    initialSetupFee: '100000',
+    salesChannel: 'admin_created'
+  });
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -235,6 +243,89 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError(syncError.message || '契約情報の同期に失敗しました。');
     } finally {
       setSyncLoadingContractId('');
+    }
+  };
+
+  const handleCreateContract = async (event) => {
+    event.preventDefault();
+
+    const organizationId = String(contractForm.organizationId || '').trim();
+    const storeId = String(contractForm.storeId || '').trim();
+    const planId = String(contractForm.planId || 'standard').trim();
+    const selectedPlan = plans.find((plan) => plan.id === planId);
+    const initialSetupFee = Math.max(Number(contractForm.initialSetupFee) || 0, 0);
+    const salesChannel = String(contractForm.salesChannel || 'admin_created').trim();
+
+    if (!organizationId || !storeId || !planId || !selectedPlan) {
+      setError('組織・店舗・プランを選択してください。');
+      return;
+    }
+
+    const contractId = `${organizationId}_${storeId}_${planId}`;
+
+    setContractCreating(true);
+    setError('');
+
+    try {
+      const existingContract = contracts.find((contract) => contract.contractId === contractId || contract.id === contractId);
+      if (existingContract) {
+        setError('この組織・店舗・プランの契約はすでに作成されています。');
+        return;
+      }
+
+      await setDoc(doc(db, 'platformContracts', contractId), {
+        contractId,
+        organizationId,
+        storeId,
+        planId,
+        planName: selectedPlan.name || planId,
+        status: 'draft',
+        billingStatus: 'not_started',
+        monthlyAmount: Number(selectedPlan.monthlyAmount) || 0,
+        initialSetupFee,
+        currency: selectedPlan.currency || 'jpy',
+        salesChannel,
+        partnerId: '',
+        referralCode: '',
+        stripe: {
+          customerId: '',
+          subscriptionId: '',
+          subscriptionItemId: '',
+          productId: selectedPlan.stripeProductId || '',
+          priceId: selectedPlan.stripePriceId || '',
+          latestInvoiceId: '',
+          checkoutSessionId: '',
+          cancelAtPeriodEnd: false
+        },
+        commission: {
+          eligible: false,
+          partnerId: '',
+          initialRate: 0,
+          monthlyRate: 0,
+          initialCommissionAmount: 0,
+          monthlyCommissionAmount: 0,
+          durationMonths: null
+        },
+        onboarding: {
+          status: 'created',
+          storeProfile: false,
+          menuCreated: false,
+          tableQrCreated: false,
+          kitchenChecked: false,
+          printerChecked: false,
+          testOrderCompleted: false,
+          billingConnected: false
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: false });
+
+      window.location.reload();
+    } catch (createError) {
+      console.error('[PlatformAdminPage] contract creation failed', createError);
+      setError(createError.message || '契約作成に失敗しました。');
+    } finally {
+      setContractCreating(false);
     }
   };
 
@@ -535,6 +626,109 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             {error}
           </div>
         )}
+
+        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">契約作成</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                組織・店舗・プランを選択して、Mobile Orderの契約レコードを作成します。
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateContract} className="grid gap-3 md:grid-cols-5">
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">組織</span>
+              <select
+                value={contractForm.organizationId}
+                onChange={(event) => setContractForm((current) => ({ ...current, organizationId: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                <option value="">選択</option>
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">店舗</span>
+              <select
+                value={contractForm.storeId}
+                onChange={(event) => setContractForm((current) => ({ ...current, storeId: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                <option value="">選択</option>
+                {stores
+                  .filter((store) => !contractForm.organizationId || store.organizationId === contractForm.organizationId)
+                  .map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">プラン</span>
+              <select
+                value={contractForm.planId}
+                onChange={(event) => {
+                  const nextPlan = plans.find((plan) => plan.id === event.target.value);
+                  setContractForm((current) => ({
+                    ...current,
+                    planId: event.target.value,
+                    initialSetupFee: String(nextPlan?.initialSetupFeeDefault || current.initialSetupFee || '100000')
+                  }));
+                }}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                {plans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">初期設定費</span>
+              <input
+                type="number"
+                min="0"
+                value={contractForm.initialSetupFee}
+                onChange={(event) => setContractForm((current) => ({ ...current, initialSetupFee: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">販売経路</span>
+              <select
+                value={contractForm.salesChannel}
+                onChange={(event) => setContractForm((current) => ({ ...current, salesChannel: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                <option value="admin_created">admin_created</option>
+                <option value="direct">direct</option>
+                <option value="partner">partner</option>
+              </select>
+            </label>
+
+            <div className="md:col-span-5">
+              <button
+                type="submit"
+                disabled={contractCreating}
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {contractCreating ? '契約作成中...' : '契約を作成する'}
+              </button>
+            </div>
+          </form>
+        </div>
 
         <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
