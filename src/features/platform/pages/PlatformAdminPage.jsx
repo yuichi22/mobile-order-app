@@ -43,6 +43,62 @@ const PLATFORM_ADMIN_TABS = [
   { id: 'plans', label: '料金プラン' }
 ];
 
+const PLATFORM_DISPLAY_LABELS = {
+  salesChannel: {
+    admin_created: '管理者作成',
+    direct: '直接契約',
+    partner: '代理店経由'
+  },
+  partnerType: {
+    referral: '紹介のみ',
+    sales: '営業代理店',
+    implementation: '導入支援代理店'
+  },
+  partnerStatus: {
+    active: '有効',
+    inactive: '無効'
+  },
+  organizationType: {
+    single: '単店舗',
+    multi_store: '複数店舗'
+  },
+  organizationStatus: {
+    active: '有効',
+    inactive: '無効',
+    attention: '確認が必要'
+  },
+  contractStatus: {
+    draft: '下書き',
+    active: '有効',
+    archived: 'アーカイブ'
+  },
+  billingStatus: {
+    not_started: '未開始',
+    checkout_created: 'Checkout作成済み',
+    active: '課金中',
+    past_due: '支払い要確認',
+    canceled: 'キャンセル済み'
+  },
+  onboardingStatus: {
+    created: '作成済み',
+    in_progress: '準備中',
+    completed: '完了'
+  },
+  planStatus: {
+    active: '有効',
+    inactive: '無効'
+  },
+  planType: {
+    subscription: '月額契約',
+    recurring: '月額契約',
+    one_time: '単発'
+  }
+};
+
+const displayLabel = (group, value) => (
+  PLATFORM_DISPLAY_LABELS[group]?.[value] || value || '-'
+);
+
 const PLATFORM_ADMIN_TAB_IDS = new Set(PLATFORM_ADMIN_TABS.map((tab) => tab.id));
 
 const getInitialPlatformAdminTab = () => {
@@ -1359,7 +1415,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
                   <div className="flex shrink-0 flex-col gap-2">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-400">
-                      {lead.salesChannel || 'direct'}
+                      {displayLabel('salesChannel', lead.salesChannel || 'direct')}
                     </div>
 
                     <select
@@ -1509,8 +1565,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, type: event.target.value }))}
                     className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
                   >
-                    <option value="single">single</option>
-                    <option value="multi_store">multi_store</option>
+                    <option value="single">単店舗</option>
+                    <option value="multi_store">複数店舗</option>
                   </select>
                 </label>
 
@@ -1521,8 +1577,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, status: event.target.value }))}
                     className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
                   >
-                    <option value="active">active</option>
-                    <option value="inactive">inactive</option>
+                    <option value="active">有効</option>
+                    <option value="inactive">無効</option>
                   </select>
                 </label>
               </div>
@@ -1613,8 +1669,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   onChange={(event) => setStoreForm((current) => ({ ...current, status: event.target.value }))}
                   className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
                 >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
+                  <option value="active">有効</option>
+                  <option value="inactive">無効</option>
                 </select>
               </label>
 
@@ -1678,9 +1734,9 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 }}
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
               >
-                <option value="referral">referral</option>
-                <option value="sales">sales</option>
-                <option value="implementation">implementation</option>
+                <option value="referral">紹介のみ</option>
+                <option value="sales">営業代理店</option>
+                <option value="implementation">導入支援代理店</option>
               </select>
             </label>
 
@@ -1691,8 +1747,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value }))}
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
               >
-                <option value="active">active</option>
-                <option value="inactive">inactive</option>
+                <option value="active">有効</option>
+                <option value="inactive">無効</option>
               </select>
             </label>
 
@@ -1770,7 +1826,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   <div>
                     <h3 className="text-base font-black text-slate-900">{partner.name}</h3>
                     <p className="mt-1 text-xs font-bold text-slate-400">
-                      {partner.id} / {partner.type} / {partner.status}
+                      {partner.id} / {displayLabel('partnerType', partner.type)} / {displayLabel('partnerStatus', partner.status)}
                     </p>
                     {partner.contactEmail && (
                       <p className="mt-1 text-xs font-bold text-slate-400">
@@ -1866,7 +1922,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       </div>
                       <div>
                         <span className="text-slate-400">billing</span>
-                        <div className="mt-0.5 font-black text-slate-700">{contract.billingStatus}</div>
+                        <div className="mt-0.5 font-black text-slate-700">{displayLabel('billingStatus', contract.billingStatus)}</div>
                       </div>
                       <div>
                         <span className="text-slate-400">初期報酬</span>
@@ -1901,6 +1957,53 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <p className="mt-1 text-xs font-bold text-slate-400">
                 組織・店舗・プランを選択して、Mobile Orderの契約レコードを作成します。
               </p>
+            </div>
+          </div>
+
+          <div className="mb-5 rounded-3xl border border-slate-100 bg-slate-50 p-4">
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Contract Flow
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                  1
+                </div>
+                <div className="text-sm font-black text-slate-800">組織・店舗化</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                  リードから組織と店舗を作成します。
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                  2
+                </div>
+                <div className="text-sm font-black text-slate-800">契約作成</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                  プラン・初期費用・代理店情報を保存します。
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                  3
+                </div>
+                <div className="text-sm font-black text-slate-800">Checkout作成</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                  Stripe Checkout URLを作成します。
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                  4
+                </div>
+                <div className="text-sm font-black text-slate-800">契約同期</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                  WebhookまたはStripe同期でactive化します。
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1991,9 +2094,9 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 }}
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
               >
-                <option value="admin_created">admin_created</option>
-                <option value="direct">direct</option>
-                <option value="partner">partner</option>
+                <option value="admin_created">管理者作成</option>
+                <option value="direct">直接契約</option>
+                <option value="partner">代理店経由</option>
               </select>
             </label>
 
@@ -2098,7 +2201,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   <div>
                     <h3 className="text-base font-black text-slate-900">{plan.name}</h3>
                     <p className="mt-1 text-xs font-bold text-slate-400">
-                      {plan.id} / {plan.status} / {plan.planType}
+                      {plan.id} / {displayLabel('planStatus', plan.status)} / {displayLabel('planType', plan.planType)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-black text-white">
@@ -2144,7 +2247,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       {organization.name}
                     </h2>
                     <p className="mt-1 text-xs font-bold text-slate-400">
-                      {organization.id} / {organization.type} / {organization.status}
+                      {organization.id} / {displayLabel('organizationType', organization.type)} / {displayLabel('organizationStatus', organization.status)}
                     </p>
                     {organization.ownerEmail && (
                       <p className="mt-1 text-xs font-bold text-slate-400">
@@ -2197,10 +2300,10 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                                 ¥{store.contract.monthlyAmount.toLocaleString()} / 月
                               </span>
                               <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
-                                billing: {store.contract.billingStatus}
+                                課金: {displayLabel('billingStatus', store.contract.billingStatus)}
                               </span>
                               <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-                                onboarding: {store.contract.onboardingStatus || '未設定'}
+                                導入: {displayLabel('onboardingStatus', store.contract.onboardingStatus)}
                               </span>
                             </div>
 
@@ -2214,7 +2317,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                               <div>
                                 <span className="text-slate-400">Status</span>
                                 <div className="mt-0.5 text-slate-700">
-                                  {store.contract.status} / {store.contract.billingStatus}
+                                  {displayLabel('contractStatus', store.contract.status)} / {displayLabel('billingStatus', store.contract.billingStatus)}
                                 </div>
                               </div>
                               <div>
