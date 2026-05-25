@@ -53,13 +53,16 @@ const APP_ERROR_MESSAGES = {
   'app/stripe-not-configured': 'Stripe設定が見つかりません。',
   'app/platform-plan-not-found': '料金プランが見つかりません。',
   'app/platform-contract-not-found': '契約情報が見つかりません。',
-  'app/mobile-order-checkout-failed': 'Checkoutの作成に失敗しました。'
+  'app/mobile-order-checkout-failed': 'Checkoutの作成に失敗しました。',
+  'app/stripe-webhook-not-configured': 'Stripe Webhook設定が見つかりません。',
+  'app/stripe-webhook-invalid': 'Stripe Webhookの検証に失敗しました。'
 };
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const MAIL_FROM = process.env.MAIL_FROM || '';
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://haus-qr-order-system.web.app';
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const stripeClient = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const TABLE_ENTRY_REUSE_GUARD_TTL_MS = 30 * 60 * 1000;
@@ -1673,6 +1676,231 @@ export const createMobileOrderCheckoutSession = onRequest({ region: REGION, cors
 
     console.error('createMobileOrderCheckoutSession error:', error);
     return sendAppError(response, 500, 'app/mobile-order-checkout-failed');
+  }
+});
+
+const normalizeStripeSubscriptionStatus = (status) => {
+  if (status === 'trialing') return 'trialing';
+  if (status === 'active') return 'active';
+  if (status === 'past_due') return 'past_due';
+  if (status === 'unpaid') return 'unpaid';
+  if (status === 'canceled') return 'canceled';
+  if (status === 'incomplete' || status === 'incomplete_expired') return 'not_started';
+  return status || 'not_started';
+};
+
+const resolveContractSnapshotForStripeEvent = async ({ contractId, subscriptionId, customerId }) => {
+  const normalizedContractId = String(contractId || '').trim();
+  if (normalizedContractId) {
+    const snapshot = await db.collection('platformContracts').doc(normalizedContractId).get();
+    if (snapshot.exists) return snapshot;
+  }
+
+  const normalizedSubscriptionId = String(subscriptionId || '').trim();
+  if (normalizedSubscriptionId) {
+    const bySubscription = await db.collection('platformContracts')
+      .where('stripe.subscriptionId', '==', normalizedSubscriptionId)
+      .limit(1)
+      .get();
+
+    if (!bySubscription.empty) return bySubscription.docs[0];
+  }
+
+  const normalizedCustomerId = String(customerId || '').trim();
+  if (normalizedCustomerId) {
+    const byCustomer = await db.collection('platformContracts')
+      .where('stripe.customerId', '==', normalizedCustomerId)
+      .limit(1)
+      .get();
+
+    if (!byCustomer.empty) return byCustomer.docs[0];
+  }
+
+  return null;
+};
+
+const stripeUnixToDate = (value) => {
+  const seconds = Number(value || 0);
+  return seconds > 0 ? new Date(seconds * 1000) : null;
+};
+
+const applyStripeSubscriptionToContract = async ({ contractSnapshot, subscription, extra = {} }) => {
+  if (!contractSnapshot?.exists || !subscription) return;
+
+  const status = normalizeStripeSubscriptionStatus(subscription.status);
+  const currentPeriodStart = stripeUnixToDate(subscription.current_period_start);
+  const currentPeriodEnd = stripeUnixToDate(subscription.current_period_end);
+  const canceledAt = stripeUnixToDate(subscription.canceled_at);
+  const subscriptionItemId = subscription.items?.data?.[0]?.id || '';
+
+  const update = {
+    status,
+    billingStatus: status,
+    stripe: {
+      ...(contractSnapshot.data()?.stripe || {}),
+      customerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || '',
+      subscriptionId: subscription.id,
+      subscriptionItemId,
+      currentPeriodStart,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+      canceledAt,
+      ...extra
+    },
+    onboarding: {
+      ...(contractSnapshot.data()?.onboarding || {}),
+      billingConnected: status === 'active' || status === 'trialing'
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+    ...(status === 'active' || status === 'trialing'
+      ? { activatedAt: FieldValue.serverTimestamp() }
+      : {}),
+    ...(status === 'canceled' ? { canceledAt: FieldValue.serverTimestamp() } : {})
+  };
+
+  await contractSnapshot.ref.set(update, { merge: true });
+};
+
+export const stripeWebhook = onRequest({ region: REGION, cors: false, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return response.status(405).send('Method Not Allowed');
+  }
+
+  const stripe = getStripeClient();
+
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error('stripeWebhook missing STRIPE_WEBHOOK_SECRET');
+    return response.status(503).send('Webhook secret not configured');
+  }
+
+  const signature = request.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(request.rawBody, signature, STRIPE_WEBHOOK_SECRET);
+  } catch (error) {
+    console.error('stripeWebhook signature verification failed:', error.message);
+    return response.status(400).send(`Webhook Error: ${error.message}`);
+  }
+
+  try {
+    const object = event.data.object;
+
+    if (event.type === 'checkout.session.completed') {
+      const session = object;
+      const contractId = session.metadata?.contractId || '';
+      const subscriptionId = typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id || '';
+      const customerId = typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id || '';
+
+      const contractSnapshot = await resolveContractSnapshotForStripeEvent({
+        contractId,
+        subscriptionId,
+        customerId
+      });
+
+      if (contractSnapshot?.exists) {
+        await contractSnapshot.ref.set({
+          status: 'active',
+          billingStatus: 'active',
+          stripe: {
+            ...(contractSnapshot.data()?.stripe || {}),
+            customerId,
+            subscriptionId,
+            checkoutSessionId: session.id,
+            latestInvoiceId: typeof session.invoice === 'string' ? session.invoice : session.invoice?.id || ''
+          },
+          onboarding: {
+            ...(contractSnapshot.data()?.onboarding || {}),
+            billingConnected: true
+          },
+          activatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await applyStripeSubscriptionToContract({
+            contractSnapshot,
+            subscription,
+            extra: {
+              checkoutSessionId: session.id,
+              latestInvoiceId: typeof session.invoice === 'string' ? session.invoice : session.invoice?.id || ''
+            }
+          });
+        }
+      }
+    }
+
+    if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated' ||
+      event.type === 'customer.subscription.deleted'
+    ) {
+      const subscription = object;
+      const contractId = subscription.metadata?.contractId || '';
+      const customerId = typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id || '';
+
+      const contractSnapshot = await resolveContractSnapshotForStripeEvent({
+        contractId,
+        subscriptionId: subscription.id,
+        customerId
+      });
+
+      await applyStripeSubscriptionToContract({ contractSnapshot, subscription });
+    }
+
+    if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
+      const invoice = object;
+      const subscriptionId = typeof invoice.subscription === 'string'
+        ? invoice.subscription
+        : invoice.subscription?.id || '';
+      const customerId = typeof invoice.customer === 'string'
+        ? invoice.customer
+        : invoice.customer?.id || '';
+
+      const contractSnapshot = await resolveContractSnapshotForStripeEvent({
+        contractId: invoice.metadata?.contractId || '',
+        subscriptionId,
+        customerId
+      });
+
+      if (contractSnapshot?.exists) {
+        const nextBillingStatus = event.type === 'invoice.paid' ? 'active' : 'past_due';
+        await contractSnapshot.ref.set({
+          status: nextBillingStatus,
+          billingStatus: nextBillingStatus,
+          stripe: {
+            ...(contractSnapshot.data()?.stripe || {}),
+            customerId,
+            subscriptionId,
+            latestInvoiceId: invoice.id
+          },
+          onboarding: {
+            ...(contractSnapshot.data()?.onboarding || {}),
+            billingConnected: event.type === 'invoice.paid'
+          },
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
+
+    await db.collection('platformAuditLogs').add({
+      action: 'stripe_webhook_received',
+      eventId: event.id,
+      eventType: event.type,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return response.status(200).send('ok');
+  } catch (error) {
+    console.error('stripeWebhook handler error:', error);
+    return response.status(500).send('Webhook handler failed');
   }
 });
 
