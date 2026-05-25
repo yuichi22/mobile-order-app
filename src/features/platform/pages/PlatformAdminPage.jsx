@@ -2113,6 +2113,41 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                               </div>
                             </div>
 
+                            {store.contract.commission?.eligible && (
+                              <div className="grid gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 p-3 text-[11px] font-bold text-indigo-700 md:grid-cols-2">
+                                <div>
+                                  <span className="text-indigo-400">Partner</span>
+                                  <div className="mt-0.5 break-all">
+                                    {store.contract.commission.partnerName || store.contract.commission.partnerId || store.contract.partnerId || '-'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-indigo-400">Referral</span>
+                                  <div className="mt-0.5 break-all">
+                                    {store.contract.commission.referralCode || store.contract.referralCode || '-'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-indigo-400">初期報酬</span>
+                                  <div className="mt-0.5">
+                                    ¥{(Number(store.contract.commission.initialCommissionAmount) || 0).toLocaleString()}
+                                    <span className="ml-1 text-indigo-400">
+                                      ({Math.round((Number(store.contract.commission.initialRate) || 0) * 100)}%)
+                                    </span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-indigo-400">月額報酬</span>
+                                  <div className="mt-0.5">
+                                    ¥{(Number(store.contract.commission.monthlyCommissionAmount) || 0).toLocaleString()}
+                                    <span className="ml-1 text-indigo-400">
+                                      ({Math.round((Number(store.contract.commission.monthlyRate) || 0) * 100)}%)
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {!store.contract.stripeSubscriptionId && (
                               <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-black leading-5 text-amber-700">
                                 次の状態：Checkout決済が完了するとSubscriptionが作成され、WebhookまたはStripe同期でactiveになります。
