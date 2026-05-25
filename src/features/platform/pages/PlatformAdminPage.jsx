@@ -35,6 +35,47 @@ const toSafeIdSegment = (value, fallback = 'item') => {
 const createOrganizationIdFromLead = (lead) => `org_${toSafeIdSegment(lead.companyName || lead.storeName, 'organization')}`;
 const createStoreIdFromLead = (lead) => `store_${toSafeIdSegment(lead.storeName, 'store')}`;
 
+const PLATFORM_ADMIN_TABS = [
+  { id: 'leads', label: 'リード' },
+  { id: 'organizations', label: '組織・店舗' },
+  { id: 'partners', label: '代理店' },
+  { id: 'contracts', label: '契約' },
+  { id: 'plans', label: '料金プラン' }
+];
+
+const PLATFORM_ADMIN_TAB_IDS = new Set(PLATFORM_ADMIN_TABS.map((tab) => tab.id));
+
+const getInitialPlatformAdminTab = () => {
+  if (typeof window === 'undefined') return 'leads';
+
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('platform_tab');
+
+  return PLATFORM_ADMIN_TAB_IDS.has(tab) ? tab : 'leads';
+};
+
+const replacePlatformAdminTabInUrl = (tabId) => {
+  if (typeof window === 'undefined' || !PLATFORM_ADMIN_TAB_IDS.has(tabId)) return;
+
+  const params = new URLSearchParams(window.location.search);
+  params.set('platform_tab', tabId);
+
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}?${params.toString()}${window.location.hash || ''}`
+  );
+};
+
+const reloadPlatformAdminTab = (tabId) => {
+  if (typeof window === 'undefined') return;
+
+  const params = new URLSearchParams(window.location.search);
+  params.set('platform_tab', tabId);
+
+  window.location.href = `${window.location.pathname}?${params.toString()}${window.location.hash || ''}`;
+};
+
 const PLATFORM_LEAD_STATUSES = [
   { value: 'new', label: 'new' },
   { value: 'contacted', label: 'contacted' },
@@ -147,6 +188,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     initialCommissionRate: '0',
     monthlyCommissionRate: '0'
   });
+  const [activeTab, setActiveTab] = useState(getInitialPlatformAdminTab);
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -308,7 +350,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       });
 
       if (payload?.synced) {
-        window.location.reload();
+        reloadPlatformAdminTab('organizations');
       } else {
         setError('Stripe上のサブスクリプションがまだ見つかりません。Checkout完了後に再度同期してください。');
       }
@@ -464,7 +506,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      window.location.reload();
+      reloadPlatformAdminTab('organizations');
     } catch (createError) {
       console.error('[PlatformAdminPage] create organization/store from lead failed', createError);
       setError(createError.message || 'リードから組織・店舗の作成に失敗しました。');
@@ -507,7 +549,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: false });
 
-      window.location.reload();
+      reloadPlatformAdminTab('organizations');
     } catch (createError) {
       console.error('[PlatformAdminPage] organization creation failed', createError);
       setError(createError.message || '組織作成に失敗しました。');
@@ -560,7 +602,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      window.location.reload();
+      reloadPlatformAdminTab('partners');
     } catch (createError) {
       console.error('[PlatformAdminPage] store creation failed', createError);
       setError(createError.message || '店舗作成に失敗しました。');
@@ -657,7 +699,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: Boolean(editingPartnerId) });
 
-      window.location.reload();
+      reloadPlatformAdminTab('contracts');
     } catch (createError) {
       console.error('[PlatformAdminPage] partner save failed', createError);
       setError(createError.message || '代理店保存に失敗しました。');
@@ -1180,13 +1222,35 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </div>
         </header>
 
+        <div className="mb-6 overflow-x-auto rounded-3xl bg-white p-2 shadow-sm">
+          <div className="flex min-w-max gap-2">
+            {PLATFORM_ADMIN_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  replacePlatformAdminTabInUrl(tab.id);
+                }}
+                className={`h-11 rounded-2xl px-5 text-sm font-black transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {error && (
           <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-600">
             {error}
           </div>
         )}
 
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+        <div className={`${activeTab === 'leads' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900">申込リード</h2>
@@ -1341,7 +1405,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           )}
         </div>
 
-        <div className="mb-6 grid gap-6 lg:grid-cols-2">
+        <div className={`${activeTab === 'organizations' ? 'grid' : 'hidden'} mb-6 gap-6 lg:grid-cols-2`}>
           <section className="rounded-3xl bg-white p-5 shadow-sm">
             <div className="mb-4 border-b border-slate-100 pb-4">
               <h2 className="text-lg font-black text-slate-900">組織作成</h2>
@@ -1511,7 +1575,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </section>
         </div>
 
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+        <div className={`${activeTab === 'partners' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900">代理店</h2>
@@ -1693,7 +1757,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </div>
         </div>
 
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+        <div className={`${activeTab === 'partners' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900">代理店報酬サマリー</h2>
@@ -1776,7 +1840,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </div>
         </div>
 
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+        <div className={`${activeTab === 'contracts' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900">契約作成</h2>
@@ -1963,7 +2027,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </form>
         </div>
 
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+        <div className={`${activeTab === 'plans' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900">料金プラン</h2>
@@ -2013,7 +2077,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className={`${activeTab === 'contracts' ? 'space-y-5' : 'hidden'}`}>
           {organizationCards.map((organization) => (
             <section key={organization.id} className="rounded-3xl bg-white p-5 shadow-sm">
               <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
