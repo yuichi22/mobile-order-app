@@ -41,7 +41,8 @@ const PLATFORM_LEAD_STATUSES = [
   { value: 'demo_scheduled', label: 'demo_scheduled' },
   { value: 'converted_to_store', label: 'converted_to_store' },
   { value: 'contract_created', label: 'contract_created' },
-  { value: 'lost', label: 'lost' }
+  { value: 'lost', label: 'lost' },
+  { value: 'archived', label: 'archived' }
 ];
 
 const getLeadStatusClassName = (status) => {
@@ -51,6 +52,7 @@ const getLeadStatusClassName = (status) => {
   if (status === 'converted_to_store') return 'bg-slate-100 text-slate-600';
   if (status === 'contract_created') return 'bg-indigo-50 text-indigo-700';
   if (status === 'lost') return 'bg-red-50 text-red-600';
+  if (status === 'archived') return 'bg-zinc-100 text-zinc-500';
   return 'bg-slate-100 text-slate-500';
 };
 
@@ -312,7 +314,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         ...(nextStatus === 'contacted' ? { contactedAt: serverTimestamp() } : {}),
         ...(nextStatus === 'demo_scheduled' ? { demoScheduledAt: serverTimestamp() } : {}),
         ...(nextStatus === 'contract_created' ? { contractMarkedAt: serverTimestamp() } : {}),
-        ...(nextStatus === 'lost' ? { lostAt: serverTimestamp() } : {})
+        ...(nextStatus === 'lost' ? { lostAt: serverTimestamp() } : {}),
+        ...(nextStatus === 'archived' ? { archivedAt: serverTimestamp() } : {})
       }, { merge: true });
 
       setLeads((current) => current.map((item) => (
@@ -791,6 +794,16 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     };
   }, [isSuperAdmin, authVerified]);
 
+  const activeLeads = useMemo(
+    () => leads.filter((lead) => lead.status !== 'lost' && lead.status !== 'archived'),
+    [leads]
+  );
+
+  const archivedLeads = useMemo(
+    () => leads.filter((lead) => lead.status === 'lost' || lead.status === 'archived'),
+    [leads]
+  );
+
   const organizationCards = useMemo(() => {
     const knownOrganizationIds = new Set(organizations.map((organization) => organization.id));
     const orphanStores = stores.filter((store) => !store.organizationId || !knownOrganizationIds.has(store.organizationId));
@@ -980,12 +993,12 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               </p>
             </div>
             <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-              {leads.filter((lead) => lead.status === 'new').length}件 new
+              {activeLeads.filter((lead) => lead.status === 'new').length}件 new
             </div>
           </div>
 
           <div className="grid gap-3">
-            {leads.slice(0, 8).map((lead) => (
+            {activeLeads.slice(0, 8).map((lead) => (
               <article key={lead.id} className="rounded-2xl border border-slate-100 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
@@ -1070,12 +1083,60 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               </article>
             ))}
 
-            {!leads.length && (
+            {!activeLeads.length && (
               <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
-                申込リードはまだありません。
+                表示中の申込リードはありません。
               </div>
             )}
           </div>
+
+          {archivedLeads.length > 0 && (
+            <div className="mt-5 border-t border-slate-100 pt-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-500">
+                  アーカイブ・失注リード
+                </h3>
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                  {archivedLeads.length}件
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                {archivedLeads.slice(0, 8).map((lead) => (
+                  <article key={lead.id} className="rounded-2xl bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-black text-slate-700">
+                            {lead.storeName || '店舗名未入力'}
+                          </h4>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${getLeadStatusClassName(lead.status)}`}>
+                            {lead.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-slate-400">
+                          {lead.companyName || '会社名未入力'} / {lead.contactName || '担当者未入力'} / {lead.email || '-'}
+                        </p>
+                      </div>
+
+                      <select
+                        value={lead.status}
+                        onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
+                        disabled={leadUpdatingId === lead.id}
+                        className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {PLATFORM_LEAD_STATUSES.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
