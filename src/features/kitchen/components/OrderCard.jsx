@@ -505,6 +505,7 @@ const canSelectCard =
       <div className="custom-scrollbar min-h-[220px] flex-grow overflow-y-auto bg-slate-100/80">
         {sortedDisplayItems.map((item, index) => {
           const quantity = item.quantity || 1;
+          const kitchenDisplayName = String(item.kitchenName || item.name || '未設定商品').trim();
           const kitchenStatus = resolveKitchenStatus(item);
           const isPreparedItem = kitchenStatus === 'prepared';
           const isServedItem = kitchenStatus === 'served';
@@ -599,7 +600,7 @@ const canSelectCard =
 
           return (
             <RowTag
-              key={`${item.name}-${item.sourceIndex}-${index}`}
+              key={`${kitchenDisplayName}-${item.sourceIndex}-${index}`}
               type={canToggleItem ? 'button' : undefined}
               onClick={canToggleItem ? () => togglePrepared(item.sourceIndex) : undefined}
               className={`group flex w-full items-center text-left ${rowGapClassName} ${rowBorderClassName} transition-all duration-300 ${
@@ -607,7 +608,7 @@ const canSelectCard =
               } ${rowPaddingClassName} ${rowBackgroundClassName}`}
               aria-label={
                 canToggleItem
-                  ? `${item.name} を${
+                  ? `${kitchenDisplayName} を${
                       isServedItem
                         ? '未完了'
                         : isPreparedItem
@@ -641,7 +642,7 @@ const canSelectCard =
 
               <div className="min-w-0 flex-1">
                 <div className={`${itemNameClassName} ${itemStateNameClassName}`}>
-                  {item.name}
+                  {kitchenDisplayName}
                 </div>
 
                 {item.serviceTimingLabel && (

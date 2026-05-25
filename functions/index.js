@@ -2773,6 +2773,7 @@ export const createPostpayOrder = onRequest(
       const normalizedCart = cart.map((item) => ({
         id: String(item.id || ''),
         name: String(item.name || ''),
+        kitchenName: String(item.kitchenName || ''),
         quantity: Math.max(Number(item.quantity || 0), 0),
         unitPrice: Number(item.unitPrice || item.price || 0),
         category: String(item.category || item.categoryId || ''),
@@ -2926,6 +2927,7 @@ export const createPostpayOrder = onRequest(
           orderItems.push({
             id: cartItem.id,
             name: cartItem.name || menuData.name || '商品',
+            kitchenName: String(cartItem.kitchenName || menuData.kitchenName || '').trim(),
             quantity,
             unitPrice: Number(cartItem.unitPrice || menuData.price || 0),
             category: String(cartItem.category || menuData.category || ''),

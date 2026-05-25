@@ -161,6 +161,7 @@ const PreviewMeta = ({ item }) => (
 
 const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   name: '',
+  kitchenName: '',
   price: '',
   category: categoryId,
   kitchenIds: kitchenId ? [kitchenId] : [],
@@ -358,6 +359,7 @@ const MenuSettings = ({
       orderLimitPerOrder: item.orderLimitPerOrder ?? null,
       limitedQuantity: item.limitedQuantity ?? null,
       allowsTakeout: item.allowsTakeout !== false,
+      kitchenName: item.kitchenName || '',
       photoLabelText: item.photoLabelText || '',
       photoLabelColor: item.photoLabelColor || '#F97316',
       priceLabelText: item.priceLabelText || '',
@@ -571,6 +573,7 @@ const MenuSettings = ({
         : [],
 
         allergens: editingItem.allergens || [],
+        kitchenName: String(editingItem.kitchenName || '').trim(),
         orderLimitPerOrder: normalizedLimit > 0 ? normalizedLimit : null,
         limitedQuantity: normalizedLimitedQuantity > 0 ? normalizedLimitedQuantity : null,
         allowsTakeout: editingItem.allowsTakeout !== false,
@@ -865,7 +868,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     <Info size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">基本設定</span>
                   </div>
-                  <div className="mb-8">
+                  <div className="mb-5">
                     <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">商品名</label>
                     <input
                       value={editingItem.name}
@@ -874,6 +877,21 @@ const handleClearLimitedQuantity = async (event, item) => {
                       className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all focus:border-orange-500"
                       placeholder="例：厚切りトースト"
                     />
+                  </div>
+
+                  <div className="mb-8">
+                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                      キッチン呼称
+                    </label>
+                    <input
+                      value={editingItem.kitchenName || ''}
+                      onChange={(event) => setEditingItem({ ...editingItem, kitchenName: event.target.value })}
+                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-bold text-gray-800 outline-none transition-all focus:border-orange-500"
+                      placeholder="例：トースト / ラテ / セットドリンク"
+                    />
+                    <p className="mt-2 text-xs font-bold text-gray-400">
+                      キッチンモニターだけで使う短い呼び名です。空欄の場合は商品名を表示します。
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
