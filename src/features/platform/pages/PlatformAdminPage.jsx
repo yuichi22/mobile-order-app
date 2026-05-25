@@ -35,6 +35,25 @@ const toSafeIdSegment = (value, fallback = 'item') => {
 const createOrganizationIdFromLead = (lead) => `org_${toSafeIdSegment(lead.companyName || lead.storeName, 'organization')}`;
 const createStoreIdFromLead = (lead) => `store_${toSafeIdSegment(lead.storeName, 'store')}`;
 
+const PLATFORM_LEAD_STATUSES = [
+  { value: 'new', label: 'new' },
+  { value: 'contacted', label: 'contacted' },
+  { value: 'demo_scheduled', label: 'demo_scheduled' },
+  { value: 'converted_to_store', label: 'converted_to_store' },
+  { value: 'contract_created', label: 'contract_created' },
+  { value: 'lost', label: 'lost' }
+];
+
+const getLeadStatusClassName = (status) => {
+  if (status === 'new') return 'bg-emerald-50 text-emerald-700';
+  if (status === 'contacted') return 'bg-blue-50 text-blue-700';
+  if (status === 'demo_scheduled') return 'bg-purple-50 text-purple-700';
+  if (status === 'converted_to_store') return 'bg-slate-100 text-slate-600';
+  if (status === 'contract_created') return 'bg-indigo-50 text-indigo-700';
+  if (status === 'lost') return 'bg-red-50 text-red-600';
+  return 'bg-slate-100 text-slate-500';
+};
+
 const callPlatformAdminApi = async (path, body = {}) => {
   const idToken = await auth.currentUser?.getIdToken();
 
@@ -83,6 +102,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [organizationCreating, setOrganizationCreating] = useState(false);
   const [storeCreating, setStoreCreating] = useState(false);
   const [leadCreatingId, setLeadCreatingId] = useState('');
+  const [leadUpdatingId, setLeadUpdatingId] = useState('');
   const [organizationForm, setOrganizationForm] = useState({
     organizationId: '',
     name: '',
@@ -279,8 +299,40 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     }
   };
 
+  const handleUpdateLeadStatus = async (lead, nextStatus) => {
+    if (!lead?.id || !nextStatus || lead.status === nextStatus) return;
+
+    setLeadUpdatingId(lead.id);
+    setError('');
+
+    try {
+      await setDoc(doc(db, 'platformSignupLeads', lead.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+        ...(nextStatus === 'contacted' ? { contactedAt: serverTimestamp() } : {}),
+        ...(nextStatus === 'demo_scheduled' ? { demoScheduledAt: serverTimestamp() } : {}),
+        ...(nextStatus === 'contract_created' ? { contractMarkedAt: serverTimestamp() } : {}),
+        ...(nextStatus === 'lost' ? { lostAt: serverTimestamp() } : {})
+      }, { merge: true });
+
+      setLeads((current) => current.map((item) => (
+        item.id === lead.id ? { ...item, status: nextStatus } : item
+      )));
+    } catch (updateError) {
+      console.error('[PlatformAdminPage] lead status update failed', updateError);
+      setError(updateError.message || 'リードステータスの更新に失敗しました。');
+    } finally {
+      setLeadUpdatingId('');
+    }
+  };
+
   const handleApplyLeadToForms = (lead) => {
     if (!lead) return;
+
+    if (lead.organizationId || lead.storeId || lead.status === 'converted_to_store') {
+      setError('このリードはすでに組織・店舗作成済みです。既存の組織・店舗カードを確認してください。');
+      return;
+    }
 
     const nextOrganizationId = createOrganizationIdFromLead(lead);
     const nextStoreId = createStoreIdFromLead(lead);
@@ -324,6 +376,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
     if (!organizationName || !storeName) {
       setError('リードの会社名または店舗名が不足しています。');
+      return;
+    }
+
+    if (lead.organizationId || lead.storeId || lead.status === 'converted_to_store') {
+      setError('このリードはすでに組織・店舗作成済みです。必要な場合は既存の組織・店舗を確認してください。');
       return;
     }
 
@@ -654,6 +711,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             status: data.status || 'new',
             salesChannel: data.salesChannel || '',
             source: data.source || '',
+            organizationId: data.organizationId || '',
+            storeId: data.storeId || '',
             createdAt,
             createdAtText: createdAt
               ? createdAt.toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
@@ -921,11 +980,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       <h3 className="text-base font-black text-slate-900">
                         {lead.storeName || '店舗名未入力'}
                       </h3>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${
-                        lead.status === 'new'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${getLeadStatusClassName(lead.status)}`}>
                         {lead.status}
                       </span>
                     </div>
@@ -961,23 +1016,39 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       {lead.salesChannel || 'direct'}
                     </div>
 
+                    <select
+                      value={lead.status}
+                      onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
+                      disabled={leadUpdatingId === lead.id}
+                      className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {PLATFORM_LEAD_STATUSES.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+
                     <button
                       type="button"
                       onClick={() => handleApplyLeadToForms(lead)}
-                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                      disabled={Boolean(lead.organizationId || lead.storeId) || lead.status === 'converted_to_store'}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      フォームへ反映
+                      {(lead.organizationId || lead.storeId || lead.status === 'converted_to_store')
+                        ? '反映済み'
+                        : 'フォームへ反映'}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleCreateOrganizationAndStoreFromLead(lead)}
-                      disabled={leadCreatingId === lead.id || lead.status === 'converted_to_store'}
+                      disabled={leadCreatingId === lead.id || Boolean(lead.organizationId || lead.storeId) || lead.status === 'converted_to_store'}
                       className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {leadCreatingId === lead.id
                         ? '作成中...'
-                        : lead.status === 'converted_to_store'
+                        : (lead.organizationId || lead.storeId || lead.status === 'converted_to_store')
                           ? '作成済み'
                           : '組織・店舗を作成'}
                     </button>
