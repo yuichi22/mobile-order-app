@@ -65,6 +65,23 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
   const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
+  const [organizationCreating, setOrganizationCreating] = useState(false);
+  const [storeCreating, setStoreCreating] = useState(false);
+  const [organizationForm, setOrganizationForm] = useState({
+    organizationId: '',
+    name: '',
+    ownerEmail: '',
+    type: 'single',
+    status: 'active'
+  });
+  const [storeForm, setStoreForm] = useState({
+    storeId: '',
+    organizationId: '',
+    name: '',
+    address: '',
+    tel: '',
+    status: 'active'
+  });
   const [contractCreating, setContractCreating] = useState(false);
   const [contractForm, setContractForm] = useState({
     organizationId: '',
@@ -243,6 +260,102 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError(syncError.message || '契約情報の同期に失敗しました。');
     } finally {
       setSyncLoadingContractId('');
+    }
+  };
+
+  const handleCreateOrganization = async (event) => {
+    event.preventDefault();
+
+    const organizationId = String(organizationForm.organizationId || '').trim();
+    const name = String(organizationForm.name || '').trim();
+    const ownerEmail = String(organizationForm.ownerEmail || '').trim();
+    const type = String(organizationForm.type || 'single').trim();
+    const status = String(organizationForm.status || 'active').trim();
+
+    if (!organizationId || !name) {
+      setError('組織IDと組織名を入力してください。');
+      return;
+    }
+
+    if (organizations.some((organization) => organization.id === organizationId)) {
+      setError('同じ組織IDがすでに存在します。');
+      return;
+    }
+
+    setOrganizationCreating(true);
+    setError('');
+
+    try {
+      await setDoc(doc(db, 'platformOrganizations', organizationId), {
+        id: organizationId,
+        name,
+        ownerEmail,
+        type,
+        status,
+        createdBy: auth.currentUser?.uid || 'super_admin',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: false });
+
+      window.location.reload();
+    } catch (createError) {
+      console.error('[PlatformAdminPage] organization creation failed', createError);
+      setError(createError.message || '組織作成に失敗しました。');
+    } finally {
+      setOrganizationCreating(false);
+    }
+  };
+
+  const handleCreateStore = async (event) => {
+    event.preventDefault();
+
+    const storeId = String(storeForm.storeId || '').trim();
+    const organizationId = String(storeForm.organizationId || '').trim();
+    const name = String(storeForm.name || '').trim();
+    const address = String(storeForm.address || '').trim();
+    const tel = String(storeForm.tel || '').trim();
+    const status = String(storeForm.status || 'active').trim();
+    const organization = organizations.find((item) => item.id === organizationId);
+
+    if (!storeId || !organizationId || !name || !organization) {
+      setError('店舗ID・組織・店舗名を入力してください。');
+      return;
+    }
+
+    if (stores.some((store) => store.id === storeId)) {
+      setError('同じ店舗IDがすでに存在します。');
+      return;
+    }
+
+    setStoreCreating(true);
+    setError('');
+
+    try {
+      await setDoc(doc(db, 'stores', storeId), {
+        id: storeId,
+        organizationId,
+        organizationName: organization.name,
+        organizationType: organization.type || 'single',
+        status,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: false });
+
+      await setDoc(doc(db, 'stores', storeId, 'settings', 'basic'), {
+        name,
+        address,
+        tel,
+        status,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      window.location.reload();
+    } catch (createError) {
+      console.error('[PlatformAdminPage] store creation failed', createError);
+      setError(createError.message || '店舗作成に失敗しました。');
+    } finally {
+      setStoreCreating(false);
     }
   };
 
@@ -626,6 +739,176 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             {error}
           </div>
         )}
+
+        <div className="mb-6 grid gap-6 lg:grid-cols-2">
+          <section className="rounded-3xl bg-white p-5 shadow-sm">
+            <div className="mb-4 border-b border-slate-100 pb-4">
+              <h2 className="text-lg font-black text-slate-900">組織作成</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                新しい運営組織を作成します。
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateOrganization} className="grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">組織ID</span>
+                  <input
+                    value={organizationForm.organizationId}
+                    onChange={(event) => setOrganizationForm((current) => ({ ...current, organizationId: event.target.value.trim() }))}
+                    placeholder="例: org_example"
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">組織名</span>
+                  <input
+                    value={organizationForm.name}
+                    onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="例: TABLE HAUS"
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-black text-slate-400">オーナーメール</span>
+                <input
+                  value={organizationForm.ownerEmail}
+                  onChange={(event) => setOrganizationForm((current) => ({ ...current, ownerEmail: event.target.value }))}
+                  placeholder="owner@example.com"
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                />
+              </label>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">種別</span>
+                  <select
+                    value={organizationForm.type}
+                    onChange={(event) => setOrganizationForm((current) => ({ ...current, type: event.target.value }))}
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  >
+                    <option value="single">single</option>
+                    <option value="multi_store">multi_store</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">ステータス</span>
+                  <select
+                    value={organizationForm.status}
+                    onChange={(event) => setOrganizationForm((current) => ({ ...current, status: event.target.value }))}
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  >
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={organizationCreating}
+                className="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {organizationCreating ? '組織作成中...' : '組織を作成する'}
+              </button>
+            </form>
+          </section>
+
+          <section className="rounded-3xl bg-white p-5 shadow-sm">
+            <div className="mb-4 border-b border-slate-100 pb-4">
+              <h2 className="text-lg font-black text-slate-900">店舗作成</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                組織に紐づく店舗を作成します。
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateStore} className="grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">店舗ID</span>
+                  <input
+                    value={storeForm.storeId}
+                    onChange={(event) => setStoreForm((current) => ({ ...current, storeId: event.target.value.trim() }))}
+                    placeholder="例: store_example"
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">組織</span>
+                  <select
+                    value={storeForm.organizationId}
+                    onChange={(event) => setStoreForm((current) => ({ ...current, organizationId: event.target.value }))}
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  >
+                    <option value="">選択</option>
+                    {organizations.map((organization) => (
+                      <option key={organization.id} value={organization.id}>
+                        {organization.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-black text-slate-400">店舗名</span>
+                <input
+                  value={storeForm.name}
+                  onChange={(event) => setStoreForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="例: TABLE HAUS"
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                />
+              </label>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">住所</span>
+                  <input
+                    value={storeForm.address}
+                    onChange={(event) => setStoreForm((current) => ({ ...current, address: event.target.value }))}
+                    placeholder="任意"
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black text-slate-400">電話番号</span>
+                  <input
+                    value={storeForm.tel}
+                    onChange={(event) => setStoreForm((current) => ({ ...current, tel: event.target.value }))}
+                    placeholder="任意"
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </div>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-black text-slate-400">ステータス</span>
+                <select
+                  value={storeForm.status}
+                  onChange={(event) => setStoreForm((current) => ({ ...current, status: event.target.value }))}
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                disabled={storeCreating}
+                className="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {storeCreating ? '店舗作成中...' : '店舗を作成する'}
+              </button>
+            </form>
+          </section>
+        </div>
 
         <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
