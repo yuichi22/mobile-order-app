@@ -76,6 +76,30 @@ const reloadPlatformAdminTab = (tabId) => {
   window.location.href = `${window.location.pathname}?${params.toString()}${window.location.hash || ''}`;
 };
 
+const PENDING_CONTRACT_FORM_STORAGE_KEY = 'akuto_pending_contract_form';
+
+const savePendingContractForm = (payload) => {
+  if (typeof window === 'undefined') return;
+
+  window.sessionStorage.setItem(PENDING_CONTRACT_FORM_STORAGE_KEY, JSON.stringify(payload));
+};
+
+const takePendingContractForm = () => {
+  if (typeof window === 'undefined') return null;
+
+  const raw = window.sessionStorage.getItem(PENDING_CONTRACT_FORM_STORAGE_KEY);
+  if (!raw) return null;
+
+  window.sessionStorage.removeItem(PENDING_CONTRACT_FORM_STORAGE_KEY);
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn('[PlatformAdminPage] pending contract form parse failed', error);
+    return null;
+  }
+};
+
 const PLATFORM_LEAD_STATUSES = [
   { value: 'new', label: 'new' },
   { value: 'contacted', label: 'contacted' },
@@ -350,7 +374,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       });
 
       if (payload?.synced) {
-        reloadPlatformAdminTab('organizations');
+        reloadPlatformAdminTab('contracts');
       } else {
         setError('Stripe上のサブスクリプションがまだ見つかりません。Checkout完了後に再度同期してください。');
       }
@@ -431,6 +455,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     }));
 
     setError('');
+    setActiveTab('organizations');
+    replacePlatformAdminTabInUrl('organizations');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -506,7 +532,18 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      reloadPlatformAdminTab('organizations');
+      savePendingContractForm({
+        organizationId: nextOrganizationId,
+        storeId: nextStoreId,
+        planId: 'standard',
+        salesChannel: lead.salesChannel || 'direct',
+        partnerId: '',
+        referralCode: '',
+        initialCommissionRate: '0',
+        monthlyCommissionRate: '0'
+      });
+
+      reloadPlatformAdminTab('contracts');
     } catch (createError) {
       console.error('[PlatformAdminPage] create organization/store from lead failed', createError);
       setError(createError.message || 'リードから組織・店舗の作成に失敗しました。');
@@ -602,7 +639,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      reloadPlatformAdminTab('partners');
+      reloadPlatformAdminTab('organizations');
     } catch (createError) {
       console.error('[PlatformAdminPage] store creation failed', createError);
       setError(createError.message || '店舗作成に失敗しました。');
@@ -699,7 +736,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         updatedAt: serverTimestamp()
       }, { merge: Boolean(editingPartnerId) });
 
-      reloadPlatformAdminTab('contracts');
+      reloadPlatformAdminTab('partners');
     } catch (createError) {
       console.error('[PlatformAdminPage] partner save failed', createError);
       setError(createError.message || '代理店保存に失敗しました。');
@@ -965,6 +1002,23 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           setContracts(contractRows.sort((a, b) => a.contractId.localeCompare(b.contractId, 'ja')));
           setLeads(leadRows);
           setPartners(partnerRows);
+
+          const pendingContractForm = takePendingContractForm();
+          if (pendingContractForm?.organizationId && pendingContractForm?.storeId) {
+            setContractForm((current) => ({
+              ...current,
+              organizationId: pendingContractForm.organizationId,
+              storeId: pendingContractForm.storeId,
+              planId: pendingContractForm.planId || current.planId || 'standard',
+              salesChannel: pendingContractForm.salesChannel || 'direct',
+              partnerId: pendingContractForm.partnerId || '',
+              referralCode: pendingContractForm.referralCode || '',
+              initialCommissionRate: pendingContractForm.initialCommissionRate || '0',
+              monthlyCommissionRate: pendingContractForm.monthlyCommissionRate || '0'
+            }));
+            setActiveTab('contracts');
+            replacePlatformAdminTabInUrl('contracts');
+          }
         }
       } catch (loadError) {
         console.error('[PlatformAdminPage] load failed', loadError);
