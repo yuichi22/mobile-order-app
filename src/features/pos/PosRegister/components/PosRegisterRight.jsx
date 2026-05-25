@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   CheckCircle,
   ChevronRight,
@@ -111,12 +111,31 @@ export const PosRegisterRight = ({
   return '未設定';
 }, [discountType, discountValue, selectedDiscount, selectedDiscountQuantity]);
 
+  const abortPressTimerRef = useRef(null);
+
+  const clearAbortLongPress = () => {
+    if (abortPressTimerRef.current) {
+      window.clearTimeout(abortPressTimerRef.current);
+      abortPressTimerRef.current = null;
+    }
+  };
+
+  const startAbortLongPress = () => {
+    if (isPaymentSubmitting || showSuccessModal || showAbortModal) return;
+
+    clearAbortLongPress();
+    abortPressTimerRef.current = window.setTimeout(() => {
+      abortPressTimerRef.current = null;
+      handleAbortSession();
+    }, 900);
+  };
+
   const isPaymentDisabled =
     (orders.length > 0 && selectedOrderIds.size === 0)
     || (paymentMethod === 'cash' && (parseInt(paymentAmount, 10) || 0) < totalAmount);
 
   return (
-    <div className="relative flex h-full w-5/12 flex-col bg-white">
+    <div className="relative flex h-full min-h-0 w-5/12 flex-col bg-white">
       <div className="shrink-0 border-b border-gray-100 px-6 pb-4 pt-3">
         <h2 className="text-xl font-black text-gray-900">
           会計伝票
@@ -131,7 +150,7 @@ export const PosRegisterRight = ({
         </p>
       </div>
 
-      <div className="flex flex-grow flex-col overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="mb-6 space-y-3">
           <div className="flex justify-between text-sm text-gray-500">
             <span>小計(税抜)</span>
@@ -223,7 +242,7 @@ export const PosRegisterRight = ({
         </div>
 
         {paymentMethod === 'cash' ? (
-          <div className="flex flex-grow flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2 rounded-xl border-2 border-gray-200 bg-gray-50 p-4">
               <div>
                 <p className="mb-1 text-xs font-bold text-gray-500">お預かり</p>
@@ -264,7 +283,7 @@ export const PosRegisterRight = ({
               </button>
             </div>
 
-            <div className="grid min-h-[200px] flex-grow grid-cols-3 gap-2">
+            <div className="grid min-h-[160px] flex-1 grid-cols-3 gap-2">
               {[7, 8, 9, 4, 5, 6, 1, 2, 3].map((number) => (
                 <button
                   key={number}
@@ -295,7 +314,7 @@ export const PosRegisterRight = ({
             </div>
           </div>
         ) : (
-          <div className="mb-4 flex flex-grow flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-gray-400">
+          <div className="mb-4 flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-gray-400">
             {paymentMethod === 'card' && <CreditCard size={48} className="mb-2 opacity-50" />}
             {paymentMethod === 'qr' && <QrCode size={48} className="mb-2 opacity-50" />}
             <p className="text-sm">端末で決済を完了してください</p>
@@ -325,24 +344,40 @@ export const PosRegisterRight = ({
         </div>
       </div>
 
-      <div className="border-t border-gray-200 bg-gray-50 p-4">
+      <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
         <div className="space-y-3">
           {orders.length > 0 && (
-            <button
-              onClick={handlePayment}
-              disabled={isPaymentDisabled}
-              className={`flex w-full items-center justify-center gap-3 rounded-xl py-4 text-xl font-bold shadow-lg transition-all active:scale-[0.98] ${
-                isPaymentDisabled
-                  ? 'bg-gray-300 text-gray-500'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
-              }`}
-            >
-              <CheckCircle size={24} />
-              {selectedOrderIds.size === orders.length
-                ? `¥${totalAmount.toLocaleString()} を会計する`
-                : `選択分 ¥${totalAmount.toLocaleString()} を会計する`}
-              <ChevronRight size={24} className="opacity-50" />
-            </button>
+            <>
+              <button
+                onClick={handlePayment}
+                disabled={isPaymentDisabled}
+                className={`flex w-full items-center justify-center gap-3 rounded-xl py-4 text-xl font-bold shadow-lg transition-all active:scale-[0.98] ${
+                  isPaymentDisabled
+                    ? 'bg-gray-300 text-gray-500'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+                }`}
+              >
+                <CheckCircle size={24} />
+                {selectedOrderIds.size === orders.length
+                  ? `¥${totalAmount.toLocaleString()} を会計する`
+                  : `選択分 ¥${totalAmount.toLocaleString()} を会計する`}
+                <ChevronRight size={24} className="opacity-50" />
+              </button>
+
+              <button
+                type="button"
+                onPointerDown={startAbortLongPress}
+                onPointerUp={clearAbortLongPress}
+                onPointerLeave={clearAbortLongPress}
+                onPointerCancel={clearAbortLongPress}
+                onContextMenu={(event) => event.preventDefault()}
+                disabled={isPaymentSubmitting || showSuccessModal || showAbortModal}
+                className="flex w-full touch-none select-none items-center justify-center gap-2 rounded-xl border border-red-100 bg-white py-3 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <LogOut size={18} />
+                会計をキャンセル（長押し）
+              </button>
+            </>
           )}
 
           {orders.length === 0 && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (
