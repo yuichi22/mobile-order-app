@@ -64,6 +64,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [contracts, setContracts] = useState([]);
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
+  const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -210,6 +211,30 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError(portalError.message || 'Billing Portalの作成に失敗しました。');
     } finally {
       setPortalLoadingContractId('');
+    }
+  };
+
+  const handleSyncContract = async (contractId) => {
+    if (!contractId) return;
+
+    setSyncLoadingContractId(contractId);
+    setError('');
+
+    try {
+      const payload = await callPlatformAdminApi('/api/syncMobileOrderContract', {
+        contractId
+      });
+
+      if (payload?.synced) {
+        window.location.reload();
+      } else {
+        setError('Stripe上のサブスクリプションがまだ見つかりません。Checkout完了後に再度同期してください。');
+      }
+    } catch (syncError) {
+      console.error('[PlatformAdminPage] contract sync failed', syncError);
+      setError(syncError.message || '契約情報の同期に失敗しました。');
+    } finally {
+      setSyncLoadingContractId('');
     }
   };
 
@@ -652,6 +677,18 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                             {checkoutLoadingContractId === (store.contract.contractId || store.contract.id)
                               ? 'Checkout作成中...'
                               : 'Checkoutを作成'}
+                            <ChevronRight size={16} strokeWidth={3} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSyncContract(store.contract.contractId || store.contract.id)}
+                            disabled={syncLoadingContractId === (store.contract.contractId || store.contract.id)}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {syncLoadingContractId === (store.contract.contractId || store.contract.id)
+                              ? 'Stripe同期中...'
+                              : 'Stripe同期'}
                             <ChevronRight size={16} strokeWidth={3} />
                           </button>
 

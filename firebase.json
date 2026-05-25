@@ -120,6 +120,13 @@
         }
       },
       {
+        "source": "/api/syncMobileOrderContract",
+        "function": {
+          "functionId": "syncMobileOrderContract",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/requestPlatformAdminAccessCode",
         "function": {
           "functionId": "requestPlatformAdminAccessCode",

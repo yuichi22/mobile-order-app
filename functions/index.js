@@ -55,6 +55,7 @@ const APP_ERROR_MESSAGES = {
   'app/platform-contract-not-found': '契約情報が見つかりません。',
   'app/mobile-order-checkout-failed': 'Checkoutの作成に失敗しました。',
   'app/mobile-order-billing-portal-failed': 'Billing Portalの作成に失敗しました。',
+  'app/mobile-order-contract-sync-failed': '契約情報の同期に失敗しました。',
   'app/stripe-webhook-not-configured': 'Stripe Webhook設定が見つかりません。',
   'app/stripe-webhook-invalid': 'Stripe Webhookの検証に失敗しました。'
 };
@@ -1761,6 +1762,98 @@ const applyStripeSubscriptionToContract = async ({ contractSnapshot, subscriptio
 
   await contractSnapshot.ref.set(update, { merge: true });
 };
+
+export const syncMobileOrderContract = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const authUser = await verifyRequestUser(request);
+    await assertPlatformAdminUser(authUser.uid);
+
+    const { contractId } = parseJsonBody(request);
+    const normalizedContractId = String(contractId || '').trim();
+
+    if (!normalizedContractId) {
+      return sendAppError(response, 400, 'app/platform-contract-not-found');
+    }
+
+    const stripe = getStripeClient();
+    const contract = await getPlatformContract(normalizedContractId);
+    const contractData = contract.data;
+    const stripeData = contractData.stripe || {};
+
+    let subscriptionId = String(stripeData.subscriptionId || '').trim();
+    const customerId = String(stripeData.customerId || '').trim();
+
+    let subscription = null;
+
+    if (subscriptionId) {
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    } else if (customerId) {
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+        limit: 10
+      });
+
+      subscription = subscriptions.data.find((item) => (
+        item.metadata?.contractId === contract.id
+      )) || subscriptions.data[0] || null;
+
+      subscriptionId = subscription?.id || '';
+    }
+
+    if (!subscription) {
+      await contract.ref.set({
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      return sendJson(response, 200, {
+        ok: true,
+        synced: false,
+        reason: 'subscription_not_found'
+      });
+    }
+
+    await applyStripeSubscriptionToContract({
+      contractSnapshot: await contract.ref.get(),
+      subscription
+    });
+
+    await db.collection('platformAuditLogs').add({
+      action: 'mobile_order_contract_synced',
+      uid: authUser.uid,
+      contractId: contract.id,
+      organizationId: contractData.organizationId || '',
+      storeId: contractData.storeId || '',
+      customerId,
+      subscriptionId,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      synced: true,
+      subscriptionId: subscription.id,
+      status: normalizeStripeSubscriptionStatus(subscription.status)
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/stripe-not-configured': 503,
+        'app/platform-contract-not-found': 404
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('syncMobileOrderContract error:', error);
+    return sendAppError(response, 500, 'app/mobile-order-contract-sync-failed');
+  }
+});
 
 export const createMobileOrderBillingPortal = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
   if (request.method !== 'POST') {
