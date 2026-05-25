@@ -98,11 +98,14 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [plans, setPlans] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
   const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
   const [syncLoadingContractId, setSyncLoadingContractId] = useState('');
   const [organizationCreating, setOrganizationCreating] = useState(false);
   const [storeCreating, setStoreCreating] = useState(false);
+  const [partnerCreating, setPartnerCreating] = useState(false);
+  const [editingPartnerId, setEditingPartnerId] = useState('');
   const [leadCreatingId, setLeadCreatingId] = useState('');
   const [leadUpdatingId, setLeadUpdatingId] = useState('');
   const [organizationForm, setOrganizationForm] = useState({
@@ -119,6 +122,18 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     address: '',
     tel: '',
     status: 'active'
+  });
+  const [partnerForm, setPartnerForm] = useState({
+    partnerId: '',
+    name: '',
+    type: 'referral',
+    status: 'active',
+    rank: 'standard',
+    referralCode: '',
+    defaultInitialCommissionRate: '10',
+    defaultMonthlyCommissionRate: '10',
+    contactEmail: '',
+    payoutMethod: ''
   });
   const [contractCreating, setContractCreating] = useState(false);
   const [contractForm, setContractForm] = useState({
@@ -546,6 +561,103 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
     }
   };
 
+  const resetPartnerForm = () => {
+    setEditingPartnerId('');
+    setPartnerForm({
+      partnerId: '',
+      name: '',
+      type: 'referral',
+      status: 'active',
+      rank: 'standard',
+      referralCode: '',
+      defaultInitialCommissionRate: '10',
+      defaultMonthlyCommissionRate: '10',
+      contactEmail: '',
+      payoutMethod: ''
+    });
+    setError('');
+  };
+
+  const handleEditPartner = (partner) => {
+    if (!partner) return;
+
+    setEditingPartnerId(partner.id);
+    setPartnerForm({
+      partnerId: partner.id || '',
+      name: partner.name || '',
+      type: partner.type || 'referral',
+      status: partner.status || 'active',
+      rank: partner.rank || 'standard',
+      referralCode: partner.referralCode || '',
+      defaultInitialCommissionRate: String(Math.round((Number(partner.defaultInitialCommissionRate) || 0) * 100)),
+      defaultMonthlyCommissionRate: String(Math.round((Number(partner.defaultMonthlyCommissionRate) || 0) * 100)),
+      contactEmail: partner.contactEmail || '',
+      payoutMethod: partner.payoutMethod || ''
+    });
+    setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCreatePartner = async (event) => {
+    event.preventDefault();
+
+    const partnerId = String(partnerForm.partnerId || '').trim();
+    const name = String(partnerForm.name || '').trim();
+    const type = String(partnerForm.type || 'referral').trim();
+    const status = String(partnerForm.status || 'active').trim();
+    const rank = String(partnerForm.rank || 'standard').trim();
+    const referralCode = String(partnerForm.referralCode || '').trim();
+    const defaultInitialCommissionRate = Math.max(Number(partnerForm.defaultInitialCommissionRate) || 0, 0) / 100;
+    const defaultMonthlyCommissionRate = Math.max(Number(partnerForm.defaultMonthlyCommissionRate) || 0, 0) / 100;
+    const contactEmail = String(partnerForm.contactEmail || '').trim();
+    const payoutMethod = String(partnerForm.payoutMethod || '').trim();
+
+    if (!partnerId || !name) {
+      setError('代理店IDと代理店名を入力してください。');
+      return;
+    }
+
+    if (!editingPartnerId && partners.some((partner) => partner.id === partnerId)) {
+      setError('同じ代理店IDがすでに存在します。');
+      return;
+    }
+
+    if (editingPartnerId && editingPartnerId !== partnerId) {
+      setError('代理店IDは編集できません。新しいIDにしたい場合は新規作成してください。');
+      return;
+    }
+
+    setPartnerCreating(true);
+    setError('');
+
+    try {
+      await setDoc(doc(db, 'platformPartners', partnerId), {
+        id: partnerId,
+        name,
+        type,
+        status,
+        rank,
+        referralCode,
+        defaultInitialCommissionRate,
+        defaultMonthlyCommissionRate,
+        contactEmail,
+        payoutMethod,
+        ...(editingPartnerId ? {} : {
+          createdBy: auth.currentUser?.uid || 'super_admin',
+          createdAt: serverTimestamp()
+        }),
+        updatedAt: serverTimestamp()
+      }, { merge: Boolean(editingPartnerId) });
+
+      window.location.reload();
+    } catch (createError) {
+      console.error('[PlatformAdminPage] partner save failed', createError);
+      setError(createError.message || '代理店保存に失敗しました。');
+    } finally {
+      setPartnerCreating(false);
+    }
+  };
+
   const handleCreateContract = async (event) => {
     event.preventDefault();
 
@@ -655,12 +767,13 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError('');
 
       try {
-        const [organizationSnapshot, storeSnapshot, planSnapshot, contractSnapshot, leadSnapshot] = await Promise.all([
+        const [organizationSnapshot, storeSnapshot, planSnapshot, contractSnapshot, leadSnapshot, partnerSnapshot] = await Promise.all([
           getDocs(collection(db, 'platformOrganizations')),
           getDocs(collection(db, 'stores')),
           getDocs(collection(db, 'platformPlans')),
           getDocs(collection(db, 'platformContracts')),
-          getDocs(collection(db, 'platformSignupLeads'))
+          getDocs(collection(db, 'platformSignupLeads')),
+          getDocs(collection(db, 'platformPartners'))
         ]);
 
         const organizationRows = organizationSnapshot.docs.map((organizationDoc) => {
@@ -736,6 +849,22 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           };
         }).sort((a, b) => (b.createdAt?.getTime?.() || 0) - (a.createdAt?.getTime?.() || 0));
 
+        const partnerRows = partnerSnapshot.docs.map((partnerDoc) => {
+          const data = partnerDoc.data() || {};
+          return {
+            id: data.id || partnerDoc.id,
+            name: data.name || partnerDoc.id,
+            type: data.type || 'referral',
+            status: data.status || 'active',
+            rank: data.rank || 'standard',
+            referralCode: data.referralCode || '',
+            defaultInitialCommissionRate: Number(data.defaultInitialCommissionRate) || 0,
+            defaultMonthlyCommissionRate: Number(data.defaultMonthlyCommissionRate) || 0,
+            contactEmail: data.contactEmail || '',
+            payoutMethod: data.payoutMethod || ''
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
         const contractByStoreId = new Map(contractRows.map((contract) => [contract.storeId, contract]));
 
         const storeRows = await Promise.all(
@@ -774,6 +903,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           setPlans(planRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
           setContracts(contractRows.sort((a, b) => a.contractId.localeCompare(b.contractId, 'ja')));
           setLeads(leadRows);
+          setPartners(partnerRows);
         }
       } catch (loadError) {
         console.error('[PlatformAdminPage] load failed', loadError);
@@ -972,6 +1102,14 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 </div>
                 <div className="mt-1 text-2xl font-black text-emerald-700">
                   {leads.length}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-indigo-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-indigo-500">
+                  Partners
+                </div>
+                <div className="mt-1 text-2xl font-black text-indigo-700">
+                  {partners.length}
                 </div>
               </div>
             </div>
@@ -1307,6 +1445,188 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               </button>
             </form>
           </section>
+        </div>
+
+        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">代理店</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                referral / sales / implementation の代理店情報を管理します。
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreatePartner} className="mb-5 grid gap-3 md:grid-cols-4">
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">代理店ID</span>
+              <input
+                value={partnerForm.partnerId}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, partnerId: event.target.value.trim() }))}
+                placeholder="例: partner_example"
+                disabled={Boolean(editingPartnerId)}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">代理店名</span>
+              <input
+                value={partnerForm.name}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, name: event.target.value }))}
+                placeholder="例: Example Partner"
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">種別</span>
+              <select
+                value={partnerForm.type}
+                onChange={(event) => {
+                  const nextType = event.target.value;
+                  setPartnerForm((current) => ({
+                    ...current,
+                    type: nextType,
+                    defaultInitialCommissionRate:
+                      nextType === 'implementation' ? '50' : nextType === 'sales' ? '30' : '10',
+                    defaultMonthlyCommissionRate:
+                      nextType === 'implementation' ? '25' : nextType === 'sales' ? '20' : '10'
+                  }));
+                }}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                <option value="referral">referral</option>
+                <option value="sales">sales</option>
+                <option value="implementation">implementation</option>
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">ステータス</span>
+              <select
+                value={partnerForm.status}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              >
+                <option value="active">active</option>
+                <option value="inactive">inactive</option>
+              </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">紹介コード</span>
+              <input
+                value={partnerForm.referralCode}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
+                placeholder="例: PARTNER001"
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">初期報酬率（%）</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={partnerForm.defaultInitialCommissionRate}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, defaultInitialCommissionRate: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">月額報酬率（%）</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={partnerForm.defaultMonthlyCommissionRate}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, defaultMonthlyCommissionRate: event.target.value }))}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-slate-400">連絡先メール</span>
+              <input
+                value={partnerForm.contactEmail}
+                onChange={(event) => setPartnerForm((current) => ({ ...current, contactEmail: event.target.value }))}
+                placeholder="partner@example.com"
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-3 md:col-span-4">
+              <button
+                type="submit"
+                disabled={partnerCreating}
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-indigo-600 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {partnerCreating
+                  ? editingPartnerId ? '代理店更新中...' : '代理店作成中...'
+                  : editingPartnerId ? '代理店を更新する' : '代理店を作成する'}
+              </button>
+
+              {editingPartnerId && (
+                <button
+                  type="button"
+                  onClick={resetPartnerForm}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-100 px-6 text-sm font-black text-slate-600 shadow-sm transition-all hover:bg-slate-200 active:scale-95"
+                >
+                  編集をキャンセル
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {partners.map((partner) => (
+              <article key={partner.id} className="rounded-2xl border border-slate-100 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">{partner.name}</h3>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {partner.id} / {partner.type} / {partner.status}
+                    </p>
+                    {partner.contactEmail && (
+                      <p className="mt-1 text-xs font-bold text-slate-400">
+                        {partner.contactEmail}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2">
+                    <div className="rounded-2xl bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700">
+                      {partner.referralCode || 'no code'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleEditPartner(partner)}
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                    >
+                      編集
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-2">
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    初期: {(partner.defaultInitialCommissionRate * 100).toFixed(0)}%
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    月額: {(partner.defaultMonthlyCommissionRate * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            {!partners.length && (
+              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                代理店はまだ登録されていません。
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">

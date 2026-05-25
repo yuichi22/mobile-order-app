@@ -173,6 +173,10 @@ service cloud.firestore {
       allow read, write: if isPlatformAdmin();
     }
 
+    match /platformPartners/{partnerId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
     match /platformAuditLogs/{logId} {
       allow read: if isPlatformAdmin();
       allow create: if isPlatformAdmin();
