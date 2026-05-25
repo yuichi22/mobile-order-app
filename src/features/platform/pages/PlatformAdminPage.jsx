@@ -60,6 +60,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [authError, setAuthError] = useState('');
   const [organizations, setOrganizations] = useState([]);
   const [stores, setStores] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -169,9 +171,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError('');
 
       try {
-        const [organizationSnapshot, storeSnapshot] = await Promise.all([
+        const [organizationSnapshot, storeSnapshot, planSnapshot, contractSnapshot] = await Promise.all([
           getDocs(collection(db, 'platformOrganizations')),
-          getDocs(collection(db, 'stores'))
+          getDocs(collection(db, 'stores')),
+          getDocs(collection(db, 'platformPlans')),
+          getDocs(collection(db, 'platformContracts'))
         ]);
 
         const organizationRows = organizationSnapshot.docs.map((organizationDoc) => {
@@ -184,6 +188,46 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             ownerEmail: data.ownerEmail || ''
           };
         });
+
+        const planRows = planSnapshot.docs.map((planDoc) => {
+          const data = planDoc.data() || {};
+          return {
+            id: planDoc.id,
+            name: data.name || planDoc.id,
+            status: data.status || 'inactive',
+            planType: data.planType || '',
+            monthlyAmount: Number(data.monthlyAmount) || 0,
+            initialSetupFeeDefault: Number(data.initialSetupFeeDefault) || 0,
+            currency: data.currency || 'jpy',
+            stripeProductId: data.stripeProductId || '',
+            stripePriceId: data.stripePriceId || '',
+            stripeLookupKey: data.stripeLookupKey || ''
+          };
+        });
+
+        const contractRows = contractSnapshot.docs.map((contractDoc) => {
+          const data = contractDoc.data() || {};
+          return {
+            id: contractDoc.id,
+            contractId: data.contractId || contractDoc.id,
+            organizationId: data.organizationId || '',
+            storeId: data.storeId || '',
+            planId: data.planId || '',
+            planName: data.planName || '',
+            status: data.status || 'draft',
+            billingStatus: data.billingStatus || 'not_started',
+            monthlyAmount: Number(data.monthlyAmount) || 0,
+            initialSetupFee: Number(data.initialSetupFee) || 0,
+            currency: data.currency || 'jpy',
+            salesChannel: data.salesChannel || '',
+            partnerId: data.partnerId || '',
+            stripeCustomerId: data.stripe?.customerId || '',
+            stripeSubscriptionId: data.stripe?.subscriptionId || '',
+            onboardingStatus: data.onboarding?.status || ''
+          };
+        });
+
+        const contractByStoreId = new Map(contractRows.map((contract) => [contract.storeId, contract]));
 
         const storeRows = await Promise.all(
           storeSnapshot.docs.map(async (storeDoc) => {
@@ -209,7 +253,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               address: basic.address || '',
               tel: basic.tel || '',
               logoUrl: basic.customerLogoUrl || '',
-              status: storeData.status || 'active'
+              status: storeData.status || 'active',
+              contract: contractByStoreId.get(id) || null
             };
           })
         );
@@ -217,6 +262,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         if (!cancelled) {
           setOrganizations(organizationRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
           setStores(storeRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
+          setPlans(planRows.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
+          setContracts(contractRows.sort((a, b) => a.contractId.localeCompare(b.contractId, 'ja')));
         }
       } catch (loadError) {
         console.error('[PlatformAdminPage] load failed', loadError);
@@ -383,6 +430,22 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   {stores.length}
                 </div>
               </div>
+              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                  Plans
+                </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {plans.length}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                  Contracts
+                </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {contracts.length}
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -392,6 +455,56 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             {error}
           </div>
         )}
+
+        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">料金プラン</h2>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                Stripeと紐づくMobile Orderのプラン設定です。
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {plans.map((plan) => (
+              <article key={plan.id} className="rounded-2xl border border-slate-100 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">{plan.name}</h3>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      {plan.id} / {plan.status} / {plan.planType}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-black text-white">
+                    ¥{plan.monthlyAmount.toLocaleString()} / 月
+                  </div>
+                </div>
+
+                <div className="grid gap-2 text-xs font-bold text-slate-500">
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    初期設定費: ¥{plan.initialSetupFeeDefault.toLocaleString()}
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    Product: {plan.stripeProductId || '-'}
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    Price: {plan.stripePriceId || '-'}
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    Lookup: {plan.stripeLookupKey || '-'}
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            {!plans.length && (
+              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                料金プランがまだ登録されていません。
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="space-y-5">
           {organizationCards.map((organization) => (
@@ -447,6 +560,27 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                           <p className="mt-1 text-sm font-semibold text-slate-500">
                             {[store.address, store.tel].filter(Boolean).join(' / ')}
                           </p>
+                        )}
+
+                        {store.contract ? (
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                              {store.contract.planName || store.contract.planId}
+                            </span>
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                              ¥{store.contract.monthlyAmount.toLocaleString()} / 月
+                            </span>
+                            <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                              {store.contract.billingStatus}
+                            </span>
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                              {store.contract.onboardingStatus || 'onboarding未設定'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-3 inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
+                            契約未作成
+                          </div>
                         )}
                       </div>
                     </div>
