@@ -54,6 +54,7 @@ const APP_ERROR_MESSAGES = {
   'app/platform-plan-not-found': '料金プランが見つかりません。',
   'app/platform-contract-not-found': '契約情報が見つかりません。',
   'app/mobile-order-checkout-failed': 'Checkoutの作成に失敗しました。',
+  'app/mobile-order-billing-portal-failed': 'Billing Portalの作成に失敗しました。',
   'app/stripe-webhook-not-configured': 'Stripe Webhook設定が見つかりません。',
   'app/stripe-webhook-invalid': 'Stripe Webhookの検証に失敗しました。'
 };
@@ -1760,6 +1761,75 @@ const applyStripeSubscriptionToContract = async ({ contractSnapshot, subscriptio
 
   await contractSnapshot.ref.set(update, { merge: true });
 };
+
+export const createMobileOrderBillingPortal = onRequest({ region: REGION, cors: true, invoker: 'public' }, async (request, response) => {
+  if (request.method !== 'POST') {
+    return sendAppError(response, 405, 'app/method-not-allowed');
+  }
+
+  try {
+    const authUser = await verifyRequestUser(request);
+    await assertPlatformAdminUser(authUser.uid);
+
+    const { contractId, returnUrl } = parseJsonBody(request);
+    const normalizedContractId = String(contractId || '').trim();
+
+    if (!normalizedContractId) {
+      return sendAppError(response, 400, 'app/platform-contract-not-found');
+    }
+
+    const stripe = getStripeClient();
+    const contract = await getPlatformContract(normalizedContractId);
+    const contractData = contract.data;
+    const stripeCustomerId = String(contractData.stripe?.customerId || '').trim();
+
+    if (!stripeCustomerId) {
+      return sendAppError(response, 400, 'app/platform-contract-not-found', 'Stripe Customer が未作成です。先にCheckoutを作成してください。');
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: resolveRedirectUrl(returnUrl, `/?mode=platform&contract_id=${encodeURIComponent(contract.id)}`)
+    });
+
+    await contract.ref.set({
+      stripe: {
+        ...(contractData.stripe || {}),
+        customerId: stripeCustomerId,
+        billingPortalLastOpenedAt: FieldValue.serverTimestamp()
+      },
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await db.collection('platformAuditLogs').add({
+      action: 'mobile_order_billing_portal_created',
+      uid: authUser.uid,
+      contractId: contract.id,
+      organizationId: contractData.organizationId || '',
+      storeId: contractData.storeId || '',
+      customerId: stripeCustomerId,
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return sendJson(response, 200, {
+      ok: true,
+      url: portalSession.url
+    });
+  } catch (error) {
+    if (error.message?.startsWith('app/')) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/stripe-not-configured': 503,
+        'app/platform-contract-not-found': 404
+      };
+      return sendAppError(response, statusByCode[error.message] || 400, error.message);
+    }
+
+    console.error('createMobileOrderBillingPortal error:', error);
+    return sendAppError(response, 500, 'app/mobile-order-billing-portal-failed');
+  }
+});
 
 export const stripeWebhook = onRequest({ region: REGION, cors: false, invoker: 'public' }, async (request, response) => {
   if (request.method !== 'POST') {

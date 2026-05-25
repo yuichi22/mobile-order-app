@@ -113,6 +113,13 @@
         }
       },
       {
+        "source": "/api/createMobileOrderBillingPortal",
+        "function": {
+          "functionId": "createMobileOrderBillingPortal",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/requestPlatformAdminAccessCode",
         "function": {
           "functionId": "requestPlatformAdminAccessCode",

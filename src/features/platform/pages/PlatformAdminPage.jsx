@@ -63,6 +63,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
   const [plans, setPlans] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [checkoutLoadingContractId, setCheckoutLoadingContractId] = useState('');
+  const [portalLoadingContractId, setPortalLoadingContractId] = useState('');
   const [error, setError] = useState('');
 
   const isSuperAdmin = normalizeUserRole(role) === USER_ROLES.SUPER_ADMIN;
@@ -184,6 +185,31 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
       setError(checkoutError.message || 'Checkoutの作成に失敗しました。');
     } finally {
       setCheckoutLoadingContractId('');
+    }
+  };
+
+  const handleOpenBillingPortal = async (contractId) => {
+    if (!contractId) return;
+
+    setPortalLoadingContractId(contractId);
+    setError('');
+
+    try {
+      const payload = await callPlatformAdminApi('/api/createMobileOrderBillingPortal', {
+        contractId,
+        returnUrl: `${window.location.origin}/?mode=platform&contract_id=${encodeURIComponent(contractId)}`
+      });
+
+      if (payload?.url) {
+        window.open(payload.url, '_blank', 'noopener,noreferrer');
+      } else {
+        setError('Billing Portal URLを取得できませんでした。');
+      }
+    } catch (portalError) {
+      console.error('[PlatformAdminPage] billing portal creation failed', portalError);
+      setError(portalError.message || 'Billing Portalの作成に失敗しました。');
+    } finally {
+      setPortalLoadingContractId('');
     }
   };
 
@@ -616,17 +642,37 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
                     <div className="flex flex-col gap-2 md:items-end">
                       {store.contract && (
-                        <button
-                          type="button"
-                          onClick={() => handleCreateCheckout(store.contract.contractId || store.contract.id)}
-                          disabled={checkoutLoadingContractId === (store.contract.contractId || store.contract.id)}
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {checkoutLoadingContractId === (store.contract.contractId || store.contract.id)
-                            ? 'Checkout作成中...'
-                            : 'Checkoutを作成'}
-                          <ChevronRight size={16} strokeWidth={3} />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleCreateCheckout(store.contract.contractId || store.contract.id)}
+                            disabled={checkoutLoadingContractId === (store.contract.contractId || store.contract.id)}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {checkoutLoadingContractId === (store.contract.contractId || store.contract.id)
+                              ? 'Checkout作成中...'
+                              : 'Checkoutを作成'}
+                            <ChevronRight size={16} strokeWidth={3} />
+                          </button>
+
+                          {store.contract.stripeCustomerId ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBillingPortal(store.contract.contractId || store.contract.id)}
+                              disabled={portalLoadingContractId === (store.contract.contractId || store.contract.id)}
+                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {portalLoadingContractId === (store.contract.contractId || store.contract.id)
+                                ? 'Portal作成中...'
+                                : 'Billing Portalを開く'}
+                              <ChevronRight size={16} strokeWidth={3} />
+                            </button>
+                          ) : (
+                            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-xs font-black text-slate-400">
+                              Billing PortalはCheckout作成後に利用できます
+                            </div>
+                          )}
+                        </>
                       )}
 
                       <button
