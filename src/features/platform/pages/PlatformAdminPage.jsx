@@ -643,19 +643,54 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                         )}
 
                         {store.contract ? (
-                          <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                              {store.contract.planName || store.contract.planId}
-                            </span>
-                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
-                              ¥{store.contract.monthlyAmount.toLocaleString()} / 月
-                            </span>
-                            <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
-                              {store.contract.billingStatus}
-                            </span>
-                            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-                              {store.contract.onboardingStatus || 'onboarding未設定'}
-                            </span>
+                          <div className="mt-3 space-y-3">
+                            <div className="flex flex-wrap gap-2 text-xs font-black">
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                                {store.contract.planName || store.contract.planId}
+                              </span>
+                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                                ¥{store.contract.monthlyAmount.toLocaleString()} / 月
+                              </span>
+                              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                                billing: {store.contract.billingStatus}
+                              </span>
+                              <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                                onboarding: {store.contract.onboardingStatus || '未設定'}
+                              </span>
+                            </div>
+
+                            <div className="grid gap-2 rounded-2xl bg-slate-50 p-3 text-[11px] font-bold text-slate-500 md:grid-cols-2">
+                              <div>
+                                <span className="text-slate-400">Contract</span>
+                                <div className="mt-0.5 break-all text-slate-700">
+                                  {store.contract.contractId || store.contract.id}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Status</span>
+                                <div className="mt-0.5 text-slate-700">
+                                  {store.contract.status} / {store.contract.billingStatus}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Stripe Customer</span>
+                                <div className="mt-0.5 break-all text-slate-700">
+                                  {store.contract.stripeCustomerId || '-'}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Subscription</span>
+                                <div className="mt-0.5 break-all text-slate-700">
+                                  {store.contract.stripeSubscriptionId || '-'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {!store.contract.stripeSubscriptionId && (
+                              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-black leading-5 text-amber-700">
+                                次の状態：Checkout決済が完了するとSubscriptionが作成され、WebhookまたはStripe同期でactiveになります。
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="mt-3 inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
