@@ -337,6 +337,10 @@ const canSelectCard =
       cookingStartedAtMs: startedAtMs,
       movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
     });
+
+    if (!isSelectedForSummary && typeof onToggleSummarySelect === 'function') {
+      onToggleSummarySelect();
+    }
   };
 
   const revertCookingToPending = () => {
