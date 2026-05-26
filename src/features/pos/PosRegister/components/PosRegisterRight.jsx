@@ -249,13 +249,13 @@ export const PosRegisterRight = ({
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[88px_1fr] gap-2">
+            <div className="grid min-h-0 flex-1 grid-cols-[104px_1fr] gap-3">
               <div className="grid grid-rows-4 gap-2">
                 {[1000, 5000, 10000].map((amount) => (
                   <button
                     key={amount}
                     onClick={() => handleQuickAdd(amount)}
-                    className="rounded-xl border border-gray-200 bg-white px-2 text-xs font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    className="rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                   >
                     +{amount.toLocaleString()}
                   </button>
@@ -263,7 +263,7 @@ export const PosRegisterRight = ({
 
                 <button
                   onClick={handleFullPayment}
-                  className="rounded-xl border border-blue-200 bg-blue-50 px-2 text-xs font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
                 >
                   ちょうど
                 </button>
@@ -280,16 +280,16 @@ export const PosRegisterRight = ({
                   </button>
                 ))}
                 <button
-                  onClick={() => handleNumClick('00')}
-                  className="rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                >
-                  00
-                </button>
-                <button
                   onClick={() => handleNumClick('0')}
                   className="rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                 >
                   0
+                </button>
+                <button
+                  onClick={() => handleNumClick('00')}
+                  className="rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                >
+                  00
                 </button>
                 <button
                   onClick={() => handleNumClick('backspace')}
