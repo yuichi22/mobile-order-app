@@ -24,7 +24,7 @@ export const PosRegisterLeft = ({
   const allSelected = orders.length > 0 && selectedOrderIds.size === orders.length;
 
   return (
-    <div className="z-10 flex h-full w-7/12 flex-col border-r border-gray-200 bg-white shadow-xl">
+    <div className="z-10 flex h-full min-h-0 w-7/12 flex-col overflow-hidden border-r border-gray-200 bg-white shadow-xl">
       <div className="flex items-center justify-between border-b bg-gray-50 p-4">
         <button
           onClick={onBack}
@@ -57,7 +57,7 @@ export const PosRegisterLeft = ({
         </div>
       </div>
 
-      <div className="flex-grow space-y-4 overflow-y-auto bg-gray-50/50 p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-gray-50/50 p-4">
         {orders.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-60">
             <Utensils size={64} strokeWidth={1} className="mb-4" />

@@ -947,7 +947,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   if (loading) return <div className="flex h-full items-center justify-center"><LoadingSpinner size={24} className="text-gray-400" /></div>;
 
   return (
-    <div className="relative flex h-full bg-gray-100 font-sans">
+    <div className="relative flex h-full min-h-0 overflow-hidden bg-gray-100 font-sans">
       <PosModals
         showSuccessModal={showSuccessModal}
         setShowSuccessModal={setShowSuccessModal}
@@ -1021,6 +1021,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         isPaymentSubmitting={isPaymentSubmitting}
         handlePayment={handlePayment}
         handleAbortSession={handleAbortSession}
+        tableId={tableId}
+        tableDisplayName={tableDisplayName}
       />
       <style>{'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}'}</style>
     </div>

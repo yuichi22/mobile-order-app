@@ -180,8 +180,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const mainClassName =
     activeAdminTab === 'pos'
       ? showAdminHeader
-        ? 'h-[calc(100vh-72px)] overflow-hidden'
-        : 'h-screen overflow-hidden'
+        ? 'h-[calc(100dvh-72px)] max-h-[calc(100dvh-72px)] overflow-hidden supports-[height:100svh]:h-[calc(100svh-72px)] supports-[height:100svh]:max-h-[calc(100svh-72px)]'
+        : 'h-[100dvh] max-h-[100dvh] overflow-hidden supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]'
       : 'w-full px-6 py-6';
 
   if (user && !storeId) {
@@ -189,7 +189,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-100 font-sans text-gray-800">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-100 font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]">
       {toast && (
         <NotificationToast
           message={toast.message}
@@ -298,9 +298,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
         </header>
       )}
 
-      <main className={`flex-grow ${mainClassName}`}>
+      <main className={`min-h-0 flex-grow overflow-hidden ${mainClassName}`}>
         {activeAdminTab === 'pos' && (
-          <div className="h-full">
+          <div className="h-full min-h-0 overflow-hidden">
             <Suspense fallback={<TabLoader />}>
               {posView === 'scan' && (
                 <PosHomePage
