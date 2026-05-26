@@ -3607,6 +3607,17 @@ export const cancelCustomerOrderItem = onRequest(
           throw new Error('app/order-already-cancelled');
         }
 
+        const orderKitchenStarted =
+          order.status === 'cooking' ||
+          order.status === 'serving' ||
+          order.status === 'completed' ||
+          order.cookingStartedAtMs ||
+          order.cookingStartedAt;
+
+        if (orderKitchenStarted) {
+          throw new Error('app/order-already-started');
+        }
+
         if (!items.length) {
           throw new Error('app/order-invalid');
         }

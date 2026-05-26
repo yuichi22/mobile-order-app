@@ -333,14 +333,10 @@ const canSelectCard =
       };
     });
 
-    updateOrderItems(order.id, nextItems, 'cooking');
-
-    if (typeof updateOrderMeta === 'function') {
-      updateOrderMeta(order.id, {
-        cookingStartedAtMs: startedAtMs,
-        movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
-      });
-    }
+    updateOrderItems(order.id, nextItems, 'cooking', {
+      cookingStartedAtMs: startedAtMs,
+      movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
+    });
   };
 
   const markAllPrepared = () => {

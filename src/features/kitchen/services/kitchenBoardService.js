@@ -116,9 +116,10 @@ export const updateKitchenOrderStatus = (storeId, orderId, status) => {
   });
 };
 
-export const updateKitchenOrderItems = (storeId, orderId, items, status = null) => {
+export const updateKitchenOrderItems = (storeId, orderId, items, status = null, extraPayload = {}) => {
   const payload = {
     items,
+    ...extraPayload,
     updatedAt: new Date()
   };
 

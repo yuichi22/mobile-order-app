@@ -62,10 +62,10 @@ export const useKitchenBoard = (storeId) => {
     }
   };
 
-    const updateOrderItems = async (orderId, items, status = null) => {
+    const updateOrderItems = async (orderId, items, status = null, extraPayload = {}) => {
       if (!storeId) return;
       try {
-        await updateKitchenOrderItems(storeId, orderId, items, status);
+        await updateKitchenOrderItems(storeId, orderId, items, status, extraPayload);
       } catch (e) {
         console.error('KDS Item update error:', e);
       }
