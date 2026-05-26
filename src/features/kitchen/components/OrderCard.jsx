@@ -197,15 +197,16 @@ const OrderCard = ({
   });
 
 const canShowStartCookingButton =
-  orderKitchenStatus === 'pending' && !isSelectedForSummary;
+  viewMode === 'active' &&
+  orderKitchenStatus === 'pending';
 
 const canShowMarkPreparedButton =
-  orderKitchenStatus === 'cooking' ||
-  (orderKitchenStatus === 'pending' && isSelectedForSummary);
+  viewMode === 'active' &&
+  orderKitchenStatus === 'cooking';
 
 const canSelectCard =
   viewMode === 'active' &&
-  (canShowStartCookingButton || canShowMarkPreparedButton);
+  (orderKitchenStatus === 'pending' || orderKitchenStatus === 'cooking' || canShowMarkPreparedButton);
 
   const elapsedCardClassName =
     viewMode === 'active' && elapsedLevel.level === 'danger'
@@ -338,20 +339,67 @@ const canSelectCard =
     });
   };
 
-  const handleStartCookingOrSelectCard = () => {
-    if (canShowStartCookingButton) {
+  const revertCookingToPending = () => {
+    if (!updateOrderItems || viewMode !== 'active') return;
+
+    const nextItems = (order.items || []).map((item) => {
+      const lookupId = item.menuId || item.id;
+      const masterItem = menuItemLookup?.[lookupId] || {};
+      const targetKitchenIds = masterItem.kitchenIds || (
+        masterItem.kitchenId ? [masterItem.kitchenId] : []
+      );
+
+      const isTargetItem =
+        activeKitchenId === 'all' ||
+        targetKitchenIds.some((kitchenId) => String(kitchenId) === String(activeKitchenId));
+
+      if (!isTargetItem) {
+        return item;
+      }
+
+      const currentStatus = resolveKitchenStatus(item);
+
+      // 調理完了・提供済みは戻さない。cooking だけ pending に戻す。
+      if (currentStatus !== 'cooking') {
+        return item;
+      }
+
+      const {
+        isCooking,
+        cookingStartedAtMs,
+        ...rest
+      } = item;
+
+      return {
+        ...rest,
+        kitchenStatus: 'pending'
+      };
+    });
+
+    updateOrderItems(order.id, nextItems, 'pending', {
+      cookingStartedAtMs: null,
+      movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
+    });
+  };
+
+  const handleHeaderClick = () => {
+    if (orderKitchenStatus === 'pending') {
       startCooking();
       return;
     }
 
-    if (canShowMarkPreparedButton) {
-      markAllPrepared();
+    if (orderKitchenStatus === 'cooking') {
+      revertCookingToPending();
       return;
     }
 
     if (typeof onToggleSummarySelect === 'function') {
       onToggleSummarySelect();
     }
+  };
+
+  const handleStartCookingButtonClick = () => {
+    startCooking();
   };
 
   const markAllPrepared = () => {
@@ -466,17 +514,19 @@ const canSelectCard =
     ? 'ring-2 ring-slate-500/35'
     : '';
 
-  const headerClassName = isSelectedForSummary
+  const isCookingActive = orderKitchenStatus === 'cooking';
+
+  const headerClassName = isSelectedForSummary || isCookingActive
     ? 'border-green-300 bg-green-100 shadow-inner'
     : isSummarySelectMode
       ? 'border-slate-200 bg-slate-50 hover:bg-green-50/80'
       : orderStatusMeta.headerClassName;
 
-  const tableLabelClassName = isSelectedForSummary
+  const tableLabelClassName = isSelectedForSummary || isCookingActive
     ? 'text-green-700'
     : 'text-gray-400';
 
-  const tableNumberClassName = isSelectedForSummary
+  const tableNumberClassName = isSelectedForSummary || isCookingActive
     ? 'text-green-950'
     : 'text-gray-800';
 
@@ -499,13 +549,13 @@ const canSelectCard =
     <div
       role={canSelectCard ? 'button' : undefined}
       tabIndex={canSelectCard ? 0 : undefined}
-      onClick={canSelectCard ? handleStartCookingOrSelectCard : undefined}
+      onClick={canSelectCard ? handleHeaderClick : undefined}
       onKeyDown={
         canSelectCard
           ? (event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                handleStartCookingOrSelectCard();
+                handleHeaderClick();
               }
             }
           : undefined
@@ -759,7 +809,7 @@ const canSelectCard =
 {canShowStartCookingButton && (
         <button
           type="button"
-          onClick={handleStartCookingOrSelectCard}
+          onClick={handleStartCookingButtonClick}
           className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-orange-500 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
         >
           <Flame size={20} />
