@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { db } from '../../shared/api/firebase/client';
+import { auth, db } from '../../shared/api/firebase/client';
 import {
   Barcode,
   CheckCircle,
@@ -241,6 +241,7 @@ const historySheetDragControls = useDragControls();
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [pendingOpenReceiptId, setPendingOpenReceiptId] = useState('');
+  const [cancellingOrderId, setCancellingOrderId] = useState('');
   const [hasInteractedWithCrossSellTab, setHasInteractedWithCrossSellTab] = useState(false);
   const returnCategoryIdAfterCrossSellRef = useRef('');
   const crossSellAddedMessageTimerRef = useRef(null);
@@ -1171,6 +1172,71 @@ const isReceiptPrintable = (receipt) => (
   )
 );
 
+const canCancelCustomerOrder = (order) => {
+  if (!order) return false;
+  if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+  if (order.paymentStatus === 'paid') return false;
+  if (order.orderFlow === 'prepay') return false;
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length === 0) return false;
+
+  return items.every((item) => {
+    const status = String(item?.kitchenStatus || 'pending');
+    return status === 'pending' && item?.isPrepared !== true;
+  });
+};
+
+const handleCancelCustomerOrder = async (order) => {
+  if (!order?.id || cancellingOrderId) return;
+
+  const confirmed = window.confirm('この注文をキャンセルしますか？\n調理開始前の注文のみキャンセルできます。');
+  if (!confirmed) return;
+
+  setCancellingOrderId(order.id);
+
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+
+    if (!idToken) {
+      throw new Error('ログイン状態を確認できませんでした。');
+    }
+
+    const response = await fetch('/api/cancelCustomerOrder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        storeId,
+        sessionId,
+        orderId: order.id,
+        participantId: order.participantId || order.customerId
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error?.message || '注文のキャンセルに失敗しました。');
+    }
+
+    setToast({
+      message: '注文をキャンセルしました。',
+      type: 'success'
+    });
+  } catch (cancelError) {
+    console.error('[CustomerApp] cancel order failed', cancelError);
+    setToast({
+      message: cancelError.message || '注文のキャンセルに失敗しました。',
+      type: 'error'
+    });
+  } finally {
+    setCancellingOrderId('');
+  }
+};
+
 const openReceiptSafely = (receipt) => {
   if (!receipt) {
     setToast({
@@ -1705,41 +1771,80 @@ if (shouldWaitForSessionBeforeWelcome) {
           <div className="space-y-4">
             {filteredOrderHistory.map((order) => {
               const orderItems = Array.isArray(order.items) ? order.items : [];
+              const isCancelledOrder = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
+              const isCancelable = canCancelCustomerOrder(order);
+              const isCancelling = cancellingOrderId === order.id;
+
+              const displayStatus = isCancelledOrder
+                ? 'キャンセル済み'
+                : order.status === 'pending'
+                  ? '受付済み'
+                  : '提供済み';
+
+              const statusClassName = isCancelledOrder
+                ? 'bg-gray-100 text-gray-500'
+                : order.status === 'pending'
+                  ? 'bg-orange-100 text-orange-600'
+                  : 'bg-green-100 text-green-600';
 
               return (
                 <div
                   key={order.id}
-                  className="rounded-xl border-l-4 border-orange-500 bg-white p-4 shadow-sm"
+                  className={`rounded-xl border-l-4 bg-white p-4 shadow-sm ${
+                    isCancelledOrder ? 'border-gray-300 opacity-70' : 'border-orange-500'
+                  }`}
                 >
-                  <div className="mb-2 flex justify-between text-xs text-gray-400">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
                     <span>{formatOrderTime(order.timestamp)}</span>
-                    <span
-                      className={`rounded px-2 py-0.5 font-bold ${
-                        order.status === 'pending'
-                          ? 'bg-red-100 text-red-600'
-                          : 'bg-green-100 text-green-600'
-                      }`}
-                    >
-                      {order.status === 'pending' ? '調理中' : '提供済み'}
+                    <span className={`shrink-0 rounded px-2 py-0.5 font-bold ${statusClassName}`}>
+                      {displayStatus}
                     </span>
                   </div>
 
-                  {orderItems.map((item, index) => (
-                    <div
-                      key={`${order.id}-${index}`}
-                      className="flex justify-between border-b border-gray-50 py-1 text-sm last:border-0"
+                  {orderItems.map((item, index) => {
+                    const isCancelledItem =
+                      isCancelledOrder ||
+                      item?.status === 'cancelled' ||
+                      item?.kitchenStatus === 'cancelled';
+
+                    return (
+                      <div
+                        key={`${order.id}-${index}`}
+                        className={`flex justify-between border-b border-gray-50 py-1 text-sm last:border-0 ${
+                          isCancelledItem ? 'text-gray-400 line-through' : ''
+                        }`}
+                      >
+                        <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
+                          {item.name} x{Number(item.quantity || 0)}
+                          {item.serviceTimingLabel && (
+                            <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                              {item.serviceTimingLabel}
+                            </span>
+                          )}
+                        </span>
+                        <span>
+                          ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {isCancelable && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelCustomerOrder(order)}
+                      disabled={isCancelling}
+                      className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-red-100 bg-red-50 text-xs font-black text-red-500 transition-all hover:bg-red-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <span className="text-gray-800">
-                        {item.name} x{Number(item.quantity || 0)}
-                        {item.serviceTimingLabel && (
-                          <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
-                            {item.serviceTimingLabel}
-                          </span>
-                        )}
-                      </span>
-                      <span>¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}</span>
-                    </div>
-                  ))}
+                      {isCancelling ? 'キャンセル中...' : 'この注文をキャンセル'}
+                    </button>
+                  )}
+
+                  {!isCancelledOrder && !isCancelable && order.status === 'pending' && (
+                    <p className="mt-3 text-center text-[10px] font-bold text-gray-400">
+                      調理開始後の変更・キャンセルはスタッフへお声がけください
+                    </p>
+                  )}
                 </div>
               );
             })}
