@@ -1911,7 +1911,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 ? 'キャンセル済み'
                 : order.status === 'pending'
                   ? '受付済み'
-                  : '提供済み';
+                  : '提供中';
 
               const statusClassName = isCancelledOrder
                 ? 'bg-gray-100 text-gray-500'

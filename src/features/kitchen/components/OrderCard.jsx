@@ -69,7 +69,7 @@ const resolveDisplayKitchenStatus = ({
   if (order?.status === 'completed') return 'completed';
   if (targetItems.length === 0) return 'pending';
 
-  // 調理開始済みの商品が1つでもあれば、提供済み判定より先に「調理中」を優先する
+  // 調理開始済みの商品が1つでもあれば、提供中判定より先に「調理中」を優先する
   if (targetItems.some((item) => resolveKitchenStatus(item) === 'cooking')) {
     return 'cooking';
   }
@@ -119,7 +119,7 @@ const ORDER_STATUS_META = {
     headerClassName: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70'
   },
   targetServed: {
-    label: '提供済み',
+    label: '提供中',
     badgeClassName: 'border-blue-200 bg-blue-50 text-blue-700',
     headerClassName: 'border-blue-200 bg-blue-50 hover:bg-blue-100/70'
   },
@@ -372,7 +372,7 @@ const canSelectCard =
 
       const currentStatus = resolveKitchenStatus(item);
 
-      // 調理完了・提供済みは戻さない。cooking だけ pending に戻す。
+      // 調理完了・提供中は戻さない。cooking だけ pending に戻す。
       if (currentStatus !== 'cooking') {
         return item;
       }
@@ -439,7 +439,7 @@ const canSelectCard =
 
       const currentStatus = resolveKitchenStatus(item);
 
-      // 重要：提供済みの商品は絶対に prepared に戻さない
+      // 重要：提供中の商品は絶対に prepared に戻さない
       if (currentStatus === 'served') {
         return item;
       }
@@ -736,7 +736,7 @@ const canSelectCard =
                       isServedItem
                         ? '未完了'
                         : isPreparedItem
-                          ? '提供済み'
+                          ? '提供中'
                           : '調理完了'
                     }にする`
                   : undefined
@@ -874,7 +874,7 @@ const canSelectCard =
               className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-blue-600 py-3.5 text-base font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98]"
             >
               <Check size={20} />
-              提供済み
+              提供中
               <span className="mx-1 h-4 w-px bg-white/30" />
               <ArrowRight size={18} strokeWidth={3} />
               後ろへ
