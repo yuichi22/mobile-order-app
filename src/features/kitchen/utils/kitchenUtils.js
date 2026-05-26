@@ -1,3 +1,13 @@
+export const isCancelledKitchenItem = (item) => (
+  item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled'
+);
+
+export const getActiveKitchenItems = (items = []) => (
+  Array.isArray(items)
+    ? items.filter((item) => !isCancelledKitchenItem(item))
+    : []
+);
+
 export const getCategory = (item, menuItemLookup = {}) => {
   if (!item) return '';
 
@@ -15,7 +25,9 @@ export const getCategory = (item, menuItemLookup = {}) => {
 export const processDisplayItems = (items, activeKitchenId, menuItemLookup = {}) => {
   if (!items || !Array.isArray(items)) return [];
 
-  return items.map((item, index) => {
+  return items.flatMap((item, index) => {
+    if (isCancelledKitchenItem(item)) return [];
+
     const masterItem = menuItemLookup[item.menuId] || menuItemLookup[item.id] || {};
 
     const targetKitchenIds = masterItem.kitchenIds || (
@@ -27,13 +39,13 @@ export const processDisplayItems = (items, activeKitchenId, menuItemLookup = {})
       activeKitchenId === '' ||
       targetKitchenIds.some((kitchenId) => String(kitchenId) === String(activeKitchenId));
 
-    return {
+    return [{
       ...item,
       serviceTiming: item.serviceTiming || '',
       serviceTimingLabel: item.serviceTimingLabel || '',
       isMatched,
       sourceIndex: index
-    };
+    }];
   });
 };
 

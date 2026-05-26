@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import {
+  getActiveKitchenItems,
   getElapsedLevel,
   getElapsedTime,
   processDisplayItems
@@ -26,7 +27,7 @@ const resolveKitchenStatus = (item) => {
 };
 
 const resolveOrderKitchenStatus = (order) => {
-  const items = Array.isArray(order?.items) ? order.items : [];
+  const items = getActiveKitchenItems(order?.items);
 
   if (order?.status === 'completed') return 'completed';
 
@@ -56,7 +57,7 @@ const resolveDisplayKitchenStatus = ({
   activeKitchenId,
   displayItems
 }) => {
-  const allItems = Array.isArray(order?.items) ? order.items : [];
+  const allItems = getActiveKitchenItems(order?.items);
   const targetItems = activeKitchenId === 'all'
     ? (displayItems || [])
     : (displayItems || []).filter((item) => item.isMatched);

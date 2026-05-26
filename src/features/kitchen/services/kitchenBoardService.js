@@ -71,8 +71,15 @@ export const subscribeKitchenMenu = (storeId, onChange) => {
 export const subscribeKitchenOrders = (storeId, onChange) => {
   return onSnapshot(query(collection(db, 'stores', storeId, 'orders'), orderBy('timestamp', 'asc')), (snapshot) => {
     const allOrders = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+    const activeOrders = allOrders.filter((order) => {
+      if (!order) return false;
+      if (order.status === 'completed') return false;
+      if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+      return true;
+    });
+
     onChange({
-      orders: allOrders.filter((order) => order.status !== 'completed'),
+      orders: activeOrders,
       completedOrders: allOrders
         .filter((order) => order.status === 'completed')
         .sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0))

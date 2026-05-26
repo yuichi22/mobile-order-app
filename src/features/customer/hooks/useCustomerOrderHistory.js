@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { db } from '../../../shared/api/firebase/client';
 import { isOrderOwnedByCustomer } from '../../../shared/utils/orderCustomerIdentity';
+import { getActiveOrderItemsTotal } from '../../../shared/utils/orderItems';
 
 export const useCustomerOrderHistory = ({ sessionId, storeId, participantId }) => {
   const [orderHistory, setOrderHistory] = useState([]);
@@ -45,8 +46,20 @@ export const useCustomerOrderHistory = ({ sessionId, storeId, participantId }) =
     const myOrderHistory = [];
 
     orderHistory.forEach((order) => {
-      const orderTotal = order.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+      const isCancelledOrder = order?.status === 'cancelled' || order?.paymentStatus === 'cancelled';
+      const items = Array.isArray(order?.items) ? order.items : [];
+
+      if (isCancelledOrder) {
+        if (isOrderOwnedByCustomer(order, participantId)) {
+          myOrderHistory.push(order);
+        }
+        return;
+      }
+
+      const orderTotal = getActiveOrderItemsTotal(items);
+
       grandTotal += orderTotal;
+
       if (isOrderOwnedByCustomer(order, participantId)) {
         myTotal += orderTotal;
         myOrderHistory.push(order);

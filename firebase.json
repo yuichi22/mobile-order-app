@@ -190,6 +190,20 @@
         }
       },
       {
+        "source": "/api/cancelCustomerOrder",
+        "function": {
+          "functionId": "cancelCustomerOrder",
+          "region": "asia-northeast1"
+        }
+      },
+      {
+        "source": "/api/cancelCustomerOrderItem",
+        "function": {
+          "functionId": "cancelCustomerOrderItem",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

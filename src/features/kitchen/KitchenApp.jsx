@@ -9,7 +9,7 @@ import OrderCard from './components/OrderCard';
 import KitchenSidebar from './components/KitchenSidebar';
 import { useKitchenBoard } from './hooks/useKitchenBoard';
 import { useStoreSettings } from '../store/hooks';
-import { buildPendingItemSummary, sortKitchenOrders } from './utils/kitchenUtils';
+import { buildPendingItemSummary, getActiveKitchenItems, isCancelledKitchenItem, sortKitchenOrders } from './utils/kitchenUtils';
 
 
 const ALERT_SOUND_URL = '/決定ボタンを押す5.mp3';
@@ -182,7 +182,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
   ]);
 
     const getOrderDisplayStatusRank = (order) => {
-      const items = Array.isArray(order?.items) ? order.items : [];
+      const items = getActiveKitchenItems(order?.items);
 
       const resolveItemStatus = (item) => {
         if (item?.kitchenStatus === 'served') return 'served';
@@ -361,6 +361,10 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
         .filter((order) => selectedIds.includes(order.id))
         .map((order) => {
             const nextItems = (order.items || []).map((item) => {
+              if (isCancelledKitchenItem(item)) {
+                return item;
+              }
+
               const lookupId = item.menuId || item.id;
               const masterItem = kdsData.menuItemLookup?.[lookupId] || {};
               const targetKitchenIds = masterItem.kitchenIds || (
@@ -393,7 +397,9 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
               };
             });
 
-          const allPrepared = nextItems.length > 0 && nextItems.every((item) => {
+          const nextActiveItems = getActiveKitchenItems(nextItems);
+
+          const allPrepared = nextActiveItems.length > 0 && nextActiveItems.every((item) => {
             const status = item?.kitchenStatus === 'served'
               ? 'served'
               : item?.kitchenStatus === 'prepared' || item?.isPrepared
@@ -403,7 +409,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
             return status === 'prepared' || status === 'served';
           });
 
-          const allServed = nextItems.length > 0 && nextItems.every((item) => (
+          const allServed = nextActiveItems.length > 0 && nextActiveItems.every((item) => (
             item?.kitchenStatus === 'served'
           ));
 
@@ -467,6 +473,10 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
     await Promise.all(
       targetOrders.map((order) => {
         const nextItems = (order.items || []).map((item) => {
+          if (isCancelledKitchenItem(item)) {
+            return item;
+          }
+
           const lookupId = String(item.menuId || item.id || '');
           const itemName = String(item.name || '');
 
@@ -501,7 +511,9 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
           };
         });
 
-        const allPrepared = nextItems.length > 0 && nextItems.every((item) => {
+        const nextActiveItems = getActiveKitchenItems(nextItems);
+
+        const allPrepared = nextActiveItems.length > 0 && nextActiveItems.every((item) => {
           const status = item?.kitchenStatus === 'served'
             ? 'served'
             : item?.kitchenStatus === 'prepared' || item?.isPrepared
@@ -511,7 +523,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
           return status === 'prepared' || status === 'served';
         });
 
-        const allServed = nextItems.length > 0 && nextItems.every((item) => (
+        const allServed = nextActiveItems.length > 0 && nextActiveItems.every((item) => (
           item?.kitchenStatus === 'served'
         ));
 

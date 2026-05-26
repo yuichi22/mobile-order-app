@@ -22,6 +22,16 @@ import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 
+const isCancelledPosItem = (item) => (
+  item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled'
+);
+
+const getActivePosItems = (items = []) => (
+  Array.isArray(items)
+    ? items.filter((item) => !isCancelledPosItem(item))
+    : []
+);
+
 const allocateAmountByWeight = (targetAmount, weights) => {
   const normalizedTarget = Math.max(Math.round(Number(targetAmount) || 0), 0);
   const normalizedWeights = weights.map((weight, index) => ({
@@ -242,14 +252,21 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
       if (!snapshot) return;
       const fetched = snapshot.docs.map((orderDoc) => ({ id: orderDoc.id, ...orderDoc.data() }));
-      const unpaidOrders = fetched.filter((order) => order && order.paymentStatus !== 'paid');
+      const unpaidOrders = fetched.filter((order) => {
+        if (!order) return false;
+        if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+        return order.paymentStatus !== 'paid';
+      });
       setOrders(unpaidOrders);
       setLoading(false);
 
       const nextPaidKeys = new Set();
       fetched.forEach((order) => {
         if (order.paymentStatus === 'paid' && order.items) {
-          order.items.forEach((_, idx) => nextPaidKeys.add(`${order.id}-${idx}`));
+          order.items.forEach((item, idx) => {
+            if (item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled') return;
+            nextPaidKeys.add(`${order.id}-${idx}`);
+          });
         }
       });
       setPaidItemKeys(nextPaidKeys);
@@ -276,6 +293,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       if (!order?.items || !Array.isArray(order.items)) return;
       order.items.forEach((item, idx) => {
         if (!item) return;
+        if (item.status === 'cancelled' || item.kitchenStatus === 'cancelled') return;
+
         const itemKey = `${order.id}-${idx}`;
         if (paidItemKeys.has(itemKey)) return;
 
@@ -541,7 +560,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       const isSessionComplete = orders.every((order) => {
         if (!order.items || !Array.isArray(order.items)) return true;
-        return order.items.every((_, index) => {
+
+        const activeItemEntries = order.items
+          .map((item, index) => ({ item, index }))
+          .filter(({ item }) => (
+            item?.status !== 'cancelled' &&
+            item?.kitchenStatus !== 'cancelled'
+          ));
+
+        if (activeItemEntries.length === 0) return true;
+
+        return activeItemEntries.every(({ index }) => {
           const key = `${order.id}-${index}`;
           return paidItemKeys.has(key) || newlyPaidKeys.has(key);
         });
@@ -557,7 +586,27 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         let rawOrderReducedIncl = 0;
         let rawOrderStandardIncl = 0;
 
+        const activeItemIndexSet = new Set(
+          order.items
+            .map((item, index) => ({ item, index }))
+            .filter(({ item }) => !isCancelledPosItem(item))
+            .map(({ index }) => index)
+        );
+
         const updatedItems = order.items.map((item, index) => {
+          const isCancelledItem =
+            item?.status === 'cancelled' ||
+            item?.kitchenStatus === 'cancelled' ||
+            !activeItemIndexSet.has(index);
+
+          if (isCancelledItem) {
+            return {
+              ...item,
+              allowsTakeout: item?.allowsTakeout !== false,
+              isTakeout: false
+            };
+          }
+
           const allowsTakeout = item.allowsTakeout !== false;
           const isTakeout = allowTakeout && allowsTakeout && activeTakeoutItemKeys.has(`${order.id}-${index}`);
           const menuPrice = Number(item.unitPrice) || 0;
@@ -583,7 +632,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           rawOrderReducedIncl,
           rawOrderStandardIncl,
           rawOrderTotalIncl: rawOrderReducedIncl + rawOrderStandardIncl,
-          orderHasTakeoutItem: updatedItems.some((targetItem) => targetItem.isTakeout === true)
+          orderHasTakeoutItem: updatedItems.some((targetItem) => (
+            targetItem.isTakeout === true &&
+            targetItem.status !== 'cancelled' &&
+            targetItem.kitchenStatus !== 'cancelled'
+          ))
         };
       });
 

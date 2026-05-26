@@ -141,6 +141,14 @@ const shouldCountOrderForLimitedStock = (orderData) => (
 );
 
 const collectItemQuantities = (items = []) => items.reduce((accumulator, item) => {
+  const isCancelledItem =
+    item?.status === 'cancelled' ||
+    item?.kitchenStatus === 'cancelled';
+
+  if (isCancelledItem) {
+    return accumulator;
+  }
+
   const itemId = String(item?.id || '').trim();
   const quantity = Math.max(Number(item?.quantity) || 0, 0);
 
@@ -2635,25 +2643,30 @@ const toSafeNumber = (value, fallback = 0) => {
 };
 
 const normalizeReceiptItems = (items = []) => {
-  return items.map((item) => {
-    const quantity = Math.max(toSafeNumber(item.quantity, 0), 0);
-    const unitPrice = toSafeNumber(item.unitPrice || item.price, 0);
-    const taxIncludedAmount = quantity * unitPrice;
+  return items
+    .filter((item) => (
+      item?.status !== 'cancelled' &&
+      item?.kitchenStatus !== 'cancelled'
+    ))
+    .map((item) => {
+      const quantity = Math.max(toSafeNumber(item.quantity, 0), 0);
+      const unitPrice = toSafeNumber(item.unitPrice || item.price, 0);
+      const taxIncludedAmount = quantity * unitPrice;
 
-    return {
-      id: String(item.id || ''),
-      name: String(item.name || '商品'),
-      quantity,
-      unitPrice,
-      taxRate: toSafeNumber(item.taxRate, 10),
-      taxIncludedAmount,
-      options: Array.isArray(item.options)
-        ? item.options
-        : Array.isArray(item.selectedOptions)
-          ? item.selectedOptions.map((option) => option.name).filter(Boolean)
-          : []
-    };
-  });
+      return {
+        id: String(item.id || ''),
+        name: String(item.name || '商品'),
+        quantity,
+        unitPrice,
+        taxRate: toSafeNumber(item.taxRate, 10),
+        taxIncludedAmount,
+        options: Array.isArray(item.options)
+          ? item.options
+          : Array.isArray(item.selectedOptions)
+            ? item.selectedOptions.map((option) => option.name).filter(Boolean)
+            : []
+      };
+    });
 };
 
 const buildReceiptNo = (orderId) => {
@@ -3002,6 +3015,8 @@ export const issuePostpayReceipt = onRequest(
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          status: item.status || '',
+          kitchenStatus: item.kitchenStatus || '',
           options: item.options || item.optionNames || []
         }))
       );
@@ -3450,3 +3465,497 @@ export const createPostpayOrder = onRequest(
     }
   }
 );
+
+
+const isCancelledOrderLineItem = (item) => (
+  item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled'
+);
+
+const isCrossSellPricedOrderItem = (item) => (
+  item?.appliedPriceMode === 'crossSell' || item?.priceMode === 'crossSell'
+);
+
+const getActiveOrderLineItems = (items = []) => (
+  Array.isArray(items)
+    ? items.filter((item) => item && !isCancelledOrderLineItem(item))
+    : []
+);
+
+const getOrderLineQuantity = (item) => (
+  Math.max(Number(item?.quantity || 0), 0)
+);
+
+const getOrderItemIdentity = (item, index = 0) => (
+  String(
+    item?.id ||
+    item?.itemId ||
+    item?.cartId ||
+    item?.menuItemId ||
+    item?.productId ||
+    item?.name ||
+    `item-${index}`
+  )
+);
+
+const isCancelledOrderItem = (item) => (
+  item?.status === 'cancelled' ||
+  item?.kitchenStatus === 'cancelled'
+);
+
+const isPreparedOrderItem = (item) => {
+  const kitchenStatus = String(item?.kitchenStatus || item?.status || 'pending');
+  return (
+    item?.isPrepared === true ||
+    kitchenStatus === 'prepared' ||
+    kitchenStatus === 'served'
+  );
+};
+
+const calculateActiveItemsTotal = (items = []) => (
+  items.reduce((sum, item) => {
+    if (isCancelledOrderItem(item)) return sum;
+
+    const quantity = Math.max(Number(item?.quantity || 0), 0);
+    const unitPrice = Number(item?.unitPrice ?? item?.price ?? 0) || 0;
+
+    return sum + (quantity * unitPrice);
+  }, 0)
+);
+
+export const cancelCustomerOrderItem = onRequest(
+  { region: REGION, cors: true },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      return sendAppError(response, 405, 'app/method-not-allowed');
+    }
+
+    try {
+      const authUser = await verifyRequestUser(request);
+      const {
+        storeId,
+        sessionId,
+        orderId,
+        itemId,
+        itemIndex,
+        participantId
+      } = parseJsonBody(request);
+
+      const normalizedStoreId = String(storeId || '').trim();
+      const normalizedSessionId = String(sessionId || '').trim();
+      const normalizedOrderId = String(orderId || '').trim();
+      const normalizedItemId = String(itemId || '').trim();
+      const normalizedParticipantId = String(participantId || '').trim();
+      const normalizedItemIndex = Number(itemIndex);
+
+      if (
+        !normalizedStoreId ||
+        !normalizedSessionId ||
+        !normalizedOrderId ||
+        !normalizedItemId ||
+        !normalizedParticipantId
+      ) {
+        return sendAppError(response, 400, 'app/order-invalid', '注文情報を確認してください。');
+      }
+
+      const result = await db.runTransaction(async (transaction) => {
+        const storeRef = db.collection('stores').doc(normalizedStoreId);
+        const orderRef = storeRef.collection('orders').doc(normalizedOrderId);
+        const orderSnapshot = await transaction.get(orderRef);
+
+        if (!orderSnapshot.exists) {
+          throw new Error('app/order-not-found');
+        }
+
+        const order = orderSnapshot.data() || {};
+        const items = Array.isArray(order.items) ? order.items : [];
+
+        if (String(order.sessionId || '') !== normalizedSessionId) {
+          throw new Error('app/order-not-found');
+        }
+
+        const isOwner =
+          String(order.userId || '') === String(authUser.uid) ||
+          String(order.participantId || '') === normalizedParticipantId ||
+          String(order.customerId || '') === normalizedParticipantId;
+
+        if (!isOwner) {
+          throw new Error('app/permission-denied');
+        }
+
+        if (String(order.orderFlow || '') === 'prepay') {
+          throw new Error('app/prepay-cancel-unavailable');
+        }
+
+        if (order.paymentStatus === 'paid') {
+          throw new Error('app/paid-order-cancel-unavailable');
+        }
+
+        if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') {
+          throw new Error('app/order-already-cancelled');
+        }
+
+        if (!items.length) {
+          throw new Error('app/order-invalid');
+        }
+
+        let targetIndex = -1;
+
+        if (
+          Number.isInteger(normalizedItemIndex) &&
+          normalizedItemIndex >= 0 &&
+          normalizedItemIndex < items.length
+        ) {
+          const candidate = items[normalizedItemIndex];
+          const candidateIdentity = getOrderItemIdentity(candidate, normalizedItemIndex);
+
+          if (candidateIdentity === normalizedItemId) {
+            targetIndex = normalizedItemIndex;
+          }
+        }
+
+        if (targetIndex < 0) {
+          targetIndex = items.findIndex((item, index) => (
+            getOrderItemIdentity(item, index) === normalizedItemId
+          ));
+        }
+
+        if (targetIndex < 0) {
+          throw new Error('app/order-item-not-found');
+        }
+
+        const targetItem = items[targetIndex];
+
+        if (isCancelledOrderItem(targetItem)) {
+          throw new Error('app/order-item-already-cancelled');
+        }
+
+        if (isPreparedOrderItem(targetItem)) {
+          throw new Error('app/order-already-started');
+        }
+
+        const targetKitchenStatus = String(targetItem?.kitchenStatus || 'pending');
+        if (targetKitchenStatus !== 'pending') {
+          throw new Error('app/order-already-started');
+        }
+
+        const cancelledAtMs = Date.now();
+
+        const nextItems = items.map((item, index) => {
+          if (index !== targetIndex) return item;
+
+          return {
+            ...item,
+            status: 'cancelled',
+            kitchenStatus: 'cancelled',
+            cancelledBy: 'customer',
+            cancelledByUid: authUser.uid,
+            cancelledParticipantId: normalizedParticipantId,
+            cancelledAtMs
+          };
+        });
+
+        const activeItems = nextItems.filter((item) => !isCancelledOrderItem(item));
+        const nextTotalPrice = calculateActiveItemsTotal(nextItems);
+        const isOrderFullyCancelled = activeItems.length === 0;
+
+        const itemQuantity = Math.max(Number(targetItem?.quantity || 0), 0);
+        const menuItemId = String(targetItem?.id || '').trim();
+
+        if (menuItemId && itemQuantity > 0) {
+          const menuRef = storeRef.collection('menuItems').doc(menuItemId);
+          const menuSnapshot = await transaction.get(menuRef);
+
+          if (menuSnapshot.exists) {
+            const menuData = menuSnapshot.data() || {};
+
+            const hasLimitedQuantity =
+              menuData.limitedQuantity !== null &&
+              menuData.limitedQuantity !== undefined &&
+              menuData.limitedQuantity !== '';
+
+            const hasRemainingQuantity =
+              menuData.remainingQuantity !== null &&
+              menuData.remainingQuantity !== undefined &&
+              menuData.remainingQuantity !== '';
+
+            if (hasLimitedQuantity || hasRemainingQuantity) {
+              const currentSoldQuantity = Number(menuData.soldQuantity || 0);
+              const currentRemainingQuantity = Number(menuData.remainingQuantity || 0);
+
+              const nextSoldQuantity = Math.max(currentSoldQuantity - itemQuantity, 0);
+              const nextRemainingQuantity = Math.max(currentRemainingQuantity + itemQuantity, 0);
+
+              transaction.set(menuRef, {
+                soldQuantity: nextSoldQuantity,
+                remainingQuantity: nextRemainingQuantity,
+                isSoldOut: nextRemainingQuantity <= 0 ? menuData.isSoldOut === true : false,
+                updatedAt: FieldValue.serverTimestamp()
+              }, { merge: true });
+            }
+          }
+        }
+
+        transaction.set(orderRef, {
+          items: nextItems,
+          totalPrice: nextTotalPrice,
+          activeItemCount: activeItems.length,
+          cancelledItemCount: nextItems.length - activeItems.length,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedAtMs: cancelledAtMs,
+          ...(isOrderFullyCancelled
+            ? {
+                status: 'cancelled',
+                paymentStatus: 'cancelled',
+                cancelledAt: FieldValue.serverTimestamp(),
+                cancelledAtMs,
+                cancelledBy: 'customer',
+                cancelledByUid: authUser.uid,
+                cancelledParticipantId: normalizedParticipantId
+              }
+            : {})
+        }, { merge: true });
+
+        return {
+          orderId: normalizedOrderId,
+          itemId: normalizedItemId,
+          isOrderFullyCancelled,
+          totalPrice: nextTotalPrice
+        };
+      });
+
+      return response.status(200).json({
+        ok: true,
+        ...result
+      });
+    } catch (error) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/order-not-found': 404,
+        'app/order-item-not-found': 404,
+        'app/order-invalid': 400,
+        'app/prepay-cancel-unavailable': 400,
+        'app/paid-order-cancel-unavailable': 400,
+        'app/order-already-cancelled': 400,
+        'app/order-item-already-cancelled': 400,
+        'app/order-already-started': 400,
+        'app/cross-sell-balance-required': 400
+      };
+
+      const messageByCode = {
+        'app/permission-denied': 'この商品をキャンセルする権限がありません。',
+        'app/order-not-found': '注文情報が見つかりませんでした。',
+        'app/order-item-not-found': '商品情報が見つかりませんでした。',
+        'app/order-invalid': '注文情報を確認してください。',
+        'app/prepay-cancel-unavailable': '決済済みの注文はアプリから変更できません。スタッフへお声がけください。',
+        'app/paid-order-cancel-unavailable': '会計済みの注文はアプリから変更できません。',
+        'app/order-already-cancelled': 'この注文はすでにキャンセルされています。',
+        'app/order-item-already-cancelled': 'この商品はすでにキャンセルされています。',
+        'app/order-already-started': '調理が開始されたため、アプリからは変更できません。スタッフへお声がけください。',
+        'app/cross-sell-balance-required': 'この商品をキャンセルすると、セット商品の数が上限を超えます。先に対象のセット商品をキャンセルしてください。'
+      };
+
+      const code = error.message || 'app/order-item-cancel-failed';
+
+      if (statusByCode[code]) {
+        return sendAppError(
+          response,
+          statusByCode[code],
+          code,
+          messageByCode[code] || '商品のキャンセルに失敗しました。'
+        );
+      }
+
+      console.error('[cancelCustomerOrderItem] failed', error);
+      return sendAppError(response, 500, 'app/order-item-cancel-failed', '商品のキャンセルに失敗しました。');
+    }
+  }
+);
+
+
+export const cancelCustomerOrder = onRequest(
+  { region: REGION, cors: true },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      return sendAppError(response, 405, 'app/method-not-allowed');
+    }
+
+    try {
+      const authUser = await verifyRequestUser(request);
+      const {
+        storeId,
+        sessionId,
+        orderId,
+        participantId
+      } = parseJsonBody(request);
+
+      const normalizedStoreId = String(storeId || '').trim();
+      const normalizedSessionId = String(sessionId || '').trim();
+      const normalizedOrderId = String(orderId || '').trim();
+      const normalizedParticipantId = String(participantId || '').trim();
+
+      if (!normalizedStoreId || !normalizedSessionId || !normalizedOrderId || !normalizedParticipantId) {
+        return sendAppError(response, 400, 'app/order-invalid', '注文情報を確認してください。');
+      }
+
+      const result = await db.runTransaction(async (transaction) => {
+        const storeRef = db.collection('stores').doc(normalizedStoreId);
+        const orderRef = storeRef.collection('orders').doc(normalizedOrderId);
+        const orderSnapshot = await transaction.get(orderRef);
+
+        if (!orderSnapshot.exists) {
+          throw new Error('app/order-not-found');
+        }
+
+        const order = orderSnapshot.data() || {};
+        const items = Array.isArray(order.items) ? order.items : [];
+
+        if (String(order.sessionId || '') !== normalizedSessionId) {
+          throw new Error('app/order-not-found');
+        }
+
+        const isOwner =
+          String(order.userId || '') === String(authUser.uid) ||
+          String(order.participantId || '') === normalizedParticipantId ||
+          String(order.customerId || '') === normalizedParticipantId;
+
+        if (!isOwner) {
+          throw new Error('app/permission-denied');
+        }
+
+        if (String(order.orderFlow || '') === 'prepay') {
+          throw new Error('app/prepay-cancel-unavailable');
+        }
+
+        if (order.paymentStatus === 'paid') {
+          throw new Error('app/paid-order-cancel-unavailable');
+        }
+
+        if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') {
+          throw new Error('app/order-already-cancelled');
+        }
+
+        if (!items.length) {
+          throw new Error('app/order-invalid');
+        }
+
+        const hasStartedItem = items.some((item) => {
+          const status = String(item?.kitchenStatus || 'pending');
+          return status === 'prepared' || status === 'served' || item?.isPrepared === true;
+        });
+
+        if (hasStartedItem) {
+          throw new Error('app/order-already-started');
+        }
+
+        const menuRefs = items
+          .filter((item) => String(item?.id || '').trim())
+          .map((item) => ({
+            item,
+            ref: storeRef.collection('menuItems').doc(String(item.id).trim())
+          }));
+
+        const menuSnapshots = await Promise.all(
+          menuRefs.map(({ ref }) => transaction.get(ref))
+        );
+
+        menuSnapshots.forEach((snapshot, index) => {
+          if (!snapshot.exists) return;
+
+          const { item, ref } = menuRefs[index];
+          const menuData = snapshot.data() || {};
+          const quantity = Math.max(Number(item.quantity || 0), 0);
+
+          const hasLimitedQuantity =
+            menuData.limitedQuantity !== null &&
+            menuData.limitedQuantity !== undefined &&
+            menuData.limitedQuantity !== '';
+
+          const hasRemainingQuantity =
+            menuData.remainingQuantity !== null &&
+            menuData.remainingQuantity !== undefined &&
+            menuData.remainingQuantity !== '';
+
+          if (!hasLimitedQuantity && !hasRemainingQuantity) return;
+
+          const currentSoldQuantity = Number(menuData.soldQuantity || 0);
+          const currentRemainingQuantity = Number(menuData.remainingQuantity || 0);
+
+          const nextSoldQuantity = Math.max(currentSoldQuantity - quantity, 0);
+          const nextRemainingQuantity = Math.max(currentRemainingQuantity + quantity, 0);
+
+          transaction.set(ref, {
+            soldQuantity: nextSoldQuantity,
+            remainingQuantity: nextRemainingQuantity,
+            isSoldOut: nextRemainingQuantity <= 0 ? menuData.isSoldOut === true : false,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+
+        const cancelledAtMs = Date.now();
+        const nextItems = items.map((item) => ({
+          ...item,
+          status: 'cancelled',
+          kitchenStatus: 'cancelled',
+          cancelledBy: 'customer',
+          cancelledAtMs
+        }));
+
+        transaction.set(orderRef, {
+          status: 'cancelled',
+          paymentStatus: 'cancelled',
+          cancelledAt: FieldValue.serverTimestamp(),
+          cancelledAtMs,
+          cancelledBy: 'customer',
+          cancelledByUid: authUser.uid,
+          cancelledParticipantId: normalizedParticipantId,
+          updatedAt: FieldValue.serverTimestamp(),
+          items: nextItems
+        }, { merge: true });
+
+        return { orderId: normalizedOrderId };
+      });
+
+      return response.status(200).json({
+        ok: true,
+        orderId: result.orderId
+      });
+    } catch (error) {
+      const statusByCode = {
+        'app/unauthenticated': 401,
+        'app/permission-denied': 403,
+        'app/order-not-found': 404,
+        'app/order-invalid': 400,
+        'app/prepay-cancel-unavailable': 400,
+        'app/paid-order-cancel-unavailable': 400,
+        'app/order-already-cancelled': 400,
+        'app/order-already-started': 400
+      };
+
+      const messageByCode = {
+        'app/permission-denied': 'この注文をキャンセルする権限がありません。',
+        'app/order-not-found': '注文情報が見つかりませんでした。',
+        'app/order-invalid': '注文情報を確認してください。',
+        'app/prepay-cancel-unavailable': '決済済みの注文はアプリからキャンセルできません。スタッフへお声がけください。',
+        'app/paid-order-cancel-unavailable': '会計済みの注文はアプリからキャンセルできません。',
+        'app/order-already-cancelled': 'この注文はすでにキャンセルされています。',
+        'app/order-already-started': '調理が開始されたため、アプリからはキャンセルできません。スタッフへお声がけください。'
+      };
+
+      const code = error.message || 'app/order-cancel-failed';
+
+      if (statusByCode[code]) {
+        return sendAppError(
+          response,
+          statusByCode[code],
+          code,
+          messageByCode[code] || '注文のキャンセルに失敗しました。'
+        );
+      }
+
+      console.error('[cancelCustomerOrder] failed', error);
+      return sendAppError(response, 500, 'app/order-cancel-failed', '注文のキャンセルに失敗しました。');
+    }
+  }
+);
+
