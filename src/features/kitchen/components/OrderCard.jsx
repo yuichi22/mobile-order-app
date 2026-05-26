@@ -20,9 +20,9 @@ import {
 const IMPORTANT_OPTION_PATTERN = /(抜き|少なめ|多め|別|アレル|なし|変更|大盛|追加|ソース|氷|辛さ|ご飯)/;
 
 const resolveKitchenStatus = (item) => {
-  if (item?.kitchenStatus === 'prepared') return 'prepared';
   if (item?.kitchenStatus === 'served') return 'served';
-  if (item?.isPrepared) return 'prepared';
+  if (item?.kitchenStatus === 'prepared' || item?.isPrepared) return 'prepared';
+  if (item?.kitchenStatus === 'cooking' || item?.isCooking) return 'cooking';
   return 'pending';
 };
 
@@ -132,7 +132,8 @@ const ORDER_STATUS_META = {
 };
 
 const getNextKitchenStatus = (currentStatus) => {
-  if (currentStatus === 'pending') return 'prepared';
+  if (currentStatus === 'pending') return 'cooking';
+  if (currentStatus === 'cooking') return 'prepared';
   if (currentStatus === 'prepared') return 'served';
   return 'pending';
 };
@@ -293,6 +294,50 @@ const canSelectCard =
 
     if (typeof updateOrderMeta === 'function') {
       updateOrderMeta(order.id, {
+        movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
+      });
+    }
+  };
+
+  const startCooking = () => {
+    if (!updateOrderItems || viewMode !== 'active') return;
+
+    const startedAtMs = Date.now();
+
+    const nextItems = (order.items || []).map((item) => {
+      const lookupId = item.menuId || item.id;
+      const masterItem = menuItemLookup?.[lookupId] || {};
+      const targetKitchenIds = masterItem.kitchenIds || (
+        masterItem.kitchenId ? [masterItem.kitchenId] : []
+      );
+
+      const isTargetItem =
+        activeKitchenId === 'all' ||
+        targetKitchenIds.some((kitchenId) => String(kitchenId) === String(activeKitchenId));
+
+      if (!isTargetItem) {
+        return item;
+      }
+
+      const currentStatus = resolveKitchenStatus(item);
+
+      if (currentStatus !== 'pending') {
+        return item;
+      }
+
+      return {
+        ...item,
+        kitchenStatus: 'cooking',
+        isCooking: true,
+        cookingStartedAtMs: startedAtMs
+      };
+    });
+
+    updateOrderItems(order.id, nextItems, 'cooking');
+
+    if (typeof updateOrderMeta === 'function') {
+      updateOrderMeta(order.id, {
+        cookingStartedAtMs: startedAtMs,
         movedToBackKitchenIds: removeCurrentKitchenFromMovedBack()
       });
     }
@@ -703,11 +748,7 @@ const canSelectCard =
 {canShowStartCookingButton && (
         <button
           type="button"
-          onClick={() => {
-            if (typeof onToggleSummarySelect === 'function') {
-              onToggleSummarySelect();
-            }
-          }}
+          onClick={startCooking}
           className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-orange-500 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
         >
           <Flame size={20} />

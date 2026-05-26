@@ -3504,10 +3504,23 @@ const isCancelledOrderItem = (item) => (
 
 const isPreparedOrderItem = (item) => {
   const kitchenStatus = String(item?.kitchenStatus || item?.status || 'pending');
+
   return (
     item?.isPrepared === true ||
+    item?.isStarted === true ||
+    item?.startedAt ||
+    item?.startedAtMs ||
+    item?.preparedAt ||
+    item?.preparedAtMs ||
+    item?.servedAt ||
+    item?.servedAtMs ||
+    kitchenStatus === 'preparing' ||
+    kitchenStatus === 'cooking' ||
+    kitchenStatus === 'in_progress' ||
+    kitchenStatus === 'started' ||
     kitchenStatus === 'prepared' ||
-    kitchenStatus === 'served'
+    kitchenStatus === 'served' ||
+    kitchenStatus === 'completed'
   );
 };
 
@@ -3839,10 +3852,9 @@ export const cancelCustomerOrder = onRequest(
           throw new Error('app/order-invalid');
         }
 
-        const hasStartedItem = items.some((item) => {
-          const status = String(item?.kitchenStatus || 'pending');
-          return status === 'prepared' || status === 'served' || item?.isPrepared === true;
-        });
+        const hasStartedItem = items.some((item) => (
+          !isCancelledOrderItem(item) && isPreparedOrderItem(item)
+        ));
 
         if (hasStartedItem) {
           throw new Error('app/order-already-started');
