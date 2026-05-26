@@ -69,6 +69,11 @@ const resolveDisplayKitchenStatus = ({
   if (order?.status === 'completed') return 'completed';
   if (targetItems.length === 0) return 'pending';
 
+  // 調理開始済みの商品が1つでもあれば、提供済み判定より先に「調理中」を優先する
+  if (targetItems.some((item) => resolveKitchenStatus(item) === 'cooking')) {
+    return 'cooking';
+  }
+
   const moveKey = String(activeKitchenId || 'all');
   const movedToBackKitchenIds = Array.isArray(order?.movedToBackKitchenIds)
     ? order.movedToBackKitchenIds.map(String)
