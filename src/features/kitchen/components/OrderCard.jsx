@@ -45,6 +45,10 @@ const resolveOrderKitchenStatus = (order) => {
     return 'serving';
   }
 
+  if (items.length > 0 && items.some((item) => resolveKitchenStatus(item) === 'cooking')) {
+    return 'cooking';
+  }
+
   if (order?.status === 'cooking') return 'cooking';
 
   return 'pending';
