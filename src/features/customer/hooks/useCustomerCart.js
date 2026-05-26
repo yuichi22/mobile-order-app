@@ -19,6 +19,7 @@ const buildCartLineKey = (item, options = []) => (
     item?.id || '',
     buildOptionKey(options),
     getPriceMode(item),
+    item?.crossSellSourceKey || '',
     item?.serviceTiming || ''
   ].join('|')
 );

@@ -731,73 +731,108 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
     if (shouldClose) closeSheet();
   };
     
-  const getCrossSellTriggerQuantity = () => (
-    crossSellAccountingItems
-      .filter((cartItem) => cartItem?.appliedPriceMode !== 'crossSell')
-      .filter((cartItem) => !activeCrossSellOfferCategoryIds.includes(String(cartItem?.category || '')))
-      .reduce((total, cartItem) => total + Number(cartItem?.quantity || 0), 0)
+  const getCrossSellCategoryId = (item) => (
+    String(
+      item?.category ||
+      item?.categoryId ||
+      item?.menuCategoryId ||
+      ''
+    )
   );
 
-  const findCrossSellOfferGroupForItem = (item) => {
-    const categoryId = String(item?.category || '');
+  const normalizeCrossSellIds = (values = []) => (
+    Array.isArray(values)
+      ? values.map((value) => String(value || '').trim()).filter(Boolean)
+      : []
+  );
 
-    if (!categoryId) return null;
+  const getCrossSellGroupById = (groupId) => {
+    const normalizedGroupId = String(groupId || '').trim();
+    if (!normalizedGroupId) return null;
 
-    return (activeCrossSellOfferGroups || []).find((group) => (
-      Array.isArray(group?.categoryIds)
-      && group.categoryIds.map(String).includes(categoryId)
-    )) || null;
+    return (Array.isArray(crossSellSettings?.groups) ? crossSellSettings.groups : [])
+      .find((group) => String(group?.id || '').trim() === normalizedGroupId) || null;
   };
 
-  const getCrossSellUsedQuantityForGroup = (group) => {
-    const categoryIds = Array.isArray(group?.categoryIds)
-      ? group.categoryIds.map(String)
-      : [];
+  const getCrossSellGroupCategoryIds = (group) => (
+    normalizeCrossSellIds(group?.categoryIds)
+  );
 
-    if (categoryIds.length === 0) return 0;
+  const getStepOfferGroups = (step) => {
+    if (!step) return [];
 
-    return crossSellAccountingItems
-      .filter((cartItem) => cartItem?.appliedPriceMode === 'crossSell')
-      .filter((cartItem) => categoryIds.includes(String(cartItem?.category || '')))
-      .reduce((total, cartItem) => total + Number(cartItem?.quantity || 0), 0);
-  };
+    if (step.type === 'group' && step.groupId) {
+      const group = getCrossSellGroupById(step.groupId);
+      const categoryIds = getCrossSellGroupCategoryIds(group);
 
-  const getRemainingCrossSellQuantityForItem = (item) => {
-    const group = findCrossSellOfferGroupForItem(item);
+      if (categoryIds.length === 0) return [];
 
-    if (!group) {
-      return 0;
+      return [{
+        key: `group:${String(step.groupId)}`,
+        type: 'group',
+        groupId: String(step.groupId),
+        categoryIds
+      }];
     }
 
-    const triggerQuantity = getCrossSellTriggerQuantity();
-    const usedQuantity = getCrossSellUsedQuantityForGroup(group);
+    const categoryId = String(step.categoryId || '').trim();
+    if (!categoryId) return [];
 
-    return Math.max(triggerQuantity - usedQuantity, 0);
+    return [{
+      key: `category:${categoryId}`,
+      type: 'category',
+      categoryId,
+      categoryIds: [categoryId]
+    }];
   };
 
-  const shouldUseCrossSellPriceForItem = (item) => (
-    Number(item?.crossSellPrice) > 0
-    && getRemainingCrossSellQuantityForItem(item) > 0
+  const isItemInCategoryIds = (item, categoryIds = []) => (
+    categoryIds.map(String).includes(getCrossSellCategoryId(item))
   );
 
-  const getCrossSellTriggerQuantityForCart = (cartItems = safeCart) => {
-    const accountingItems = [
-      ...orderedCrossSellItems,
-      ...(Array.isArray(cartItems) ? cartItems : [])
-    ];
+  const getFlowTriggerCategoryIds = (flow) => {
+    if (!flow) return [];
 
-    return accountingItems
+    if (flow.triggerGroupId) {
+      const group = getCrossSellGroupById(flow.triggerGroupId);
+      return getCrossSellGroupCategoryIds(group);
+    }
+
+    const categoryId = String(flow.triggerCategoryId || '').trim();
+    return categoryId ? [categoryId] : [];
+  };
+
+  const getCrossSellAccountingItems = (cartItems = safeCart) => ([
+    ...orderedCrossSellItems,
+    ...(Array.isArray(cartItems) ? cartItems : [])
+  ]);
+
+  const getFlowTriggerQuantity = (flow, cartItems = safeCart) => {
+    const triggerCategoryIds = getFlowTriggerCategoryIds(flow);
+    if (triggerCategoryIds.length === 0) return 0;
+
+    return getCrossSellAccountingItems(cartItems)
       .filter((cartItem) => cartItem?.appliedPriceMode !== 'crossSell')
-      .filter((cartItem) => !activeCrossSellOfferCategoryIds.includes(String(cartItem?.category || '')))
+      .filter((cartItem) => isItemInCategoryIds(cartItem, triggerCategoryIds))
       .reduce((total, cartItem) => total + Number(cartItem?.quantity || 0), 0);
   };
 
-  const getCrossSellUsedQuantityForGroupInCart = (group, cartItems = safeCart) => {
-    const categoryIds = Array.isArray(group?.categoryIds)
-      ? group.categoryIds.map(String)
+  const getCrossSellOfferSourceKey = (flow, offerGroup) => (
+    [
+      String(flow?.id || ''),
+      String(offerGroup?.key || offerGroup?.groupId || offerGroup?.categoryId || ''),
+      Array.isArray(offerGroup?.categoryIds) ? offerGroup.categoryIds.map(String).sort().join(',') : ''
+    ].join('::')
+  );
+
+  const getUsedCrossSellQuantityForOfferGroup = (offerGroup, cartItems = safeCart, flow = null) => {
+    const categoryIds = Array.isArray(offerGroup?.categoryIds)
+      ? offerGroup.categoryIds.map(String)
       : [];
 
     if (categoryIds.length === 0) return 0;
+
+    const expectedSourceKey = flow ? getCrossSellOfferSourceKey(flow, offerGroup) : '';
 
     const accountingItems = [
       ...orderedCrossSellItems,
@@ -806,36 +841,119 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
 
     return accountingItems
       .filter((cartItem) => cartItem?.appliedPriceMode === 'crossSell')
-      .filter((cartItem) => categoryIds.includes(String(cartItem?.category || '')))
+      .filter((cartItem) => categoryIds.includes(getCrossSellCategoryId(cartItem)))
+      .filter((cartItem) => {
+        if (expectedSourceKey && cartItem?.crossSellSourceKey) {
+          return String(cartItem.crossSellSourceKey) === expectedSourceKey;
+        }
+
+        return true;
+      })
       .reduce((total, cartItem) => total + Number(cartItem?.quantity || 0), 0);
+  };
+
+  const resolveCrossSellOfferForItem = (item, cartItems = safeCart) => {
+    const itemCategoryId = getCrossSellCategoryId(item);
+    if (!itemCategoryId) return null;
+
+    const flows = Array.isArray(crossSellSettings?.flows)
+      ? crossSellSettings.flows.filter((flow) => flow?.enabled !== false)
+      : [];
+
+    let bestOffer = null;
+
+    flows.forEach((flow) => {
+      const triggerQuantity = getFlowTriggerQuantity(flow, cartItems);
+      if (triggerQuantity <= 0) return;
+
+      const steps = Array.isArray(flow?.steps) ? flow.steps : [];
+
+      steps.forEach((step) => {
+        const offerGroups = getStepOfferGroups(step);
+
+        offerGroups.forEach((offerGroup) => {
+          if (!isItemInCategoryIds(item, offerGroup.categoryIds)) return;
+
+          const usedQuantity = getUsedCrossSellQuantityForOfferGroup(offerGroup, cartItems, flow);
+          const remainingQuantity = Math.max(triggerQuantity - usedQuantity, 0);
+
+          if (remainingQuantity <= 0) return;
+
+          const sourceKey = getCrossSellOfferSourceKey(flow, offerGroup);
+
+          if (!bestOffer || remainingQuantity > bestOffer.remainingQuantity) {
+            bestOffer = {
+              flow,
+              step,
+              offerGroup,
+              sourceKey,
+              triggerQuantity,
+              usedQuantity,
+              remainingQuantity
+            };
+          }
+        });
+      });
+    });
+
+    return bestOffer;
+  };
+
+  const getRemainingCrossSellQuantityForItem = (item, cartItems = safeCart) => {
+    const offer = resolveCrossSellOfferForItem(item, cartItems);
+    return Math.max(Number(offer?.remainingQuantity || 0), 0);
+  };
+
+  const shouldUseCrossSellPriceForItem = (item) => {
+    const remainingQuantity = getRemainingCrossSellQuantityForItem(item);
+    const result = Boolean(
+      item?.crossSellPrice !== null
+      && item?.crossSellPrice !== undefined
+      && item?.crossSellPrice !== ''
+      && Number.isFinite(Number(item?.crossSellPrice))
+      && Number(item?.crossSellPrice) >= 0
+      && remainingQuantity > 0
+    );
+
+    console.log('[cross sell remaining]', {
+      id: item?.id,
+      name: item?.name,
+      category: getCrossSellCategoryId(item),
+      crossSellPrice: item?.crossSellPrice,
+      remainingQuantity,
+      result
+    });
+
+    return result;
   };
 
   const wouldExceedCrossSellLimit = (nextCart) => {
     if (!Array.isArray(nextCart)) return false;
 
-    const currentHasCrossSellItems = safeCart.some((cartItem) => (
-      cartItem?.appliedPriceMode === 'crossSell'
-    ));
-
     const nextHasCrossSellItems = nextCart.some((cartItem) => (
       cartItem?.appliedPriceMode === 'crossSell'
     ));
 
-    if (!currentHasCrossSellItems && !nextHasCrossSellItems) return false;
+    if (!nextHasCrossSellItems) return false;
 
-    const triggerQuantity = getCrossSellTriggerQuantityForCart(nextCart);
+    const flows = Array.isArray(crossSellSettings?.flows)
+      ? crossSellSettings.flows.filter((flow) => flow?.enabled !== false)
+      : [];
 
-    if (nextHasCrossSellItems && triggerQuantity <= 0) return true;
-
-    // グループ情報が取れていない場合は、セット商品が残る状態で
-    // トリガーを減らす/削除する操作を安全側で止める。
-    if (!Array.isArray(activeCrossSellOfferGroups) || activeCrossSellOfferGroups.length === 0) {
-      return nextHasCrossSellItems;
+    if (flows.length === 0) {
+      return true;
     }
 
-    return activeCrossSellOfferGroups.some((group) => (
-      getCrossSellUsedQuantityForGroupInCart(group, nextCart) > triggerQuantity
-    ));
+    return flows.some((flow) => {
+      const triggerQuantity = getFlowTriggerQuantity(flow, nextCart);
+      const steps = Array.isArray(flow?.steps) ? flow.steps : [];
+
+      return steps.some((step) => (
+        getStepOfferGroups(step).some((offerGroup) => (
+          getUsedCrossSellQuantityForOfferGroup(offerGroup, nextCart, flow) > triggerQuantity
+        ))
+      ));
+    });
   };
 
   const showCrossSellLimitToast = () => {
@@ -848,14 +966,28 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
   };
 
   const resolveOrderItemForCurrentMode = (item) => {
-    if (shouldUseCrossSellPriceForItem(item)) {
+    const crossSellOffer = resolveCrossSellOfferForItem(item);
+
+    if (shouldUseCrossSellPriceForItem(item) && crossSellOffer) {
       return {
         ...item,
         price: Number(item.crossSellPrice),
         priceLabelText: item.crossSellPriceLabelText || 'セット価格',
         originalPrice: Number(item.price || 0),
         originalPriceLabelText: item.priceLabelText || '',
-        appliedPriceMode: 'crossSell'
+        appliedPriceMode: 'crossSell',
+        crossSellSourceKey: crossSellOffer.sourceKey,
+        crossSellSourceFlowId: String(crossSellOffer.flow?.id || ''),
+        crossSellSourceStepId: String(crossSellOffer.step?.id || ''),
+        crossSellSourceGroupKey: String(
+          crossSellOffer.offerGroup?.key ||
+          crossSellOffer.offerGroup?.groupId ||
+          crossSellOffer.offerGroup?.categoryId ||
+          ''
+        ),
+        crossSellSourceCategoryIds: Array.isArray(crossSellOffer.offerGroup?.categoryIds)
+          ? crossSellOffer.offerGroup.categoryIds.map(String)
+          : []
       };
     }
 
@@ -2263,12 +2395,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             touchAction: 'pan-y'
           }}
         >
-          <motion.div
-            key={activeCategory}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.12, ease: 'easeOut' }}
-          >
+          <div key={activeCategory}>
             {isCrossSellActive && activeCrossSellPrompt && (
               <CrossSellPrompt
                 title={activeCrossSellPrompt.title}
@@ -2289,7 +2416,7 @@ if (shouldWaitForSessionBeforeWelcome) {
     shouldUseCrossSellPriceForItem(item) ? 'crossSell' : 'normal'
   )}
 />
-          </motion.div>
+          </div>
 
           {basicSettings?.customerLogoUrl && (
             <div className="mt-8 border-t border-gray-200 pb-10 pt-8">
