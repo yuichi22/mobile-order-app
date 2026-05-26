@@ -176,7 +176,7 @@ export const buildPendingItemSummary = (
     visibleItems.forEach((item) => {
       const itemStatus = resolveItemKitchenStatus(item);
 
-      if (itemStatus === 'cooking' || itemStatus === 'prepared' || itemStatus === 'served') {
+      if (itemStatus === 'prepared' || itemStatus === 'served') {
         return;
       }
 
