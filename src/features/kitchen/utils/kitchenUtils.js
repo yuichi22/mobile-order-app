@@ -109,6 +109,10 @@ const resolveItemKitchenStatus = (item) => {
     return 'prepared';
   }
 
+  if (item?.kitchenStatus === 'cooking' || item?.isCooking) {
+    return 'cooking';
+  }
+
   return 'pending';
 };
 
@@ -172,7 +176,7 @@ export const buildPendingItemSummary = (
     visibleItems.forEach((item) => {
       const itemStatus = resolveItemKitchenStatus(item);
 
-      if (itemStatus === 'prepared' || itemStatus === 'served') {
+      if (itemStatus === 'cooking' || itemStatus === 'prepared' || itemStatus === 'served') {
         return;
       }
 

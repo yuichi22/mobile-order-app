@@ -193,16 +193,15 @@ const OrderCard = ({
 
   const hasTargetItemProgress = targetItems.some((item) => {
     const status = resolveKitchenStatus(item);
-    return status === 'prepared' || status === 'served';
+    return status === 'cooking' || status === 'prepared' || status === 'served';
   });
 
 const canShowStartCookingButton =
-  (orderKitchenStatus === 'pending' && !isSelectedForSummary) ||
-  (orderKitchenStatus === 'cooking' && !isSelectedForSummary && !hasTargetItemProgress);
+  orderKitchenStatus === 'pending' && !isSelectedForSummary;
 
 const canShowMarkPreparedButton =
-  (orderKitchenStatus === 'pending' && isSelectedForSummary) ||
-  (orderKitchenStatus === 'cooking' && (isSelectedForSummary || hasTargetItemProgress));
+  orderKitchenStatus === 'cooking' ||
+  (orderKitchenStatus === 'pending' && isSelectedForSummary);
 
 const canSelectCard =
   viewMode === 'active' &&
@@ -342,6 +341,11 @@ const canSelectCard =
   const handleStartCookingOrSelectCard = () => {
     if (canShowStartCookingButton) {
       startCooking();
+      return;
+    }
+
+    if (canShowMarkPreparedButton) {
+      markAllPrepared();
       return;
     }
 
