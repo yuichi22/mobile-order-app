@@ -339,6 +339,17 @@ const canSelectCard =
     });
   };
 
+  const handleStartCookingOrSelectCard = () => {
+    if (canShowStartCookingButton) {
+      startCooking();
+      return;
+    }
+
+    if (typeof onToggleSummarySelect === 'function') {
+      onToggleSummarySelect();
+    }
+  };
+
   const markAllPrepared = () => {
     if (!updateOrderItems || viewMode !== 'active') return;
 
@@ -484,13 +495,13 @@ const canSelectCard =
     <div
       role={canSelectCard ? 'button' : undefined}
       tabIndex={canSelectCard ? 0 : undefined}
-      onClick={canSelectCard ? onToggleSummarySelect : undefined}
+      onClick={canSelectCard ? handleStartCookingOrSelectCard : undefined}
       onKeyDown={
         canSelectCard
           ? (event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                onToggleSummarySelect?.();
+                handleStartCookingOrSelectCard();
               }
             }
           : undefined
@@ -744,7 +755,7 @@ const canSelectCard =
 {canShowStartCookingButton && (
         <button
           type="button"
-          onClick={startCooking}
+          onClick={handleStartCookingOrSelectCard}
           className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-orange-500 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
         >
           <Flame size={20} />
