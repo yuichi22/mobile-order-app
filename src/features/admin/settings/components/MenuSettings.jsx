@@ -204,7 +204,7 @@ const MenuSettings = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [stockInputTarget, setStockInputTarget] = useState(null);
   const [stockInputValue, setStockInputValue] = useState('');
-  const [visibleLimit, setVisibleLimit] = useState(20);
+  const [visibleLimit, setVisibleLimit] = useState(50);
   const [isSortMode, setIsSortMode] = useState(false);
   const [sortDraftItems, setSortDraftItems] = useState([]);
   const [draggingItemId, setDraggingItemId] = useState(null);
@@ -307,7 +307,7 @@ const MenuSettings = ({
   const hasMoreMenuItems = filteredMenuItems.length > visibleMenuItems.length;
 
   useEffect(() => {
-    setVisibleLimit(20);
+    setVisibleLimit(50);
     setIsSortMode(false);
     setSortDraftItems([]);
     setDraggingItemId(null);
@@ -1871,7 +1871,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                 <div className="mt-5 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => setVisibleLimit((current) => current + 20)}
+                    onClick={() => setVisibleLimit((current) => current + 50)}
                     className="flex items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 px-8 py-4 text-sm font-black text-orange-600 transition-colors hover:bg-orange-100"
                   >
                     さらに表示する（{visibleMenuItems.length} / {filteredMenuItems.length}件）
@@ -2040,6 +2040,23 @@ const handleClearLimitedQuantity = async (event, item) => {
               </button>
             </div>
 
+            <div className="shrink-0 flex justify-end gap-3 border-b border-orange-100 bg-white px-6 py-4 md:px-8">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-xl border border-gray-100 bg-white px-5 py-3 text-sm font-black text-gray-400 transition-colors hover:bg-gray-50"
+              >
+                リセット
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="rounded-xl bg-orange-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600"
+              >
+                絞り込み
+              </button>
+            </div>
+
             <div className="grid flex-1 gap-6 overflow-y-auto p-6 md:grid-cols-2 md:p-8">
               <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6">
                 <div className="mb-4">
@@ -2151,23 +2168,6 @@ const handleClearLimitedQuantity = async (event, item) => {
                   ))}
                 </div>
               </section>
-            </div>
-
-            <div className="shrink-0 flex items-center justify-between border-t border-gray-100 bg-white px-6 py-5 md:px-8 md:py-6">
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="rounded-xl px-5 py-3 text-sm font-black text-gray-400 transition-colors hover:bg-gray-50"
-              >
-                絞り込みをリセット
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFilterModalOpen(false)}
-                className="rounded-xl bg-orange-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600"
-              >
-                この条件で表示
-              </button>
             </div>
           </div>
         </div>

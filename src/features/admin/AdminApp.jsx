@@ -1,4 +1,5 @@
 ﻿import React, { Suspense, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   CalendarCheck,
@@ -57,10 +58,21 @@ const OperationTabButton = ({ active, icon: Icon, label, onClick }) => (
 );
 
 const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser: user, storeId, role } = useAuth();
   const { settings: storeSettings } = useStoreSettings(storeId);
 
-  const [activeTab, setActiveTab] = useState('pos');
+  const initialParams = new URLSearchParams(location.search);
+
+  const initialAdminTab = initialParams.get('admin_tab') === 'settings'
+    ? 'settings'
+    : 'pos';
+
+  const [activeTab, setActiveTab] = useState(initialAdminTab);
+  const [settingsReturnMode, setSettingsReturnMode] = useState(
+    initialParams.get('return_to') === 'kitchen' ? 'kitchen' : 'pos'
+  );
   const [activeSessions, setActiveSessions] = useState([]);
   const [toast, setToast] = useState(null);
   const [posView, setPosView] = useState('scan');
@@ -71,6 +83,44 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const canViewAnalytics = canAccessAnalytics(normalizedRole);
   const canViewSettings = canAccessSettings(normalizedRole);
   const showAdminHeader = canViewAnalytics || canViewSettings;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const adminTab = params.get('admin_tab');
+    const returnTo = params.get('return_to');
+
+    if (adminTab === 'settings') {
+      setActiveTab('settings');
+      setSettingsReturnMode(returnTo === 'kitchen' ? 'kitchen' : 'pos');
+
+      params.delete('admin_tab');
+      params.delete('return_to');
+
+      navigate(
+        {
+          pathname: location.pathname,
+          search: params.toString() ? `?${params.toString()}` : ''
+        },
+        { replace: true }
+      );
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  const closeSettings = () => {
+    if (settingsReturnMode === 'kitchen' && typeof onSwitchToKitchen === 'function') {
+      setSettingsReturnMode('pos');
+      onSwitchToKitchen();
+      return;
+    }
+
+    setSettingsReturnMode('pos');
+    setActiveTab('pos');
+  };
+
+  const switchFromSettingsToRegister = () => {
+    setSettingsReturnMode('pos');
+    setActiveTab('pos');
+  };
 
   const activeAdminTab = (() => {
     if (activeTab === 'dailyClosing') {
@@ -177,19 +227,24 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     setLastPaymentData(null);
   };
 
-  const mainClassName =
-    activeAdminTab === 'pos'
-      ? showAdminHeader
-        ? 'h-[calc(100dvh-72px)] max-h-[calc(100dvh-72px)] overflow-hidden supports-[height:100svh]:h-[calc(100svh-72px)] supports-[height:100svh]:max-h-[calc(100svh-72px)]'
-        : 'h-[100dvh] max-h-[100dvh] overflow-hidden supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]'
-      : 'w-full px-6 py-6';
+  const isFixedPosLayout = activeAdminTab === 'pos';
+
+  const appShellClassName = 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-100 font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]';
+
+  const mainClassName = isFixedPosLayout
+    ? showAdminHeader
+      ? 'min-h-0 flex-grow overflow-hidden h-[calc(100dvh-72px)] max-h-[calc(100dvh-72px)] supports-[height:100svh]:h-[calc(100svh-72px)] supports-[height:100svh]:max-h-[calc(100svh-72px)]'
+      : 'min-h-0 flex-grow overflow-hidden h-[100dvh] max-h-[100dvh] supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]'
+    : showAdminHeader
+      ? 'min-h-0 flex-grow overflow-y-auto px-6 py-6 h-[calc(100dvh-72px)] max-h-[calc(100dvh-72px)] supports-[height:100svh]:h-[calc(100svh-72px)] supports-[height:100svh]:max-h-[calc(100svh-72px)]'
+      : 'min-h-0 flex-grow overflow-y-auto px-6 py-6 h-[100dvh] max-h-[100dvh] supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]';
 
   if (user && !storeId) {
     return <TabLoader />;
   }
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-100 font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]">
+    <div className={appShellClassName}>
       {toast && (
         <NotificationToast
           message={toast.message}
@@ -207,10 +262,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   type="button"
                   onClick={() => {
                     if (activeAdminTab === 'settings') {
-                      setActiveTab('pos');
+                      closeSettings();
                       return;
                     }
 
+                    setSettingsReturnMode('pos');
                     setActiveTab('settings');
                   }}
                   className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
@@ -276,11 +332,21 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             <div className="flex min-w-0 justify-end gap-3">
               <button
                 type="button"
-                onClick={onSwitchToKitchen || onBack}
+                onClick={
+                  activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                    ? switchFromSettingsToRegister
+                    : (onSwitchToKitchen || onBack)
+                }
                 className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
               >
-                <ChefHat size={18} strokeWidth={2.8} />
-                キッチンモードへ
+                {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
+                  <CreditCard size={18} strokeWidth={2.8} />
+                ) : (
+                  <ChefHat size={18} strokeWidth={2.8} />
+                )}
+                {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                  ? 'レジモードへ'
+                  : 'キッチンモードへ'}
               </button>
 
               {typeof onSwitchToServe === 'function' && (
@@ -298,7 +364,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
         </header>
       )}
 
-      <main className={`min-h-0 flex-grow overflow-hidden ${mainClassName}`}>
+      <main className={mainClassName}>
         {activeAdminTab === 'pos' && (
           <div className="h-full min-h-0 overflow-hidden">
             <Suspense fallback={<TabLoader />}>

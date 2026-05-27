@@ -31,7 +31,7 @@ const AlignedHistory = ({ size, strokeWidth }) => (
   </svg>
 );
 
-const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) => {
+const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSwitchToSettings }) => {
   const { storeId: authStoreId, loading: authLoading } = useAuth();
   const effectiveStoreId = storeId || authStoreId;
   const kdsData = useKitchenBoard(effectiveStoreId || null);
@@ -592,6 +592,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe }) =>
         setActiveKitchenId={handleKitchenTabChange}
         onBack={onBack}
         onSwitchToRegister={onSwitchToRegister}
+        onSwitchToSettings={onSwitchToSettings}
         activeOrderCount={Array.isArray(kdsData.orders) ? kdsData.orders.length : 0}
         soldOutCount={Array.isArray(kdsData.soldOutItems) ? kdsData.soldOutItems.length : 0}
         isSoundEnabled={isSoundEnabled}

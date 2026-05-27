@@ -1,8 +1,7 @@
 import React from 'react';
 import {
   Ban,
-  ChefHat,
-  Flame,
+  ChevronRight,
   History,
   MonitorCog,
   Volume2,
@@ -18,6 +17,7 @@ const KitchenHeader = ({
   setActiveKitchenId,
   onBack,
   onSwitchToRegister,
+  onSwitchToSettings,
   activeOrderCount = 0,
   soldOutCount = 0,
   isSoundEnabled = false,
@@ -25,13 +25,6 @@ const KitchenHeader = ({
   logoUrl = '',
   storeName = ''
 }) => {
-  const displayTime = currentTime
-    ? new Date(currentTime).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : '--:--';
-
   const handleSetViewMode = (nextViewMode) => {
     if (typeof setViewMode === 'function') {
       setViewMode(nextViewMode);
@@ -61,49 +54,27 @@ const KitchenHeader = ({
     }
   };
 
+  const handleSwitchToSettings = () => {
+    if (typeof onSwitchToSettings === 'function') {
+      onSwitchToSettings();
+    }
+  };
+
   return (
     <header className="z-40 h-[72px] w-full shrink-0 border-b border-gray-100 bg-white/95 px-5 shadow-sm backdrop-blur-md print:hidden">
       <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 items-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 text-sm font-black text-orange-600 shadow-sm">
-            <ChefHat size={17} strokeWidth={2.7} />
-            キッチンモード
-          </div>
-
-          <div className="hidden h-11 items-center rounded-2xl border border-gray-100 bg-white px-4 text-sm font-black tabular-nums text-gray-700 shadow-sm lg:flex">
-            {displayTime}
-          </div>
-
-          <div className="hidden rounded-2xl border border-gray-100 bg-gray-50 p-1 shadow-inner xl:flex">
+          {typeof onSwitchToSettings === 'function' && (
             <button
               type="button"
-              onClick={() => handleSetViewMode('active')}
-              className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all ${
-                viewMode === 'active'
-                  ? 'bg-orange-500 text-white shadow-md'
-                  : 'text-gray-500 hover:bg-white hover:text-gray-800'
-              }`}
+              onClick={handleSwitchToSettings}
+              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+              aria-label="設定画面を開く"
+              title="設定画面を開く"
             >
-              <Flame size={15} />
-              調理中
-              <span className="rounded bg-black/10 px-1.5 py-0.5 text-[10px]">
-                {activeOrderCount}
-              </span>
+              <ChevronRight size={22} strokeWidth={3} />
             </button>
-
-            <button
-              type="button"
-              onClick={() => handleSetViewMode('history')}
-              className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all ${
-                viewMode === 'history'
-                  ? 'bg-gray-900 text-white shadow-md'
-                  : 'text-gray-500 hover:bg-white hover:text-gray-800'
-              }`}
-            >
-              <History size={15} />
-              履歴
-            </button>
-          </div>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-col items-center justify-center rounded-2xl px-5 py-2">
@@ -146,8 +117,21 @@ const KitchenHeader = ({
             })}
           </div>
 
+          <button
+            type="button"
+            onClick={() => handleSetViewMode(viewMode === 'history' ? 'active' : 'history')}
+            className={`hidden h-11 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-black shadow-sm transition-all active:scale-95 md:flex ${
+              viewMode === 'history'
+                ? 'border-gray-900 bg-gray-900 text-white'
+                : 'border-gray-100 bg-white text-gray-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+            }`}
+          >
+            <History size={17} strokeWidth={2.7} />
+            {viewMode === 'history' ? '調理中へ戻る' : '履歴を見る'}
+          </button>
+
           {soldOutCount > 0 && (
-            <div className="hidden h-11 items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 text-xs font-black text-red-500 md:flex">
+            <div className="hidden h-11 items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 text-xs font-black text-red-500 xl:flex">
               <Ban size={14} />
               {soldOutCount} 件売り切れ
             </div>

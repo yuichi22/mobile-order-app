@@ -75,7 +75,7 @@ const AppRouter = () => {
     return 'admin';
   });
 
-    const switchMode = (nextMode) => {
+  const switchMode = (nextMode) => {
     setMode(nextMode);
 
     const params = new URLSearchParams(location.search);
@@ -90,6 +90,7 @@ const AppRouter = () => {
     if (nextMode === 'admin') {
       params.delete('mode');
     } else {
+      params.delete('admin_tab');
       params.set('mode', nextMode);
     }
 
@@ -315,6 +316,30 @@ const AppRouter = () => {
     );
   }
 
+  const switchToSettings = () => {
+    setMode('admin');
+
+    const params = new URLSearchParams(location.search);
+
+    params.delete('mode');
+    params.delete('start_table');
+    params.delete('table_token');
+    params.delete('session');
+    params.delete('action');
+    params.delete('customer_entry');
+    params.delete('invite');
+    params.set('admin_tab', 'settings');
+    params.set('return_to', 'kitchen');
+
+    navigate(
+      {
+        pathname: '/',
+        search: `?${params.toString()}`
+      },
+      { replace: true }
+    );
+  };
+
   if (!activeStoreId) {
     return (
       <Suspense fallback={<RouteLoader />}>
@@ -331,6 +356,7 @@ const AppRouter = () => {
               storeId={activeStoreId}
               onBack={() => switchMode('launcher')}
               onSwitchToRegister={() => switchMode('admin')}
+              onSwitchToSettings={switchToSettings}
             />
           </Suspense>
         );
