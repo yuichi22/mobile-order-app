@@ -985,7 +985,6 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
           crossSellOffer.offerGroup?.categoryId ||
           ''
         ),
-        crossSellServiceTimingEnabled: crossSellOffer.flow?.serviceTimingEnabled === true,
         crossSellSourceCategoryIds: Array.isArray(crossSellOffer.offerGroup?.categoryIds)
           ? crossSellOffer.offerGroup.categoryIds.map(String)
           : []
@@ -1048,12 +1047,11 @@ const shouldShowServiceTimingForItem = (item) => {
     String(candidate.id) === String(item?.category)
   ));
 
-  const result = Boolean(
+  return Boolean(
     isCrossSellActive
     && activeCrossSellPrompt?.serviceTimingEnabled
     && category?.serviceTimingEnabled
   );
-  return result;
 };
 
 const getServiceTimingDefaultForItem = (item) => {
@@ -1085,10 +1083,7 @@ const handleAddToCartClick = (item) => {
     setOptionSelections(buildDefaultOptionSelections(orderItem));
     setOptionQuantity(1);
     setServiceTiming(getServiceTimingDefaultForItem(orderItem));
-    setModalItem({
-      ...orderItem,
-      shouldAttachServiceTiming
-    });
+    setModalItem(orderItem);
     return;
   }
 
@@ -1097,9 +1092,7 @@ const handleAddToCartClick = (item) => {
 
 const handleConfirmOptionsAddToCart = (item, quantity, selectedOptions) => {
   const orderItem = resolveOrderItemForCurrentMode(item);
-  const shouldAttachServiceTiming = Boolean(
-    item?.shouldAttachServiceTiming || shouldShowServiceTimingForItem(orderItem)
-  );
+  const shouldAttachServiceTiming = shouldShowServiceTimingForItem(orderItem);
   const serviceTimingLabel = shouldAttachServiceTiming ? getServiceTimingLabel(serviceTiming) : '';
 
   handleConfirmedCartAdd(
