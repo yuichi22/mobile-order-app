@@ -572,11 +572,18 @@ export const bootstrapCustomerSession = onRequest(
       return sendAppError(response, 400, 'app/invite-invalid', 'テーブル情報を確認してください。');
     }
 
-    const role = await getUserRoleForStore(authUser.uid, normalizedStoreId);
-    const isStoreStaff = role === USER_ROLES.OWNER || role === USER_ROLES.MANAGER || role === USER_ROLES.STAFF;
+    let role = '';
+    let isStoreStaff = false;
 
-    if (!isStoreStaff && !normalizedTableToken) {
-      return sendAppError(response, 400, 'app/invite-invalid', 'テーブル情報を確認してください。');
+    // 通常のお客様QR入口では tableToken が必ずあるため、staff判定は不要。
+    // tableTokenなしの管理/スタッフ導線だけ、従来通り role を確認する。
+    if (!normalizedTableToken) {
+      role = await getUserRoleForStore(authUser.uid, normalizedStoreId);
+      isStoreStaff = role === USER_ROLES.OWNER || role === USER_ROLES.MANAGER || role === USER_ROLES.STAFF;
+
+      if (!isStoreStaff) {
+        return sendAppError(response, 400, 'app/invite-invalid', 'テーブル情報を確認してください。');
+      }
     }
 
     const tableRef = db.collection('stores').doc(normalizedStoreId).collection('tables').doc(normalizedTableId);
@@ -588,12 +595,23 @@ export const bootstrapCustomerSession = onRequest(
 
     const result = await db.runTransaction(async (transaction) => {
       const now = Date.now();
-      const accessSnapshot = await transaction.get(platformAccessRef);
+
+      const [
+        accessSnapshot,
+        tableSnapshot,
+        guardSnapshot,
+        lockSnapshot
+      ] = await transaction.getAll(
+        platformAccessRef,
+        tableRef,
+        tableEntryGuardRef,
+        tableSessionRef
+      );
+
       if (accessSnapshot.exists && accessSnapshot.data()?.storeStatus === 'stopped') {
         return { action: 'stopped' };
       }
 
-      const tableSnapshot = await transaction.get(tableRef);
       let tableDisplayName = '';
 
       if (tableSnapshot.exists) {
@@ -634,12 +652,10 @@ export const bootstrapCustomerSession = onRequest(
         return { id: sessionSnapshot.id, data: sessionData };
       };
 
-      const guardSnapshot = await transaction.get(tableEntryGuardRef);
       const guardData = guardSnapshot.exists ? guardSnapshot.data() : null;
       const guardExpiresAt = guardData?.expiresAt?.toDate?.() || null;
 
       let activeSession = null;
-      const lockSnapshot = await transaction.get(tableSessionRef);
       if (lockSnapshot.exists) {
         activeSession = await resolveActiveSession(lockSnapshot.data().sessionId);
       }
