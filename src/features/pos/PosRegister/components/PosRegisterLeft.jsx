@@ -5,6 +5,26 @@ import {
   groupOrdersByCustomer
 } from '../../../../shared/utils/orderCustomerIdentity';
 
+const isCancelledPosItem = (item) => (
+  item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled'
+);
+
+const getUnpaidActiveItems = (order, paidItemKeys) => {
+  if (!order?.items || !Array.isArray(order.items)) return [];
+
+  return order.items
+    .map((item, index) => ({ item, index, key: `${order.id}-${index}` }))
+    .filter(({ item, key }) => item && !isCancelledPosItem(item) && !paidItemKeys.has(key));
+};
+
+const getRemainingOrderTotal = (order, paidItemKeys) => (
+  getUnpaidActiveItems(order, paidItemKeys).reduce((sum, { item }) => {
+    const unitPrice = Number(item.unitPrice) || 0;
+    const quantity = Number(item.quantity) || 0;
+    return sum + (unitPrice * quantity);
+  }, 0)
+);
+
 export const PosRegisterLeft = ({
   orders,
   selectedOrderIds,
@@ -21,7 +41,8 @@ export const PosRegisterLeft = ({
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
 
-  const allSelected = orders.length > 0 && selectedOrderIds.size === orders.length;
+  const selectableOrders = (orders || []).filter((order) => getUnpaidActiveItems(order, paidItemKeys).length > 0);
+  const allSelected = selectableOrders.length > 0 && selectableOrders.every((order) => selectedOrderIds.has(order.id));
 
   return (
     <div className="z-10 flex h-full min-h-0 w-7/12 flex-col overflow-hidden border-r border-gray-200 bg-white shadow-xl">
@@ -67,11 +88,11 @@ export const PosRegisterLeft = ({
 
         {Object.entries(groupedOrders).map(([customerKey, userOrders]) => {
           const visibleOrders = userOrders.filter(
-            (order) => order.items && Array.isArray(order.items) && order.items.some((_, index) => !paidItemKeys.has(`${order.id}-${index}`))
+            (order) => getUnpaidActiveItems(order, paidItemKeys).length > 0
           );
           if (visibleOrders.length === 0) return null;
 
-          const userTotal = visibleOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0);
+          const userTotal = visibleOrders.reduce((sum, order) => sum + getRemainingOrderTotal(order, paidItemKeys), 0);
           const allCustomerOrdersSelected = visibleOrders.every((order) => selectedOrderIds.has(order.id));
 
           return (
@@ -130,9 +151,9 @@ export const PosRegisterLeft = ({
                         {order.items?.map((item, index) => {
                           const itemKey = `${order.id}-${index}`;
                           const isItemTakeout = takeoutItemKeys.has(itemKey);
-                          const allowsTakeout = item.allowsTakeout !== false;
+                          const allowsTakeout = item?.allowsTakeout !== false;
 
-                          if (paidItemKeys.has(itemKey)) return null;
+                          if (!item || isCancelledPosItem(item) || paidItemKeys.has(itemKey)) return null;
 
                           return (
                             <div key={itemKey} className="flex items-center justify-between gap-3 text-sm text-gray-700">
