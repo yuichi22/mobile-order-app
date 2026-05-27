@@ -915,15 +915,6 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
       && remainingQuantity > 0
     );
 
-    console.log('[cross sell remaining]', {
-      id: item?.id,
-      name: item?.name,
-      category: getCrossSellCategoryId(item),
-      crossSellPrice: item?.crossSellPrice,
-      remainingQuantity,
-      result
-    });
-
     return result;
   };
 
