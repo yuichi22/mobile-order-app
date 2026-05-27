@@ -1049,11 +1049,8 @@ const shouldShowServiceTimingForItem = (item) => {
   ));
 
   const result = Boolean(
-    item?.appliedPriceMode === 'crossSell'
-    && (
-      item?.crossSellServiceTimingEnabled === true
-      || activeCrossSellPrompt?.serviceTimingEnabled === true
-    )
+    isCrossSellActive
+    && activeCrossSellPrompt?.serviceTimingEnabled
     && category?.serviceTimingEnabled
   );
   return result;
