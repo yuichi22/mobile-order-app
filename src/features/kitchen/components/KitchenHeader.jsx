@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Ban,
   ChevronRight,
@@ -8,8 +8,9 @@ import {
   VolumeX
 } from 'lucide-react';
 
+const LONG_PRESS_MS = 450;
+
 const KitchenHeader = ({
-  currentTime,
   viewMode,
   setViewMode,
   availableStations = [],
@@ -18,13 +19,20 @@ const KitchenHeader = ({
   onBack,
   onSwitchToRegister,
   onSwitchToSettings,
-  activeOrderCount = 0,
   soldOutCount = 0,
   isSoundEnabled = false,
   setIsSoundEnabled,
+  alertVolume = 0.8,
+  setAlertVolume,
+  onPlayAlertPreview,
   logoUrl = '',
   storeName = ''
 }) => {
+  const [isVolumePanelOpen, setIsVolumePanelOpen] = useState(false);
+  const longPressTimerRef = useRef(null);
+  const longPressTriggeredRef = useRef(false);
+  const panelRef = useRef(null);
+
   const handleSetViewMode = (nextViewMode) => {
     if (typeof setViewMode === 'function') {
       setViewMode(nextViewMode);
@@ -38,9 +46,50 @@ const KitchenHeader = ({
   };
 
   const handleToggleSound = () => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
     if (typeof setIsSoundEnabled === 'function') {
       setIsSoundEnabled(!isSoundEnabled);
     }
+  };
+
+  const startLongPress = () => {
+    longPressTriggeredRef.current = false;
+
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setIsVolumePanelOpen(true);
+    }, LONG_PRESS_MS);
+  };
+
+  const endLongPress = () => {
+    window.clearTimeout(longPressTimerRef.current);
+  };
+
+  const playPreviewSoon = () => {
+    window.setTimeout(() => {
+      if (typeof onPlayAlertPreview === 'function') {
+        onPlayAlertPreview();
+      }
+    }, 0);
+  };
+
+  const handleVolumeChange = (event) => {
+    const nextVolume = Math.min(Math.max(Number(event.target.value) / 100, 0), 1);
+
+    if (typeof setAlertVolume === 'function') {
+      setAlertVolume(nextVolume);
+    }
+
+    if (!isSoundEnabled && typeof setIsSoundEnabled === 'function') {
+      setIsSoundEnabled(true);
+    }
+
+    playPreviewSoon();
   };
 
   const handleSwitchToRegister = () => {
@@ -59,6 +108,22 @@ const KitchenHeader = ({
       onSwitchToSettings();
     }
   };
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!panelRef.current) return;
+      if (panelRef.current.contains(event.target)) return;
+
+      setIsVolumePanelOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      window.clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   return (
     <header className="z-40 h-[72px] w-full shrink-0 border-b border-gray-100 bg-white/95 px-5 shadow-sm backdrop-blur-md print:hidden">
@@ -137,18 +202,80 @@ const KitchenHeader = ({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleToggleSound}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-all active:scale-95 ${
-              isSoundEnabled
-                ? 'border-green-100 bg-green-50 text-green-500'
-                : 'border-gray-100 bg-white text-gray-400 hover:bg-gray-50'
-            }`}
-            aria-label={isSoundEnabled ? '通知音をオフにする' : '通知音をオンにする'}
-          >
-            {isSoundEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
-          </button>
+          <div ref={panelRef} className="relative">
+            <button
+              type="button"
+              onClick={handleToggleSound}
+              onMouseDown={startLongPress}
+              onMouseUp={endLongPress}
+              onMouseLeave={endLongPress}
+              onTouchStart={startLongPress}
+              onTouchEnd={endLongPress}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-all active:scale-95 ${
+                isSoundEnabled
+                  ? 'border-green-100 bg-green-50 text-green-500'
+                  : 'border-gray-100 bg-white text-gray-400 hover:bg-gray-50'
+              }`}
+              aria-label={isSoundEnabled ? '通知音をオフにする。長押しで音量調整。' : '通知音をオンにする。長押しで音量調整。'}
+              title="クリックでON/OFF、長押しで音量調整"
+            >
+              {isSoundEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
+            </button>
+
+            {isVolumePanelOpen && (
+              <div className="absolute right-0 top-full z-50 mt-3 w-72 rounded-3xl border border-gray-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-black text-gray-900">
+                      通知音量
+                    </div>
+                    <div className="mt-0.5 text-[11px] font-bold text-gray-400">
+                      スライダーを動かすと試聴できます
+                    </div>
+                  </div>
+
+                  <div className="rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                    {Math.round(Number(alertVolume || 0) * 100)}%
+                  </div>
+                </div>
+
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(Number(alertVolume || 0) * 100)}
+                  onChange={handleVolumeChange}
+                  className="w-full cursor-pointer accent-green-500"
+                />
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof setAlertVolume === 'function') setAlertVolume(0.4);
+                      playPreviewSoon();
+                    }}
+                    className="h-10 rounded-2xl bg-gray-50 text-xs font-black text-gray-500 transition-colors hover:bg-gray-100"
+                  >
+                    小さめ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isSoundEnabled && typeof setIsSoundEnabled === 'function') {
+                        setIsSoundEnabled(true);
+                      }
+                      playPreviewSoon();
+                    }}
+                    className="h-10 rounded-2xl bg-green-500 text-xs font-black text-white shadow-sm transition-colors hover:bg-green-600"
+                  >
+                    テスト再生
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"

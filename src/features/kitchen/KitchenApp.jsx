@@ -12,7 +12,7 @@ import { useStoreSettings } from '../store/hooks';
 import { buildPendingItemSummary, getActiveKitchenItems, isCancelledKitchenItem, sortKitchenOrders } from './utils/kitchenUtils';
 
 
-const ALERT_SOUND_URL = '/決定ボタンを押す5.mp3';
+const ALERT_SOUND_URL = '/order-alert.mp3';
 
 const AlignedHistory = ({ size, strokeWidth }) => (
   <svg
@@ -53,6 +53,15 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   });
   const [currentTime, setCurrentTime] = useState(new Date().getTime());
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+  const [alertVolume, setAlertVolume] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('kitchen-alert-volume');
+      const value = Number(saved);
+      return Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 0.8;
+    } catch {
+      return 0.8;
+    }
+  });
 
   const [summaryMode, setSummaryMode] = useState('all');
   const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
@@ -63,6 +72,28 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   const isReadyToPlay = useRef(false);
   const hasUserSelectedKitchenTabRef = useRef(false);
   const previousOrderIndexRef = useRef(new Map());
+
+  useEffect(() => {
+    audioRef.current.volume = alertVolume;
+
+    try {
+      window.localStorage.setItem('kitchen-alert-volume', String(alertVolume));
+    } catch {
+      // localStorage が使えない環境では保存しない
+    }
+  }, [alertVolume]);
+
+  const playAlertPreview = () => {
+    if (!audioRef.current) return;
+
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.volume = alertVolume;
+
+    audioRef.current.play().catch(() => {
+      // ブラウザ側の自動再生制限などで鳴らない場合は無視
+    });
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date().getTime()), 1000);
@@ -565,13 +596,14 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
     if (newOrderIds.length > 0) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.volume = alertVolume;
       audioRef.current.play().catch(() => {
         // ユーザー操作前の再生失敗は無視する。
       });
 
       newOrderIds.forEach((id) => prevOrderIds.current.add(id));
     }
-  }, [filteredOrders, isSoundEnabled, viewMode]);
+  }, [filteredOrders, isSoundEnabled, viewMode, alertVolume]);
 
   if (authLoading || !effectiveStoreId) {
     return (
@@ -597,6 +629,9 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
         soldOutCount={Array.isArray(kdsData.soldOutItems) ? kdsData.soldOutItems.length : 0}
         isSoundEnabled={isSoundEnabled}
         setIsSoundEnabled={setIsSoundEnabled}
+        alertVolume={alertVolume}
+        setAlertVolume={setAlertVolume}
+        onPlayAlertPreview={playAlertPreview}
         logoUrl={storeSettings?.customerLogoUrl}
         storeName={storeSettings?.name}
       />
