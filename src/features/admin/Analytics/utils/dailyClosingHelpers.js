@@ -47,6 +47,88 @@ export const getPaymentMethodLabel = (method) => {
   return 'その他';
 };
 
+const toDate = (value) => {
+  if (!value) return null;
+
+  if (value?.toDate && typeof value.toDate === 'function') {
+    const converted = value.toDate();
+    return Number.isNaN(converted.getTime()) ? null : converted;
+  }
+
+  const converted = new Date(value);
+  return Number.isNaN(converted.getTime()) ? null : converted;
+};
+
+const toMinutesFromTimeText = (timeText) => {
+  const [hourText, minuteText = '0'] = String(timeText || '00:00').split(':');
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+
+  return Math.min(Math.max(hour, 0), 23) * 60 + Math.min(Math.max(minute, 0), 59);
+};
+
+const normalizeDailyClosingPeriods = (periods = []) => (
+  Array.isArray(periods)
+    ? periods
+      .map((period, index) => {
+        const id = String(period?.id || '').trim();
+        const name = String(period?.name || period?.label || id || '').trim();
+        const start = period?.start;
+        const end = period?.end;
+
+        if (!id || !name || !start || !end) return null;
+
+        return {
+          id,
+          name,
+          start,
+          end,
+          startMinutes: toMinutesFromTimeText(start),
+          endMinutes: toMinutesFromTimeText(end),
+          index
+        };
+      })
+      .filter(Boolean)
+    : []
+);
+
+const isMinutesWithinPeriod = (targetMinutes, period) => {
+  if (!period) return false;
+
+  if (period.startMinutes <= period.endMinutes) {
+    return targetMinutes >= period.startMinutes && targetMinutes <= period.endMinutes;
+  }
+
+  return targetMinutes >= period.startMinutes || targetMinutes <= period.endMinutes;
+};
+
+const resolvePeriodByDate = (dateValue, periods = []) => {
+  const targetDate = toDate(dateValue) || new Date();
+  const targetMinutes = targetDate.getHours() * 60 + targetDate.getMinutes();
+
+  return periods.find((period) => isMinutesWithinPeriod(targetMinutes, period)) || null;
+};
+
+const addTimeSlotAmount = (summary, periodId, periodName, amount) => {
+  const normalizedPeriodId = String(periodId || 'unknown');
+  const normalizedPeriodName = String(periodName || normalizedPeriodId || '時間帯未設定');
+
+  if (!summary.periods[normalizedPeriodId]) {
+    summary.periods[normalizedPeriodId] = {
+      id: normalizedPeriodId,
+      name: normalizedPeriodName,
+      count: 0,
+      total: 0
+    };
+  }
+
+  summary.periods[normalizedPeriodId].count += 1;
+  summary.periods[normalizedPeriodId].total += Number(amount || 0);
+};
+
+
 const addCustomers = (summary, transaction) => {
   if (Array.isArray(transaction.customerIds)) {
     transaction.customerIds.forEach((customerId) => {
@@ -399,7 +481,32 @@ const addCategorySales = (summary, transaction) => {
   });
 };
 
-const addPeriodSales = (summary, transaction) => {
+const addPeriodSales = (summary, transaction, periods = []) => {
+  const orderAnalyticsRecords = Array.isArray(transaction.orderAnalyticsRecords)
+    ? transaction.orderAnalyticsRecords
+    : [];
+
+  // 注文データが取引に紐づいている場合は、注文ごとの提供時刻で時間帯別売上を集計する。
+  // これにより、会計時刻ではなく「いつ提供・注文された売上か」で日計を見られる。
+  if (orderAnalyticsRecords.length > 0 && periods.length > 0) {
+    orderAnalyticsRecords.forEach((orderRecord) => {
+      const matchedPeriod = resolvePeriodByDate(
+        orderRecord.timestamp || orderRecord.paidAt || transaction.timestamp,
+        periods
+      );
+
+      addTimeSlotAmount(
+        summary,
+        matchedPeriod?.id || 'unknown',
+        matchedPeriod?.name || '時間帯未設定',
+        Number(orderRecord.totalAmount || 0)
+      );
+    });
+
+    return;
+  }
+
+  // 旧データ・注文紐付けがないデータは、従来通り取引に保存された periodId で集計する。
   const periodId =
     transaction.periodId ||
     transaction.businessPeriodId ||
@@ -410,28 +517,50 @@ const addPeriodSales = (summary, transaction) => {
     transaction.businessPeriodName ||
     '時間帯未設定';
 
-  const amount = Number(transaction.totalAmount || 0);
-
-  if (!summary.periods[periodId]) {
-    summary.periods[periodId] = {
-      id: periodId,
-      name: periodName,
-      count: 0,
-      total: 0
-    };
-  }
-
-  summary.periods[periodId].count += 1;
-  summary.periods[periodId].total += amount;
+  addTimeSlotAmount(summary, periodId, periodName, Number(transaction.totalAmount || 0));
 };
 
-export const buildDailyClosingSummary = (transactions = []) => {
+const getTransactionGuestCount = (transaction) => {
+  const value = Number(
+    transaction.guestCount ??
+    transaction.numberOfGuests ??
+    transaction.partySize ??
+    transaction.customerCount ??
+    0
+  );
+
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+const getTransactionSessionKey = (transaction) => (
+  String(
+    transaction?.sessionId ||
+    transaction?.tableSessionId ||
+    transaction?.tableKey ||
+    transaction?.id ||
+    ''
+  )
+);
+
+const upsertSessionGuestCount = (map, sessionKey, guestCount) => {
+  if (!sessionKey) return;
+  const current = Number(map.get(sessionKey) || 0);
+  map.set(sessionKey, Math.max(current, Number(guestCount || 0)));
+};
+
+const sumSessionGuestCounts = (map) => (
+  Array.from(map.values()).reduce((sum, value) => sum + Number(value || 0), 0)
+);
+
+export const buildDailyClosingSummary = (transactions = [], periods = []) => {
+  const normalizedPeriods = normalizeDailyClosingPeriods(periods);
+
   const summary = {
     transactionCount: 0,
     customerCount: 0,
     totalSales: 0,
 
-    customerCount: 0,
+    sessionGuestCounts: new Map(),
     customerIdSet: new Set(),
 
     cashSales: 0,
@@ -458,13 +587,10 @@ export const buildDailyClosingSummary = (transactions = []) => {
     summary.transactionCount += 1;
     summary.totalSales += totalAmount;
 
-    summary.customerCount += Number(
-    transaction.guestCount ??
-    transaction.numberOfGuests ??
-    transaction.partySize ??
-    transaction.customerCount ??
-    0
-    ) || 0;
+    const guestCount = getTransactionGuestCount(transaction);
+    const sessionKey = getTransactionSessionKey(transaction);
+
+    upsertSessionGuestCount(summary.sessionGuestCounts, sessionKey, guestCount);
 
     addCustomers(summary, transaction);
 
@@ -473,17 +599,19 @@ export const buildDailyClosingSummary = (transactions = []) => {
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
     addCategorySales(summary, transaction);
-    addPeriodSales(summary, transaction);
+    addPeriodSales(summary, transaction, normalizedPeriods);
   });
 
     const paymentOrder = ['cash', 'card', 'qr', 'other'];
 
-    const guestCustomerCount = Number(summary.customerCount || 0);
+    const guestCustomerCount = sumSessionGuestCounts(summary.sessionGuestCounts);
     const fallbackCustomerCount = summary.customerIdSet?.size || 0;
     const customerCount = guestCustomerCount > 0 ? guestCustomerCount : fallbackCustomerCount;
 
+    const { sessionGuestCounts, ...publicSummary } = summary;
+
     return {
-    ...summary,
+    ...publicSummary,
     customerCount,
 
     paymentMethodList: paymentOrder.map((method) => (
@@ -514,6 +642,15 @@ export const buildDailyClosingSummary = (transactions = []) => {
       .sort((left, right) => right.total - left.total),
 
     timeSlotList: Object.values(summary.periods)
-      .sort((left, right) => right.total - left.total)
+      .sort((left, right) => {
+        const leftPeriod = normalizedPeriods.find((period) => String(period.id) === String(left.id));
+        const rightPeriod = normalizedPeriods.find((period) => String(period.id) === String(right.id));
+
+        if (leftPeriod && rightPeriod) return leftPeriod.index - rightPeriod.index;
+        if (leftPeriod) return -1;
+        if (rightPeriod) return 1;
+
+        return right.total - left.total;
+      })
   };
 };

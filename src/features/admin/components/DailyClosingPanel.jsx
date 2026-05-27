@@ -24,7 +24,7 @@ import {
   getPaymentMethodLabel
 } from '../Analytics/utils/dailyClosingHelpers';
 import DailyClosingCheckModal from './DailyClosingCheckModal';
-import { useStoreSettings } from '../../store/hooks';
+import { useStoreSettings, usePeriodData } from '../../store/hooks';
 import { printDailyClosingReceipt } from './printDailyClosingReceipt';
 
 const toDateInputValue = (date) => {
@@ -54,6 +54,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
+  const { periods = [] } = usePeriodData(storeId);
 
   const { transactions, loading } = useDailyTransactions({
     storeId,
@@ -63,8 +64,8 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const dateKey = useMemo(() => formatDailyClosingDateKey(targetDate), [targetDate]);
 
   const summary = useMemo(
-    () => buildDailyClosingSummary(transactions),
-    [transactions]
+    () => buildDailyClosingSummary(transactions, periods),
+    [transactions, periods]
   );
 
   useEffect(() => {

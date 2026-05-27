@@ -53,6 +53,36 @@ const SummaryCard = ({
   </button>
 );
 
+const TimePeriodFilterCard = ({
+  selectedPeriodId = 'all',
+  periodOptions = [],
+  onSelectedPeriodChange
+}) => (
+  <div className="rounded-2xl bg-gray-50 p-4 text-left print:border print:border-gray-300">
+    <div className="flex items-center gap-2 text-xs font-black text-gray-400">
+      <ReceiptText size={15} />
+      時間帯
+    </div>
+
+    <select
+      value={selectedPeriodId}
+      onChange={(event) => onSelectedPeriodChange?.(event.target.value)}
+      className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-900 outline-none transition-colors focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+    >
+      <option value="all">全時間帯</option>
+      {periodOptions.map((periodOption) => (
+        <option key={periodOption.id} value={periodOption.id}>
+          {periodOption.label}
+        </option>
+      ))}
+    </select>
+
+    <div className="mt-1 text-[11px] font-bold text-gray-400">
+      注文時刻ベースで絞り込み
+    </div>
+  </div>
+);
+
 const AnalyticsSummaryCards = ({
   totalSales = 0,
   totalOrders = 0,
@@ -61,9 +91,12 @@ const AnalyticsSummaryCards = ({
   averageSpendPerTransaction = 0,
   averagePartySize = 0,
   activeMetric = 'sales',
-  onMetricChange
+  onMetricChange,
+  selectedPeriodId = 'all',
+  periodOptions = [],
+  onSelectedPeriodChange
 }) => (
-  <div className="mb-8 grid gap-3 md:grid-cols-5">
+  <div className="mb-8 grid gap-3 md:grid-cols-6">
     <SummaryCard
       active={activeMetric === 'sales'}
       accent
@@ -71,6 +104,12 @@ const AnalyticsSummaryCards = ({
       label="売上合計"
       value={formatCurrency(totalSales)}
       onClick={() => onMetricChange?.('sales')}
+    />
+
+    <TimePeriodFilterCard
+      selectedPeriodId={selectedPeriodId}
+      periodOptions={periodOptions}
+      onSelectedPeriodChange={onSelectedPeriodChange}
     />
 
     <SummaryCard

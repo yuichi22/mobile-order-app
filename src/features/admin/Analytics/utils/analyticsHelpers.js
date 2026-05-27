@@ -104,6 +104,66 @@ const getDayBusinessHours = (businessSettings, currentDate) => {
   };
 };
 
+const parseTimeToMinutes = (value) => {
+  if (typeof value !== 'string') return null;
+
+  const [hourText, minuteText = '0'] = value.split(':');
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+
+  return Math.min(Math.max(hour, 0), 23) * 60 + Math.min(Math.max(minute, 0), 59);
+};
+
+const normalizeAnalyticsPeriods = (periods = []) => (
+  Array.isArray(periods)
+    ? periods
+        .map((period, index) => {
+          const startMinutes = parseTimeToMinutes(period?.start);
+          const endMinutes = parseTimeToMinutes(period?.end);
+
+          if (!period?.id || !period?.name || startMinutes === null || endMinutes === null) {
+            return null;
+          }
+
+          return {
+            id: String(period.id),
+            label: period.name,
+            start: period.start,
+            end: period.end,
+            startMinutes,
+            endMinutes,
+            index
+          };
+        })
+        .filter(Boolean)
+    : []
+);
+
+const isMinutesWithinPeriod = (targetMinutes, period) => {
+  if (!period) return false;
+
+  // 設定画面の終了時刻は「その分まで含む」扱いにする。
+  // 例: 11:30〜13:59 なら 13:59 台の注文も含める。
+  if (period.startMinutes <= period.endMinutes) {
+    return targetMinutes >= period.startMinutes && targetMinutes <= period.endMinutes;
+  }
+
+  // 日跨ぎ: 17:00〜02:00 など
+  return targetMinutes >= period.startMinutes || targetMinutes <= period.endMinutes;
+};
+
+const resolvePeriodKey = (date, analyticsPeriods = []) => {
+  const target = toDate(date);
+  if (!target) return null;
+
+  const minutes = target.getHours() * 60 + target.getMinutes();
+  const matched = analyticsPeriods.find((period) => isMinutesWithinPeriod(minutes, period));
+
+  return matched?.id || null;
+};
+
 const buildDailyHourKeys = ({ businessSettings, currentDate }) => {
   const { startHour, endHour } = getDayBusinessHours(businessSettings, currentDate);
 
@@ -259,6 +319,26 @@ const getRecordGuestCount = (record) => {
   return Number.isFinite(value) && value > 0 ? value : 0;
 };
 
+const getRecordSessionKey = (record) => (
+  String(
+    record?.sessionId ||
+    record?.tableSessionId ||
+    record?.tableKey ||
+    record?.id ||
+    ''
+  )
+);
+
+const upsertSessionGuestCount = (map, sessionKey, guestCount) => {
+  if (!sessionKey) return;
+  const current = Number(map.get(sessionKey) || 0);
+  map.set(sessionKey, Math.max(current, Number(guestCount || 0)));
+};
+
+const sumSessionGuestCounts = (map) => (
+  Array.from(map.values()).reduce((sum, value) => sum + Number(value || 0), 0)
+);
+
 const getItemQuantity = (item) => {
   const quantity = Number(item?.quantity ?? 1);
   return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
@@ -282,6 +362,21 @@ const resolveCategoryId = (item, itemCategoryMap) => (
   'other'
 );
 
+const getOrderAnalyticsRecords = (record) => (
+  Array.isArray(record?.orderAnalyticsRecords) && record.orderAnalyticsRecords.length > 0
+    ? record.orderAnalyticsRecords
+    : [{
+        id: record?.id,
+        transactionId: record?.id,
+        sessionId: record?.sessionId,
+        tableId: record?.tableId,
+        timestamp: getRecordDate(record),
+        totalAmount: getTransactionAmount(record),
+        guestCount: getRecordGuestCount(record),
+        items: Array.isArray(record?.items) ? record.items : []
+      }]
+);
+
 export const buildAnalyticsSummary = ({
   orders,
   period,
@@ -292,18 +387,23 @@ export const buildAnalyticsSummary = ({
   isDayOfWeekMode,
   abcThresholds,
   categories,
-  businessSettings
+  businessSettings,
+  periods,
+  selectedPeriodId = 'all'
 }) => {
   let totalSales = 0;
-  let totalOrders = 0;
-  let customerCount = 0;
+  const analyticsPeriods = normalizeAnalyticsPeriods(periods);
+  const normalizedSelectedPeriodId = String(selectedPeriodId || 'all');
+  const shouldFilterByPeriod = normalizedSelectedPeriodId !== 'all';
+
+  const sessionGuestCounts = new Map();
+  const weeklyCurrentSessionGuestCounts = new Map();
+  const weeklyPreviousSessionGuestCounts = new Map();
+  const weeklyCurrentSessionKeys = new Set();
+  const weeklyPreviousSessionKeys = new Set();
 
   let weeklyCurrentSales = 0;
   let weeklyPreviousSales = 0;
-  let weeklyCurrentCustomers = 0;
-  let weeklyPreviousCustomers = 0;
-  let weeklyCurrentTransactions = 0;
-  let weeklyPreviousTransactions = 0;
 
   const itemStats = {};
   const timeSlots = {};
@@ -313,6 +413,7 @@ export const buildAnalyticsSummary = ({
   if (isDayOfWeekMode && (period === 'monthly' || period === 'custom')) {
     currentGranularity = 'weekday';
   } else if (period === 'daily') {
+    // 分析の日次グラフは、提供時間帯ではなく営業時間内の1時間単位で表示する。
     currentGranularity = 'hour';
   } else if (period === 'weekly') {
     currentGranularity = 'week';
@@ -334,9 +435,25 @@ export const buildAnalyticsSummary = ({
         total: 0,
         customers: 0,
         transactions: 0,
+        sessionGuestCounts: new Map(),
+        sessionKeys: new Set(),
         categories: {}
       };
     }
+  } else if (currentGranularity === 'period') {
+    analyticsPeriods.forEach((analyticsPeriod) => {
+      timeSlots[analyticsPeriod.id] = {
+        total: 0,
+        customers: 0,
+        transactions: 0,
+        sessionGuestCounts: new Map(),
+        sessionKeys: new Set(),
+        label: analyticsPeriod.label,
+        start: analyticsPeriod.start,
+        end: analyticsPeriod.end,
+        categories: {}
+      };
+    });
   } else if (period === 'daily') {
     const dailyHourKeys = buildDailyHourKeys({ businessSettings, currentDate });
 
@@ -345,6 +462,8 @@ export const buildAnalyticsSummary = ({
         total: 0,
         customers: 0,
         transactions: 0,
+        sessionGuestCounts: new Map(),
+        sessionKeys: new Set(),
         categories: {}
       };
     });
@@ -354,6 +473,8 @@ export const buildAnalyticsSummary = ({
         total: 0,
         customers: 0,
         transactions: 0,
+        sessionGuestCounts: new Map(),
+        sessionKeys: new Set(),
         categories: {}
       };
     }
@@ -399,6 +520,8 @@ export const buildAnalyticsSummary = ({
         total: 0,
         customers: 0,
         transactions: 0,
+        sessionGuestCounts: new Map(),
+        sessionKeys: new Set(),
         categories: {}
       };
       loopCount += 1;
@@ -408,84 +531,107 @@ export const buildAnalyticsSummary = ({
   (orders || []).forEach((record) => {
     if (record?.isPaid === false) return;
 
-    const amount = getTransactionAmount(record);
     const recordDate = getRecordDate(record);
-    let key;
-
     const guestCount = getRecordGuestCount(record);
+    const sessionKey = getRecordSessionKey(record);
 
-    totalSales += amount;
-    totalOrders += 1;
-    customerCount += guestCount;
+    let includedRecordAmount = 0;
+    let hasIncludedOrderRecord = false;
+
+    getOrderAnalyticsRecords(record).forEach((orderRecord) => {
+      const orderRecordDate = getRecordDate(orderRecord);
+      const orderAmount = getTransactionAmount(orderRecord);
+      const orderPeriodKey = resolvePeriodKey(orderRecordDate, analyticsPeriods);
+
+      if (shouldFilterByPeriod && orderPeriodKey !== normalizedSelectedPeriodId) {
+        return;
+      }
+
+      includedRecordAmount += orderAmount;
+      hasIncludedOrderRecord = true;
+
+      let orderKey;
+
+      if (currentGranularity === 'weekday') {
+        orderKey = orderRecordDate.getDay();
+      } else if (currentGranularity === 'period') {
+        orderKey = orderPeriodKey;
+      } else if (period === 'daily') {
+        orderKey = orderRecordDate.getHours();
+      } else if (period === 'weekly') {
+        orderKey = getTrailingWeekIndex52(orderRecordDate, currentDate);
+      } else if (period === 'monthly') {
+        orderKey = orderRecordDate.getDate();
+      } else if (currentGranularity === 'year') {
+        orderKey = formatYearKey(orderRecordDate);
+      } else if (currentGranularity === 'month') {
+        orderKey = formatMonthKey(orderRecordDate);
+      } else {
+        orderKey = formatDateKey(orderRecordDate);
+      }
+
+      if (orderKey === null || orderKey === undefined) return;
+
+      // 売上合計・客単価は会計transactionベース、時間帯グラフは注文時刻ベースで配分する
+      if (timeSlots[orderKey]) {
+        timeSlots[orderKey].total += orderAmount;
+        upsertSessionGuestCount(timeSlots[orderKey].sessionGuestCounts, sessionKey, guestCount);
+        timeSlots[orderKey].sessionKeys.add(sessionKey);
+        timeSlots[orderKey].customers = sumSessionGuestCounts(timeSlots[orderKey].sessionGuestCounts);
+        timeSlots[orderKey].transactions = timeSlots[orderKey].sessionKeys.size;
+      }
+
+      if (Array.isArray(orderRecord.items)) {
+        orderRecord.items.forEach((item) => {
+          const name = item?.name || '商品名未設定';
+          const quantity = getItemQuantity(item);
+          const itemTotal = getItemTotal(item);
+
+          if (!itemStats[name]) {
+            itemStats[name] = {
+              count: 0,
+              sales: 0
+            };
+          }
+
+          itemStats[name].count += quantity;
+          itemStats[name].sales += itemTotal;
+
+          const categoryId = resolveCategoryId(item, itemCategoryMap);
+
+          if (timeSlots[orderKey]) {
+            if (!timeSlots[orderKey].categories[categoryId]) {
+              timeSlots[orderKey].categories[categoryId] = 0;
+            }
+
+            timeSlots[orderKey].categories[categoryId] += itemTotal;
+          }
+        });
+      }
+    });
+
+    if (!hasIncludedOrderRecord) return;
+
+    totalSales += includedRecordAmount;
+    upsertSessionGuestCount(sessionGuestCounts, sessionKey, guestCount);
 
     if (period === 'weekly') {
       const comparisonBucket = getWeeklyComparisonBucket(recordDate, currentDate);
 
       if (comparisonBucket === 'current') {
-        weeklyCurrentSales += amount;
-        weeklyCurrentCustomers += guestCount;
-        weeklyCurrentTransactions += 1;
+        weeklyCurrentSales += includedRecordAmount;
+        weeklyCurrentSessionKeys.add(sessionKey);
+        upsertSessionGuestCount(weeklyCurrentSessionGuestCounts, sessionKey, guestCount);
       } else if (comparisonBucket === 'previous') {
-        weeklyPreviousSales += amount;
-        weeklyPreviousCustomers += guestCount;
-        weeklyPreviousTransactions += 1;
+        weeklyPreviousSales += includedRecordAmount;
+        weeklyPreviousSessionKeys.add(sessionKey);
+        upsertSessionGuestCount(weeklyPreviousSessionGuestCounts, sessionKey, guestCount);
       }
     }
-
-    if (currentGranularity === 'weekday') {
-      key = recordDate.getDay();
-    } else if (period === 'daily') {
-      key = recordDate.getHours();
-    } else if (period === 'weekly') {
-      key = getTrailingWeekIndex52(recordDate, currentDate);
-    } else if (period === 'monthly') {
-      key = recordDate.getDate();
-    } else if (currentGranularity === 'year') {
-      key = formatYearKey(recordDate);
-    } else if (currentGranularity === 'month') {
-      key = formatMonthKey(recordDate);
-    } else {
-      key = formatDateKey(recordDate);
-    }
-
-    if (key === null || key === undefined) return;
-
-    // 日次では営業時間外データは総売上には含めつつ、表示範囲外なら棒には出さない
-    // 週次では1〜52週の範囲外データは総売上には含めつつ、棒には出さない
-    if (timeSlots[key]) {
-      timeSlots[key].total += amount;
-      timeSlots[key].customers += guestCount;
-      timeSlots[key].transactions += 1;
-    }
-
-    if (Array.isArray(record.items)) {
-      record.items.forEach((item) => {
-        const name = item?.name || '商品名未設定';
-        const quantity = getItemQuantity(item);
-        const itemTotal = getItemTotal(item);
-
-        if (!itemStats[name]) {
-          itemStats[name] = {
-            count: 0,
-            sales: 0
-          };
-        }
-
-        itemStats[name].count += quantity;
-        itemStats[name].sales += itemTotal;
-
-        const categoryId = resolveCategoryId(item, itemCategoryMap);
-
-        if (timeSlots[key]) {
-          if (!timeSlots[key].categories[categoryId]) {
-            timeSlots[key].categories[categoryId] = 0;
-          }
-
-          timeSlots[key].categories[categoryId] += itemTotal;
-        }
-      });
-    }
   });
+
+  const totalOrders = sessionGuestCounts.size;
+  const customerCount = sumSessionGuestCounts(sessionGuestCounts);
 
   const averageSpendPerCustomer = customerCount > 0
     ? Math.round(totalSales / customerCount)
@@ -554,6 +700,10 @@ export const buildAnalyticsSummary = ({
   const chartKeys = Object.keys(timeSlots).sort((left, right) => {
     if (currentGranularity === 'weekday') return Number(left) - Number(right);
 
+    if (currentGranularity === 'period') {
+      return insertionOrderKeys.indexOf(String(left)) - insertionOrderKeys.indexOf(String(right));
+    }
+
     if (period === 'daily') {
       return insertionOrderKeys.indexOf(String(left)) - insertionOrderKeys.indexOf(String(right));
     }
@@ -610,6 +760,8 @@ export const buildAnalyticsSummary = ({
 
     if (currentGranularity === 'weekday') {
       label = WEEKDAY_LABELS[key];
+    } else if (currentGranularity === 'period') {
+      label = slot.label || key;
     } else if (period === 'daily') {
       label = `${key}時`;
     } else if (period === 'weekly') {
@@ -696,6 +848,11 @@ export const buildAnalyticsSummary = ({
   const weeklyRate = weeklyPreviousSales > 0
     ? Number(((weeklyCurrentSales / weeklyPreviousSales) * 100).toFixed(1))
     : null;
+
+  const weeklyCurrentCustomers = sumSessionGuestCounts(weeklyCurrentSessionGuestCounts);
+  const weeklyPreviousCustomers = sumSessionGuestCounts(weeklyPreviousSessionGuestCounts);
+  const weeklyCurrentTransactions = weeklyCurrentSessionKeys.size;
+  const weeklyPreviousTransactions = weeklyPreviousSessionKeys.size;
 
   const weeklyComparison = {
     currentSales: weeklyCurrentSales,

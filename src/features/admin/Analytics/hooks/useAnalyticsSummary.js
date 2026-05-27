@@ -13,7 +13,9 @@ export const useAnalyticsSummary = ({
   abcThresholds,
   categories,
   businessSettings,
-  weeklyBaseDate
+  weeklyBaseDate,
+  periods,
+  selectedPeriodId = 'all'
 }) => useMemo(() => buildAnalyticsSummary({
   orders,
   period,
@@ -25,7 +27,9 @@ export const useAnalyticsSummary = ({
   abcThresholds,
   categories,
   businessSettings,
-  weeklyBaseDate
+  weeklyBaseDate,
+  periods,
+  selectedPeriodId
 }), [
   orders,
   period,
@@ -37,5 +41,7 @@ export const useAnalyticsSummary = ({
   abcThresholds,
   categories,
   businessSettings,
-  weeklyBaseDate
+  weeklyBaseDate,
+  periods,
+  selectedPeriodId
 ]);

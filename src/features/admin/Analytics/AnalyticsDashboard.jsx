@@ -3,7 +3,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { useAuth } from '../../../app/providers/useAuth';
-import { useMenuData, useCategoryData, useBusinessSettings } from '../../store/hooks';
+import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData } from '../../store/hooks';
 
 import CustomRangePicker from './components/CustomRangePicker';
 import RankingView from './components/RankingView';
@@ -130,6 +130,7 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
   const [isDayOfWeekMode, setIsDayOfWeekMode] = useState(false);
   const [analysisMode, setAnalysisMode] = useState('ranking');
   const [chartMetric, setChartMetric] = useState('sales');
+  const [selectedPeriodId, setSelectedPeriodId] = useState('all');
   const [abcThresholds, setAbcThresholds] = useState({ a: 70, b: 90 });
   const [showAbcSettings, setShowAbcSettings] = useState(false);
   const [customRange, setCustomRange] = useState({
@@ -139,6 +140,7 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
 
   const { menuItems = [] } = useMenuData(storeId);
   const { categories = [] } = useCategoryData(storeId);
+  const { periods = [] } = usePeriodData(storeId);
   const {
     weeklyBaseDate,
     weeklyBaseDateKey,
@@ -169,6 +171,21 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     return map;
   }, [menuItems]);
 
+  const periodOptions = useMemo(() => (
+    Array.isArray(periods)
+      ? periods
+          .map((periodOption) => ({
+            id: String(periodOption?.id || '').trim(),
+            label: String(periodOption?.name || periodOption?.label || periodOption?.id || '').trim()
+          }))
+          .filter((periodOption) => periodOption.id && periodOption.label)
+      : []
+  ), [periods]);
+
+  const effectiveSelectedPeriodId = periodOptions.some((periodOption) => periodOption.id === selectedPeriodId)
+    ? selectedPeriodId
+    : 'all';
+
   const effectiveDayOfWeekMode =
     (period === 'monthly' || period === 'custom') && isDayOfWeekMode;
 
@@ -191,7 +208,9 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     abcThresholds,
     categories,
     businessSettings,
-    weeklyBaseDate
+    weeklyBaseDate,
+    periods,
+    selectedPeriodId: effectiveSelectedPeriodId
   });
 
   const shiftDate = (delta) => {
@@ -252,6 +271,9 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
             averagePartySize={analytics.averagePartySize}
             activeMetric={chartMetric}
             onMetricChange={setChartMetric}
+            selectedPeriodId={effectiveSelectedPeriodId}
+            periodOptions={periodOptions}
+            onSelectedPeriodChange={setSelectedPeriodId}
           />
 
           {period === 'weekly' && (

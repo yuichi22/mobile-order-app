@@ -1,8 +1,37 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 
 import { db } from '../../../../shared/api/firebase/client';
 import { toDate } from '../utils/analyticsHelpers';
+
+const getLinkedOrderIds = (transaction) => {
+  if (!Array.isArray(transaction?.customerSummaries)) return [];
+
+  return [
+    ...new Set(
+      transaction.customerSummaries
+        .flatMap((summary) => Array.isArray(summary?.orderIds) ? summary.orderIds : [])
+        .map((orderId) => String(orderId || '').trim())
+        .filter(Boolean)
+    )
+  ];
+};
+
+const buildOrderAnalyticsRecord = (order, transaction) => ({
+  id: order.id,
+  transactionId: transaction.id,
+  sessionId: order.sessionId || transaction.sessionId || '',
+  tableId: order.tableId || transaction.tableId || '',
+  timestamp: order.timestamp?.toDate
+    ? order.timestamp.toDate()
+    : toDate(order.timestamp) || toDate(transaction.timestamp) || new Date(),
+  paidAt: order.paidAt?.toDate
+    ? order.paidAt.toDate()
+    : toDate(order.paidAt) || toDate(transaction.paidAt) || null,
+  totalAmount: Number(order.totalPrice ?? order.totalAmount ?? 0) || 0,
+  guestCount: Number(transaction.guestCount || 0) || 0,
+  items: Array.isArray(order.items) ? order.items : []
+});
 
 export const useAnalyticsOrders = ({
   storeId,
@@ -56,26 +85,64 @@ export const useAnalyticsOrders = ({
       where('timestamp', '<=', end)
     );
 
+    let isActive = true;
+
     const unsubscribe = onSnapshot(
       analyticsQuery,
-      (snapshot) => {
-        const fetched = snapshot.docs
-          .map((transactionDoc) => {
-            const data = transactionDoc.data();
+      async (snapshot) => {
+        try {
+          const fetched = snapshot.docs
+            .map((transactionDoc) => {
+              const data = transactionDoc.data();
 
-            return {
-              id: transactionDoc.id,
-              ...data,
-              timestamp: data.timestamp?.toDate
-                ? data.timestamp.toDate()
-                : data.paidAt?.toDate
-                  ? data.paidAt.toDate()
-                  : new Date()
-            };
-          })
-          .filter((transaction) => transaction.isPaid !== false);
+              return {
+                id: transactionDoc.id,
+                ...data,
+                timestamp: data.timestamp?.toDate
+                  ? data.timestamp.toDate()
+                  : data.paidAt?.toDate
+                    ? data.paidAt.toDate()
+                    : new Date()
+              };
+            })
+            .filter((transaction) => transaction.isPaid !== false);
 
-        setOrders(fetched);
+          const withOrderAnalyticsRecords = await Promise.all(
+            fetched.map(async (transaction) => {
+              const orderIds = getLinkedOrderIds(transaction);
+
+              if (orderIds.length === 0) {
+                return {
+                  ...transaction,
+                  orderAnalyticsRecords: []
+                };
+              }
+
+              const orderSnapshots = await Promise.all(
+                orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
+              );
+
+              const orderAnalyticsRecords = orderSnapshots
+                .filter((orderSnapshot) => orderSnapshot.exists())
+                .map((orderSnapshot) => buildOrderAnalyticsRecord(
+                  { id: orderSnapshot.id, ...orderSnapshot.data() },
+                  transaction
+                ));
+
+              return {
+                ...transaction,
+                orderAnalyticsRecords
+              };
+            })
+          );
+
+          if (isActive) {
+            setOrders(withOrderAnalyticsRecords);
+          }
+        } catch (error) {
+          console.error('Firestore Error (Analytics Linked Orders):', error);
+          if (isActive) setOrders([]);
+        }
       },
       (error) => {
         console.error('Firestore Error (Analytics Transactions):', error);
@@ -83,7 +150,10 @@ export const useAnalyticsOrders = ({
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, [storeId, period, currentDate, customRange, weeklyBaseDate]);
 
   return orders;
