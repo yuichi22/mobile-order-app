@@ -985,6 +985,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
           crossSellOffer.offerGroup?.categoryId ||
           ''
         ),
+        crossSellServiceTimingEnabled: crossSellOffer.flow?.serviceTimingEnabled === true,
         crossSellSourceCategoryIds: Array.isArray(crossSellOffer.offerGroup?.categoryIds)
           ? crossSellOffer.offerGroup.categoryIds.map(String)
           : []
@@ -1048,8 +1049,11 @@ const shouldShowServiceTimingForItem = (item) => {
   ));
 
   const result = Boolean(
-    isCrossSellActive
-    && activeCrossSellPrompt?.serviceTimingEnabled
+    item?.appliedPriceMode === 'crossSell'
+    && (
+      item?.crossSellServiceTimingEnabled === true
+      || activeCrossSellPrompt?.serviceTimingEnabled === true
+    )
     && category?.serviceTimingEnabled
   );
   return result;
