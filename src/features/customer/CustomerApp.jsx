@@ -532,6 +532,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
   const shouldHideCustomerSurface = Boolean(
     shouldWaitForSessionBeforeWelcome
       || shouldWaitForPartySizeCheck
+      || canAskPartySize
       || isWelcomeOpen
   );
 
