@@ -20,10 +20,81 @@ import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { useStoreSettings } from '../store/hooks';
 
 const formatPaymentMethod = (method) => {
+  if (method === 'mixed') return '混在';
   if (method === 'cash') return '現金';
   if (method === 'card' || method === 'credit') return 'カード';
   if (method === 'qr' || method === 'paypay') return 'QR決済';
   return method || '未設定';
+};
+
+const getPaymentMethodKey = (value) => {
+  const method = String(value || '').trim();
+  if (method === 'credit') return 'card';
+  if (method === 'paypay') return 'qr';
+  if (['cash', 'card', 'qr'].includes(method)) return method;
+  return method || 'other';
+};
+
+const buildPaymentBreakdown = (transactions = []) => {
+  const map = new Map();
+
+  transactions.forEach((transaction) => {
+    if (transaction?.isPaid === false) return;
+
+    const method = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+    const current = map.get(method) || {
+      method,
+      label: formatPaymentMethod(method),
+      count: 0,
+      total: 0
+    };
+
+    current.count += 1;
+    current.total += Number(transaction.totalAmount || transaction.totalPrice || transaction.amount || 0);
+    map.set(method, current);
+  });
+
+  return Array.from(map.values()).filter((entry) => Number(entry.total || 0) !== 0 || Number(entry.count || 0) > 0);
+};
+
+const resolveTicketPaymentMethod = (paymentBreakdown = [], fallbackMethod = '') => {
+  if (paymentBreakdown.length === 0) return fallbackMethod || '';
+  if (paymentBreakdown.length === 1) return paymentBreakdown[0].method;
+  return 'mixed';
+};
+
+const formatPaymentBreakdownText = (paymentBreakdown = []) => (
+  paymentBreakdown
+    .map((entry) => `${entry.label} ¥${Number(entry.total || 0).toLocaleString()}`)
+    .join(' / ')
+);
+
+const buildPaymentSummaryFromTickets = (tickets = []) => {
+  const base = {
+    cash: { method: 'cash', label: '現金', count: 0, total: 0 },
+    card: { method: 'card', label: 'カード', count: 0, total: 0 },
+    qr: { method: 'qr', label: 'QR決済', count: 0, total: 0 }
+  };
+
+  tickets.forEach((ticket) => {
+    const breakdown = Array.isArray(ticket.paymentBreakdown) && ticket.paymentBreakdown.length > 0
+      ? ticket.paymentBreakdown
+      : [{
+          method: getPaymentMethodKey(ticket.paymentMethod),
+          count: 1,
+          total: Number(ticket.totalPrice || 0)
+        }];
+
+    breakdown.forEach((entry) => {
+      const method = getPaymentMethodKey(entry.method);
+      if (!base[method]) return;
+
+      base[method].count += Number(entry.count || 0);
+      base[method].total += Number(entry.total || 0);
+    });
+  });
+
+  return [base.cash, base.card, base.qr];
 };
 
 const buildTicketItemKey = (item) => {
@@ -225,6 +296,7 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
 
 export const PosTransactionHistory = ({ storeId }) => {
   const [orders, setOrders] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
   const [filter, setFilter] = useState('unpaid');
@@ -249,6 +321,41 @@ export const PosTransactionHistory = ({ storeId }) => {
       setLoading(false);
     });
   }, [storeId]);
+
+  useEffect(() => {
+    if (!storeId) return undefined;
+
+    const transactionsQuery = query(
+      collection(db, 'stores', storeId, 'transactions'),
+      orderBy('timestamp', 'desc'),
+      limit(150)
+    );
+
+    return onSnapshot(transactionsQuery, (snapshot) => {
+      setTransactions(snapshot.docs.map((transactionDoc) => {
+        const data = transactionDoc.data();
+
+        return {
+          id: transactionDoc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
+          paidAt: data.paidAt?.toDate ? data.paidAt.toDate() : null
+        };
+      }));
+    });
+  }, [storeId]);
+
+  const transactionsBySession = useMemo(() => {
+    const map = new Map();
+
+    transactions.forEach((transaction) => {
+      const sessionKey = transaction.sessionId || `single-transaction-${transaction.id}`;
+      if (!map.has(sessionKey)) map.set(sessionKey, []);
+      map.get(sessionKey).push(transaction);
+    });
+
+    return map;
+  }, [transactions]);
 
   const groupedTickets = useMemo(() => {
     const grouped = new Map();
@@ -298,15 +405,23 @@ export const PosTransactionHistory = ({ storeId }) => {
     });
 
     return Array.from(grouped.values())
-      .map((ticket) => ({
-        ...ticket,
-        items: consolidateTicketItems(ticket.items)
-      }))
+      .map((ticket) => {
+        const sessionTransactions = transactionsBySession.get(ticket.id) || [];
+        const paymentBreakdown = buildPaymentBreakdown(sessionTransactions);
+        const paymentMethod = resolveTicketPaymentMethod(paymentBreakdown, ticket.paymentMethod);
+
+        return {
+          ...ticket,
+          paymentMethod,
+          paymentBreakdown,
+          items: consolidateTicketItems(ticket.items)
+        };
+      })
       .map((ticket) => ({
         ...ticket,
         taxRates: resolveTicketTaxRates(ticket.items, settings)
       }));
-  }, [orders, settings]);
+  }, [orders, settings, transactionsBySession]);
 
   const filteredTickets = useMemo(() => {
     if (filter === 'paid') {
@@ -323,6 +438,16 @@ export const PosTransactionHistory = ({ storeId }) => {
 
     return groupedTickets;
   }, [filter, groupedTickets]);
+
+  const paidPaymentSummary = useMemo(() => (
+    buildPaymentSummaryFromTickets(
+      groupedTickets.filter((ticket) => ticket.status === 'paid')
+    )
+  ), [groupedTickets]);
+
+  const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
+    sum + Number(entry.total || 0)
+  ), 0);
 
   const formatTime = (dateObj) => {
     if (!dateObj) return '---';
@@ -374,6 +499,40 @@ export const PosTransactionHistory = ({ storeId }) => {
           キャンセル
         </button>
       </div>
+
+      {filter === 'paid' && (
+        <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-3">
+          <div className="rounded-2xl border border-green-100 bg-green-50/60 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-widest text-green-700">
+                会計済み 支払い内訳
+              </span>
+              <span className="text-xs font-black tabular-nums text-green-800">
+                合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {paidPaymentSummary.map((entry) => (
+                <div
+                  key={entry.method}
+                  className="rounded-xl bg-white px-3 py-2 shadow-sm"
+                >
+                  <div className="text-[10px] font-black text-gray-400">
+                    {entry.label}
+                  </div>
+                  <div className="mt-1 text-sm font-black tabular-nums text-gray-900">
+                    ¥{Number(entry.total || 0).toLocaleString()}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-bold tabular-nums text-gray-400">
+                    {Number(entry.count || 0).toLocaleString()}件
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-grow space-y-3 overflow-y-auto bg-slate-50/50 p-3">
         {loading && (
@@ -499,7 +658,14 @@ export const PosTransactionHistory = ({ storeId }) => {
                             {ticket.paymentMethod === 'qr' || ticket.paymentMethod === 'paypay'
                               ? <QrCode size={14} className="text-blue-500" />
                               : <CreditCard size={14} className="text-blue-500" />}
-                            <span>{formatPaymentMethod(ticket.paymentMethod)}</span>
+                            <div className="flex flex-col">
+                              <span>{formatPaymentMethod(ticket.paymentMethod)}</span>
+                              {Array.isArray(ticket.paymentBreakdown) && ticket.paymentBreakdown.length > 1 && (
+                                <span className="mt-0.5 text-[10px] font-bold text-gray-400">
+                                  {formatPaymentBreakdownText(ticket.paymentBreakdown)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <button
