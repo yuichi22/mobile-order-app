@@ -61,6 +61,29 @@ export const useCustomerCart = (showToast) => {
         return previous;
       }
 
+      const newCartItem = {
+        ...item,
+        quantity: normalizedQuantity,
+        selectedOptions: options,
+        unitPrice,
+        appliedPriceMode: priceMode,
+        priceLabelText: item.priceLabelText || '',
+        originalPrice: item.originalPrice ?? null,
+        originalPriceLabelText: item.originalPriceLabelText || '',
+        ...extraPayload,
+        cartId: crypto.randomUUID()
+      };
+
+      // セット価格商品は、同じ商品IDでも「料理ごとのセット追加分」として扱う。
+      // 通常商品のように同一行へマージすると、2品目以降のセット追加が弾かれるため、
+      // crossSell は常に別 cartId の新しい行として追加する。
+      if (priceMode === 'crossSell') {
+        return [
+          ...previous,
+          newCartItem
+        ];
+      }
+
       const incomingLineKey = buildCartLineKey({ ...item, ...extraPayload }, options);
 
       const existingIndex = previous.findIndex((cartItem) => (
@@ -68,13 +91,6 @@ export const useCustomerCart = (showToast) => {
       ));
 
       if (existingIndex > -1) {
-        const existingItem = previous[existingIndex];
-
-        // クロスセル価格の商品は、同じ行の数量を後から増やさない。
-        if (getPriceMode(existingItem) === 'crossSell') {
-          return previous;
-        }
-
         const nextCart = [...previous];
         nextCart[existingIndex] = {
           ...nextCart[existingIndex],
@@ -89,18 +105,7 @@ export const useCustomerCart = (showToast) => {
 
       return [
         ...previous,
-        {
-          ...item,
-          quantity: normalizedQuantity,
-          selectedOptions: options,
-          unitPrice,
-          appliedPriceMode: priceMode,
-          priceLabelText: item.priceLabelText || '',
-          originalPrice: item.originalPrice ?? null,
-          originalPriceLabelText: item.originalPriceLabelText || '',
-          ...extraPayload,
-          cartId: crypto.randomUUID()
-        }
+        newCartItem
       ];
     });
 
