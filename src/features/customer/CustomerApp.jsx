@@ -2209,7 +2209,11 @@ if (shouldWaitForSessionBeforeWelcome) {
         />
       )}
 
-      {modalItem && (hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem)) && (
+      {modalItem && (
+        hasSelectableOptionGroups(modalItem)
+        || modalItem?.shouldAttachServiceTiming
+        || shouldShowServiceTimingForItem(modalItem)
+      ) && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-6">
           <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
             <div className="shrink-0 border-b border-gray-100 px-6 py-5">
@@ -2236,7 +2240,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
               <div className="space-y-6">
-                {shouldShowServiceTimingForItem(modalItem) && (
+                {(modalItem?.shouldAttachServiceTiming || shouldShowServiceTimingForItem(modalItem)) && (
                   <section>
                     <div className="mb-3">
                       <h4 className="text-sm font-black text-gray-900">
