@@ -1078,11 +1078,16 @@ const handleAddToCartClick = (item) => {
 
   const orderItem = resolveOrderItemForCurrentMode(item);
 
-  if (hasSelectableOptionGroups(orderItem) || shouldShowServiceTimingForItem(orderItem)) {
+  const shouldAttachServiceTiming = shouldShowServiceTimingForItem(orderItem);
+
+  if (hasSelectableOptionGroups(orderItem) || shouldAttachServiceTiming) {
     setOptionSelections(buildDefaultOptionSelections(orderItem));
     setOptionQuantity(1);
     setServiceTiming(getServiceTimingDefaultForItem(orderItem));
-    setModalItem(orderItem);
+    setModalItem({
+      ...orderItem,
+      shouldAttachServiceTiming
+    });
     return;
   }
 
@@ -1091,7 +1096,9 @@ const handleAddToCartClick = (item) => {
 
 const handleConfirmOptionsAddToCart = (item, quantity, selectedOptions) => {
   const orderItem = resolveOrderItemForCurrentMode(item);
-  const shouldAttachServiceTiming = shouldShowServiceTimingForItem(orderItem);
+  const shouldAttachServiceTiming = Boolean(
+    item?.shouldAttachServiceTiming || shouldShowServiceTimingForItem(orderItem)
+  );
   const serviceTimingLabel = shouldAttachServiceTiming ? getServiceTimingLabel(serviceTiming) : '';
 
   handleConfirmedCartAdd(
