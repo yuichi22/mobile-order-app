@@ -291,6 +291,8 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
+  const [selectedPaidDate, setSelectedPaidDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
   const [closeTicketTarget, setCloseTicketTarget] = useState(null);
   const [isClosingTicket, setIsClosingTicket] = useState(false);
   const closeTicketTimerRef = useRef(null);
@@ -542,9 +544,41 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
   };
 
+  const toDateInputValue = (dateObj) => {
+    if (!dateObj) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTicketBusinessDate = (ticket) => {
+    const targetDate = ticket?.paidAt || ticket?.timestamp || null;
+    return toDateInputValue(targetDate);
+  };
+
+  const ticketMatchesPaidPaymentFilter = (ticket) => {
+    if (paidPaymentFilter === 'all') return true;
+
+    const breakdown = Array.isArray(ticket?.paymentBreakdown)
+      ? ticket.paymentBreakdown
+      : [];
+
+    if (breakdown.length > 0) {
+      return breakdown.some((entry) => entry?.method === paidPaymentFilter);
+    }
+
+    const method = getPaymentMethodKey(ticket?.paymentMethod);
+    return method === paidPaymentFilter;
+  };
+
   const filteredTickets = useMemo(() => {
     if (filter === 'paid') {
-      return groupedTickets.filter((ticket) => ticket.status === 'paid');
+      return groupedTickets.filter((ticket) => (
+        ticket.status === 'paid' &&
+        getTicketBusinessDate(ticket) === selectedPaidDate &&
+        ticketMatchesPaidPaymentFilter(ticket)
+      ));
     }
 
     if (filter === 'unpaid') {
@@ -556,13 +590,17 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
 
     return groupedTickets;
-  }, [filter, groupedTickets]);
+  }, [filter, groupedTickets, paidPaymentFilter, selectedPaidDate]);
 
   const paidPaymentSummary = useMemo(() => (
     buildPaymentSummaryFromTickets(
-      groupedTickets.filter((ticket) => ticket.status === 'paid')
+      groupedTickets.filter((ticket) => (
+        ticket.status === 'paid' &&
+        getTicketBusinessDate(ticket) === selectedPaidDate &&
+        ticketMatchesPaidPaymentFilter(ticket)
+      ))
     )
-  ), [groupedTickets]);
+  ), [groupedTickets, paidPaymentFilter, selectedPaidDate]);
 
   const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
     sum + Number(entry.total || 0)
@@ -620,35 +658,52 @@ export const PosTransactionHistory = ({ storeId }) => {
       </div>
 
       {filter === 'paid' && (
-        <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-3">
-          <div className="rounded-2xl border border-green-100 bg-green-50/60 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-widest text-green-700">
-                会計済み 支払い内訳
+        <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
+          <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50 p-2.5">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">
+                表示日
               </span>
-              <span className="text-xs font-black tabular-nums text-green-800">
-                合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
-              </span>
+              <input
+                type="date"
+                value={selectedPaidDate}
+                onChange={(event) => setSelectedPaidDate(event.target.value)}
+                className="h-8 rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-700 outline-none focus:border-green-400"
+              />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {paidPaymentSummary.map((entry) => (
-                <div
-                  key={entry.method}
-                  className="rounded-xl bg-white px-3 py-2 shadow-sm"
+            <div className="grid grid-cols-4 gap-1 rounded-xl bg-white p-1 shadow-sm">
+              {[
+                { id: 'all', label: 'すべて' },
+                { id: 'cash', label: '現金' },
+                { id: 'card', label: 'カード' },
+                { id: 'qr', label: 'QR' }
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setPaidPaymentFilter(option.id)}
+                  className={`rounded-lg py-1.5 text-xs font-black transition-colors ${
+                    paidPaymentFilter === option.id
+                      ? 'bg-green-500 text-white shadow-sm'
+                      : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                  }`}
                 >
-                  <div className="text-[10px] font-black text-gray-400">
-                    {entry.label}
-                  </div>
-                  <div className="mt-1 text-sm font-black tabular-nums text-gray-900">
-                    ¥{Number(entry.total || 0).toLocaleString()}
-                  </div>
-                  <div className="mt-0.5 text-[10px] font-bold tabular-nums text-gray-400">
-                    {Number(entry.count || 0).toLocaleString()}件
-                  </div>
-                </div>
+                  {option.label}
+                </button>
               ))}
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-bold text-green-700">
+            <span className="font-black">
+              合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
+            </span>
+            {paidPaymentSummary.map((entry) => (
+              <span key={entry.method} className="tabular-nums">
+                {entry.label} ¥{Number(entry.total || 0).toLocaleString()}
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -663,7 +718,9 @@ export const PosTransactionHistory = ({ storeId }) => {
         {!loading && filteredTickets.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-12 text-center text-gray-400">
             <Filter size={32} className="opacity-20" />
-            <p className="text-sm font-bold">該当する会計履歴がありません</p>
+            <p className="text-sm font-bold">
+              {filter === 'paid' ? '選択した日付・支払い方法の会計済み伝票がありません' : '該当する会計履歴がありません'}
+            </p>
           </div>
         )}
 
