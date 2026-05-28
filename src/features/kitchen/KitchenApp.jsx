@@ -193,17 +193,23 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   const filteredOrders = useMemo(() => {
     const source = viewMode === 'active' ? kdsData.orders : kdsData.completedOrders;
     if (!source) return [];
-    if (activeKitchenId === 'all') return source;
 
-    return source.filter((order) =>
-      order.items?.some((item) => {
+    return source.filter((order) => {
+      const activeItems = getActiveKitchenItems(order?.items);
+
+      // POS側で全商品取消になった注文は、注文ドキュメントが残っていてもキッチンには表示しない。
+      if (activeItems.length === 0) return false;
+
+      if (activeKitchenId === 'all') return true;
+
+      return activeItems.some((item) => {
         const lookupId = item.menuId || item.id;
         const masterItem = kdsData.menuItemLookup[lookupId] || {};
         const targetKitchenIds = masterItem.kitchenIds || (masterItem.kitchenId ? [masterItem.kitchenId] : []);
 
         return targetKitchenIds.some((kitchenId) => String(kitchenId) === String(activeKitchenId));
-      })
-    );
+      });
+    });
   }, [
     viewMode,
     kdsData.orders,

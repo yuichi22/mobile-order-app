@@ -1015,28 +1015,22 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       const cancelledKeys = new Set(entries.map((entry) => entry.key));
 
+      const isPayableAfterCancel = (item, key) => (
+        item &&
+        !isCancelledPosItem(item) &&
+        item.paymentStatus !== 'paid' &&
+        !paidItemKeys.has(key)
+      );
+
       const hasRemainingPayableItems = orders.some((order) => {
         const plannedItems = plannedItemsByOrderId.get(order.id) || order.items;
         if (!Array.isArray(plannedItems)) return false;
 
         return plannedItems.some((item, index) => {
           const key = `${order.id}-${index}`;
-
-          return (
-            item &&
-            !isCancelledPosItem(item) &&
-            !paidItemKeys.has(key) &&
-            item.paymentStatus !== 'paid'
-          );
+          return isPayableAfterCancel(item, key);
         });
       });
-
-      if (!hasRemainingPayableItems) {
-        setAbortReason('all_items_cancelled');
-        window.setTimeout(() => {
-          setShowAbortModal(true);
-        }, 120);
-      }
 
       setSelectedItemKeys((previous) => {
         const next = new Set(previous);
@@ -1051,6 +1045,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       });
 
       setCancelTarget(null);
+
+      if (!hasRemainingPayableItems) {
+        setAbortReason('all_items_cancelled');
+        window.setTimeout(() => {
+          setShowAbortModal(true);
+        }, 120);
+      }
     } catch (error) {
       console.error('レジ取消エラー:', error);
       alert('取消に失敗しました');
