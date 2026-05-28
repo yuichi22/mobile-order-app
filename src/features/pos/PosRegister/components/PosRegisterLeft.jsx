@@ -16,7 +16,6 @@ const getUnpaidActiveItems = (order, paidItemKeys) => {
     .map((item, index) => ({ item, index, key: `${order.id}-${index}` }))
     .filter(({ item, key }) => (
       item &&
-      !isCancelledPosItem(item) &&
       !paidItemKeys.has(key) &&
       item.paymentStatus !== 'paid'
     ));
@@ -24,6 +23,8 @@ const getUnpaidActiveItems = (order, paidItemKeys) => {
 
 const getRemainingOrderTotal = (order, paidItemKeys) => (
   getUnpaidActiveItems(order, paidItemKeys).reduce((sum, { item }) => {
+    if (isCancelledPosItem(item)) return sum;
+
     const unitPrice = Number(item.unitPrice) || 0;
     const quantity = Number(item.quantity) || 0;
     return sum + (unitPrice * quantity);
@@ -177,10 +178,10 @@ export const PosRegisterLeft = ({
               key={customerKey}
               className={`overflow-hidden rounded-xl border shadow-sm transition-all ${
                 customerSelection.isAllSelected
-                  ? 'border-blue-200 bg-blue-50'
+                  ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
                   : customerSelection.isPartiallySelected
-                    ? 'border-blue-100 bg-blue-50/40'
-                    : 'border-gray-200 bg-white'
+                    ? 'border-blue-300 bg-blue-50/40 shadow-sm'
+                    : 'border-gray-300 bg-gray-100/80 shadow-sm'
               }`}
             >
               <button
@@ -199,28 +200,24 @@ export const PosRegisterLeft = ({
                     ? 'border-blue-100 bg-blue-100 text-blue-700'
                     : customerSelection.isPartiallySelected
                       ? 'border-blue-100 bg-blue-50 text-blue-700'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <User size={14} />
-                  <span>{formatOrderCustomerLabel(customerKey)}</span>
-                  {customerSelection.isAllSelected && (
-                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
-                      選択中
-                    </span>
-                  )}
-                  {customerSelection.isPartiallySelected && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
-                      一部選択
-                    </span>
-                  )}
+                  <span className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-black shadow-sm ${
+                    customerSelection.isAllSelected
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : customerSelection.isPartiallySelected
+                        ? 'border-blue-500 bg-blue-500 text-white'
+                        : 'border-gray-300 bg-white text-gray-700'
+                  }`}>
+                    <User size={14} />
+                    {formatOrderCustomerLabel(customerKey)}
+                  </span>
                 </div>
-
-                <span>残り ¥{userTotal.toLocaleString()}</span>
               </button>
 
-              <div>
+              <div className="px-3 pb-3">
                 {visibleOrders.map((order) => {
                   const orderItems = getUnpaidActiveItems(order, paidItemKeys);
                   const orderItemKeys = orderItems.map(({ key }) => key);
@@ -230,12 +227,12 @@ export const PosRegisterLeft = ({
                   return (
                     <div
                       key={order.id}
-                      className={`border-b border-gray-100 p-4 transition-all ${
+                      className={`mt-3 rounded-2xl border p-4 transition-all ${
                         orderSelection.isAllSelected
-                          ? 'border-l-4 border-l-blue-500 bg-blue-50'
+                          ? 'border-blue-500 bg-blue-50 shadow-sm shadow-blue-100'
                           : orderSelection.isPartiallySelected
-                            ? 'border-l-4 border-l-blue-300 bg-blue-50/40'
-                            : 'border-l-4 border-l-transparent hover:bg-gray-50'
+                            ? 'border-blue-300 bg-blue-50/40 shadow-sm'
+                            : 'border-gray-200 bg-white/90 hover:border-gray-300 hover:bg-white'
                       }`}
                     >
                       <button
@@ -262,11 +259,6 @@ export const PosRegisterLeft = ({
                             注文 #{order.id.slice(-4)}
                           </span>
                           {orderSelection.isAllSelected && <Check size={15} className="text-blue-600" />}
-                          {orderSelection.isPartiallySelected && (
-                            <span className="text-[10px] font-black text-blue-600">
-                              一部選択
-                            </span>
-                          )}
                         </div>
 
                         <span className="font-mono text-lg font-bold text-gray-800">
@@ -274,14 +266,16 @@ export const PosRegisterLeft = ({
                         </span>
                       </button>
 
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {order.items?.map((item, index) => {
                           const itemKey = `${order.id}-${index}`;
                           const isItemTakeout = takeoutItemKeys.has(itemKey);
                           const allowsTakeout = item?.allowsTakeout !== false;
                           const isItemSelected = isCustomMode && selectedItemKeys.has(itemKey);
 
-                          if (!item || isCancelledPosItem(item) || paidItemKeys.has(itemKey) || item.paymentStatus === 'paid') return null;
+                          if (!item || paidItemKeys.has(itemKey) || item.paymentStatus === 'paid') return null;
+
+                          const isItemCancelled = isCancelledPosItem(item);
 
                           return (
                             <button
@@ -294,12 +288,15 @@ export const PosRegisterLeft = ({
                               onContextMenu={(event) => event.preventDefault()}
                               onClick={() => {
                                 if (shouldIgnoreClickAfterLongPress()) return;
+                                if (isItemCancelled) return;
                                 toggleSelectItem(itemKey);
                               }}
                               className={`flex w-full select-none items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-all ${
-                                isItemSelected
-                                  ? 'border-blue-200 bg-blue-50 text-blue-900'
-                                  : 'border-transparent bg-white/60 text-gray-700 hover:border-gray-200 hover:bg-white'
+                                isItemCancelled
+                                  ? 'border-red-100 bg-red-50/70 text-red-400'
+                                  : isItemSelected
+                                    ? 'border-blue-200 bg-blue-50 text-blue-900'
+                                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/30'
                               }`}
                             >
                               <span className="flex min-w-0 items-center gap-2">
@@ -310,17 +307,22 @@ export const PosRegisterLeft = ({
                                 }`}>
                                   <Check size={13} strokeWidth={3} />
                                 </span>
-                                <span className="min-w-0 truncate">
+                                <span className={`min-w-0 truncate ${isItemCancelled ? 'line-through decoration-2' : ''}`}>
                                   {item.name} <span className="text-gray-400">x{item.quantity}</span>
                                 </span>
+                                {isItemCancelled && (
+                                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-600">
+                                    取消済み
+                                  </span>
+                                )}
                               </span>
 
                               <div className="flex shrink-0 items-center gap-2">
-                                <span className="font-mono text-xs text-gray-400">
+                                <span className={`font-mono text-xs text-gray-400 ${isItemCancelled ? 'line-through decoration-2' : ''}`}>
                                   ¥{((Number(item.unitPrice) || 0) * (Number(item.quantity) || 0)).toLocaleString()}
                                 </span>
 
-                                {allowTakeout && allowsTakeout ? (
+                                {!isItemCancelled && allowTakeout && allowsTakeout ? (
                                   <span
                                     role="button"
                                     tabIndex={0}

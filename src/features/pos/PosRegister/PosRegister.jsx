@@ -258,7 +258,14 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       const fetched = snapshot.docs.map((orderDoc) => ({ id: orderDoc.id, ...orderDoc.data() }));
       const unpaidOrders = fetched.filter((order) => {
         if (!order) return false;
-        if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+        const isPosCancelledOrder =
+          order.cancelledBy === 'pos' ||
+          order.closeReason === 'pos_manual_cancel';
+
+        if ((order.status === 'cancelled' || order.paymentStatus === 'cancelled') && !isPosCancelledOrder) {
+          return false;
+        }
+
         return order.paymentStatus !== 'paid';
       });
       setOrders(unpaidOrders);
@@ -524,7 +531,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       }))
       .filter(({ item, key }) => (
         item &&
-        !isCancelledPosItem(item) &&
         !paidItemKeys.has(key) &&
         item.paymentStatus !== 'paid'
       ));
@@ -541,7 +547,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       const item = Array.isArray(order.items) ? order.items[itemIndex] : null;
       const key = `${order.id}-${itemIndex}`;
 
-      if (!item || isCancelledPosItem(item) || paidItemKeys.has(key) || item.paymentStatus === 'paid') {
+      if (!item || paidItemKeys.has(key) || item.paymentStatus === 'paid') {
         return null;
       }
 
@@ -584,6 +590,90 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     return null;
   };
 
+  const executeRestoreCancelledTarget = async (payload) => {
+    if (!payload || isCancelSubmitting) return;
+
+    const target = buildCancelTarget(payload);
+    const entries = Array.isArray(target?.entries) ? target.entries : [];
+
+    if (entries.length === 0) return;
+
+    const cancelledEntries = entries.filter(({ item }) => isCancelledPosItem(item));
+    if (cancelledEntries.length === 0) return;
+
+    // 復旧は確認なし・モーダルなしで即時反映する。
+    // 取消処理用のオーバーレイを出さないため、processingAction/loading は触らない。
+    try {
+      const batch = writeBatch(db);
+      const restoredAtClient = new Date().toISOString();
+      const restoredAtMs = Date.now();
+
+      const entriesByOrderId = cancelledEntries.reduce((map, entry) => {
+        if (!entry?.order?.id) return map;
+        const list = map.get(entry.order.id) || [];
+        list.push(entry);
+        map.set(entry.order.id, list);
+        return map;
+      }, new Map());
+
+      entriesByOrderId.forEach((orderEntries, orderId) => {
+        const order = orders.find((targetOrder) => targetOrder.id === orderId);
+        if (!order?.items || !Array.isArray(order.items)) return;
+
+        const restoreIndexSet = new Set(orderEntries.map((entry) => Number(entry.index)));
+
+        const nextItems = order.items.map((item, index) => {
+          if (!restoreIndexSet.has(index)) return item;
+          if (!item || item.paymentStatus === 'paid') return item;
+
+          const {
+            cancelledBy,
+            cancelReason,
+            cancelledAtClient,
+            cancelledAtMs,
+            ...rest
+          } = item;
+
+          return {
+            ...rest,
+            status: 'pending',
+            kitchenStatus: 'pending',
+            restoredBy: 'pos',
+            restoredAtClient,
+            restoredAtMs
+          };
+        });
+
+        const activeItems = nextItems.filter((item) => item && !isCancelledPosItem(item));
+        const remainingTotalPrice = activeItems.reduce((sum, item) => {
+          const unitPrice = Number(item.unitPrice || 0) || 0;
+          const quantity = Number(item.quantity || 0) || 0;
+          return sum + (unitPrice * quantity);
+        }, 0);
+
+        batch.update(doc(db, 'stores', storeId, 'orders', orderId), {
+          items: nextItems,
+          totalPrice: remainingTotalPrice,
+          activeItemCount: activeItems.length,
+          cancelledItemCount: nextItems.length - activeItems.length,
+          status: 'pending',
+          paymentStatus: order.paymentStatus === 'cancelled' ? 'unpaid' : order.paymentStatus,
+          updatedAt: serverTimestamp(),
+          updatedAtMs: restoredAtMs,
+          restoredAt: serverTimestamp(),
+          restoredAtMs
+        });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('レジ取消復旧エラー:', error);
+      alert('復旧に失敗しました');
+    } finally {
+      // 復旧では画面全体の処理中モーダルを使わない。
+    }
+  };
+
   const handleRequestCancelTarget = (payload) => {
     const target = buildCancelTarget(payload || {});
 
@@ -591,7 +681,20 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       return;
     }
 
-    setCancelTarget(target);
+    const hasCancelledEntry = target.entries.some(({ item }) => isCancelledPosItem(item));
+    const hasActiveEntry = target.entries.some(({ item }) => !isCancelledPosItem(item));
+
+    // 取消済みだけを長押しした場合は、確認なしで即復旧。
+    // 未取消が含まれる場合は、従来通り確認モーダルで取消。
+    if (hasCancelledEntry && !hasActiveEntry) {
+      executeRestoreCancelledTarget(payload || {});
+      return;
+    }
+
+    setCancelTarget({
+      ...target,
+      entries: target.entries.filter(({ item }) => !isCancelledPosItem(item))
+    });
   };
 
   const executeCancelTarget = async () => {
@@ -604,8 +707,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     }
 
     setIsCancelSubmitting(true);
-    setProcessingAction('cancel');
-    setLoading(true);
 
     try {
       const batch = writeBatch(db);
@@ -659,16 +760,23 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           cancelledItemCount: nextItems.length - activeItems.length,
           updatedAt: serverTimestamp(),
           updatedAtMs: cancelledAtMs,
+
+          // POSの個別取消では注文ドキュメント自体は消さない。
+          // 全商品取消でもレジ上に「取消済み」として残し、長押し復旧できるようにする。
+          status: 'pending',
+          paymentStatus: order.paymentStatus === 'partial_paid' ? 'partial_paid' : 'unpaid',
+
           ...(isOrderFullyCancelled
             ? {
-                status: 'cancelled',
-                paymentStatus: 'cancelled',
+                allItemsCancelledByPos: true,
                 cancelledAt: serverTimestamp(),
                 cancelledAtMs,
                 cancelledBy: 'pos',
                 closeReason: 'pos_manual_cancel'
               }
-            : {})
+            : {
+                allItemsCancelledByPos: false
+              })
         });
       });
 
@@ -693,8 +801,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       console.error('レジ取消エラー:', error);
       alert('取消に失敗しました');
     } finally {
-      setLoading(false);
-      setProcessingAction(null);
       setIsCancelSubmitting(false);
     }
   };
@@ -1308,21 +1414,19 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   };
 
   const isInitialLoading = loading && !processingAction && !isPaymentSubmitting;
-  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting || isCancelSubmitting;
+  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting;
   const processingTitle = isPaymentSubmitting
     ? '会計処理中です'
     : processingAction === 'exit'
       ? '退店処理中です'
       : processingAction === 'cancel'
-        ? '取消処理中です'
+        ? '取消・復旧処理中です'
         : '読み込み中です';
   const processingMessage = isPaymentSubmitting
     ? '会計を確定しています。画面を閉じずにお待ちください。'
     : processingAction === 'exit'
       ? '注文と席情報を整理しています。画面を閉じずにお待ちください。'
-      : processingAction === 'cancel'
-        ? '注文内容を更新しています。画面を閉じずにお待ちください。'
-        : 'レジ情報を読み込んでいます。';
+      : 'レジ情報を読み込んでいます。';
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden bg-gray-100 font-sans">
