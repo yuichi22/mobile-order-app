@@ -21,6 +21,8 @@ export const PosModals = ({
   setDiscountQuantities,
   showAbortModal,
   setShowAbortModal,
+  abortReason = 'manual_abort',
+  setAbortReason,
   onAbortSession,
   onConfirmAbort,
   tableId,
@@ -31,6 +33,29 @@ export const PosModals = ({
     if (count <= 0) return { perPerson: 0, remainder: 0 };
     return { perPerson: Math.floor(totalAmount / count), remainder: totalAmount % count };
   }, [totalAmount, splitCount]);
+
+  const isAllItemsCancelledAbort = abortReason === 'all_items_cancelled';
+  const abortModalTitle = isAllItemsCancelledAbort
+    ? 'すべて取消済みです'
+    : '無会計で退店にしますか？';
+  const abortModalLead = isAllItemsCancelledAbort
+    ? '未会計の商品がすべて取消済みです。'
+    : '未会計の注文があります。';
+  const abortModalDescription = isAllItemsCancelledAbort
+    ? 'このまま席を終了すると、席は待機中に戻ります。'
+    : 'この操作を行うと、注文はキャンセル扱いになり、席は待機中に戻ります。';
+  const abortConfirmLabel = isAllItemsCancelledAbort
+    ? '席を終了する'
+    : '退店にする';
+
+  const closeAbortModal = () => {
+    setShowAbortModal(false);
+    setAbortReason?.('manual_abort');
+  };
+
+  const confirmAbortModal = () => {
+    onConfirmAbort?.({ reason: abortReason || 'manual_abort' });
+  };
 
   return (
     <>
@@ -421,32 +446,32 @@ export const PosModals = ({
             </div>
 
             <h3 className="mb-2 text-2xl font-black tracking-tight text-gray-900">
-              無会計で退店にしますか？
+              {abortModalTitle}
             </h3>
 
             <p className="mb-10 text-sm font-medium leading-relaxed text-gray-500">
               <span className="mb-1 block text-base font-bold text-gray-800">
                 {tableDisplayName || tableId || 'テーブル未設定'}
               </span>
-              未会計の注文があります。
+              {abortModalLead}
               <br />
-              この操作を行うと、注文はキャンセル扱いになり、席は待機中に戻ります。
+              {abortModalDescription}
             </p>
 
             <div className="flex gap-3">
               <button
-                onClick={() => setShowAbortModal(false)}
+                onClick={closeAbortModal}
                 className="flex-1 rounded-2xl bg-gray-50 py-4 font-bold text-gray-400 transition-all hover:bg-gray-100"
               >
                 キャンセル
               </button>
 
               <button
-                onClick={onConfirmAbort}
+                onClick={confirmAbortModal}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg shadow-red-200 transition-all hover:bg-red-600 active:scale-95"
               >
                 <LogOut size={20} strokeWidth={2.5} />
-                退店にする
+                {abortConfirmLabel}
               </button>
             </div>
           </div>

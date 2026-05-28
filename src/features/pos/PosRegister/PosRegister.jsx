@@ -100,6 +100,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastTransaction, setLastTransaction] = useState({ total: 0, change: 0, method: 'cash' });
   const [showAbortModal, setShowAbortModal] = useState(false);
+  const [abortReason, setAbortReason] = useState('manual_abort');
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const [processingAction, setProcessingAction] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -784,6 +785,30 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       const cancelledKeys = new Set(entries.map((entry) => entry.key));
 
+      const hasRemainingPayableItems = orders.some((order) => {
+        if (!order?.items || !Array.isArray(order.items)) return false;
+
+        return order.items.some((item, index) => {
+          const key = `${order.id}-${index}`;
+          const willBeCancelled = cancelledKeys.has(key);
+
+          return (
+            item &&
+            !willBeCancelled &&
+            !isCancelledPosItem(item) &&
+            !paidItemKeys.has(key) &&
+            item.paymentStatus !== 'paid'
+          );
+        });
+      });
+
+      if (!hasRemainingPayableItems) {
+        setAbortReason('all_items_cancelled');
+        window.setTimeout(() => {
+          setShowAbortModal(true);
+        }, 120);
+      }
+
       setSelectedItemKeys((previous) => {
         const next = new Set(previous);
         cancelledKeys.forEach((key) => next.delete(key));
@@ -859,6 +884,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       await batch.commit();
 
       setShowAbortModal(false);
+      setAbortReason('manual_abort');
 
       // 退店処理は会計処理ではないので、会計完了モーダルへ流さない。
       onBack?.();
@@ -881,6 +907,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       return;
     }
 
+    setAbortReason('manual_abort');
     setShowAbortModal(true);
   };
 
@@ -1311,9 +1338,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       console.error(error);
       alert('会計に失敗しました');
     } finally {
-      window.setTimeout(() => {
-        setIsPaymentSubmitting(false);
-      }, 1200);
+      setIsPaymentSubmitting(false);
     }
   };
 
@@ -1506,6 +1531,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         setDiscountQuantities={setDiscountQuantities}
         showAbortModal={showAbortModal}
         setShowAbortModal={setShowAbortModal}
+        abortReason={abortReason}
+        setAbortReason={setAbortReason}
         onAbortSession={handleAbortSession}
         onConfirmAbort={executeAbortSession}
         tableId={tableId}
