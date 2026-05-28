@@ -354,6 +354,30 @@ export const PosTransactionHistory = ({ storeId }) => {
     return map;
   }, [transactions]);
 
+
+  const paymentMethodByOrderId = useMemo(() => {
+    const map = new Map();
+
+    transactions.forEach((transaction) => {
+      const method = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+
+      if (Array.isArray(transaction.customerSummaries)) {
+        transaction.customerSummaries.forEach((summary) => {
+          if (!Array.isArray(summary?.orderIds)) return;
+
+          summary.orderIds.forEach((orderId) => {
+            const normalizedOrderId = String(orderId || '').trim();
+            if (normalizedOrderId) {
+              map.set(normalizedOrderId, method);
+            }
+          });
+        });
+      }
+    });
+
+    return map;
+  }, [transactions]);
+
   const groupedTickets = useMemo(() => {
     const grouped = new Map();
 
@@ -592,15 +616,32 @@ export const PosTransactionHistory = ({ storeId }) => {
     return groupedTickets;
   }, [filter, groupedTickets, paidPaymentFilter, selectedPaidDate]);
 
-  const paidPaymentSummary = useMemo(() => (
-    buildPaymentSummaryFromTickets(
-      groupedTickets.filter((ticket) => (
-        ticket.status === 'paid' &&
-        getTicketBusinessDate(ticket) === selectedPaidDate &&
-        ticketMatchesPaidPaymentFilter(ticket)
-      ))
-    )
-  ), [groupedTickets, paidPaymentFilter, selectedPaidDate]);
+  const paidPaymentSummary = useMemo(() => {
+    const base = {
+      cash: { method: 'cash', label: '現金', count: 0, total: 0 },
+      card: { method: 'card', label: 'カード', count: 0, total: 0 },
+      qr: { method: 'qr', label: 'QR決済', count: 0, total: 0 }
+    };
+
+    orders.forEach((order) => {
+      const isPaidActiveOrder =
+        order?.paymentStatus === 'paid' &&
+        order?.status !== 'cancelled' &&
+        order?.paymentStatus !== 'cancelled';
+
+      if (!isPaidActiveOrder) return;
+      if (toDateInputValue(order.paidAt) !== selectedPaidDate) return;
+
+      const method = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
+      if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
+      if (!base[method]) return;
+
+      base[method].count += 1;
+      base[method].total += Number(order.totalPrice || 0);
+    });
+
+    return [base.cash, base.card, base.qr];
+  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate]);
 
   const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
     sum + Number(entry.total || 0)
