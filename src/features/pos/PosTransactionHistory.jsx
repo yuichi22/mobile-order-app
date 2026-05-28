@@ -1,19 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2,
-  ChevronDown,
-  CreditCard,
-  Filter,
-  Printer,
-  QrCode,
-  Receipt,
-  Tag,
-  XCircle
+  CheckCircle2, ChevronDown, CreditCard, Filter, Printer, QrCode, Receipt, Tag, XCircle, LogOut
 } from 'lucide-react';
-import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -299,6 +291,9 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
+  const [closeTicketTarget, setCloseTicketTarget] = useState(null);
+  const [isClosingTicket, setIsClosingTicket] = useState(false);
+  const closeTicketTimerRef = useRef(null);
   const [filter, setFilter] = useState('unpaid');
   const { settings } = useStoreSettings(storeId);
 
@@ -366,6 +361,7 @@ export const PosTransactionHistory = ({ storeId }) => {
       if (!grouped.has(sessionKey)) {
         grouped.set(sessionKey, {
           id: sessionKey,
+          sessionId: order.sessionId || '',
           tableId: order.tableId,
           tableDisplayName: order.tableDisplayName || order.tableName || '',
           tableName: order.tableName || order.tableDisplayName || '',
@@ -378,11 +374,14 @@ export const PosTransactionHistory = ({ storeId }) => {
           taxAmountStandard: 0,
           discountAmount: 0,
           paymentMethod: order.paymentMethod,
+          orderIds: [],
           items: []
         });
       }
 
       const ticket = grouped.get(sessionKey);
+      if (order.id && !ticket.orderIds.includes(order.id)) ticket.orderIds.push(order.id);
+      if (!ticket.sessionId && order.sessionId) ticket.sessionId = order.sessionId;
       if (order.timestamp < ticket.timestamp) ticket.timestamp = order.timestamp;
       if (order.paidAt && (!ticket.paidAt || order.paidAt > ticket.paidAt)) ticket.paidAt = order.paidAt;
       const isCancelled = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
@@ -422,6 +421,126 @@ export const PosTransactionHistory = ({ storeId }) => {
         taxRates: resolveTicketTaxRates(ticket.items, settings)
       }));
   }, [orders, settings, transactionsBySession]);
+
+  const clearCloseTicketLongPress = () => {
+    if (closeTicketTimerRef.current) {
+      window.clearTimeout(closeTicketTimerRef.current);
+      closeTicketTimerRef.current = null;
+    }
+  };
+
+  const startCloseTicketLongPress = (event, ticket) => {
+    event?.stopPropagation?.();
+
+    if (!ticket || ticket.status === 'paid' || ticket.status === 'cancelled' || isClosingTicket) return;
+
+    clearCloseTicketLongPress();
+
+    closeTicketTimerRef.current = window.setTimeout(() => {
+      closeTicketTimerRef.current = null;
+      setCloseTicketTarget(ticket);
+    }, 850);
+  };
+
+  const closeCloseTicketModal = () => {
+    if (isClosingTicket) return;
+    setCloseTicketTarget(null);
+  };
+
+  const executeCloseUnpaidTicket = async () => {
+    if (!closeTicketTarget || isClosingTicket || !storeId) return;
+
+    const targetSessionId = closeTicketTarget.sessionId || closeTicketTarget.id;
+    const targetOrderIds = Array.isArray(closeTicketTarget.orderIds) ? closeTicketTarget.orderIds : [];
+    const targetTableId = String(closeTicketTarget.tableId || '').trim();
+
+    if (!targetSessionId && targetOrderIds.length === 0) {
+      alert('対象の伝票情報が見つかりません');
+      return;
+    }
+
+    setIsClosingTicket(true);
+
+    try {
+      const batch = writeBatch(db);
+      const closedAt = serverTimestamp();
+
+      targetOrderIds.forEach((orderId) => {
+        batch.update(doc(db, 'stores', storeId, 'orders', orderId), {
+          status: 'cancelled',
+          paymentStatus: 'cancelled',
+          cancelledAt: closedAt,
+          closedAt,
+          closeReason: 'pos_history_manual_close',
+          updatedAt: closedAt
+        });
+      });
+
+      if (targetSessionId && !String(targetSessionId).startsWith('single-')) {
+        batch.set(doc(db, 'stores', storeId, 'sessions', targetSessionId), {
+          status: 'cancelled',
+          paymentStatus: 'cancelled',
+          cancelledAt: closedAt,
+          closedAt,
+          closeReason: 'pos_history_manual_close',
+          updatedAt: closedAt
+        }, { merge: true });
+      }
+
+      if (targetTableId) {
+        batch.set(doc(db, 'stores', storeId, 'tables', targetTableId), {
+          tableId: targetTableId,
+          currentSessionId: null,
+          currentSessionStatus: 'idle',
+          updatedAt: closedAt
+        }, { merge: true });
+
+        batch.set(doc(db, 'stores', storeId, 'tableSessions', targetTableId), {
+          tableId: targetTableId,
+          sessionId: null,
+          status: 'idle',
+          updatedAt: closedAt,
+          lastClosedSessionId: targetSessionId || '',
+          lastClosedAt: closedAt
+        }, { merge: true });
+
+        batch.delete(doc(db, 'stores', storeId, 'tableEntryGuards', targetTableId));
+      }
+
+      if (targetSessionId && !String(targetSessionId).startsWith('single-')) {
+        const inviteQuery = query(
+          collection(db, 'stores', storeId, 'sessionInvites'),
+          where('sessionId', '==', targetSessionId)
+        );
+        const inviteSnapshot = await getDocs(inviteQuery);
+        inviteSnapshot.forEach((inviteDoc) => batch.delete(inviteDoc.ref));
+
+        const requestQuery = query(
+          collection(db, 'stores', storeId, 'serviceRequests'),
+          where('sessionId', '==', targetSessionId)
+        );
+        const requestSnapshot = await getDocs(requestQuery);
+        requestSnapshot.forEach((requestDoc) => {
+          batch.update(requestDoc.ref, {
+            status: 'completed',
+            completedAt: closedAt,
+            closeReason: 'pos_history_manual_close',
+            updatedAt: closedAt
+          });
+        });
+      }
+
+      await batch.commit();
+
+      setCloseTicketTarget(null);
+      setExpandedTicketId(null);
+    } catch (error) {
+      console.error('未会計伝票クローズエラー:', error);
+      alert('伝票を閉じる処理に失敗しました');
+    } finally {
+      setIsClosingTicket(false);
+    }
+  };
 
   const filteredTickets = useMemo(() => {
     if (filter === 'paid') {
@@ -608,6 +727,22 @@ export const PosTransactionHistory = ({ storeId }) => {
               {isExpanded && (
                 <div className="border-t border-gray-100 bg-slate-50/50 px-5 pb-5 pt-2">
                   <div className="space-y-4">
+                    {!isPaid && !isCancelled && (
+                      <button
+                        type="button"
+                        onPointerDown={(event) => startCloseTicketLongPress(event, ticket)}
+                        onPointerUp={clearCloseTicketLongPress}
+                        onPointerLeave={clearCloseTicketLongPress}
+                        onPointerCancel={clearCloseTicketLongPress}
+                        onContextMenu={(event) => event.preventDefault()}
+                        disabled={isClosingTicket}
+                        className="mt-3 flex w-full touch-none select-none items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-4 py-2.5 text-xs font-black text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <LogOut size={15} />
+                        長押しでこの未会計伝票を閉じる
+                      </button>
+                    )}
+
                     <div className="mt-3 flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 text-xs shadow-sm">
                       <div className="flex flex-col px-2">
                         <span className="mb-1 text-[9px] font-bold uppercase tracking-widest text-gray-400">注文時刻</span>
@@ -769,6 +904,49 @@ export const PosTransactionHistory = ({ storeId }) => {
           );
         })}
       </div>
+      {closeTicketTarget && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+              <LogOut size={34} strokeWidth={2.5} />
+            </div>
+
+            <h3 className="text-xl font-black tracking-tight text-gray-900">
+              未会計伝票を閉じますか？
+            </h3>
+
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
+              <span className="mb-1 block text-base text-gray-800">
+                {getTableDisplayName(closeTicketTarget) || 'テーブル未設定'}
+              </span>
+              この未会計伝票をキャンセル扱いにして、席を待機中に戻します。
+              <br />
+              会計済みの伝票には影響しません。
+            </p>
+
+            <div className="mt-7 flex gap-3">
+              <button
+                type="button"
+                onClick={closeCloseTicketModal}
+                disabled={isClosingTicket}
+                className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
+              >
+                やめる
+              </button>
+
+              <button
+                type="button"
+                onClick={executeCloseUnpaidTicket}
+                disabled={isClosingTicket}
+                className="flex-1 rounded-2xl bg-red-500 py-4 text-sm font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:opacity-50"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

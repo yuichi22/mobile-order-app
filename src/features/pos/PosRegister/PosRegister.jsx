@@ -105,6 +105,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [processingAction, setProcessingAction] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
+  const [quantityPicker, setQuantityPicker] = useState(null);
 
   const [tableId, setTableId] = useState(null);
   const [tableDisplayName, setTableDisplayName] = useState('');
@@ -591,6 +592,201 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     return null;
   };
 
+
+  const resolveItemEntryByKey = (itemKey) => {
+    const [targetOrderId, indexText] = String(itemKey || '').split(/-(?=[^-]+$)/);
+    const itemIndex = Number(indexText);
+    const order = orders.find((targetOrder) => targetOrder.id === targetOrderId);
+
+    if (!order || !Number.isInteger(itemIndex) || !Array.isArray(order.items)) return null;
+
+    const item = order.items[itemIndex];
+    const key = `${order.id}-${itemIndex}`;
+
+    if (!item || paidItemKeys.has(key) || item.paymentStatus === 'paid') return null;
+
+    return {
+      order,
+      item,
+      index: itemIndex,
+      key
+    };
+  };
+
+  const getSelectableQuantity = (item) => {
+    const quantity = Number(item?.quantity || 0) || 1;
+    return Math.max(1, Math.floor(quantity));
+  };
+
+  const closeQuantityPicker = () => {
+    setQuantityPicker(null);
+  };
+
+  const splitOrderItemForQuantitySelection = async ({ itemKey, quantity }) => {
+    const entry = resolveItemEntryByKey(itemKey);
+    if (!entry || isCancelledPosItem(entry.item)) return null;
+
+    const maxQuantity = getSelectableQuantity(entry.item);
+    const selectedQuantity = Math.max(1, Math.min(Number(quantity) || 1, maxQuantity));
+
+    if (selectedQuantity >= maxQuantity) {
+      return entry.key;
+    }
+
+    const remainingQuantity = maxQuantity - selectedQuantity;
+    const splitAtClient = new Date().toISOString();
+    const splitAtMs = Date.now();
+
+    const nextItems = entry.order.items.flatMap((item, index) => {
+      if (index !== entry.index) return [item];
+
+      const selectedItem = {
+        ...item,
+        quantity: selectedQuantity,
+        splitFromItemKey: entry.key,
+        splitReason: 'pos_quantity_select',
+        splitAtClient,
+        splitAtMs
+      };
+
+      const remainingItem = {
+        ...item,
+        quantity: remainingQuantity,
+        splitFromItemKey: entry.key,
+        splitReason: 'pos_quantity_remaining',
+        splitAtClient,
+        splitAtMs
+      };
+
+      return [selectedItem, remainingItem];
+    });
+
+    const activeItems = nextItems.filter((item) => item && !isCancelledPosItem(item));
+    const remainingTotalPrice = activeItems.reduce((sum, item) => {
+      const unitPrice = Number(item.unitPrice || 0) || 0;
+      const qty = Number(item.quantity || 0) || 0;
+      return sum + (unitPrice * qty);
+    }, 0);
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'stores', storeId, 'orders', entry.order.id), {
+      items: nextItems,
+      totalPrice: remainingTotalPrice,
+      activeItemCount: activeItems.length,
+      cancelledItemCount: nextItems.length - activeItems.length,
+      updatedAt: serverTimestamp(),
+      updatedAtMs: splitAtMs
+    });
+
+    await batch.commit();
+
+    // 分割後も、選択対象は元index側に残す。
+    return entry.key;
+  };
+
+  const requestQuantityForItemSelection = (itemKey) => {
+    const entry = resolveItemEntryByKey(itemKey);
+    if (!entry || isCancelledPosItem(entry.item)) return false;
+
+    const maxQuantity = getSelectableQuantity(entry.item);
+    if (maxQuantity <= 1) return false;
+
+    setQuantityPicker({
+      mode: 'select',
+      itemKey,
+      title: '数量を選択',
+      description: `${entry.item.name || '商品'} をいくつ選択しますか？`,
+      maxQuantity,
+      quantity: 1
+    });
+
+    return true;
+  };
+
+  const requestQuantityForItemCancel = (payload, target) => {
+    if (!payload || payload.type !== 'item') return false;
+
+    const entry = Array.isArray(target?.entries) ? target.entries[0] : null;
+    if (!entry || isCancelledPosItem(entry.item)) return false;
+
+    const maxQuantity = getSelectableQuantity(entry.item);
+    if (maxQuantity <= 1) return false;
+
+    setQuantityPicker({
+      mode: 'cancel',
+      payload,
+      target,
+      itemKey: entry.key,
+      title: '取消数量を選択',
+      description: `${entry.item.name || '商品'} をいくつ取消しますか？`,
+      maxQuantity,
+      quantity: 1
+    });
+
+    return true;
+  };
+
+  const updateQuantityPickerValue = (nextQuantity) => {
+    setQuantityPicker((previous) => {
+      if (!previous) return previous;
+
+      const maxQuantity = Math.max(1, Number(previous.maxQuantity || 1) || 1);
+      const quantity = Math.max(1, Math.min(Number(nextQuantity) || 1, maxQuantity));
+
+      return {
+        ...previous,
+        quantity
+      };
+    });
+  };
+
+  const confirmQuantityPicker = async () => {
+    if (!quantityPicker || isCancelSubmitting) return;
+
+    const picker = quantityPicker;
+    const quantity = Math.max(1, Math.min(Number(picker.quantity || 1) || 1, Number(picker.maxQuantity || 1) || 1));
+
+    setQuantityPicker(null);
+
+    if (picker.mode === 'select') {
+      try {
+        const selectedKey = await splitOrderItemForQuantitySelection({
+          itemKey: picker.itemKey,
+          quantity
+        });
+
+        if (selectedKey) {
+          toggleItemKeyGroup([selectedKey]);
+        }
+      } catch (error) {
+        console.error('レジ数量選択エラー:', error);
+        alert('数量選択に失敗しました');
+      }
+
+      return;
+    }
+
+    if (picker.mode === 'cancel') {
+      const target = picker.target || buildCancelTarget(picker.payload || {});
+      if (!target || !Array.isArray(target.entries) || target.entries.length === 0) return;
+
+      const activeEntries = target.entries
+        .filter(({ item }) => !isCancelledPosItem(item))
+        .map((entry) => ({
+          ...entry,
+          cancelQuantity: quantity
+        }));
+
+      if (activeEntries.length === 0) return;
+
+      setCancelTarget({
+        ...target,
+        description: `${activeEntries[0]?.item?.name || '商品'} x${quantity}`,
+        entries: activeEntries
+      });
+    }
+  };
+
   const executeRestoreCancelledTarget = async (payload) => {
     if (!payload || isCancelSubmitting) return;
 
@@ -692,6 +888,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       return;
     }
 
+    if (requestQuantityForItemCancel(payload || {}, target)) {
+      return;
+    }
+
     setCancelTarget({
       ...target,
       entries: target.entries.filter(({ item }) => !isCancelledPosItem(item))
@@ -722,21 +922,34 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         return map;
       }, new Map());
 
+      const plannedItemsByOrderId = new Map();
+
       entriesByOrderId.forEach((orderEntries, orderId) => {
         const order = orders.find((targetOrder) => targetOrder.id === orderId);
         if (!order?.items || !Array.isArray(order.items)) return;
 
-        const cancelIndexSet = new Set(orderEntries.map((entry) => Number(entry.index)));
+        const cancelEntryByIndex = new Map(
+          orderEntries.map((entry) => [Number(entry.index), entry])
+        );
 
-        const nextItems = order.items.map((item, index) => {
-          if (!cancelIndexSet.has(index)) return item;
+        const nextItems = order.items.flatMap((item, index) => {
+          const cancelEntry = cancelEntryByIndex.get(index);
+
+          if (!cancelEntry) return [item];
 
           if (!item || isCancelledPosItem(item) || item.paymentStatus === 'paid') {
-            return item;
+            return [item];
           }
 
-          return {
+          const currentQuantity = getSelectableQuantity(item);
+          const cancelQuantity = Math.max(
+            1,
+            Math.min(Number(cancelEntry.cancelQuantity || currentQuantity) || currentQuantity, currentQuantity)
+          );
+
+          const cancelledItem = {
             ...item,
+            quantity: cancelQuantity,
             status: 'cancelled',
             kitchenStatus: 'cancelled',
             cancelledBy: 'pos',
@@ -744,7 +957,24 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             cancelledAtClient,
             cancelledAtMs
           };
+
+          if (cancelQuantity >= currentQuantity) {
+            return [cancelledItem];
+          }
+
+          const remainingItem = {
+            ...item,
+            quantity: currentQuantity - cancelQuantity,
+            splitFromItemKey: cancelEntry.key,
+            splitReason: 'pos_cancel_remaining',
+            splitAtClient: cancelledAtClient,
+            splitAtMs: cancelledAtMs
+          };
+
+          return [cancelledItem, remainingItem];
         });
+
+        plannedItemsByOrderId.set(orderId, nextItems);
 
         const activeItems = nextItems.filter((item) => item && !isCancelledPosItem(item));
         const isOrderFullyCancelled = activeItems.length === 0;
@@ -786,15 +1016,14 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       const cancelledKeys = new Set(entries.map((entry) => entry.key));
 
       const hasRemainingPayableItems = orders.some((order) => {
-        if (!order?.items || !Array.isArray(order.items)) return false;
+        const plannedItems = plannedItemsByOrderId.get(order.id) || order.items;
+        if (!Array.isArray(plannedItems)) return false;
 
-        return order.items.some((item, index) => {
+        return plannedItems.some((item, index) => {
           const key = `${order.id}-${index}`;
-          const willBeCancelled = cancelledKeys.has(key);
 
           return (
             item &&
-            !willBeCancelled &&
             !isCancelledPosItem(item) &&
             !paidItemKeys.has(key) &&
             item.paymentStatus !== 'paid'
@@ -1411,6 +1640,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   };
 
   const toggleSelectItem = (itemKey) => {
+    if (requestQuantityForItemSelection(itemKey)) return;
     toggleItemKeyGroup([itemKey]);
   };
 
@@ -1467,6 +1697,67 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               {processingMessage}
             </p>
+          </div>
+        </div>
+      )}
+
+      {quantityPicker && (
+        <div className="fixed inset-0 z-[260] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-[2rem] border border-blue-100 bg-white p-8 text-center shadow-2xl">
+            <h3 className="text-xl font-black tracking-tight text-gray-900">
+              {quantityPicker.title}
+            </h3>
+
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
+              {quantityPicker.description}
+            </p>
+
+            <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+              <p className="mb-3 text-[11px] font-black text-gray-400">
+                数量
+              </p>
+
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: Number(quantityPicker.maxQuantity || 1) }, (_, index) => index + 1).map((quantity) => (
+                  <button
+                    key={quantity}
+                    type="button"
+                    onClick={() => updateQuantityPickerValue(quantity)}
+                    className={`h-11 rounded-xl border text-sm font-black transition-all ${
+                      Number(quantityPicker.quantity || 1) === quantity
+                        ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-100'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                    }`}
+                  >
+                    {quantity}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-7 flex gap-3">
+              <button
+                type="button"
+                onClick={closeQuantityPicker}
+                disabled={isCancelSubmitting}
+                className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
+              >
+                やめる
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmQuantityPicker}
+                disabled={isCancelSubmitting}
+                className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:opacity-50 ${
+                  quantityPicker.mode === 'cancel'
+                    ? 'bg-red-500 shadow-red-100 hover:bg-red-600'
+                    : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700'
+                }`}
+              >
+                {quantityPicker.mode === 'cancel' ? '取消へ進む' : '選択する'}
+              </button>
+            </div>
           </div>
         </div>
       )}
