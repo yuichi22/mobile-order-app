@@ -100,6 +100,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [lastTransaction, setLastTransaction] = useState({ total: 0, change: 0, method: 'cash' });
   const [showAbortModal, setShowAbortModal] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const [processingAction, setProcessingAction] = useState(null);
 
   const [tableId, setTableId] = useState(null);
   const [tableDisplayName, setTableDisplayName] = useState('');
@@ -466,6 +467,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   }, [paymentAmount, totalAmount]);
 
   const executeAbortSession = async ({ reason = 'manual_abort' } = {}) => {
+    setProcessingAction('exit');
     setLoading(true);
 
     try {
@@ -526,6 +528,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       alert('退店処理に失敗しました');
     } finally {
       setLoading(false);
+      setProcessingAction(null);
     }
   };
 
@@ -997,10 +1000,37 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     });
   };
 
-  if (loading) return <div className="flex h-full items-center justify-center"><LoadingSpinner size={24} className="text-gray-400" /></div>;
+  const isInitialLoading = loading && !processingAction && !isPaymentSubmitting;
+  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting;
+  const processingTitle = isPaymentSubmitting
+    ? '会計処理中です'
+    : processingAction === 'exit'
+      ? '退店処理中です'
+      : '読み込み中です';
+  const processingMessage = isPaymentSubmitting
+    ? '会計を確定しています。画面を閉じずにお待ちください。'
+    : processingAction === 'exit'
+      ? '注文と席情報を整理しています。画面を閉じずにお待ちください。'
+      : 'レジ情報を読み込んでいます。';
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden bg-gray-100 font-sans">
+      {showProcessingOverlay && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
+          <div className="flex w-full max-w-sm flex-col items-center rounded-[2rem] border border-gray-100 bg-white px-8 py-7 text-center shadow-2xl">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+              <LoadingSpinner size={30} className="text-blue-600" />
+            </div>
+            <h3 className="text-xl font-black tracking-tight text-gray-900">
+              {processingTitle}
+            </h3>
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
+              {processingMessage}
+            </p>
+          </div>
+        </div>
+      )}
+
       <PosModals
         showSuccessModal={showSuccessModal}
         setShowSuccessModal={setShowSuccessModal}
