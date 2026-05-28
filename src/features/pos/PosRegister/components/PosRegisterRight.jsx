@@ -41,7 +41,9 @@ export const PosRegisterRight = ({
   setIssueReceipt,
   recipientName,
   setRecipientName,
-  selectedOrderIds,
+  checkoutSelectionMode,
+  selectedItemCount,
+  totalPayableItemCount,
   settings,
   consolidatedItems,
   takeoutItemKeys,
@@ -130,8 +132,12 @@ export const PosRegisterRight = ({
     }, 900);
   };
 
+  const isCustomMode = checkoutSelectionMode === 'custom';
+  const hasNoCustomSelection = isCustomMode && Number(selectedItemCount || 0) === 0;
+
   const isPaymentDisabled =
-    (orders.length > 0 && selectedOrderIds.size === 0)
+    hasNoCustomSelection
+    || (Number(totalPayableItemCount || 0) === 0)
     || (paymentMethod === 'cash' && (parseInt(paymentAmount, 10) || 0) < totalAmount);
 
   return (
@@ -345,9 +351,11 @@ export const PosRegisterRight = ({
                 }`}
               >
                 <CheckCircle size={24} />
-                {selectedOrderIds.size === orders.length
-                  ? `¥${totalAmount.toLocaleString()} を会計する`
-                  : `選択分 ¥${totalAmount.toLocaleString()} を会計する`}
+                {isCustomMode
+                  ? Number(selectedItemCount || 0) > 0
+                    ? `選択分 ¥${totalAmount.toLocaleString()} を会計する`
+                    : '会計する商品を選択してください'
+                  : `¥${totalAmount.toLocaleString()} を会計する`}
                 <ChevronRight size={24} className="opacity-50" />
               </button>
 

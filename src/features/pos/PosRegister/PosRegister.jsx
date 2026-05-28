@@ -76,7 +76,8 @@ const allocateAmountByWeight = (targetAmount, weights) => {
 export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
+  const [checkoutSelectionMode, setCheckoutSelectionMode] = useState('all');
+  const [selectedItemKeys, setSelectedItemKeys] = useState(new Set());
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -263,20 +264,18 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       const nextPaidKeys = new Set();
       fetched.forEach((order) => {
-        if (order.paymentStatus === 'paid' && order.items) {
-          order.items.forEach((item, idx) => {
-            if (item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled') return;
+        if (!order?.items || !Array.isArray(order.items)) return;
+
+        order.items.forEach((item, idx) => {
+          if (item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled') return;
+
+          if (order.paymentStatus === 'paid' || item?.paymentStatus === 'paid') {
             nextPaidKeys.add(`${order.id}-${idx}`);
-          });
-        }
+          }
+        });
       });
       setPaidItemKeys(nextPaidKeys);
 
-      setSelectedOrderIds((previous) => (
-        previous.size === 0 && unpaidOrders.length > 0
-          ? new Set(unpaidOrders.map((order) => order.id))
-          : previous
-      ));
     });
 
     return () => {
@@ -285,19 +284,64 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     };
   }, [sessionId, storeId]);
 
+  const allPayableItemEntries = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+
+    return orders.flatMap((order) => {
+      if (!order?.items || !Array.isArray(order.items)) return [];
+
+      return order.items
+        .map((item, index) => ({
+          order,
+          item,
+          index,
+          key: `${order.id}-${index}`
+        }))
+        .filter(({ item, key }) => (
+          item &&
+          !isCancelledPosItem(item) &&
+          !paidItemKeys.has(key) &&
+          item.paymentStatus !== 'paid'
+        ));
+    });
+  }, [orders, paidItemKeys]);
+
+  const allPayableItemKeys = useMemo(
+    () => new Set(allPayableItemEntries.map((entry) => entry.key)),
+    [allPayableItemEntries]
+  );
+
+  const activeSelectedItemKeys = useMemo(() => {
+    const next = new Set();
+
+    selectedItemKeys.forEach((key) => {
+      if (allPayableItemKeys.has(key)) next.add(key);
+    });
+
+    return next;
+  }, [allPayableItemKeys, selectedItemKeys]);
+
+  const currentPayTargetItemKeys = useMemo(() => {
+    if (checkoutSelectionMode === 'custom') return activeSelectedItemKeys;
+    return allPayableItemKeys;
+  }, [activeSelectedItemKeys, allPayableItemKeys, checkoutSelectionMode]);
+
+  const selectedItemCount = activeSelectedItemKeys.size;
+  const totalPayableItemCount = allPayableItemEntries.length;
+
   const consolidatedItems = useMemo(() => {
     if (!orders || !Array.isArray(orders)) return [];
-    const targetOrders = orders.filter((order) => order && selectedOrderIds.has(order.id));
     const items = [];
 
-    targetOrders.forEach((order) => {
+    orders.forEach((order) => {
       if (!order?.items || !Array.isArray(order.items)) return;
       order.items.forEach((item, idx) => {
         if (!item) return;
         if (item.status === 'cancelled' || item.kitchenStatus === 'cancelled') return;
 
         const itemKey = `${order.id}-${idx}`;
-        if (paidItemKeys.has(itemKey)) return;
+        if (paidItemKeys.has(itemKey) || item.paymentStatus === 'paid') return;
+        if (!currentPayTargetItemKeys.has(itemKey)) return;
 
         const name = item.name || '未設定商品';
         const unitPrice = Number(item.unitPrice) || 0;
@@ -353,7 +397,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       });
     });
     return items;
-  }, [orders, selectedOrderIds, paidItemKeys, menuItemSnapshotMap]);
+  }, [orders, paidItemKeys, currentPayTargetItemKeys, menuItemSnapshotMap]);
 
   const ordersByCustomer = useMemo(
     () => groupOrdersByCustomer(orders),
@@ -584,7 +628,19 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       const taxRounding = normalizeTaxRounding(settings?.taxRounding);
       const standardDivider = 1 + (standardTax / 100);
 
-      const selectedOrders = orders.filter((order) => selectedOrderIds.has(order.id) && Array.isArray(order.items));
+      const paidAtClient = new Date().toISOString();
+      const selectedOrders = orders.filter((order) => (
+        order &&
+        Array.isArray(order.items) &&
+        order.items.some((item, index) => (
+          item &&
+          !isCancelledPosItem(item) &&
+          !paidItemKeys.has(`${order.id}-${index}`) &&
+          item.paymentStatus !== 'paid' &&
+          currentPayTargetItemKeys.has(`${order.id}-${index}`)
+        ))
+      ));
+
       const orderSummaries = selectedOrders.map((order) => {
         let rawOrderReducedIncl = 0;
         let rawOrderStandardIncl = 0;
@@ -597,6 +653,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         );
 
         const updatedItems = order.items.map((item, index) => {
+          const itemKey = `${order.id}-${index}`;
           const isCancelledItem =
             item?.status === 'cancelled' ||
             item?.kitchenStatus === 'cancelled' ||
@@ -610,8 +667,14 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             };
           }
 
+          const isPayTarget = currentPayTargetItemKeys.has(itemKey);
+
+          if (!isPayTarget) {
+            return item;
+          }
+
           const allowsTakeout = item.allowsTakeout !== false;
-          const isTakeout = allowTakeout && allowsTakeout && activeTakeoutItemKeys.has(`${order.id}-${index}`);
+          const isTakeout = allowTakeout && allowsTakeout && activeTakeoutItemKeys.has(itemKey);
           const menuPrice = Number(item.unitPrice) || 0;
           const qty = Number(item.quantity) || 1;
           const netUnitPrice = applyTaxRounding(menuPrice / standardDivider, taxRounding);
@@ -625,7 +688,14 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             rawOrderStandardIncl += lineIncl;
           }
 
-          return { ...item, allowsTakeout, isTakeout, taxRate: isTakeout ? reducedTax : standardTax };
+          return {
+            ...item,
+            allowsTakeout,
+            isTakeout,
+            taxRate: isTakeout ? reducedTax : standardTax,
+            paymentStatus: 'paid',
+            paidAtClient
+          };
         });
 
         return {
@@ -673,15 +743,21 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         existingCustomerSummary.totalAmount += finalOrderTotal;
         customerSummaryMap.set(summary.customerId, existingCustomerSummary);
 
+        const isOrderCompleteAfterPayment = summary.updatedItems
+          .map((item, itemIndex) => ({ item, itemIndex }))
+          .filter(({ item }) => item && !isCancelledPosItem(item))
+          .every(({ item }) => item.paymentStatus === 'paid');
+
         batch.update(doc(db, 'stores', storeId, 'orders', summary.id), {
-          paymentStatus: 'paid',
+          paymentStatus: isOrderCompleteAfterPayment ? 'paid' : 'partial_paid',
           paymentMethod: resolvedPaymentMethod,
-          paidAt: serverTimestamp(),
+          paidAt: isOrderCompleteAfterPayment ? serverTimestamp() : null,
+          partialPaidAt: serverTimestamp(),
           isTakeout: summary.orderHasTakeoutItem,
           subtotal: Number(reducedBreakdown.baseAmount + standardBreakdown.baseAmount),
           taxAmountReduced: Number(reducedBreakdown.taxAmount),
           taxAmountStandard: Number(standardBreakdown.taxAmount),
-          totalPrice: finalOrderTotal,
+          lastPaidAmount: finalOrderTotal,
           discountAmount: Number(orderDiscountAmount),
           sessionDiscountAmount: Number(discountAmount),
           items: summary.updatedItems
@@ -929,7 +1005,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         setPaidItemKeys(new Set([...paidItemKeys, ...newlyPaidKeys]));
         setShowSuccessModal(true);
         setPaymentAmount('');
-        setSelectedOrderIds(new Set());
+        setSelectedItemKeys(new Set());
+        setCheckoutSelectionMode('all');
         setDiscountType('none');
         setDiscountValue(0);
         setSelectedDiscount(null);
@@ -972,32 +1049,73 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     });
   };
 
+  const getOrderItemKeys = (order) => {
+    if (!order?.items || !Array.isArray(order.items)) return [];
+
+    return order.items
+      .map((item, index) => ({ item, key: `${order.id}-${index}` }))
+      .filter(({ item, key }) => (
+        item &&
+        !isCancelledPosItem(item) &&
+        !paidItemKeys.has(key) &&
+        item.paymentStatus !== 'paid'
+      ))
+      .map(({ key }) => key);
+  };
+
+  const toggleItemKeyGroup = (itemKeys) => {
+    const targetKeys = (itemKeys || []).filter((key) => allPayableItemKeys.has(key));
+    if (targetKeys.length === 0) return;
+
+    setCheckoutSelectionMode('custom');
+    setSelectedItemKeys((previous) => {
+      const next = new Set(previous);
+      const areAllSelected = targetKeys.every((key) => next.has(key));
+
+      targetKeys.forEach((key) => {
+        if (areAllSelected) next.delete(key);
+        else next.add(key);
+      });
+
+      if (next.size === 0) {
+        window.setTimeout(() => setCheckoutSelectionMode('all'), 0);
+      }
+
+      return next;
+    });
+  };
+
   const toggleSelect = (id) => {
-    const next = new Set(selectedOrderIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedOrderIds(next);
+    const order = orders.find((targetOrder) => targetOrder.id === id);
+    toggleItemKeyGroup(getOrderItemKeys(order));
+  };
+
+  const toggleSelectItem = (itemKey) => {
+    toggleItemKeyGroup([itemKey]);
   };
 
   const toggleSelectAll = () => {
-    setSelectedOrderIds(selectedOrderIds.size === orders.length ? new Set() : new Set(orders.map((order) => order.id)));
+    if (checkoutSelectionMode === 'custom' && activeSelectedItemKeys.size === allPayableItemKeys.size) {
+      setSelectedItemKeys(new Set());
+      setCheckoutSelectionMode('all');
+      return;
+    }
+
+    setCheckoutSelectionMode('custom');
+    setSelectedItemKeys(new Set(allPayableItemKeys));
+  };
+
+  const clearCustomSelection = () => {
+    setSelectedItemKeys(new Set());
+    setCheckoutSelectionMode('all');
   };
 
   const toggleSelectCustomer = (customerId) => {
     const targetOrders = ordersByCustomer[customerId] || [];
     if (targetOrders.length === 0) return;
 
-    const targetOrderIds = targetOrders.map((order) => order.id);
-    const areAllSelected = targetOrderIds.every((orderId) => selectedOrderIds.has(orderId));
-
-    setSelectedOrderIds((previous) => {
-      const next = new Set(previous);
-      targetOrderIds.forEach((orderId) => {
-        if (areAllSelected) next.delete(orderId);
-        else next.add(orderId);
-      });
-      return next;
-    });
+    const targetItemKeys = targetOrders.flatMap((order) => getOrderItemKeys(order));
+    toggleItemKeyGroup(targetItemKeys);
   };
 
   const isInitialLoading = loading && !processingAction && !isPaymentSubmitting;
@@ -1059,15 +1177,18 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       <PosRegisterLeft
         orders={orders}
-        selectedOrderIds={selectedOrderIds}
+        checkoutSelectionMode={checkoutSelectionMode}
+        selectedItemKeys={activeSelectedItemKeys}
         paidItemKeys={paidItemKeys}
         takeoutItemKeys={activeTakeoutItemKeys}
         totalAmount={totalAmount}
         allowTakeout={allowTakeout}
         onBack={onBack}
         toggleSelect={toggleSelect}
+        toggleSelectItem={toggleSelectItem}
         toggleSelectAll={toggleSelectAll}
         toggleSelectCustomer={toggleSelectCustomer}
+        clearCustomSelection={clearCustomSelection}
         setShowSplitModal={setShowSplitModal}
         toggleItemTakeout={toggleItemTakeout}
       />
@@ -1093,7 +1214,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         setIssueReceipt={setIssueReceipt}
         recipientName={recipientName}
         setRecipientName={setRecipientName}
-        selectedOrderIds={selectedOrderIds}
+        checkoutSelectionMode={checkoutSelectionMode}
+        selectedItemCount={selectedItemCount}
+        totalPayableItemCount={totalPayableItemCount}
         settings={settings}
         consolidatedItems={consolidatedItems}
         takeoutItemKeys={activeTakeoutItemKeys}
