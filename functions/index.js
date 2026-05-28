@@ -3366,19 +3366,14 @@ export const createPostpayOrder = onRequest(
             throw new Error(`${cartItem.name || menuData.name || '商品'} は売り切れのため注文できません。`);
           }
 
-          const hasLimitedQuantity =
-            menuData.limitedQuantity !== null
-            && menuData.limitedQuantity !== undefined
-            && menuData.limitedQuantity !== '';
+          const limitedQuantity = Number(menuData.limitedQuantity);
+          const shouldCheckStock = Number.isFinite(limitedQuantity) && limitedQuantity > 0;
 
           const hasRemainingQuantity =
             menuData.remainingQuantity !== null
             && menuData.remainingQuantity !== undefined
-            && menuData.remainingQuantity !== '';
-
-          const limitedQuantity = hasLimitedQuantity
-            ? Number(menuData.limitedQuantity)
-            : 0;
+            && menuData.remainingQuantity !== ''
+            && Number.isFinite(Number(menuData.remainingQuantity));
 
           const currentSoldQuantity = Number(menuData.soldQuantity || 0);
 
@@ -3386,9 +3381,9 @@ export const createPostpayOrder = onRequest(
             ? Number(menuData.remainingQuantity)
             : Math.max(limitedQuantity - currentSoldQuantity, 0);
 
-          // limitedQuantity / remainingQuantity が明示されている商品だけ在庫チェックする。
-          // null は「在庫制限なし」として扱う。
-          if (hasLimitedQuantity || hasRemainingQuantity) {
+          // limitedQuantity が 1以上の商品だけ在庫管理する。
+          // limitedQuantity が null / 空 / 0 以下の商品は remainingQuantity が 0 でも在庫制限なしとして扱う。
+          if (shouldCheckStock) {
             if (quantity > currentRemainingQuantity) {
               throw new Error(`${cartItem.name || menuData.name || '商品'} の残りは ${currentRemainingQuantity} 点です。`);
             }
