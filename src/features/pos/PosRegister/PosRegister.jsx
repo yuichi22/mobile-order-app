@@ -102,6 +102,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [showAbortModal, setShowAbortModal] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const [processingAction, setProcessingAction] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
 
   const [tableId, setTableId] = useState(null);
   const [tableDisplayName, setTableDisplayName] = useState('');
@@ -509,6 +511,193 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     const paid = Number(paymentAmount) || 0;
     return Math.max(0, paid - totalAmount);
   }, [paymentAmount, totalAmount]);
+
+  const getCancellableOrderItemEntries = (order) => {
+    if (!order?.items || !Array.isArray(order.items)) return [];
+
+    return order.items
+      .map((item, index) => ({
+        order,
+        item,
+        index,
+        key: `${order.id}-${index}`
+      }))
+      .filter(({ item, key }) => (
+        item &&
+        !isCancelledPosItem(item) &&
+        !paidItemKeys.has(key) &&
+        item.paymentStatus !== 'paid'
+      ));
+  };
+
+  const buildCancelTarget = ({ type, customerId, orderId, itemKey }) => {
+    if (type === 'item') {
+      const [targetOrderId, indexText] = String(itemKey || '').split(/-(?=[^-]+$)/);
+      const itemIndex = Number(indexText);
+      const order = orders.find((targetOrder) => targetOrder.id === targetOrderId);
+
+      if (!order || !Number.isInteger(itemIndex)) return null;
+
+      const item = Array.isArray(order.items) ? order.items[itemIndex] : null;
+      const key = `${order.id}-${itemIndex}`;
+
+      if (!item || isCancelledPosItem(item) || paidItemKeys.has(key) || item.paymentStatus === 'paid') {
+        return null;
+      }
+
+      return {
+        type: 'item',
+        title: '商品を取消しますか？',
+        description: `${item.name || '商品'} x${Number(item.quantity || 0) || 1}`,
+        entries: [{ order, item, index: itemIndex, key }]
+      };
+    }
+
+    if (type === 'order') {
+      const order = orders.find((targetOrder) => targetOrder.id === orderId);
+      const entries = getCancellableOrderItemEntries(order);
+
+      if (!order || entries.length === 0) return null;
+
+      return {
+        type: 'order',
+        title: '注文を取消しますか？',
+        description: `注文 #${String(order.id || '').slice(-4)} の未会計商品 ${entries.length}点を取消します。`,
+        entries
+      };
+    }
+
+    if (type === 'customer') {
+      const targetOrders = ordersByCustomer[customerId] || [];
+      const entries = targetOrders.flatMap((order) => getCancellableOrderItemEntries(order));
+
+      if (entries.length === 0) return null;
+
+      return {
+        type: 'customer',
+        title: '注文者の未会計商品を取消しますか？',
+        description: `${entries.length}点の未会計商品を取消します。`,
+        entries
+      };
+    }
+
+    return null;
+  };
+
+  const handleRequestCancelTarget = (payload) => {
+    const target = buildCancelTarget(payload || {});
+
+    if (!target || !Array.isArray(target.entries) || target.entries.length === 0) {
+      return;
+    }
+
+    setCancelTarget(target);
+  };
+
+  const executeCancelTarget = async () => {
+    if (!cancelTarget || isCancelSubmitting) return;
+
+    const entries = Array.isArray(cancelTarget.entries) ? cancelTarget.entries : [];
+    if (entries.length === 0) {
+      setCancelTarget(null);
+      return;
+    }
+
+    setIsCancelSubmitting(true);
+    setProcessingAction('cancel');
+    setLoading(true);
+
+    try {
+      const batch = writeBatch(db);
+      const cancelledAtClient = new Date().toISOString();
+      const cancelledAtMs = Date.now();
+
+      const entriesByOrderId = entries.reduce((map, entry) => {
+        if (!entry?.order?.id) return map;
+        const list = map.get(entry.order.id) || [];
+        list.push(entry);
+        map.set(entry.order.id, list);
+        return map;
+      }, new Map());
+
+      entriesByOrderId.forEach((orderEntries, orderId) => {
+        const order = orders.find((targetOrder) => targetOrder.id === orderId);
+        if (!order?.items || !Array.isArray(order.items)) return;
+
+        const cancelIndexSet = new Set(orderEntries.map((entry) => Number(entry.index)));
+
+        const nextItems = order.items.map((item, index) => {
+          if (!cancelIndexSet.has(index)) return item;
+
+          if (!item || isCancelledPosItem(item) || item.paymentStatus === 'paid') {
+            return item;
+          }
+
+          return {
+            ...item,
+            status: 'cancelled',
+            kitchenStatus: 'cancelled',
+            cancelledBy: 'pos',
+            cancelReason: 'pos_manual_cancel',
+            cancelledAtClient,
+            cancelledAtMs
+          };
+        });
+
+        const activeItems = nextItems.filter((item) => item && !isCancelledPosItem(item));
+        const isOrderFullyCancelled = activeItems.length === 0;
+        const remainingTotalPrice = activeItems.reduce((sum, item) => {
+          const unitPrice = Number(item.unitPrice || 0) || 0;
+          const quantity = Number(item.quantity || 0) || 0;
+          return sum + (unitPrice * quantity);
+        }, 0);
+
+        batch.update(doc(db, 'stores', storeId, 'orders', orderId), {
+          items: nextItems,
+          totalPrice: remainingTotalPrice,
+          activeItemCount: activeItems.length,
+          cancelledItemCount: nextItems.length - activeItems.length,
+          updatedAt: serverTimestamp(),
+          updatedAtMs: cancelledAtMs,
+          ...(isOrderFullyCancelled
+            ? {
+                status: 'cancelled',
+                paymentStatus: 'cancelled',
+                cancelledAt: serverTimestamp(),
+                cancelledAtMs,
+                cancelledBy: 'pos',
+                closeReason: 'pos_manual_cancel'
+              }
+            : {})
+        });
+      });
+
+      await batch.commit();
+
+      const cancelledKeys = new Set(entries.map((entry) => entry.key));
+
+      setSelectedItemKeys((previous) => {
+        const next = new Set(previous);
+        cancelledKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+
+      setTakeoutItemKeys((previous) => {
+        const next = new Set(previous);
+        cancelledKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+
+      setCancelTarget(null);
+    } catch (error) {
+      console.error('レジ取消エラー:', error);
+      alert('取消に失敗しました');
+    } finally {
+      setLoading(false);
+      setProcessingAction(null);
+      setIsCancelSubmitting(false);
+    }
+  };
 
   const executeAbortSession = async ({ reason = 'manual_abort' } = {}) => {
     setProcessingAction('exit');
@@ -1119,17 +1308,21 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   };
 
   const isInitialLoading = loading && !processingAction && !isPaymentSubmitting;
-  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting;
+  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting || isCancelSubmitting;
   const processingTitle = isPaymentSubmitting
     ? '会計処理中です'
     : processingAction === 'exit'
       ? '退店処理中です'
-      : '読み込み中です';
+      : processingAction === 'cancel'
+        ? '取消処理中です'
+        : '読み込み中です';
   const processingMessage = isPaymentSubmitting
     ? '会計を確定しています。画面を閉じずにお待ちください。'
     : processingAction === 'exit'
       ? '注文と席情報を整理しています。画面を閉じずにお待ちください。'
-      : 'レジ情報を読み込んでいます。';
+      : processingAction === 'cancel'
+        ? '注文内容を更新しています。画面を閉じずにお待ちください。'
+        : 'レジ情報を読み込んでいます。';
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden bg-gray-100 font-sans">
@@ -1145,6 +1338,46 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               {processingMessage}
             </p>
+          </div>
+        </div>
+      )}
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-[2rem] border border-red-100 bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+              <span className="text-3xl font-black">!</span>
+            </div>
+
+            <h3 className="text-xl font-black tracking-tight text-gray-900">
+              {cancelTarget.title}
+            </h3>
+
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
+              {cancelTarget.description}
+              <br />
+              この操作は未会計の商品だけを対象にします。
+            </p>
+
+            <div className="mt-7 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                disabled={isCancelSubmitting}
+                className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
+              >
+                やめる
+              </button>
+
+              <button
+                type="button"
+                onClick={executeCancelTarget}
+                disabled={isCancelSubmitting}
+                className="flex-1 rounded-2xl bg-red-500 py-4 text-sm font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:opacity-50"
+              >
+                取消する
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1189,6 +1422,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         toggleSelectAll={toggleSelectAll}
         toggleSelectCustomer={toggleSelectCustomer}
         clearCustomSelection={clearCustomSelection}
+        onRequestCancelTarget={handleRequestCancelTarget}
         setShowSplitModal={setShowSplitModal}
         toggleItemTakeout={toggleItemTakeout}
       />

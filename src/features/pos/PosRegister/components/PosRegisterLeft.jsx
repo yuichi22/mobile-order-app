@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Calculator, Check, ChevronLeft, RotateCcw, ShoppingBag, Store, User, Utensils } from 'lucide-react';
 import {
   formatOrderCustomerLabel,
@@ -58,11 +58,41 @@ export const PosRegisterLeft = ({
   toggleSelectAll,
   toggleSelectCustomer,
   clearCustomSelection,
+  onRequestCancelTarget,
   setShowSplitModal,
   toggleItemTakeout
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
   const isCustomMode = checkoutSelectionMode === 'custom';
+  const longPressTimerRef = useRef(null);
+  const didLongPressRef = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const startLongPress = (_event, payload) => {
+    if (!onRequestCancelTarget) return;
+
+    clearLongPress();
+    didLongPressRef.current = false;
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      didLongPressRef.current = true;
+      onRequestCancelTarget(payload);
+    }, 750);
+  };
+
+  const shouldIgnoreClickAfterLongPress = () => {
+    if (!didLongPressRef.current) return false;
+    didLongPressRef.current = false;
+    return true;
+  };
+
 
   const allVisibleItemKeys = (orders || []).flatMap((order) => (
     getUnpaidActiveItems(order, paidItemKeys).map(({ key }) => key)
@@ -155,8 +185,16 @@ export const PosRegisterLeft = ({
             >
               <button
                 type="button"
-                onClick={() => toggleSelectCustomer(customerKey)}
-                className={`flex w-full items-center justify-between border-b px-4 py-2 text-left text-xs font-bold transition-colors ${
+                onPointerDown={(event) => startLongPress(event, { type: 'customer', customerId: customerKey })}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onPointerCancel={clearLongPress}
+                onContextMenu={(event) => event.preventDefault()}
+                onClick={() => {
+                  if (shouldIgnoreClickAfterLongPress()) return;
+                  toggleSelectCustomer(customerKey);
+                }}
+                className={`flex w-full select-none items-center justify-between border-b px-4 py-2 text-left text-xs font-bold transition-colors ${
                   customerSelection.isAllSelected
                     ? 'border-blue-100 bg-blue-100 text-blue-700'
                     : customerSelection.isPartiallySelected
@@ -202,8 +240,16 @@ export const PosRegisterLeft = ({
                     >
                       <button
                         type="button"
-                        onClick={() => toggleSelect(order.id)}
-                        className="mb-2 flex w-full items-center justify-between text-left"
+                        onPointerDown={(event) => startLongPress(event, { type: 'order', orderId: order.id })}
+                        onPointerUp={clearLongPress}
+                        onPointerLeave={clearLongPress}
+                        onPointerCancel={clearLongPress}
+                        onContextMenu={(event) => event.preventDefault()}
+                        onClick={() => {
+                          if (shouldIgnoreClickAfterLongPress()) return;
+                          toggleSelect(order.id);
+                        }}
+                        className="mb-2 flex w-full select-none items-center justify-between text-left"
                       >
                         <div className="flex items-center gap-2">
                           <span className={`rounded px-2 py-0.5 text-xs font-bold ${
@@ -241,8 +287,16 @@ export const PosRegisterLeft = ({
                             <button
                               key={itemKey}
                               type="button"
-                              onClick={() => toggleSelectItem(itemKey)}
-                              className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-all ${
+                              onPointerDown={(event) => startLongPress(event, { type: 'item', itemKey })}
+                              onPointerUp={clearLongPress}
+                              onPointerLeave={clearLongPress}
+                              onPointerCancel={clearLongPress}
+                              onContextMenu={(event) => event.preventDefault()}
+                              onClick={() => {
+                                if (shouldIgnoreClickAfterLongPress()) return;
+                                toggleSelectItem(itemKey);
+                              }}
+                              className={`flex w-full select-none items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-all ${
                                 isItemSelected
                                   ? 'border-blue-200 bg-blue-50 text-blue-900'
                                   : 'border-transparent bg-white/60 text-gray-700 hover:border-gray-200 hover:bg-white'
