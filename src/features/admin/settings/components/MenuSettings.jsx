@@ -14,6 +14,7 @@ import {
   List as ListIcon,
   ListPlus,
   Plus,
+  ShoppingCart,
   Save,
   Search,
   StretchHorizontal,
@@ -27,12 +28,24 @@ import { useCategoryData, usePeriodData } from '../../../store/hooks';
 import { ALLERGEN_OPTIONS, getAllergenLabel } from '../../../../shared/constants/menuMetadata';
 import ColorPicker from '../../../../shared/components/inputs/ColorPicker';
 
+const getPhotoLabelClassName = (labelSize = 'md') => {
+  const sizeMap = {
+    sm: 'max-w-[74%] rounded-br-xl pl-[15px] pr-2.5 py-1 text-[9px]',
+    md: 'max-w-[72%] rounded-br-2xl pl-[22px] pr-3.5 py-1.5 text-[10px]',
+    wide: 'max-w-[74%] rounded-br-[1.05rem] pl-[22px] pr-4 py-2 text-[11px]',
+    lg: 'max-w-[76%] rounded-br-[1.1rem] pl-[22px] pr-4 py-2 text-[11px]'
+  };
+
+  return sizeMap[labelSize] || sizeMap.md;
+};
+
 const PreviewImage = ({
   src,
   alt,
   isSoldOut,
   labelText,
   labelColor,
+  labelSize = 'md',
   className
 }) => (
   <div className={`relative overflow-hidden bg-gray-100 ${className}`}>
@@ -45,11 +58,11 @@ const PreviewImage = ({
     )}
 
     {labelText && (
-      <div className="absolute left-3 top-3 z-20">
-        <span
-          className="inline-flex max-w-[160px] items-center rounded-full px-3 py-1 text-[10px] font-black tracking-[0.08em] text-white shadow-lg ring-1 ring-white/40"
-          style={{ backgroundColor: labelColor || '#F97316' }}
-        >
+      <div
+        className={`absolute left-0 top-0 z-20 font-black tracking-[0.08em] text-white shadow-md ${getPhotoLabelClassName(labelSize)}`}
+        style={{ backgroundColor: labelColor || '#F97316' }}
+      >
+        <span className="block truncate">
           {labelText}
         </span>
       </div>
@@ -67,18 +80,26 @@ const PreviewImage = ({
 
 const PreviewOrderButton = ({ size = 'md', disabled = false }) => {
   const sizeClasses = {
-    sm: 'h-8 w-8',
-    md: 'h-10 w-10',
-    lg: 'h-12 w-12'
+    sm: 'h-11 w-11',
+    md: 'h-12 w-12',
+    lg: 'h-[52px] w-[52px]'
+  };
+
+  const iconSizeMap = {
+    sm: 18,
+    md: 20,
+    lg: 22
   };
 
   return (
     <div
-      className={`${sizeClasses[size]} flex items-center justify-center rounded-full shadow-lg ${
-        disabled ? 'bg-gray-100 text-gray-300 shadow-none' : 'bg-orange-500 text-white shadow-orange-200'
+      className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-lg ring-1 ring-black/10 ${
+        disabled ? 'bg-white/70 text-gray-300 shadow-none' : 'bg-white text-gray-900'
       }`}
+      aria-label="カートに追加"
+      title="カートに追加"
     >
-      <Plus size={size === 'sm' ? 16 : 24} strokeWidth={3} />
+      <ShoppingCart size={iconSizeMap[size] || 20} strokeWidth={3} />
     </div>
   );
 };
@@ -1257,73 +1278,89 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                   <div className="min-h-[220px]">
                     {displayLayout === 'wide' && (
-                      <div className={`overflow-hidden rounded-[40px] border border-gray-100 bg-white shadow-sm ${editingItem.isSoldOut ? 'grayscale opacity-70' : ''}`}>
-                        <PreviewImage
-                          src={imagePreview}
-                          alt={editingItem.name}
-                          isSoldOut={editingItem.isSoldOut}
-                          labelText={editingItem.photoLabelText}
-                          labelColor={editingItem.photoLabelColor}
-                          className="h-48 w-full"
-                        />
-                        <div className="relative flex items-end justify-between p-5">
-                          <div className="absolute -top-6 right-5 rounded-full border border-gray-50 bg-white px-4 py-1 shadow-md">
-                            <span className="text-xl font-black text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
-                          </div>
-                          <div className="grow pr-4">
-                            <h3 className="mb-1 text-lg font-black text-gray-800">{editingItem.name || 'メニュー名'}</h3>
-                            <p className="line-clamp-2 text-xs text-gray-400">{editingItem.description || '商品の説明がここに表示されます。'}</p>
-                            <PreviewMeta item={editingItem} />
-                          </div>
-                          <PreviewOrderButton size="lg" disabled={editingItem.isSoldOut} />
-                        </div>
-                      </div>
-                    )}
-
-                    {displayLayout === 'grid' && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className={`flex h-full flex-col overflow-hidden rounded-[30px] border border-gray-100 bg-white shadow-sm ${editingItem.isSoldOut ? 'opacity-60' : ''}`}>
+                      <div className={`flex flex-col overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)] ${editingItem.isSoldOut ? 'grayscale opacity-70' : ''}`}>
+                        <div className="relative">
                           <PreviewImage
                             src={imagePreview}
                             alt={editingItem.name}
                             isSoldOut={editingItem.isSoldOut}
                             labelText={editingItem.photoLabelText}
                             labelColor={editingItem.photoLabelColor}
-                            className="aspect-square w-full"
+                            labelSize="wide"
+                            className="h-48 w-full"
                           />
-                          <div className="flex flex-grow flex-col p-3">
-                            <h3 className="mb-1 line-clamp-2 text-base font-black text-gray-800">{editingItem.name || 'メニュー名'}</h3>
+                          <div className="absolute bottom-4 right-4 z-20">
+                            <PreviewOrderButton size="md" disabled={editingItem.isSoldOut} />
+                          </div>
+                        </div>
+
+                        <div className="px-5 pb-5 pt-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <h3 className="min-w-0 flex-1 whitespace-pre-line line-clamp-2 text-[15px] font-black leading-snug tracking-tight text-gray-900">{editingItem.name || 'メニュー名'}</h3>
+                            <span className="shrink-0 text-lg font-black leading-tight tracking-tight text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
+                          </div>
+
+                          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-400">{editingItem.description || '商品の説明がここに表示されます。'}</p>
+                          <PreviewMeta item={editingItem} />
+                        </div>
+                      </div>
+                    )}
+
+                    {displayLayout === 'grid' && (
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <div className={`flex h-full flex-col overflow-hidden rounded-[1.6rem] border border-gray-100 bg-white shadow-[0_4px_16px_rgba(15,23,42,0.05)] ${editingItem.isSoldOut ? 'opacity-60' : ''}`}>
+                          <div className="relative">
+                            <PreviewImage
+                              src={imagePreview}
+                              alt={editingItem.name}
+                              isSoldOut={editingItem.isSoldOut}
+                              labelText={editingItem.photoLabelText}
+                              labelColor={editingItem.photoLabelColor}
+                              labelSize="sm"
+                              className="aspect-square w-full"
+                            />
+                            <div className="absolute bottom-3 right-3 z-20">
+                              <PreviewOrderButton size="sm" disabled={editingItem.isSoldOut} />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-grow flex-col px-3.5 pb-4 pt-3.5">
+                            <h3 className="whitespace-pre-line line-clamp-2 text-[13px] font-black leading-snug tracking-tight text-gray-900">{editingItem.name || 'メニュー名'}</h3>
+                            <p className="mt-1.5 line-clamp-1 text-[10px] leading-relaxed text-gray-400">{editingItem.description || '商品の説明'}</p>
                             <PreviewMeta item={editingItem} />
-                            <div className="mt-auto flex items-end justify-between">
-                              <span className="text-xl font-bold text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
-                              <PreviewOrderButton size="md" disabled={editingItem.isSoldOut} />
+                            <div className="mt-auto flex justify-end pt-2">
+                              <span className="text-[16px] font-black leading-tight tracking-tight text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/40 opacity-40">
+                        <div className="flex items-center justify-center rounded-[1.6rem] border border-dashed border-gray-300 bg-white/40 opacity-40">
                           <Utensils size={20} className="text-gray-300" />
                         </div>
                       </div>
                     )}
 
                     {displayLayout === 'list' && (
-                      <div className={`flex items-center gap-4 rounded-3xl border border-gray-100 bg-white px-2 py-2 shadow-sm ${editingItem.isSoldOut ? 'opacity-60' : ''}`}>
-                        <div className="flex min-w-0 flex-grow flex-col pl-2">
-                          <h3 className="mb-1 translate-y-[5px] truncate text-base font-bold text-gray-800">{editingItem.name || 'メニュー名'}</h3>
-                          <PreviewMeta item={editingItem} />
-                          <div className="mt-auto flex items-center justify-between pt-1">
-                            <span className="text-xl font-bold text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
-                            <PreviewOrderButton size="md" disabled={editingItem.isSoldOut} />
-                          </div>
-                        </div>
+                      <div className={`flex items-center gap-4 rounded-[1.75rem] border border-gray-100 bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)] ${editingItem.isSoldOut ? 'opacity-60' : ''}`}>
                         <PreviewImage
                           src={imagePreview}
                           alt={editingItem.name}
                           isSoldOut={editingItem.isSoldOut}
                           labelText={editingItem.photoLabelText}
                           labelColor={editingItem.photoLabelColor}
-                          className="h-[108px] w-[108px] flex-shrink-0 rounded-2xl"
+                          labelSize="sm"
+                          className="h-[104px] w-[104px] shrink-0 rounded-[1.35rem]"
                         />
+
+                        <div className="min-w-0 flex-grow">
+                          <h3 className="whitespace-pre-line line-clamp-2 text-sm font-black leading-snug tracking-tight text-gray-900">{editingItem.name || 'メニュー名'}</h3>
+                          <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-gray-400">{editingItem.description || '商品の説明がここに表示されます。'}</p>
+                          <PreviewMeta item={editingItem} />
+
+                          <div className="mt-3 flex items-center justify-between gap-3">
+                            <span className="text-lg font-black tracking-tight text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
+                            <PreviewOrderButton size="md" disabled={editingItem.isSoldOut} />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
