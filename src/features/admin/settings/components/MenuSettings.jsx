@@ -874,18 +874,30 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </p>
               </div>
             </div>
-  <button
-  type="button"
-  onClick={closeEditor}
-  className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-white/90 transition-all hover:bg-white/20 active:scale-95"
-  aria-label="閉じる"
->
-  <span>閉じる</span>
-  <X size={20} />
-</button>
+  <div className="flex items-center gap-2">
+    <button
+      type="submit"
+      form="menu-item-edit-form"
+      disabled={isProcessing}
+      className="flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black text-orange-600 shadow-sm transition-all hover:bg-orange-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Save size={18} strokeWidth={3} />
+      <span>{isProcessing ? '保存中...' : '保存'}</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={closeEditor}
+      className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-white/90 transition-all hover:bg-white/20 active:scale-95"
+      aria-label="閉じる"
+    >
+      <span>閉じる</span>
+      <X size={20} />
+    </button>
+  </div>
           </div>
 
-          <form onSubmit={handleSave} className="bg-gray-50/30 p-8">
+          <form id="menu-item-edit-form" onSubmit={handleSave} className="bg-gray-50/30 p-8">
             <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 xl:grid-cols-12">
               <div className="flex flex-col gap-8 xl:col-span-7">
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
@@ -1630,7 +1642,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                 className="flex items-center gap-3 rounded-xl bg-orange-500 px-16 py-4 text-lg font-black text-white shadow-xl shadow-orange-200 transition-all hover:bg-orange-600"
               >
               {isProcessing ? <LoadingSpinner size={24} /> : <Save size={24} strokeWidth={3} />}
-                保存して反映
+                保存
               </button>
             </div>
           </form>
@@ -1657,8 +1669,18 @@ const handleClearLimitedQuantity = async (event, item) => {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="商品名で検索"
-                  className="h-12 w-[220px] rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm font-bold text-gray-700 outline-none focus:border-orange-400"
+                  className="h-12 w-[220px] rounded-xl border border-gray-200 bg-white pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-orange-400"
                 />
+                {keyword.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setKeyword('')}
+                    className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-all hover:bg-gray-200 hover:text-gray-600 active:scale-95"
+                    aria-label="検索文字を消す"
+                  >
+                    <X size={14} strokeWidth={3} />
+                  </button>
+                )}
               </div>
               <button
                 type="button"
