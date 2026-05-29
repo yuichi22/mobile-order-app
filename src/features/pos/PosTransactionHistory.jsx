@@ -378,6 +378,14 @@ export const PosTransactionHistory = ({ storeId }) => {
     return map;
   }, [transactions]);
 
+  const toDateInputValue = (dateObj) => {
+    if (!dateObj) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const groupedTickets = useMemo(() => {
     const grouped = new Map();
 
@@ -399,6 +407,13 @@ export const PosTransactionHistory = ({ storeId }) => {
           taxAmountReduced: 0,
           taxAmountStandard: 0,
           discountAmount: 0,
+          guestCount: Number(
+            order.guestCount ||
+            order.numberOfGuests ||
+            order.partySize ||
+            order.customerCount ||
+            0
+          ),
           paymentMethod: order.paymentMethod,
           orderIds: [],
           items: []
@@ -423,6 +438,16 @@ export const PosTransactionHistory = ({ storeId }) => {
       ticket.taxAmountReduced += Number(order.taxAmountReduced || 0);
       ticket.taxAmountStandard += Number(order.taxAmountStandard || 0);
       ticket.discountAmount += Number(order.discountAmount || 0);
+      ticket.guestCount = Math.max(
+        Number(ticket.guestCount || 0),
+        Number(
+          order.guestCount ||
+          order.numberOfGuests ||
+          order.partySize ||
+          order.customerCount ||
+          0
+        )
+      );
       if (Array.isArray(order.items)) {
         ticket.items = [...ticket.items, ...order.items];
       }
@@ -447,6 +472,149 @@ export const PosTransactionHistory = ({ storeId }) => {
         taxRates: resolveTicketTaxRates(ticket.items, settings)
       }));
   }, [orders, settings, transactionsBySession]);
+
+  const paidSessionTickets = useMemo(() => {
+    const grouped = new Map();
+
+    orders.forEach((order) => {
+      const isPaidActiveOrder =
+        order?.paymentStatus === 'paid' &&
+        order?.status !== 'cancelled' &&
+        order?.paymentStatus !== 'cancelled' &&
+        toDateInputValue(order.paidAt) === selectedPaidDate;
+
+      const isSameBusinessDate =
+        toDateInputValue(order.paidAt || order.timestamp) === selectedPaidDate;
+
+      if (!isPaidActiveOrder && !isSameBusinessDate) return;
+
+      const sessionKey = order.sessionId || `single-${order.id}`;
+
+      if (!grouped.has(sessionKey)) {
+        grouped.set(sessionKey, {
+          id: `paid-session-${sessionKey}`,
+          sourceSessionId: sessionKey,
+          sessionId: order.sessionId || '',
+          tableId: order.tableId,
+          tableDisplayName: order.tableDisplayName || order.tableName || '',
+          tableName: order.tableName || order.tableDisplayName || '',
+          timestamp: order.timestamp,
+          paidAt: order.paidAt,
+          status: 'paid',
+          totalPrice: 0,
+          subtotal: 0,
+          taxAmountReduced: 0,
+          taxAmountStandard: 0,
+          discountAmount: 0,
+          guestCount: Number(
+            order.guestCount ||
+            order.numberOfGuests ||
+            order.partySize ||
+            order.customerCount ||
+            0
+          ),
+          paymentMethod: '',
+          paymentBreakdown: [],
+          orderIds: [],
+          items: [],
+          paidOrders: [],
+          excludedOrders: []
+        });
+      }
+
+      const ticket = grouped.get(sessionKey);
+
+      if (order.timestamp && (!ticket.timestamp || order.timestamp < ticket.timestamp)) {
+        ticket.timestamp = order.timestamp;
+      }
+
+      if (order.paidAt && (!ticket.paidAt || order.paidAt > ticket.paidAt)) {
+        ticket.paidAt = order.paidAt;
+      }
+
+      const orderTotal = Number(order.totalPrice || 0);
+      const paymentMethod = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
+      ticket.guestCount = Math.max(
+        Number(ticket.guestCount || 0),
+        Number(
+          order.guestCount ||
+          order.numberOfGuests ||
+          order.partySize ||
+          order.customerCount ||
+          0
+        )
+      );
+
+      if (isPaidActiveOrder) {
+        if (paidPaymentFilter !== 'all' && paymentMethod !== paidPaymentFilter) return;
+
+        ticket.orderIds.push(order.id);
+        ticket.paidOrders.push({
+          id: order.id,
+          totalPrice: orderTotal,
+          paymentMethod,
+          timestamp: order.timestamp,
+          paidAt: order.paidAt,
+          items: Array.isArray(order.items) ? order.items : []
+        });
+
+        ticket.totalPrice += orderTotal;
+        ticket.subtotal += Number(order.subtotal || orderTotal || 0);
+        ticket.taxAmountReduced += Number(order.taxAmountReduced || 0);
+        ticket.taxAmountStandard += Number(order.taxAmountStandard || 0);
+        ticket.discountAmount += Number(order.discountAmount || 0);
+
+        if (Array.isArray(order.items)) {
+          ticket.items = [...ticket.items, ...order.items];
+        }
+
+        const existingBreakdown = ticket.paymentBreakdown.find((entry) => entry.method === paymentMethod);
+        if (existingBreakdown) {
+          existingBreakdown.count += 1;
+          existingBreakdown.total += orderTotal;
+        } else {
+          ticket.paymentBreakdown.push({
+            method: paymentMethod,
+            label: formatPaymentMethod(paymentMethod),
+            count: 1,
+            total: orderTotal
+          });
+        }
+
+        ticket.paymentMethod = ticket.paymentBreakdown.length === 1
+          ? ticket.paymentBreakdown[0].method
+          : 'mixed';
+
+        return;
+      }
+
+      ticket.excludedOrders.push({
+        id: order.id,
+        totalPrice: orderTotal,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        timestamp: order.timestamp,
+        paidAt: order.paidAt
+      });
+    });
+
+    return Array.from(grouped.values())
+      .filter((ticket) => ticket.paidOrders.length > 0)
+      .map((ticket) => {
+        const items = consolidateTicketItems(ticket.items);
+
+        return {
+          ...ticket,
+          items,
+          taxRates: resolveTicketTaxRates(items, settings)
+        };
+      })
+      .sort((left, right) => {
+        const leftTime = left.paidAt?.getTime?.() || left.timestamp?.getTime?.() || 0;
+        const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
+        return rightTime - leftTime;
+      });
+  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate, settings]);
 
   const clearCloseTicketLongPress = () => {
     if (closeTicketTimerRef.current) {
@@ -568,14 +736,6 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
   };
 
-  const toDateInputValue = (dateObj) => {
-    if (!dateObj) return '';
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const getTicketBusinessDate = (ticket) => {
     const targetDate = ticket?.paidAt || ticket?.timestamp || null;
     return toDateInputValue(targetDate);
@@ -598,11 +758,7 @@ export const PosTransactionHistory = ({ storeId }) => {
 
   const filteredTickets = useMemo(() => {
     if (filter === 'paid') {
-      return groupedTickets.filter((ticket) => (
-        ticket.status === 'paid' &&
-        getTicketBusinessDate(ticket) === selectedPaidDate &&
-        ticketMatchesPaidPaymentFilter(ticket)
-      ));
+      return paidSessionTickets;
     }
 
     if (filter === 'unpaid') {
@@ -614,7 +770,7 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
 
     return groupedTickets;
-  }, [filter, groupedTickets, paidPaymentFilter, selectedPaidDate]);
+  }, [filter, groupedTickets, paidSessionTickets]);
 
   const paidPaymentSummary = useMemo(() => {
     const base = {
@@ -646,6 +802,66 @@ export const PosTransactionHistory = ({ storeId }) => {
   const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
     sum + Number(entry.total || 0)
   ), 0);
+
+  const formatOrderStatusLabel = (order) => {
+    if (order?.status === 'cancelled' || order?.paymentStatus === 'cancelled') return 'キャンセル';
+    if (order?.paymentStatus === 'paid') return '会計済み';
+    if (order?.paymentStatus === 'unpaid') return '未会計';
+    return order?.status || order?.paymentStatus || '未処理';
+  };
+
+  const formatOrderStatusClass = (order) => {
+    if (order?.status === 'cancelled' || order?.paymentStatus === 'cancelled') {
+      return 'bg-red-50 text-red-600';
+    }
+
+    if (order?.paymentStatus === 'paid') {
+      return 'bg-green-50 text-green-600';
+    }
+
+    return 'bg-orange-50 text-orange-600';
+  };
+
+  const formatPaymentBadgeClass = (method) => {
+    const key = getPaymentMethodKey(method);
+
+    if (key === 'cash') {
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    }
+
+    if (key === 'card') {
+      return 'border-blue-200 bg-blue-50 text-blue-700';
+    }
+
+    if (key === 'qr') {
+      return 'border-purple-200 bg-purple-50 text-purple-700';
+    }
+
+    return 'border-gray-200 bg-gray-50 text-gray-600';
+  };
+
+  const formatShortOrderId = (orderId) => {
+    const value = String(orderId || '');
+    return value ? value.slice(0, 6) : '------';
+  };
+
+  const formatSourceSessionLabel = (ticket) => {
+    const value = String(ticket?.sourceSessionId || ticket?.sessionId || '').trim();
+    if (!value || value.startsWith('single-')) return '';
+
+    return value.slice(0, 8);
+  };
+
+  const formatGuestCount = (ticket) => {
+    const count = Number(ticket?.guestCount || 0);
+    return count > 0 ? `${count}名` : '人数未設定';
+  };
+
+  const formatTicketPaidTime = (ticket, isPaid, isCancelled) => {
+    if (isCancelled) return 'キャンセル';
+    if (!isPaid) return '未会計';
+    return formatTime(ticket?.paidAt);
+  };
 
   const formatTime = (dateObj) => {
     if (!dateObj) return '---';
@@ -765,14 +981,20 @@ export const PosTransactionHistory = ({ storeId }) => {
           </div>
         )}
 
-        {!loading && filteredTickets.map((ticket) => {
+        {!loading && filteredTickets.map((ticket, index) => {
           const isExpanded = expandedTicketId === ticket.id;
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
+          const ticketCardDomId = `pos-ticket-card-${String(ticket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+          const previousTicket = filteredTickets[index - 1] || null;
+          const previousTicketCardDomId = previousTicket
+            ? `pos-ticket-card-${String(previousTicket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
+            : '';
 
           return (
             <div
+              id={ticketCardDomId}
               key={ticket.id}
               className={`relative overflow-hidden rounded-xl border bg-white ${
                 isExpanded ? 'z-10 border-gray-200 shadow-lg ring-1 ring-gray-200' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
@@ -780,7 +1002,24 @@ export const PosTransactionHistory = ({ storeId }) => {
             >
               <div
                 className="group flex cursor-pointer select-none items-center justify-between p-4"
-                onClick={() => setExpandedTicketId(isExpanded ? null : ticket.id)}
+                onClick={() => {
+                  const nextExpandedTicketId = isExpanded ? null : ticket.id;
+                  setExpandedTicketId(nextExpandedTicketId);
+
+                  if (nextExpandedTicketId) {
+                    window.setTimeout(() => {
+                      const scrollTarget =
+                        previousTicketCardDomId
+                          ? document.getElementById(previousTicketCardDomId)
+                          : document.getElementById(ticketCardDomId);
+
+                      scrollTarget?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                      });
+                    }, 80);
+                  }
+                }}
               >
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-3">
@@ -799,21 +1038,38 @@ export const PosTransactionHistory = ({ storeId }) => {
                       {isCancelled ? 'キャンセル' : isPaid ? '会計済み' : '未会計'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] font-bold tabular-nums text-gray-400">
-                    <span>{ticket.timestamp.toLocaleDateString('ja-JP')}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
+                    <span>注文 {formatTime(ticket.timestamp)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span>{formatTime(ticket.timestamp)}</span>
+                    <span>会計 {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
+                    <span className="h-1 w-1 rounded-full bg-gray-300" />
+                    <span>{formatGuestCount(ticket)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
                     <span>{totalItemsCount}点</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
                     <span className="text-xl font-black leading-none tabular-nums text-gray-900">
                       ¥{Number(ticket.totalPrice || 0).toLocaleString()}
                     </span>
                   </div>
+
+                  {isPaid && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        printReceipt(ticket, settings);
+                      }}
+                      className="hidden h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 sm:flex"
+                    >
+                      <Printer size={13} />
+                      レシート再印刷
+                    </button>
+                  )}
+
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                     isExpanded ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200 group-hover:text-gray-600'
                   }`}>
@@ -841,77 +1097,98 @@ export const PosTransactionHistory = ({ storeId }) => {
                       </button>
                     )}
 
-                    <div className="mt-3 flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 text-xs shadow-sm">
-                      <div className="flex flex-col px-2">
-                        <span className="mb-1 text-[9px] font-bold uppercase tracking-widest text-gray-400">注文時刻</span>
-                        <span className="text-sm font-black tabular-nums text-gray-800">{formatTime(ticket.timestamp)}</span>
-                      </div>
-                      <div className="relative flex flex-grow items-center justify-center">
-                          <div
-                            className={`absolute h-px w-full ${
-                              isCancelled
-                                ? 'border-t border-dashed border-red-200 bg-red-200'
-                                : isPaid
-                                  ? 'bg-green-200'
-                                  : 'border-t border-dashed border-orange-200 bg-orange-200'
-                            }`}
-                          />
-                          <ChevronDown
-                            size={16}
-                            className={`relative rotate-[-90deg] bg-white px-1 ${
-                              isCancelled
-                                ? 'text-red-300'
-                                : isPaid
-                                  ? 'text-green-400'
-                                  : 'text-orange-300'
-                            }`}
-                          />
-                      </div>
-                      <div className="flex flex-col px-2 text-right">
-                        <span className="mb-1 text-[9px] font-bold uppercase tracking-widest text-gray-400">会計時刻</span>
-                          <span
-                            className={`text-sm font-black tabular-nums ${
-                              isCancelled
-                                ? 'text-red-500'
-                                : isPaid
-                                  ? 'text-gray-800'
-                                  : 'text-orange-500'
-                            }`}
-                          >
-                            {isCancelled ? 'キャンセル' : isPaid ? formatTime(ticket.paidAt) : '未会計'}
-                          </span>
-                      </div>
-                    </div>
-
-                    {isPaid && (
-                      <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3 text-xs shadow-sm">
-                        <div className="flex items-center gap-4">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">支払い方法</span>
-                          <div className="flex items-center gap-2 font-black text-gray-700">
-                            {ticket.paymentMethod === 'qr' || ticket.paymentMethod === 'paypay'
-                              ? <QrCode size={14} className="text-blue-500" />
-                              : <CreditCard size={14} className="text-blue-500" />}
-                            <div className="flex flex-col">
-                              <span>{formatPaymentMethod(ticket.paymentMethod)}</span>
-                              {Array.isArray(ticket.paymentBreakdown) && ticket.paymentBreakdown.length > 1 && (
-                                <span className="mt-0.5 text-[10px] font-bold text-gray-400">
-                                  {formatPaymentBreakdownText(ticket.paymentBreakdown)}
-                                </span>
-                              )}
-                            </div>
+                    {isPaid && Array.isArray(ticket.paidOrders) && ticket.paidOrders.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-green-100 bg-green-50/50 p-4 shadow-sm">
+                        <div className="mb-3 flex items-center justify-between border-b border-green-100 pb-2">
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-green-700">
+                              この会計に含まれる支払い
+                            </h4>
+                            {formatSourceSessionLabel(ticket) && (
+                              <p className="mt-1 text-[10px] font-bold text-green-500">
+                                同一伝票: {formatSourceSessionLabel(ticket)}
+                              </p>
+                            )}
                           </div>
+                          <span className="text-[10px] font-black tabular-nums text-green-700">
+                            {ticket.paidOrders.length}件
+                          </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            printReceipt(ticket, settings);
-                          }}
-                          className="flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-bold text-gray-700 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
-                        >
-                          <Printer size={14} />
-                          レシート再印刷
-                        </button>
+
+                        <div className="space-y-2">
+                          {ticket.paidOrders.map((order) => (
+                            <div
+                              key={`${ticket.id}-paid-${order.id}`}
+                              className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs shadow-sm"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`rounded-lg border px-2 py-0.5 text-[10px] font-black ${formatPaymentBadgeClass(order.paymentMethod)}`}>
+                                    {formatPaymentMethod(order.paymentMethod)}
+                                  </span>
+                                  <span className="font-black tabular-nums text-gray-700">
+                                    支払い {formatShortOrderId(order.id)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-2 pl-3">
+                                <span className={`hidden rounded-full border px-2 py-0.5 text-[10px] font-black sm:inline-flex ${formatPaymentBadgeClass(order.paymentMethod)}`}>
+                                  {formatPaymentMethod(order.paymentMethod)}
+                                </span>
+                                <span className="text-sm font-black tabular-nums text-gray-900">
+                                  ¥{Number(order.totalPrice || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {isPaid && Array.isArray(ticket.excludedOrders) && ticket.excludedOrders.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                        <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-2">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            除外された注文
+                          </h4>
+                          <span className="text-[10px] font-black tabular-nums text-gray-400">
+                            {ticket.excludedOrders.length}件
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {ticket.excludedOrders.map((order) => (
+                            <div
+                              key={`${ticket.id}-excluded-${order.id}`}
+                              className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`rounded px-2 py-0.5 text-[10px] font-black ${formatOrderStatusClass(order)}`}>
+                                    {formatOrderStatusLabel(order)}
+                                  </span>
+                                  <span className="font-black tabular-nums text-gray-600">
+                                    注文 {formatShortOrderId(order.id)}
+                                  </span>
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-gray-400">
+                                  <span>注文 {formatTime(order.timestamp)}</span>
+                                  {order.paidAt && (
+                                    <>
+                                      <span>/</span>
+                                      <span>会計 {formatTime(order.paidAt)}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              <span className="shrink-0 pl-3 text-sm font-black tabular-nums text-gray-400">
+                                ¥{Number(order.totalPrice || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
