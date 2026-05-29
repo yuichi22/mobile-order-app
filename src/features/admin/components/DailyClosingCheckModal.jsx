@@ -46,6 +46,119 @@ const getCouponUnitValue = (discount) => {
   return 0;
 };
 
+
+const NumericInputModal = ({
+  isOpen,
+  title,
+  description,
+  value,
+  suffix = '',
+  onChange,
+  onClose,
+  onConfirm
+}) => {
+  if (!isOpen) return null;
+
+  const normalizedValue = String(value || '');
+
+  const appendValue = (nextValue) => {
+    const merged = `${normalizedValue}${nextValue}`.replace(/^0+(?=\d)/, '');
+    onChange(merged);
+  };
+
+  const removeLast = () => {
+    onChange(normalizedValue.slice(0, -1));
+  };
+
+  const clearValue = () => {
+    onChange('');
+  };
+
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0'];
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div className="min-w-0">
+            <div className="text-xs font-black text-orange-500">
+              数字入力
+            </div>
+            <h3 className="mt-1 truncate text-lg font-black text-gray-900">
+              {title}
+            </h3>
+            {description && (
+              <p className="mt-1 text-xs font-bold text-gray-400">
+                {description}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+            aria-label="閉じる"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5">
+          <div className="mb-4 rounded-2xl bg-gray-50 px-4 py-4 text-right">
+            <div className="min-h-[2.5rem] font-mono text-4xl font-black tracking-tight text-gray-900">
+              {normalizedValue ? Number(normalizedValue).toLocaleString() : '0'}
+              {suffix && (
+                <span className="ml-1 text-base font-black text-gray-400">
+                  {suffix}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {keys.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => appendValue(key)}
+                className="h-14 rounded-2xl bg-gray-100 text-xl font-black text-gray-900 transition-colors hover:bg-gray-200 active:scale-[0.98]"
+              >
+                {key}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={removeLast}
+              className="h-14 rounded-2xl bg-gray-100 text-lg font-black text-gray-700 transition-colors hover:bg-gray-200 active:scale-[0.98]"
+            >
+              ←
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={clearValue}
+              className="h-12 rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition-colors hover:bg-gray-200"
+            >
+              クリア
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="h-12 rounded-2xl bg-gray-900 text-sm font-black text-white transition-colors hover:bg-black"
+            >
+              決定
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DailyClosingCheckModal = ({
   isOpen,
   dateKey,
@@ -80,6 +193,7 @@ const DailyClosingCheckModal = ({
   const [qrActualAmountInput, setQrActualAmountInput] = useState('');
   const [isEditingChangeFund, setIsEditingChangeFund] = useState(false);
   const [changeFundAmountInput, setChangeFundAmountInput] = useState(() => String(Number(changeFundAmount || 0) || ''));
+  const [numericModal, setNumericModal] = useState(null);
 
   const actualCashAmount = useMemo(() => (
     DENOMINATIONS.reduce((sum, item) => (
@@ -142,6 +256,38 @@ const DailyClosingCheckModal = ({
     }));
   };
 
+  const openNumericModal = ({ target, title, description = '', value = '', suffix = '' }) => {
+    setNumericModal({
+      target,
+      title,
+      description,
+      value: String(value || ''),
+      suffix
+    });
+  };
+
+  const updateNumericModalValue = (value) => {
+    setNumericModal((previous) => previous ? {
+      ...previous,
+      value: String(value || '').replace(/[^0-9]/g, '')
+    } : previous);
+  };
+
+  const applyNumericModalValue = () => {
+    if (!numericModal) return;
+
+    const nextValue = String(numericModal.value || '').replace(/[^0-9]/g, '');
+    const target = numericModal.target || {};
+
+    if (target.type === 'denomination') updateDenomination(target.key, nextValue);
+    if (target.type === 'coupon') updateCouponCount(target.id, nextValue);
+    if (target.type === 'card') setCardActualAmountInput(nextValue);
+    if (target.type === 'qr') setQrActualAmountInput(nextValue);
+    if (target.type === 'changeFund') setChangeFundAmountInput(nextValue);
+
+    setNumericModal(null);
+  };
+
   const handleSaveChangeFund = async () => {
     if (!onSaveChangeFundAmount) return;
 
@@ -193,7 +339,8 @@ const DailyClosingCheckModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 print:hidden">
+    <>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 print:hidden">
       <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
@@ -302,10 +449,16 @@ const DailyClosingCheckModal = ({
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
+                      readOnly
                       value={changeFundAmountInput}
-                      onChange={(event) => setChangeFundAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
-                      onFocus={(event) => event.target.select()}
-                      className="h-9 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+                      onClick={() => openNumericModal({
+                        target: { type: 'changeFund' },
+                        title: '釣り銭用レジ金',
+                        description: '毎日使う釣り銭用のレジ金を入力してください',
+                        value: changeFundAmountInput,
+                        suffix: '円'
+                      })}
+                      className="h-9 min-w-0 flex-1 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
                       placeholder="100000"
                     />
                     <button
@@ -396,12 +549,19 @@ const DailyClosingCheckModal = ({
 
                         <div className="flex shrink-0 items-center gap-2">
                           <input
-                            type="number"
+                            type="text"
                             inputMode="numeric"
-                            min="0"
+                            pattern="[0-9]*"
+                            readOnly
                             value={couponCounts[item.id] || ''}
-                            onChange={(event) => updateCouponCount(item.id, event.target.value)}
-                            className="h-7 w-14 rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                            onClick={() => openNumericModal({
+                              target: { type: 'coupon', id: item.id },
+                              title: `${item.name}の枚数`,
+                              description: 'クーポン・値引きの確認枚数を入力してください',
+                              value: couponCounts[item.id] || '',
+                              suffix: '枚'
+                            })}
+                            className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                             placeholder="0"
                           />
                           <span className="text-[9px] font-bold text-gray-400">枚</span>
@@ -448,10 +608,16 @@ const DailyClosingCheckModal = ({
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
+                        readOnly
                         value={denominations[item.key]}
-                        onChange={(event) => updateDenomination(item.key, event.target.value.replace(/[^0-9]/g, ''))}
-                        onFocus={(event) => event.target.select()}
-                        className="h-10 w-20 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                        onClick={() => openNumericModal({
+                          target: { type: 'denomination', key: item.key },
+                          title: `${item.label}の枚数`,
+                          description: '金種枚数を入力してください',
+                          value: denominations[item.key],
+                          suffix: '枚'
+                        })}
+                        className="h-10 w-20 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                         placeholder="0"
                       />
                       <span className="text-xs font-bold text-gray-400">枚</span>
@@ -505,10 +671,16 @@ const DailyClosingCheckModal = ({
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
+                  readOnly
                   value={cardActualAmountInput}
-                  onChange={(event) => setCardActualAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
-                  onFocus={(event) => event.target.select()}
-                  className="h-12 w-full rounded-xl border border-blue-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  onClick={() => openNumericModal({
+                    target: { type: 'card' },
+                    title: 'カード端末の決済合計',
+                    description: 'カード端末側の合計金額を入力してください',
+                    value: cardActualAmountInput,
+                    suffix: '円'
+                  })}
+                  className="h-12 w-full cursor-pointer rounded-xl border border-blue-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   placeholder="0"
                 />
               </label>
@@ -558,10 +730,16 @@ const DailyClosingCheckModal = ({
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
+                  readOnly
                   value={qrActualAmountInput}
-                  onChange={(event) => setQrActualAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
-                  onFocus={(event) => event.target.select()}
-                  className="h-12 w-full rounded-xl border border-purple-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  onClick={() => openNumericModal({
+                    target: { type: 'qr' },
+                    title: 'QR決済サイトの集計金額',
+                    description: 'QR決済サイト側の合計金額を入力してください',
+                    value: qrActualAmountInput,
+                    suffix: '円'
+                  })}
+                  className="h-12 w-full cursor-pointer rounded-xl border border-purple-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
                   placeholder="0"
                 />
               </label>
@@ -612,6 +790,18 @@ const DailyClosingCheckModal = ({
         </div>
       </div>
     </div>
+
+      <NumericInputModal
+        isOpen={Boolean(numericModal)}
+        title={numericModal?.title || ''}
+        description={numericModal?.description || ''}
+        value={numericModal?.value || ''}
+        suffix={numericModal?.suffix || ''}
+        onChange={updateNumericModalValue}
+        onClose={() => setNumericModal(null)}
+        onConfirm={applyNumericModalValue}
+      />
+    </>
   );
 };
 
