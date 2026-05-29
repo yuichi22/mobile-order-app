@@ -3,7 +3,9 @@ import {
   AlertTriangle,
   Banknote,
   CheckCircle2,
+  CreditCard,
   Loader2,
+  QrCode,
   TicketPercent,
   X
 } from 'lucide-react';
@@ -49,6 +51,8 @@ const DailyClosingCheckModal = ({
   dateKey,
   summary,
   discountList = [],
+  changeFundAmount = 0,
+  onSaveChangeFundAmount,
   onClose,
   onConfirm,
   isProcessing
@@ -68,7 +72,14 @@ const DailyClosingCheckModal = ({
   ));
 
   const expectedCashAmount = Number(summary?.cashSales || 0);
+  const expectedCardAmount = Number(summary?.cardSales || 0);
+  const expectedQrAmount = Number(summary?.qrSales || 0);
   const expectedCouponAmount = Number(summary?.discountTotal || 0);
+
+  const [cardActualAmountInput, setCardActualAmountInput] = useState('');
+  const [qrActualAmountInput, setQrActualAmountInput] = useState('');
+  const [isEditingChangeFund, setIsEditingChangeFund] = useState(false);
+  const [changeFundAmountInput, setChangeFundAmountInput] = useState(() => String(Number(changeFundAmount || 0) || ''));
 
   const actualCashAmount = useMemo(() => (
     DENOMINATIONS.reduce((sum, item) => (
@@ -101,9 +112,21 @@ const DailyClosingCheckModal = ({
   ), [couponCounts, discountList]);
 
   const actualCouponAmount = couponCheckItems.reduce((sum, item) => sum + item.actualAmount, 0);
-  const cashDifference = actualCashAmount - expectedCashAmount;
+  const actualCardAmount = toNumber(cardActualAmountInput);
+  const actualQrAmount = toNumber(qrActualAmountInput);
+  const normalizedChangeFundAmount = Math.max(Math.round(Number(changeFundAmount || 0) || 0), 0);
+  const expectedDrawerAmount = expectedCashAmount + normalizedChangeFundAmount;
+
+  const cashDifference = actualCashAmount - expectedDrawerAmount;
+  const cardDifference = actualCardAmount - expectedCardAmount;
+  const qrDifference = actualQrAmount - expectedQrAmount;
   const couponDifference = actualCouponAmount - expectedCouponAmount;
-  const hasDifference = cashDifference !== 0 || couponDifference !== 0;
+
+  const hasDifference =
+    cashDifference !== 0 ||
+    cardDifference !== 0 ||
+    qrDifference !== 0 ||
+    couponDifference !== 0;
 
   const updateDenomination = (key, value) => {
     setDenominations((previous) => ({
@@ -119,10 +142,19 @@ const DailyClosingCheckModal = ({
     }));
   };
 
+  const handleSaveChangeFund = async () => {
+    if (!onSaveChangeFundAmount) return;
+
+    const normalizedAmount = Math.max(Math.round(Number(changeFundAmountInput) || 0), 0);
+    await onSaveChangeFundAmount(normalizedAmount);
+    setChangeFundAmountInput(String(normalizedAmount || ''));
+    setIsEditingChangeFund(false);
+  };
+
   const handleConfirm = () => {
     if (hasDifference) {
       const ok = window.confirm(
-        '現金またはクーポンに差額があります。この内容で締め保存しますか？'
+        '現金・カード・QR決済・クーポンのいずれかに差額があります。この内容で締め保存しますか？'
       );
 
       if (!ok) return;
@@ -131,6 +163,8 @@ const DailyClosingCheckModal = ({
     onConfirm({
       cashCheck: {
         expectedCashAmount,
+        expectedDrawerAmount,
+        changeFundAmount: normalizedChangeFundAmount,
         actualCashAmount,
         difference: cashDifference,
         denominations: DENOMINATIONS.reduce((acc, item) => {
@@ -143,6 +177,15 @@ const DailyClosingCheckModal = ({
         actualTotalAmount: actualCouponAmount,
         difference: couponDifference,
         items: couponCheckItems
+      },
+      externalPaymentCheck: {
+        expectedCardAmount,
+        actualCardAmount,
+        cardDifference,
+        expectedQrAmount,
+        actualQrAmount,
+        qrDifference,
+        difference: cardDifference + qrDifference
       }
     });
   };
@@ -151,7 +194,7 @@ const DailyClosingCheckModal = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 print:hidden">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
             <div className="flex items-center gap-2 text-xs font-black text-orange-500">
@@ -162,7 +205,7 @@ const DailyClosingCheckModal = ({
               {dateKey} の締め確認
             </h2>
             <p className="mt-1 text-xs font-bold text-gray-400">
-              金種とクーポン枚数を確認してから日計を保存します。
+              金種・カード端末・QR決済サイト・クーポン枚数を確認してから日計を保存します。
             </p>
           </div>
 
@@ -177,13 +220,13 @@ const DailyClosingCheckModal = ({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <section className="rounded-2xl border border-gray-100 p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <section className="rounded-2xl border border-gray-100 p-4 xl:col-start-1 xl:row-start-1">
                 <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-black text-gray-800">
                     <Banknote size={17} />
-                    現金確認
+                    レジ金確認
                 </div>
 
                 {cashDifference === 0 ? (
@@ -205,12 +248,18 @@ const DailyClosingCheckModal = ({
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(expectedCashAmount)}
                   </div>
+                  <div className="mt-1 text-[10px] font-bold text-gray-400">
+                    レジ金 {formatCurrency(normalizedChangeFundAmount)}
+                  </div>
                 </div>
 
                 <div className="rounded-xl bg-orange-50 p-3">
                   <div className="text-[11px] font-black text-orange-500">実査額</div>
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(actualCashAmount)}
+                  </div>
+                  <div className="mt-1 text-[10px] font-bold text-orange-500">
+                    期待額 {formatCurrency(expectedDrawerAmount)}
                   </div>
                 </div>
 
@@ -226,33 +275,53 @@ const DailyClosingCheckModal = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {DENOMINATIONS.map((item) => (
-                  <label
-                    key={item.key}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-4 py-3"
-                  >
-                    <span className="text-sm font-black text-gray-700">
-                      {item.label}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        value={denominations[item.key]}
-                        onChange={(event) => updateDenomination(item.key, event.target.value)}
-                        className="h-10 w-20 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                        placeholder="0"
-                      />
-                      <span className="text-xs font-bold text-gray-400">枚</span>
+              <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-black text-gray-400">釣り銭用レジ金</div>
+                    <div className="mt-0.5 text-base font-black text-gray-900">
+                      {formatCurrency(normalizedChangeFundAmount)}
                     </div>
-                  </label>
-                ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChangeFundAmountInput(String(normalizedChangeFundAmount || ''));
+                      setIsEditingChangeFund((previous) => !previous);
+                    }}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
+                  >
+                    変更
+                  </button>
+                </div>
+
+                {isEditingChangeFund && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={changeFundAmountInput}
+                      onChange={(event) => setChangeFundAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
+                      onFocus={(event) => event.target.select()}
+                      className="h-9 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+                      placeholder="100000"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveChangeFund}
+                      className="h-9 rounded-xl bg-gray-900 px-4 text-xs font-black text-white hover:bg-black"
+                    >
+                      保存
+                    </button>
+                  </div>
+                )}
               </div>
+
             </section>
 
-            <section className="rounded-2xl border border-gray-100 p-4">
+            <section className="rounded-2xl border border-gray-100 p-4 xl:col-start-2 xl:row-start-1">
                 <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-black text-gray-800">
                     <TicketPercent size={17} />
@@ -332,10 +401,10 @@ const DailyClosingCheckModal = ({
                             min="0"
                             value={couponCounts[item.id] || ''}
                             onChange={(event) => updateCouponCount(item.id, event.target.value)}
-                            className="h-10 w-20 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                            className="h-7 w-14 rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                             placeholder="0"
                           />
-                          <span className="text-xs font-bold text-gray-400">枚</span>
+                          <span className="text-[9px] font-bold text-gray-400">枚</span>
                         </div>
                       </div>
 
@@ -354,20 +423,164 @@ const DailyClosingCheckModal = ({
                 )}
               </div>
             </section>
-          </div>
+             <section className="rounded-2xl border border-gray-100 p-2.5 xl:col-start-1 xl:row-start-2 xl:row-span-2">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-black text-gray-800">
+                  <Banknote size={16} />
+                  金種入力
+                </div>
+                <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-500">
+                  実査額 {formatCurrency(actualCashAmount)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                {DENOMINATIONS.map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex items-center justify-between gap-1.5 rounded-lg bg-gray-50 px-2.5 py-1.5"
+                  >
+                    <span className="text-[11px] font-black text-gray-700">
+                      {item.label}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={denominations[item.key]}
+                        onChange={(event) => updateDenomination(item.key, event.target.value.replace(/[^0-9]/g, ''))}
+                        onFocus={(event) => event.target.select()}
+                        className="h-10 w-20 rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                        placeholder="0"
+                      />
+                      <span className="text-xs font-bold text-gray-400">枚</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="flex h-full flex-col rounded-2xl border border-blue-100 bg-blue-50/30 p-4 xl:col-start-2 xl:row-start-2">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-black text-blue-800">
+                  <CreditCard size={17} />
+                  カード端末確認
+                </div>
+
+                {cardDifference === 0 ? (
+                  <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                    <CheckCircle2 size={14} />
+                    差額なし
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
+                    <AlertTriangle size={14} />
+                    差額あり
+                  </div>
+                )}
+              </div>
+
+              <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-black ${
+                cardDifference === 0
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                <span className="shrink-0">
+                  システム {formatCurrency(expectedCardAmount)}
+                </span>
+                <span className="shrink-0">
+                  端末 {formatCurrency(actualCardAmount)}
+                </span>
+                <span className="shrink-0">
+                  差額 {cardDifference > 0 ? '+' : ''}{formatCurrency(cardDifference)}
+                </span>
+              </div>
+
+              <label className="mt-auto block">
+                <span className="mb-2 block text-xs font-black text-blue-700">
+                  カード端末の決済合計
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={cardActualAmountInput}
+                  onChange={(event) => setCardActualAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
+                  onFocus={(event) => event.target.select()}
+                  className="h-12 w-full rounded-xl border border-blue-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  placeholder="0"
+                />
+              </label>
+            </section>
+
+            <section className="flex h-full flex-col rounded-2xl border border-purple-100 bg-purple-50/30 p-4 xl:col-start-2 xl:row-start-3">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-black text-purple-800">
+                  <QrCode size={17} />
+                  QR決済確認
+                </div>
+
+                {qrDifference === 0 ? (
+                  <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                    <CheckCircle2 size={14} />
+                    差額なし
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
+                    <AlertTriangle size={14} />
+                    差額あり
+                  </div>
+                )}
+              </div>
+
+              <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-black ${
+                qrDifference === 0
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                <span className="shrink-0">
+                  システム {formatCurrency(expectedQrAmount)}
+                </span>
+                <span className="shrink-0">
+                  サイト {formatCurrency(actualQrAmount)}
+                </span>
+                <span className="shrink-0">
+                  差額 {qrDifference > 0 ? '+' : ''}{formatCurrency(qrDifference)}
+                </span>
+              </div>
+
+              <label className="mt-auto block">
+                <span className="mb-2 block text-xs font-black text-purple-700">
+                  QR決済サイトの集計金額
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={qrActualAmountInput}
+                  onChange={(event) => setQrActualAmountInput(event.target.value.replace(/[^0-9]/g, ''))}
+                  onFocus={(event) => event.target.select()}
+                  className="h-12 w-full rounded-xl border border-purple-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  placeholder="0"
+                />
+              </label>
+            </section>
+
+         </div>
 
                 {hasDifference ? (
                 <div className="mt-5 flex items-start gap-3 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                     <div>
-                    現金またはクーポンに差額があります。内容を確認してから締め保存してください。
+                    現金・カード・QR決済・クーポンのいずれかに差額があります。内容を確認してから締め保存してください。
                     </div>
                 </div>
                 ) : (
                 <div className="mt-5 flex items-start gap-3 rounded-2xl bg-green-50 p-4 text-sm font-bold text-green-700">
                     <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
                     <div>
-                    現金・クーポンともに差額はありません。このまま締め保存できます。
+                    現金・カード・QR決済・クーポンともに差額はありません。このまま締め保存できます。
                     </div>
                 </div>
                 )}

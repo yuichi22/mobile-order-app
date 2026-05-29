@@ -49,11 +49,38 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [closingStatus, setClosingStatus] = useState(null);
   const [closedDailyData, setClosedDailyData] = useState(null);
+  const [changeFundAmount, setChangeFundAmount] = useState(0);
   const [isLoadingClosedDaily, setIsLoadingClosedDaily] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDailyClosingSettings = async () => {
+      if (!storeId) return;
+
+      try {
+        const settingsRef = doc(db, 'stores', storeId, 'settings', 'dailyClosing');
+        const settingsSnapshot = await getDoc(settingsRef);
+
+        if (!cancelled && settingsSnapshot.exists()) {
+          setChangeFundAmount(Number(settingsSnapshot.data()?.changeFundAmount || 0));
+        }
+      } catch (error) {
+        console.error('Failed to load daily closing settings:', error);
+      }
+    };
+
+    loadDailyClosingSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
   const { periods = [] } = usePeriodData(storeId);
 
   const { transactions, loading } = useDailyTransactions({
@@ -187,6 +214,20 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   };
 
 
+const handleSaveChangeFundAmount = async (nextAmount) => {
+  if (!storeId) return;
+
+  const normalizedAmount = Math.max(Math.round(Number(nextAmount) || 0), 0);
+  const settingsRef = doc(db, 'stores', storeId, 'settings', 'dailyClosing');
+
+  await setDoc(settingsRef, {
+    changeFundAmount: normalizedAmount,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  setChangeFundAmount(normalizedAmount);
+};
+
 const openClosingModal = () => {
   if (!storeId || isClosing || loading || transactions.length === 0) return;
   setIsCheckModalOpen(true);
@@ -235,7 +276,9 @@ const handleCloseDay = async (closingCheck = {}) => {
       categories: categoryList,
 
       cashCheck: closingCheck.cashCheck || null,
-      couponCheck: closingCheck.couponCheck || null
+      couponCheck: closingCheck.couponCheck || null,
+      externalPaymentCheck: closingCheck.externalPaymentCheck || null,
+      changeFundAmount: Number(changeFundAmount || 0)
     };
 
     await setDoc(closingRef, {
@@ -600,6 +643,8 @@ const handleCloseDay = async (closingCheck = {}) => {
         dateKey={dateKey}
         summary={summary}
         discountList={discountList}
+        changeFundAmount={changeFundAmount}
+        onSaveChangeFundAmount={handleSaveChangeFundAmount}
         isProcessing={isClosing}
         onClose={() => {
           if (!isClosing) setIsCheckModalOpen(false);
