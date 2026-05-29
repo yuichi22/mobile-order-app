@@ -1821,7 +1821,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           <div className="flex items-start justify-between gap-4">
             <div>
             <h2 className="text-2xl font-black leading-tight text-gray-900">
-              会計伝票
+              お会計
               {tableTitle && (
                 <span className="ml-3 text-3xl text-gray-700">
                   {tableTitle}
@@ -1829,7 +1829,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               )}
             </h2>
               <p className="mt-1 text-sm text-gray-400">
-                注文履歴と会計用バーコードを確認できます。
+                ご注文内容とお会計用バーコードを確認できます。
               </p>
             </div>
             <button
@@ -1870,7 +1870,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             <div className="mt-6 border-t border-dashed border-gray-200 pt-6">
               <p className="mb-2 flex items-center justify-center gap-1 text-xs text-gray-400">
                 <Barcode size={16} />
-                会計用バーコード
+                お会計用バーコード
               </p>
               <div className="relative h-24 w-full overflow-hidden rounded border border-gray-100 bg-white">
                 {sessionId ? (
@@ -1886,7 +1886,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 )}
               </div>
               <p className="mt-2 text-center text-[10px] text-gray-400">
-                レジでこちらのバーコードをお見せください
+                お会計の際は、この画面をレジでお見せください
               </p>
             </div>
           </div>
@@ -1990,7 +1990,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             onClick={() => handleCallStaff('accounting')}
             className="h-14 w-full rounded-[1.6rem] bg-gray-800 font-bold text-white shadow-lg transition-transform active:scale-95"
           >
-            会計をお願いする
+            スタッフにお会計を知らせる
           </button>
         </div>
       </motion.div>
@@ -2005,11 +2005,15 @@ if (shouldWaitForSessionBeforeWelcome) {
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
               <Store className="h-10 w-10 text-green-600" />
             </div>
-            <h3 className="mb-2 text-xl font-bold">レジでこの画面をご提示ください</h3>
-            <p className="mb-8 text-sm text-gray-500">
-              スタッフへ会計依頼を送りました。
+            <h3 className="mb-2 text-center text-xl font-bold leading-relaxed">
+              画面を開いたまま、
               <br />
-              このバーコードをご提示ください。
+              レジへお進みください
+            </h3>
+            <p className="mb-8 text-sm text-gray-500">
+              スタッフにお会計の準備を知らせました。
+              <br />
+              この画面をレジでお見せください。
             </p>
             <button
               onClick={() => setActiveModal(null)}
@@ -2439,35 +2443,33 @@ if (shouldWaitForSessionBeforeWelcome) {
           {safeCart.length > 0 ? (
           <button
             onClick={() => setIsCartOpen(true)}
-            className="flex h-14 w-full items-center justify-between rounded-[1.6rem] px-6 font-bold text-white shadow-lg"
+            className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] px-6 font-bold text-white shadow-lg"
             style={{ backgroundColor: customerThemeColor }}
           >
-            <div className="relative">
-              {cartBubbleMessage && (
-                <div className="absolute bottom-full left-0 mb-2 whitespace-nowrap rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg ring-2 ring-white">
-                  {cartBubbleMessage}
-                  <span className="absolute left-4 top-full h-2.5 w-2.5 -translate-y-1 rotate-45 border-b-2 border-r-2 border-white bg-gray-900" />
-                </div>
-              )}
+            {cartBubbleMessage && (
+              <div className="absolute bottom-full left-5 mb-2 whitespace-nowrap rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg ring-2 ring-white">
+                {cartBubbleMessage}
+                <span className="absolute left-4 top-full h-2.5 w-2.5 -translate-y-1 rotate-45 border-b-2 border-r-2 border-white bg-gray-900" />
+              </div>
+            )}
 
-              <span className="rounded bg-white/20 px-2 py-0.5 text-sm">
-                {safeCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}点
-              </span>
-            </div>
-
-            <span className="flex items-center gap-2">
-              <ShoppingCart size={18} strokeWidth={3} />
+            <span className="text-base font-black">
               カートを確認
             </span>
 
-            <span>¥{Number(cartTotal || 0).toLocaleString()}</span>
+            <span className="absolute right-5 inline-flex items-center gap-2">
+              <ShoppingCart size={20} strokeWidth={3} />
+              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-white/20 px-2 py-0.5 text-xs font-black leading-none">
+                {safeCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}
+              </span>
+            </span>
           </button>
           ) : (
             <button
               onClick={() => handleChangeView('history')}
               className="flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-800 px-6 font-bold text-white shadow-lg"
             >
-              会計伝票を表示する
+              お会計画面を開く
             </button>
           )}
         </div>
@@ -2660,7 +2662,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   {isProcessing ? <LoadingSpinner size={24} /> : <CheckCircle size={20} />}
                   {isProcessing
                     ? '注文を送信しています...'
-                    : `注文を確定する (¥${Number(cartTotal || 0).toLocaleString()})`}
+                    : '注文を確定する'}
                 </button>
               </div>
 

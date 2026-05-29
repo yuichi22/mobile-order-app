@@ -870,12 +870,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                   </div>
                   <div className="mb-5">
                     <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">商品名</label>
-                    <input
+                    <textarea
                       value={editingItem.name}
                       onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                       required
-                      className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all focus:border-orange-500"
-                      placeholder="例：厚切りトースト"
+                      rows={2}
+                      className="min-h-16 w-full resize-none rounded-2xl border-2 border-gray-100 px-6 py-4 text-2xl font-bold leading-snug text-gray-800 outline-none transition-all focus:border-orange-500"
+                      placeholder={"例：厚切りトースト\nバター添え"}
                     />
                   </div>
 

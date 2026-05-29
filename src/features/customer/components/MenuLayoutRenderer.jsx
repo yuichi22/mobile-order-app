@@ -79,15 +79,15 @@ const AllergenChips = ({ allergens = [] }) => {
 
 const OrderButton = ({ onClick, disabled, size = 'md' }) => {
   const sizeClasses = {
-    sm: 'h-8 px-3 text-[11px] gap-1.5',
-    md: 'h-9 px-4 text-xs gap-1.5',
-    lg: 'h-10 px-5 text-sm gap-2'
+    sm: 'h-11 w-11',
+    md: 'h-12 w-12',
+    lg: 'h-[52px] w-[52px]'
   };
 
   const iconSizeMap = {
-    sm: 13,
-    md: 14,
-    lg: 16
+    sm: 18,
+    md: 20,
+    lg: 22
   };
 
   return (
@@ -98,12 +98,12 @@ const OrderButton = ({ onClick, disabled, size = 'md' }) => {
       className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-lg ring-1 ring-black/10 transition-all active:scale-90 ${
         disabled
           ? 'bg-white/70 text-gray-300 shadow-none'
-          : 'bg-white/95 text-gray-900 backdrop-blur hover:bg-white'
+          : 'bg-white text-gray-900 hover:bg-white'
       }`}
       aria-label="カートに追加"
+      title="カートに追加"
     >
-      <ShoppingCart size={iconSizeMap[size] || 14} strokeWidth={3} />
-      <span>入れる</span>
+      <ShoppingCart size={iconSizeMap[size] || 20} strokeWidth={3} />
     </button>
   );
 };
@@ -224,7 +224,7 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
 
     <div className="px-5 pb-5 pt-4">
       <div className="flex items-start justify-between gap-4">
-        <h3 className="min-w-0 flex-1 line-clamp-2 text-lg font-black leading-tight tracking-tight text-gray-900">
+        <h3 className="min-w-0 flex-1 whitespace-pre-line line-clamp-2 text-[15px] font-black leading-snug tracking-tight text-gray-900">
           {item.name || 'メニュー名'}
         </h3>
 
@@ -265,7 +265,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
 />
 
     <div className="min-w-0 flex-grow">
-      <h3 className="line-clamp-2 text-[15px] font-black leading-tight tracking-tight text-gray-900">
+      <h3 className="whitespace-pre-line line-clamp-2 text-sm font-black leading-snug tracking-tight text-gray-900">
         {item.name || 'メニュー名'}
       </h3>
 
@@ -322,7 +322,7 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
     </div>
 
     <div className="flex flex-grow flex-col px-3.5 pb-4 pt-3.5">
-      <h3 className="line-clamp-2 text-[14px] font-black leading-snug tracking-tight text-gray-900">
+      <h3 className="whitespace-pre-line line-clamp-2 text-[13px] font-black leading-snug tracking-tight text-gray-900">
         {item.name || 'メニュー名'}
       </h3>
 
@@ -377,7 +377,7 @@ const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolv
     <div className="px-5 pb-5 pt-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-xl font-black leading-tight tracking-tight text-gray-900">
+          <h3 className="whitespace-pre-line line-clamp-2 text-lg font-black leading-snug tracking-tight text-gray-900">
             {item.name || 'メニュー名'}
           </h3>
 
