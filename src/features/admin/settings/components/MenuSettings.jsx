@@ -197,6 +197,7 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   orderLimitPerOrder: null,
   limitedQuantity: null,
   allowsTakeout: true,
+  takeoutPrice: '',
   optionGroups: [],
   crossSellPrice: null,
   crossSellPriceLabelText: 'セット価格'
@@ -384,6 +385,7 @@ const MenuSettings = ({
       photoLabelText: item.photoLabelText || '',
       photoLabelColor: item.photoLabelColor || '#F97316',
       priceLabelText: item.priceLabelText || '',
+      takeoutPrice: item.takeoutPrice ?? '',
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
       optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : []
@@ -561,6 +563,7 @@ const MenuSettings = ({
       const normalizedLimit = Number(editingItem.orderLimitPerOrder);
       const normalizedLimitedQuantity = Number(editingItem.limitedQuantity);
       const normalizedCrossSellPrice = Number(editingItem.crossSellPrice);
+      const normalizedTakeoutPrice = Math.max(Number(editingItem.takeoutPrice) || 0, 0);
 
       await onSave({
         ...editingItem,
@@ -601,6 +604,7 @@ const MenuSettings = ({
         photoLabelText: String(editingItem.photoLabelText || '').trim(),
         photoLabelColor: editingItem.photoLabelColor || '#F97316',
         priceLabelText: String(editingItem.priceLabelText || '').trim(),
+        takeoutPrice: normalizedTakeoutPrice,
         crossSellPrice:
           editingItem.crossSellPrice === '' ||
           editingItem.crossSellPrice === null ||
@@ -916,7 +920,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">価格</label>
                       <div className="relative">
@@ -930,7 +934,31 @@ const handleClearLimitedQuantity = async (event, item) => {
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
                       </div>
                     </div>
-                    <div className="relative">
+
+                    <div>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                        テイクアウト価格
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editingItem.takeoutPrice ?? ''}
+                          onChange={(event) => setEditingItem({
+                            ...editingItem,
+                            takeoutPrice: event.target.value
+                          })}
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500"
+                          placeholder="680"
+                        />
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
+                      </div>
+                      <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                        税込価格で入力。テイクアウト注文では軽減税率を適用します。0または空欄の場合はテイクアウト対象外です。
+                      </p>
+                    </div>
+
+                    <div className="relative lg:col-span-2">
                       <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">カテゴリ</label>
                       <button
                         type="button"
