@@ -14,9 +14,45 @@ import {
 } from 'lucide-react';
 
 const PAYMENT_METHOD_OPTIONS = [
-  { id: 'cash', label: '現金', icon: DollarSign },
-  { id: 'card', label: 'カード', icon: CreditCard },
-  { id: 'qr', label: 'QR決済', icon: ScanQrCode }
+  {
+    id: 'cash',
+    label: '現金',
+    buttonLabel: '現金で会計する',
+    icon: DollarSign,
+    activeClassName: 'border-gray-950 bg-gray-950 text-white shadow-md ring-2 ring-gray-200',
+    inactiveClassName: 'border-gray-300 bg-white text-gray-950 shadow-sm hover:border-gray-600 hover:bg-gray-50',
+    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
+    panelIconClassName: 'bg-white text-gray-950 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-950',
+    panelTextClassName: 'text-gray-500',
+    actionClassName: 'bg-gray-950 text-white hover:bg-black hover:shadow-xl'
+  },
+  {
+    id: 'card',
+    label: 'カード',
+    buttonLabel: 'カードで会計する',
+    icon: CreditCard,
+    activeClassName: 'border-blue-600 bg-blue-600 text-white shadow-md ring-2 ring-blue-100',
+    inactiveClassName: 'border-blue-200 bg-blue-50 text-blue-800 shadow-sm hover:border-blue-500 hover:bg-blue-100',
+    panelClassName: 'border-blue-300 bg-blue-50 text-blue-700',
+    panelIconClassName: 'bg-white text-blue-600 shadow-lg shadow-blue-100',
+    panelTitleClassName: 'text-blue-700',
+    panelTextClassName: 'text-blue-500',
+    actionClassName: 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+  },
+  {
+    id: 'qr',
+    label: 'QR決済',
+    buttonLabel: 'QR決済で会計する',
+    icon: ScanQrCode,
+    activeClassName: 'border-purple-600 bg-purple-600 text-white shadow-md ring-2 ring-purple-100',
+    inactiveClassName: 'border-purple-200 bg-purple-50 text-purple-800 shadow-sm hover:border-purple-500 hover:bg-purple-100',
+    panelClassName: 'border-purple-300 bg-purple-50 text-purple-700',
+    panelIconClassName: 'bg-white text-purple-600 shadow-lg shadow-purple-100',
+    panelTitleClassName: 'text-purple-700',
+    panelTextClassName: 'text-purple-500',
+    actionClassName: 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-xl'
+  }
 ];
 
 export const PosRegisterRight = ({
@@ -76,6 +112,17 @@ export const PosRegisterRight = ({
     () => PAYMENT_METHOD_OPTIONS.filter((option) => allowedPaymentMethods.includes(option.id)),
     [allowedPaymentMethods]
   );
+
+  const selectedPaymentMethodOption = useMemo(
+    () => availablePaymentMethods.find((option) => option.id === paymentMethod) || null,
+    [availablePaymentMethods, paymentMethod]
+  );
+
+  const paymentActionLabel = selectedPaymentMethodOption
+    ? selectedPaymentMethodOption.buttonLabel
+    : '支払い方法を選択してください';
+
+  const paymentActionClassName = selectedPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500';
 
   const handleNumClick = (value) => {
     if (value === 'clear') setPaymentAmount('');
@@ -221,10 +268,10 @@ export const PosRegisterRight = ({
               <button
                 key={method.id}
                 onClick={() => setPaymentMethod(method.id)}
-                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-black transition-all ${
+                className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
                   paymentMethod === method.id
-                    ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-100'
-                    : 'bg-transparent text-gray-500 hover:bg-white/80 hover:text-blue-600'
+                    ? method.activeClassName
+                    : method.inactiveClassName
                 }`}
               >
                 <method.icon size={15} />
@@ -310,12 +357,8 @@ export const PosRegisterRight = ({
             </div>
           </div>
         ) : (
-          <div className={`mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center ${
-            paymentMethod === 'card'
-              ? 'border-blue-200 bg-blue-50 text-blue-700'
-              : paymentMethod === 'qr'
-                ? 'border-slate-300 bg-slate-50 text-slate-800'
-                : 'border-gray-200 bg-gray-50 text-gray-400'
+          <div className={`mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
+            selectedPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-400'
           }`}>
             {!paymentMethod && (
               <>
@@ -331,11 +374,13 @@ export const PosRegisterRight = ({
 
             {paymentMethod === 'card' && (
               <>
-                <div className="mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white text-blue-600 shadow-lg shadow-blue-100">
+                <div className={`mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] ${selectedPaymentMethodOption?.panelIconClassName || ''}`}>
                   <CreditCard size={64} strokeWidth={2.5} />
                 </div>
-                <p className="text-2xl font-black text-blue-700">カード決済</p>
-                <p className="mt-2 text-sm font-bold text-blue-500">
+                <p className={`text-2xl font-black ${selectedPaymentMethodOption?.panelTitleClassName || ''}`}>
+                  カード決済
+                </p>
+                <p className={`mt-2 text-sm font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
                   端末でカード決済を完了してください
                 </p>
               </>
@@ -343,11 +388,13 @@ export const PosRegisterRight = ({
 
             {paymentMethod === 'qr' && (
               <>
-                <div className="mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white text-slate-900 shadow-lg shadow-slate-200">
+                <div className={`mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] ${selectedPaymentMethodOption?.panelIconClassName || ''}`}>
                   <QrCode size={64} strokeWidth={2.5} />
                 </div>
-                <p className="text-2xl font-black text-slate-900">QR決済</p>
-                <p className="mt-2 text-sm font-bold text-slate-500">
+                <p className={`text-2xl font-black ${selectedPaymentMethodOption?.panelTitleClassName || ''}`}>
+                  QR決済
+                </p>
+                <p className={`mt-2 text-sm font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
                   QR決済端末で決済を完了してください
                 </p>
               </>
@@ -388,17 +435,13 @@ export const PosRegisterRight = ({
                 className={`flex w-full items-center justify-center gap-3 rounded-xl py-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
                   isPaymentDisabled
                     ? 'bg-gray-300 text-gray-500'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+                    : paymentActionClassName
                 }`}
               >
                 <CheckCircle size={24} />
-                {hasNoPaymentMethod
-                  ? '支払い方法を選択してください'
-                  : isCustomMode
-                    ? Number(selectedItemCount || 0) > 0
-                      ? `選択分 ¥${totalAmount.toLocaleString()} を会計する`
-                      : '会計する商品を選択してください'
-                    : `¥${totalAmount.toLocaleString()} を会計する`}
+                {hasNoCustomSelection
+                  ? '会計する商品を選択してください'
+                  : paymentActionLabel}
                 <ChevronRight size={24} className="opacity-50" />
               </button>
 
