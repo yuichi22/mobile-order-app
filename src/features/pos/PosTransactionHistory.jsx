@@ -293,6 +293,7 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [expandedTicketId, setExpandedTicketId] = useState(null);
   const [selectedPaidDate, setSelectedPaidDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
+  const todayDateValue = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [closeTicketTarget, setCloseTicketTarget] = useState(null);
   const [isClosingTicket, setIsClosingTicket] = useState(false);
   const closeTicketTimerRef = useRef(null);
@@ -480,13 +481,14 @@ export const PosTransactionHistory = ({ storeId }) => {
       const isPaidActiveOrder =
         order?.paymentStatus === 'paid' &&
         order?.status !== 'cancelled' &&
-        order?.paymentStatus !== 'cancelled' &&
-        toDateInputValue(order.paidAt) === selectedPaidDate;
+        order?.paymentStatus !== 'cancelled';
 
-      const isSameBusinessDate =
-        toDateInputValue(order.paidAt || order.timestamp) === selectedPaidDate;
+      const matchesPaidDate = !selectedPaidDate || (
+        toDateInputValue(order.paidAt) === selectedPaidDate ||
+        toDateInputValue(order.paidAt || order.timestamp) === selectedPaidDate
+      );
 
-      if (!isPaidActiveOrder && !isSameBusinessDate) return;
+      if (!isPaidActiveOrder || !matchesPaidDate) return;
 
       const sessionKey = order.sessionId || `single-${order.id}`;
 
@@ -786,7 +788,7 @@ export const PosTransactionHistory = ({ storeId }) => {
         order?.paymentStatus !== 'cancelled';
 
       if (!isPaidActiveOrder) return;
-      if (toDateInputValue(order.paidAt) !== selectedPaidDate) return;
+      if (selectedPaidDate && toDateInputValue(order.paidAt) !== selectedPaidDate) return;
 
       const method = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
       if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
@@ -826,7 +828,7 @@ export const PosTransactionHistory = ({ storeId }) => {
     const key = getPaymentMethodKey(method);
 
     if (key === 'cash') {
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      return 'border-slate-300 bg-slate-100 text-slate-900';
     }
 
     if (key === 'card') {
@@ -870,14 +872,49 @@ export const PosTransactionHistory = ({ storeId }) => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex shrink-0 items-center justify-between border-b bg-gray-50 p-4 font-black text-gray-700">
-        <div className="flex items-center gap-2">
-          <Receipt size={18} className="text-gray-500" />
-          <span>会計履歴</span>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-gray-50 p-4 font-black text-gray-700">
+        <div className="flex min-w-0 items-center gap-2">
+          <Receipt size={18} className="shrink-0 text-gray-500" />
+          <span className="shrink-0">会計履歴</span>
+          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
+            {filteredTickets.length}件
+          </span>
         </div>
-        <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
-          {filteredTickets.length}件
-        </span>
+
+        {filter === 'paid' && (
+          <div className="flex shrink-0 items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setSelectedPaidDate(todayDateValue)}
+              className={`h-8 rounded-xl px-3 text-xs font-black transition-colors ${
+                selectedPaidDate === todayDateValue
+                  ? 'bg-green-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              今日
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedPaidDate('')}
+              className={`h-8 rounded-xl px-3 text-xs font-black transition-colors ${
+                !selectedPaidDate
+                  ? 'bg-green-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              すべて
+            </button>
+
+            <input
+              type="date"
+              value={selectedPaidDate || ''}
+              onChange={(event) => setSelectedPaidDate(event.target.value)}
+              className="h-8 rounded-xl border border-gray-200 bg-gray-50 px-2 text-xs font-black text-gray-700 outline-none focus:border-green-400"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 gap-1 border-b border-gray-100 bg-white p-2">
@@ -917,33 +954,41 @@ export const PosTransactionHistory = ({ storeId }) => {
       {filter === 'paid' && (
         <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
           <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50 p-2.5">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">
-                表示日
-              </span>
-              <input
-                type="date"
-                value={selectedPaidDate}
-                onChange={(event) => setSelectedPaidDate(event.target.value)}
-                className="h-8 rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-700 outline-none focus:border-green-400"
-              />
-            </div>
-
             <div className="grid grid-cols-4 gap-1 rounded-xl bg-white p-1 shadow-sm">
               {[
-                { id: 'all', label: 'すべて' },
-                { id: 'cash', label: '現金' },
-                { id: 'card', label: 'カード' },
-                { id: 'qr', label: 'QR' }
+                {
+                  id: 'all',
+                  label: 'すべて',
+                  activeClassName: 'bg-green-500 text-white shadow-sm',
+                  inactiveClassName: 'bg-white text-gray-700 hover:bg-gray-50'
+                },
+                {
+                  id: 'cash',
+                  label: '現金',
+                  activeClassName: 'bg-slate-900 text-white shadow-sm',
+                  inactiveClassName: 'bg-white text-slate-800 hover:bg-slate-100'
+                },
+                {
+                  id: 'card',
+                  label: 'カード',
+                  activeClassName: 'bg-blue-600 text-white shadow-sm',
+                  inactiveClassName: 'bg-white text-blue-700 hover:bg-blue-50'
+                },
+                {
+                  id: 'qr',
+                  label: 'QR',
+                  activeClassName: 'bg-purple-600 text-white shadow-sm',
+                  inactiveClassName: 'bg-white text-purple-700 hover:bg-purple-50'
+                }
               ].map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setPaidPaymentFilter(option.id)}
-                  className={`rounded-lg py-1.5 text-xs font-black transition-colors ${
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-black transition-colors ${
                     paidPaymentFilter === option.id
-                      ? 'bg-green-500 text-white shadow-sm'
-                      : 'text-gray-500 hover:bg-green-50 hover:text-green-700'
+                      ? `${option.activeClassName} border-transparent`
+                      : `${option.inactiveClassName} border-gray-100`
                   }`}
                 >
                   {option.label}
@@ -973,10 +1018,36 @@ export const PosTransactionHistory = ({ storeId }) => {
         )}
 
         {!loading && filteredTickets.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-12 text-center text-gray-400">
-            <Filter size={32} className="opacity-20" />
-            <p className="text-sm font-bold">
-              {filter === 'paid' ? '選択した日付・支払い方法の会計済み伝票がありません' : '該当する会計履歴がありません'}
+          <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
+            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
+              filter === 'paid' && paidPaymentFilter === 'cash'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : filter === 'paid' && paidPaymentFilter === 'card'
+                  ? 'bg-blue-50 text-blue-500'
+                  : filter === 'paid' && paidPaymentFilter === 'qr'
+                    ? 'bg-purple-50 text-purple-500'
+                    : filter === 'paid'
+                      ? 'bg-green-50 text-green-500'
+                      : 'bg-gray-100 text-gray-400'
+            }`}>
+              <Filter size={28} />
+            </div>
+            <p className={`rounded-full px-4 py-2 text-sm font-black ${
+              filter === 'paid' && paidPaymentFilter === 'cash'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : filter === 'paid' && paidPaymentFilter === 'card'
+                  ? 'bg-blue-50 text-blue-700'
+                  : filter === 'paid' && paidPaymentFilter === 'qr'
+                    ? 'bg-purple-50 text-purple-700'
+                    : filter === 'paid'
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-gray-100 text-gray-500'
+            }`}>
+              {filter === 'paid'
+                ? selectedPaidDate
+                  ? '選択した日付・支払い方法の会計済み伝票がありません'
+                  : '選択した支払い方法の会計済み伝票がありません'
+                : '該当する会計履歴がありません'}
             </p>
           </div>
         )}
@@ -1031,7 +1102,13 @@ export const PosTransactionHistory = ({ storeId }) => {
                         isCancelled
                           ? 'bg-red-50 text-red-600'
                           : isPaid
-                            ? 'bg-green-50 text-green-600'
+                            ? getPaymentMethodKey(ticket.paymentMethod) === 'cash'
+                              ? 'bg-slate-100 text-slate-900 ring-1 ring-slate-200'
+                              : getPaymentMethodKey(ticket.paymentMethod) === 'card'
+                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                                : getPaymentMethodKey(ticket.paymentMethod) === 'qr'
+                                  ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-100'
+                                  : 'bg-green-50 text-green-600'
                             : 'bg-orange-50 text-orange-600'
                       }`}
                     >
