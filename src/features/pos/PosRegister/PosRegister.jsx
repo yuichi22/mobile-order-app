@@ -80,7 +80,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set());
 
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('');
 
   const [takeoutItemKeys, setTakeoutItemKeys] = useState(new Set());
   const [paidItemKeys, setPaidItemKeys] = useState(new Set());
@@ -192,7 +192,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const allowTakeout = settings?.allowTakeout !== false;
   const resolvedPaymentMethod = availablePaymentMethods.includes(paymentMethod)
     ? paymentMethod
-    : availablePaymentMethods[0];
+    : '';
 
   const clearSessionAccess = async (batch) => {
     const normalizedTableId = String(tableId ?? '').trim();

@@ -135,8 +135,11 @@ export const PosRegisterRight = ({
   const isCustomMode = checkoutSelectionMode === 'custom';
   const hasNoCustomSelection = isCustomMode && Number(selectedItemCount || 0) === 0;
 
+  const hasNoPaymentMethod = !paymentMethod;
+
   const isPaymentDisabled =
     hasNoCustomSelection
+    || hasNoPaymentMethod
     || (Number(totalPayableItemCount || 0) === 0)
     || (paymentMethod === 'cash' && (parseInt(paymentAmount, 10) || 0) < totalAmount);
 
@@ -218,10 +221,10 @@ export const PosRegisterRight = ({
               <button
                 key={method.id}
                 onClick={() => setPaymentMethod(method.id)}
-                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all ${
+                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-black transition-all ${
                   paymentMethod === method.id
-                    ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100'
-                    : 'bg-transparent text-gray-500 hover:bg-white/70 hover:text-blue-600'
+                    ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-100'
+                    : 'bg-transparent text-gray-500 hover:bg-white/80 hover:text-blue-600'
                 }`}
               >
                 <method.icon size={15} />
@@ -307,10 +310,48 @@ export const PosRegisterRight = ({
             </div>
           </div>
         ) : (
-          <div className="mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-gray-400">
-            {paymentMethod === 'card' && <CreditCard size={48} className="mb-2 opacity-50" />}
-            {paymentMethod === 'qr' && <QrCode size={48} className="mb-2 opacity-50" />}
-            <p className="text-sm">端末で決済を完了してください</p>
+          <div className={`mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center ${
+            paymentMethod === 'card'
+              ? 'border-blue-200 bg-blue-50 text-blue-700'
+              : paymentMethod === 'qr'
+                ? 'border-slate-300 bg-slate-50 text-slate-800'
+                : 'border-gray-200 bg-gray-50 text-gray-400'
+          }`}>
+            {!paymentMethod && (
+              <>
+                <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white text-gray-300 shadow-sm">
+                  <CreditCard size={52} />
+                </div>
+                <p className="text-xl font-black text-gray-700">支払い方法を選択</p>
+                <p className="mt-2 text-sm font-bold text-gray-400">
+                  現金・カード・QRのいずれかを選んでください
+                </p>
+              </>
+            )}
+
+            {paymentMethod === 'card' && (
+              <>
+                <div className="mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white text-blue-600 shadow-lg shadow-blue-100">
+                  <CreditCard size={64} strokeWidth={2.5} />
+                </div>
+                <p className="text-2xl font-black text-blue-700">カード決済</p>
+                <p className="mt-2 text-sm font-bold text-blue-500">
+                  端末でカード決済を完了してください
+                </p>
+              </>
+            )}
+
+            {paymentMethod === 'qr' && (
+              <>
+                <div className="mb-4 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white text-slate-900 shadow-lg shadow-slate-200">
+                  <QrCode size={64} strokeWidth={2.5} />
+                </div>
+                <p className="text-2xl font-black text-slate-900">QR決済</p>
+                <p className="mt-2 text-sm font-bold text-slate-500">
+                  QR決済端末で決済を完了してください
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -351,11 +392,13 @@ export const PosRegisterRight = ({
                 }`}
               >
                 <CheckCircle size={24} />
-                {isCustomMode
-                  ? Number(selectedItemCount || 0) > 0
-                    ? `選択分 ¥${totalAmount.toLocaleString()} を会計する`
-                    : '会計する商品を選択してください'
-                  : `¥${totalAmount.toLocaleString()} を会計する`}
+                {hasNoPaymentMethod
+                  ? '支払い方法を選択してください'
+                  : isCustomMode
+                    ? Number(selectedItemCount || 0) > 0
+                      ? `選択分 ¥${totalAmount.toLocaleString()} を会計する`
+                      : '会計する商品を選択してください'
+                    : `¥${totalAmount.toLocaleString()} を会計する`}
                 <ChevronRight size={24} className="opacity-50" />
               </button>
 
