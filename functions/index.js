@@ -1,4 +1,5 @@
 ﻿import { initializeApp } from 'firebase-admin/app';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -758,6 +759,8 @@ export const bootstrapCustomerSession = onRequest(
         tableName: tableDisplayName,
         status: 'active',
         createdAt: FieldValue.serverTimestamp(),
+        lastActivityAt: FieldValue.serverTimestamp(),
+        hasOrders: false,
         createdBy: authUser.uid,
         hostUserId: authUser.uid,
         hostParticipantTokenHash: nextParticipantTokenHash,
@@ -2848,6 +2851,16 @@ async function issueReceiptForOrder({
   };
 }
 
+
+
+const markSessionHasOrders = (transaction, sessionRef) => {
+  transaction.set(sessionRef, {
+    hasOrders: true,
+    lastActivityAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+};
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);
@@ -2919,6 +2932,13 @@ export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async
     };
 
     await orderRef.set(orderData);
+
+    // [createPrepayOrder] mark session hasOrders
+    await storeRef.collection('sessions').doc(sessionId).set({
+      hasOrders: true,
+      lastActivityAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
 
     const receipt = await issueReceiptForOrder({
       storeId,
@@ -3457,7 +3477,10 @@ export const createPostpayOrder = onRequest(
           ...(externalCustomer ? { externalCustomer } : {})
         });
 
-        return { orderId: orderRef.id };
+                // [createPostpayOrder] mark session hasOrders
+        markSessionHasOrders(transaction, sessionRef);
+
+return { orderId: orderRef.id };
       });
 
       return res.status(200).json({
@@ -3990,6 +4013,150 @@ export const cancelCustomerOrder = onRequest(
       console.error('[cancelCustomerOrder] failed', error);
       return sendAppError(response, 500, 'app/order-cancel-failed', '注文のキャンセルに失敗しました。');
     }
+  }
+);
+
+export const autoVacateNoOrderSessions = onSchedule(
+  {
+    region: REGION,
+    schedule: 'every 5 minutes',
+    timeZone: 'Asia/Tokyo'
+  },
+  async () => {
+    const storeIds = new Set();
+
+    const storesSnapshot = await db.collection('stores').get();
+    storesSnapshot.docs.forEach((storeDoc) => {
+      storeIds.add(storeDoc.id);
+    });
+
+    // 親 stores/{storeId} がなくてもサブコレクションだけ存在するケースがあるため、
+    // users.storeId からも店舗IDを拾う。
+    const usersSnapshot = await db.collection('users').get();
+    usersSnapshot.docs.forEach((userDoc) => {
+      const storeId = String(userDoc.data()?.storeId || '').trim();
+      if (storeId) storeIds.add(storeId);
+    });
+
+    let checkedStoreCount = 0;
+    let checkedSessionCount = 0;
+    let skippedWithOrdersCount = 0;
+    let patchedHasOrdersCount = 0;
+    let archivedCount = 0;
+
+    for (const storeId of storeIds) {
+      checkedStoreCount += 1;
+
+      const storeRef = db.collection('stores').doc(storeId);
+      const basicSettingsSnapshot = await storeRef
+        .collection('settings')
+        .doc('basic')
+        .get();
+
+      const autoVacateMinutes = Number(
+        basicSettingsSnapshot.data()?.noOrderAutoVacateMinutes || 0
+      );
+
+      if (!autoVacateMinutes || autoVacateMinutes <= 0) {
+        continue;
+      }
+
+      const cutoffMs = Date.now() - autoVacateMinutes * 60 * 1000;
+
+      const sessionsSnapshot = await storeRef
+        .collection('sessions')
+        .where('status', '==', 'active')
+        .limit(100)
+        .get();
+
+      if (sessionsSnapshot.empty) {
+        continue;
+      }
+
+      const batch = db.batch();
+      let batchCount = 0;
+
+      for (const sessionDoc of sessionsSnapshot.docs) {
+        checkedSessionCount += 1;
+
+        const sessionData = sessionDoc.data() || {};
+        const tableId = String(sessionData.tableId || '').trim();
+
+        const createdAtDate = sessionData.createdAt?.toDate?.() || null;
+        const createdAtMs = createdAtDate?.getTime?.() || 0;
+
+        if (!createdAtMs || createdAtMs > cutoffMs) {
+          continue;
+        }
+
+        // 最終安全判定：
+        // hasOrders フラグではなく、orders 実データを必ず確認する。
+        const ordersSnapshot = await storeRef
+          .collection('orders')
+          .where('sessionId', '==', sessionDoc.id)
+          .limit(1)
+          .get();
+
+        if (!ordersSnapshot.empty) {
+          skippedWithOrdersCount += 1;
+
+          if (sessionData.hasOrders !== true) {
+            batch.set(sessionDoc.ref, {
+              hasOrders: true,
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            patchedHasOrdersCount += 1;
+            batchCount += 1;
+          }
+
+          continue;
+        }
+
+        batch.set(sessionDoc.ref, {
+          status: 'archived',
+          autoVacated: true,
+          autoVacatedReason: 'no_order_timeout',
+          autoVacatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        if (tableId) {
+          const tableRef = storeRef.collection('tables').doc(tableId);
+          const tableSessionRef = storeRef.collection('tableSessions').doc(tableId);
+          const tableEntryGuardRef = storeRef.collection('tableEntryGuards').doc(tableId);
+
+          batch.set(tableRef, {
+            status: 'vacant',
+            sessionId: null,
+            lastClosedSessionId: sessionDoc.id,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          batch.set(tableSessionRef, {
+            tableId,
+            sessionId: null,
+            status: 'vacant',
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          batch.delete(tableEntryGuardRef);
+        }
+
+        archivedCount += 1;
+        batchCount += 1;
+      }
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+    }
+
+    console.log('[autoVacateNoOrderSessions] checked stores:', checkedStoreCount);
+    console.log('[autoVacateNoOrderSessions] checked sessions:', checkedSessionCount);
+    console.log('[autoVacateNoOrderSessions] skipped sessions with orders:', skippedWithOrdersCount);
+    console.log('[autoVacateNoOrderSessions] patched hasOrders sessions:', patchedHasOrdersCount);
+    console.log('[autoVacateNoOrderSessions] archived sessions:', archivedCount);
   }
 );
 

@@ -97,6 +97,7 @@ const BasicSettings = ({
   const [kitchenDraftSourceKey, setKitchenDraftSourceKey] = useState(null);
   const [customerLogoPreview, setCustomerLogoPreview] = useState(null);
   const [customerThemeColor, setCustomerThemeColor] = useState('#0f172a');
+  const [noOrderAutoVacateMinutes, setNoOrderAutoVacateMinutes] = useState(0);
 
   const [newCookingCategoryName, setNewCookingCategoryName] = useState('');
   const [editingCookingCategoryId, setEditingCookingCategoryId] = useState(null);
@@ -183,6 +184,9 @@ const BasicSettings = ({
         : ['cash', 'card', 'qr']
     );
     setAllowTakeout(settings.allowTakeout !== false);
+    setNoOrderAutoVacateMinutes(
+      Math.max(0, Number(settings.noOrderAutoVacateMinutes ?? 0) || 0)
+    );
   }, [settings]);
 
   const setKitchens = (nextValue) => {
@@ -401,6 +405,7 @@ const handleTestPrinter = async () => {
         taxRounding,
         acceptedPaymentMethods: enabledPaymentMethods,
         allowTakeout,
+        noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
         customerThemeColor,
         receiptBannerImage: formData.get('receiptBannerImage'),
         customerLogoUrl: formData.get('customerLogoUrl'),
@@ -1355,7 +1360,42 @@ const handleTestPrinter = async () => {
             </button>
           </div>
         </div>
-      </form>
+      
+        <SettingSection
+          title="未注文テーブルの自動退席"
+          desc="QRを読み込んだまま席を移動した場合など、注文がない利用中テーブルを一定時間後に自動で空席へ戻します。"
+          icon={Store}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-black text-gray-700">
+                注文がない場合の自動退席時間
+              </label>
+
+              <select
+                value={noOrderAutoVacateMinutes}
+                onChange={(event) => setNoOrderAutoVacateMinutes(Number(event.target.value || 0))}
+                className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-800 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value={0}>自動退席しない</option>
+                <option value={10}>10分後</option>
+                <option value={15}>15分後</option>
+                <option value={20}>20分後</option>
+                <option value={30}>30分後</option>
+                <option value={45}>45分後</option>
+                <option value={60}>60分後</option>
+                <option value={90}>90分後</option>
+                <option value={120}>120分後</option>
+              </select>
+
+              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                対象は「利用中」かつ「まだ注文が一度も入っていない」テーブルだけです。注文済みのテーブルや会計前の伝票は自動退席しません。
+              </p>
+            </div>
+          </div>
+        </SettingSection>
+
+</form>
 
       {deletingKitchen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
