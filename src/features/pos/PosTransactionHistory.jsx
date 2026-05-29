@@ -600,7 +600,7 @@ export const PosTransactionHistory = ({ storeId }) => {
       });
     });
 
-    return Array.from(grouped.values())
+    const orderBackedTickets = Array.from(grouped.values())
       .filter((ticket) => ticket.paidOrders.length > 0)
       .map((ticket) => {
         const items = consolidateTicketItems(ticket.items);
@@ -610,13 +610,89 @@ export const PosTransactionHistory = ({ storeId }) => {
           items,
           taxRates: resolveTicketTaxRates(items, settings)
         };
+      });
+
+    const standaloneTakeoutTickets = transactions
+      .filter((transaction) => {
+        const isTakeoutTransaction =
+          transaction?.isTakeout === true ||
+          transaction?.orderType === 'takeout' ||
+          transaction?.serviceType === 'takeout';
+
+        if (!isTakeoutTransaction || transaction?.isPaid === false) return false;
+
+        const hasLinkedOrder = Array.isArray(transaction.customerSummaries) &&
+          transaction.customerSummaries.some((summary) => (
+            Array.isArray(summary?.orderIds) && summary.orderIds.length > 0
+          ));
+
+        if (hasLinkedOrder) return false;
+
+        const matchesPaidDate = !selectedPaidDate || (
+          toDateInputValue(transaction.paidAt) === selectedPaidDate ||
+          toDateInputValue(transaction.paidAt || transaction.timestamp) === selectedPaidDate
+        );
+
+        if (!matchesPaidDate) return false;
+
+        const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+        if (paidPaymentFilter !== 'all' && paymentMethod !== paidPaymentFilter) return false;
+
+        return true;
       })
+      .map((transaction) => {
+        const items = consolidateTicketItems(
+          Array.isArray(transaction.items) ? transaction.items : []
+        );
+        const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+
+        return {
+          id: `paid-transaction-${transaction.id}`,
+          sourceTransactionId: transaction.id,
+          sourceSessionId: transaction.sessionId || '',
+          sessionId: transaction.sessionId || '',
+          tableId: transaction.tableId || 'takeout',
+          tableDisplayName: transaction.tableDisplayName || transaction.tableName || 'テイクアウト',
+          tableName: transaction.tableName || transaction.tableDisplayName || 'テイクアウト',
+          timestamp: transaction.timestamp,
+          paidAt: transaction.paidAt || transaction.timestamp,
+          status: 'paid',
+          totalPrice: Number(transaction.totalAmount || transaction.totalPrice || 0),
+          subtotal: Number(transaction.subTotal || transaction.subtotal || 0),
+          taxAmountReduced: Number(transaction.taxAmountReduced || 0),
+          taxAmountStandard: Number(transaction.taxAmountStandard || 0),
+          discountAmount: Number(transaction.discountAmount || 0),
+          guestCount: Number(transaction.guestCount || 0),
+          paymentMethod,
+          paymentBreakdown: [{
+            method: paymentMethod,
+            label: formatPaymentMethod(paymentMethod),
+            count: 1,
+            total: Number(transaction.totalAmount || transaction.totalPrice || 0)
+          }],
+          orderIds: [],
+          items,
+          paidOrders: [{
+            id: transaction.id,
+            totalPrice: Number(transaction.totalAmount || transaction.totalPrice || 0),
+            paymentMethod,
+            timestamp: transaction.timestamp,
+            paidAt: transaction.paidAt || transaction.timestamp,
+            items
+          }],
+          excludedOrders: [],
+          isTakeout: true,
+          taxRates: resolveTicketTaxRates(items, settings)
+        };
+      });
+
+    return [...orderBackedTickets, ...standaloneTakeoutTickets]
       .sort((left, right) => {
         const leftTime = left.paidAt?.getTime?.() || left.timestamp?.getTime?.() || 0;
         const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
         return rightTime - leftTime;
       });
-  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate, settings]);
+  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate, settings, transactions]);
 
   const clearCloseTicketLongPress = () => {
     if (closeTicketTimerRef.current) {
