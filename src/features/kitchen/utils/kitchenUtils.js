@@ -341,9 +341,8 @@ export const getKitchenPriorityScore = (order, currentTime, activeKitchenId, men
 
   const statusWeight =
     order?.status === 'pending' ? 40
-      : order?.status === 'cooking' ? 20
-        : order?.status === 'serving' ? 5
-          : 0;
+      : order?.status === 'serving' ? 5
+        : 0;
 
   return statusWeight + Math.min(elapsed, 60) + visibleQuantity * 2 + pendingItems * 3;
 };

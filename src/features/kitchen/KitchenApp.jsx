@@ -41,6 +41,10 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
     ? `kitchen-active-tab:${effectiveStoreId}`
     : '';
 
+  const selectedOrderStorageKey = effectiveStoreId
+    ? `kitchen-selected-orders:${effectiveStoreId}`
+    : '';
+
   const [viewMode, setViewMode] = useState('active');
   const [activeKitchenId, setActiveKitchenId] = useState(() => {
     try {
@@ -64,7 +68,18 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   });
 
   const [summaryMode, setSummaryMode] = useState('all');
-  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
+  const [selectedOrderIds, setSelectedOrderIds] = useState(() => {
+    try {
+      if (!effectiveStoreId) return new Set();
+
+      const raw = window.localStorage.getItem(`kitchen-selected-orders:${effectiveStoreId}`);
+      const values = raw ? JSON.parse(raw) : [];
+
+      return new Set(Array.isArray(values) ? values.map(String) : []);
+    } catch {
+      return new Set();
+    }
+  });
 
   const audioRef = useRef(new Audio(ALERT_SOUND_URL));
   const prevOrderIds = useRef(new Set());
@@ -82,6 +97,21 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
       // localStorage が使えない環境では保存しない
     }
   }, [alertVolume]);
+
+  useEffect(() => {
+    if (!selectedOrderStorageKey) return;
+
+    try {
+      const values = Array.from(selectedOrderIds);
+      if (values.length === 0) {
+        window.localStorage.removeItem(selectedOrderStorageKey);
+      } else {
+        window.localStorage.setItem(selectedOrderStorageKey, JSON.stringify(values));
+      }
+    } catch {
+      // localStorage が使えない環境では保存しない
+    }
+  }, [selectedOrderIds, selectedOrderStorageKey]);
 
   const playAlertPreview = () => {
     if (!audioRef.current) return;
@@ -150,14 +180,20 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
 
   const clearSelectedOrders = () => {
     setSelectedOrderIds(new Set());
+
+    if (!selectedOrderStorageKey) return;
+
+    try {
+      window.localStorage.removeItem(selectedOrderStorageKey);
+    } catch {
+      // localStorage が使えない環境では削除しない
+    }
   };
 
   const handleKitchenTabChange = (nextKitchenId) => {
     hasUserSelectedKitchenTabRef.current = true;
 
     setActiveKitchenId(nextKitchenId);
-    setSummaryMode('all');
-    clearSelectedOrders();
 
     if (!kitchenTabStorageKey) return;
 
@@ -178,8 +214,11 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
 
   const handleViewModeChange = (nextViewMode) => {
     setViewMode(nextViewMode);
-    setSummaryMode('all');
-    clearSelectedOrders();
+
+    if (nextViewMode !== 'active') {
+      setSummaryMode('all');
+      clearSelectedOrders();
+    }
   };
 
   const toggleStation = () => {
@@ -260,7 +299,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
 
       if (allPrepared && !allServed) return 0; // 提供待ち
       if (allServed && !isMovedToBack) return 0; // 提供済み・後ろへ移動前：まだ残す
-      if (order.status === 'cooking' && !allPrepared) return 1; // 調理中
+      if (targetItems.some((item) => resolveItemStatus(item) === 'cooking')) return 1; // 調理中
       if (!allPrepared) return 2; // 未着手
       if (allServed && isMovedToBack && !allOrderServed) return 4; // 完了待機
       if (allOrderServed && isMovedToBack) return 5; // 全て完了
@@ -332,31 +371,33 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
       );
     }, [sortedOrders]);
 
+  const getSelectedOrderKey = (orderId, kitchenId = activeKitchenId) => (
+    `${String(kitchenId || 'all')}::${String(orderId || '')}`
+  );
+
   const visibleSelectedOrderIds = useMemo(() => {
-    const visibleIds = new Set(sortedOrders.map((order) => order.id));
+    const visibleIds = new Set(sortedOrders.map((order) => getSelectedOrderKey(order.id)));
     const next = new Set();
 
-    selectedOrderIds.forEach((orderId) => {
-      if (visibleIds.has(orderId)) {
-        next.add(orderId);
+    selectedOrderIds.forEach((selectedKey) => {
+      if (visibleIds.has(selectedKey)) {
+        next.add(selectedKey);
       }
     });
 
     return next;
-  }, [selectedOrderIds, sortedOrders]);
+  }, [activeKitchenId, selectedOrderIds, sortedOrders]);
 
-  useEffect(() => {
-    if (selectedOrderIds.size === visibleSelectedOrderIds.size) return;
-
-    setSelectedOrderIds(visibleSelectedOrderIds);
-  }, [selectedOrderIds.size, visibleSelectedOrderIds]);
+  const effectiveSummaryMode = visibleSelectedOrderIds.size > 0
+    ? 'selected'
+    : summaryMode;
 
   const selectedOrdersForSummary = useMemo(() => {
-    if (summaryMode !== 'selected') return sortedOrders;
+    if (effectiveSummaryMode !== 'selected') return sortedOrders;
     if (visibleSelectedOrderIds.size === 0) return [];
 
-    return sortedOrders.filter((order) => visibleSelectedOrderIds.has(order.id));
-  }, [sortedOrders, summaryMode, visibleSelectedOrderIds]);
+    return sortedOrders.filter((order) => visibleSelectedOrderIds.has(getSelectedOrderKey(order.id)));
+  }, [activeKitchenId, effectiveSummaryMode, sortedOrders, visibleSelectedOrderIds]);
 
   const pendingItemSummary = useMemo(
     () => buildPendingItemSummary(
@@ -376,13 +417,15 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   const toggleSelectedOrder = (orderId) => {
     setSummaryMode('selected');
 
+    const selectedKey = getSelectedOrderKey(orderId);
+
     setSelectedOrderIds((previous) => {
       const next = new Set(previous);
 
-      if (next.has(orderId)) {
-        next.delete(orderId);
+      if (next.has(selectedKey)) {
+        next.delete(selectedKey);
       } else {
-        next.add(orderId);
+        next.add(selectedKey);
       }
 
       return next;
@@ -390,12 +433,12 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   };
 
   const handleMarkSelectedOrdersReady = async () => {
-    const selectedIds = Array.from(visibleSelectedOrderIds);
-    if (selectedIds.length === 0) return;
+    const selectedKeys = Array.from(visibleSelectedOrderIds);
+    if (selectedKeys.length === 0) return;
 
     await Promise.all(
       sortedOrders
-        .filter((order) => selectedIds.includes(order.id))
+        .filter((order) => selectedKeys.includes(getSelectedOrderKey(order.id)))
         .map((order) => {
             const nextItems = (order.items || []).map((item) => {
               if (isCancelledKitchenItem(item)) {
@@ -470,7 +513,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
     const targetMenuId = String(summaryItem.id || '');
     const targetName = String(summaryItem.name || '');
 
-    const sourceOrders = summaryMode === 'selected'
+    const sourceOrders = effectiveSummaryMode === 'selected'
       ? selectedOrdersForSummary
       : sortedOrders;
 
@@ -703,8 +746,8 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
                         updateStatus={kdsData.updateOrderStatus}
                         updateOrderItems={kdsData.updateOrderItems}
                         updateOrderMeta={kdsData.updateOrderMeta}
-                        isSummarySelectMode={summaryMode === 'selected'}
-                        isSelectedForSummary={visibleSelectedOrderIds.has(order.id)}
+                        isSummarySelectMode={effectiveSummaryMode === 'selected'}
+                        isSelectedForSummary={visibleSelectedOrderIds.has(getSelectedOrderKey(order.id))}
                         onToggleSummarySelect={() => toggleSelectedOrder(order.id)}
                       />
                     </motion.div>
@@ -720,7 +763,7 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
           checks={kdsData.checks}
           soldOutItems={kdsData.soldOutItems}
           pendingItemSummary={pendingItemSummary}
-          summaryMode={summaryMode}
+          summaryMode={effectiveSummaryMode}
           selectedOrderCount={visibleSelectedOrderIds.size}
           completedReadyCount={completedReadyOrders.length}
           onSummaryModeChange={handleSummaryModeChange}

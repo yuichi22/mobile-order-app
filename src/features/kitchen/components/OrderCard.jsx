@@ -49,8 +49,6 @@ const resolveOrderKitchenStatus = (order) => {
     return 'cooking';
   }
 
-  if (order?.status === 'cooking') return 'cooking';
-
   return 'pending';
 };
 
@@ -97,7 +95,6 @@ const resolveDisplayKitchenStatus = ({
   if (allOrderServed && isMovedToBack) return 'allServed';
   if (allTargetServed && isMovedToBack) return 'waitingComplete';
   if (allTargetPrepared) return 'serving';
-  if (order?.status === 'cooking') return 'cooking';
 
   return 'pending';
 };
@@ -205,17 +202,22 @@ const OrderCard = ({
     return status === 'cooking' || status === 'prepared' || status === 'served';
   });
 
+  const hasTargetCookingItems = targetItems.some((item) => (
+    resolveKitchenStatus(item) === 'cooking'
+  ));
+
 const canShowStartCookingButton =
   viewMode === 'active' &&
-  orderKitchenStatus === 'pending';
+  orderKitchenStatus === 'pending' &&
+  !hasTargetCookingItems;
 
 const canShowMarkPreparedButton =
   viewMode === 'active' &&
-  orderKitchenStatus === 'cooking';
+  hasTargetCookingItems;
 
 const canSelectCard =
   viewMode === 'active' &&
-  (orderKitchenStatus === 'pending' || orderKitchenStatus === 'cooking' || canShowMarkPreparedButton);
+  (orderKitchenStatus === 'pending' || hasTargetCookingItems || canShowMarkPreparedButton);
 
   const elapsedCardClassName =
     viewMode === 'active' && elapsedLevel.level === 'danger'
@@ -405,7 +407,7 @@ const canSelectCard =
       return;
     }
 
-    if (orderKitchenStatus === 'cooking') {
+    if (hasTargetCookingItems) {
       revertCookingToPending();
       return;
     }
@@ -531,7 +533,7 @@ const canSelectCard =
     ? 'ring-2 ring-slate-500/35'
     : '';
 
-  const isCookingActive = orderKitchenStatus === 'cooking';
+  const isCookingActive = hasTargetCookingItems;
 
   const headerClassName = isSelectedForSummary || isCookingActive
     ? 'border-green-300 bg-green-100 shadow-inner'
