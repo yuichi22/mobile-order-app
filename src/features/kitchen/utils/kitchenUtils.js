@@ -181,7 +181,14 @@ export const buildPendingItemSummary = (
       }
 
       const quantity = Number(item.quantity || 1);
-      const name = item.name || '未設定商品';
+      const masterItem = menuItemLookup[item.menuId] || menuItemLookup[item.id] || {};
+      const name = String(
+        item.kitchenName ||
+        masterItem.kitchenName ||
+        item.name ||
+        masterItem.name ||
+        '未設定商品'
+      ).trim();
       const itemId = item.menuId || item.id || name;
       const cookingCategoryIds = getCookingCategoryIds(item, menuItemLookup);
 
