@@ -647,26 +647,63 @@ const {
     };
   }, [sessionId, storeId, resolvedTableNumber, user, sessionHostId, inviteToken, sessionStatus]);
 
+  const getLocalDateKey = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isMenuItemCustomerVisible = (item, todayKey = getLocalDateKey()) => {
+    const visibility = item?.customerVisibility || 'visible';
+
+    if (visibility === 'hidden') {
+      return false;
+    }
+
+    if (visibility !== 'scheduled') {
+      return true;
+    }
+
+    const fromDate = String(item?.visibleFromDate || '').trim();
+    const toDate = String(item?.visibleToDate || '').trim();
+
+    if (fromDate && todayKey < fromDate) {
+      return false;
+    }
+
+    if (toDate && todayKey > toDate) {
+      return false;
+    }
+
+    return true;
+  };
+
   const availableMenuItems = useMemo(
     () => menuItems.map((item) => decorateMenuItemAvailability(item)),
     [menuItems]
   );
 
+  const customerVisibleMenuItems = useMemo(() => {
+    const todayKey = getLocalDateKey();
+    return availableMenuItems.filter((item) => isMenuItemCustomerVisible(item, todayKey));
+  }, [availableMenuItems]);
+
   const filteredMenuItems = useMemo(() => {
     if (!activeCategory) return [];
 
-    const timeAllowedItems = availableMenuItems.filter((item) => {
+    const timeAllowedItems = customerVisibleMenuItems.filter((item) => {
       if (!item.periods || item.periods.length === 0) return true;
       if (!currentPeriod) return false;
       return item.periods.includes(currentPeriod.id);
     });
 
     return timeAllowedItems.filter((item) => item.category === activeCategory);
-  }, [availableMenuItems, currentPeriod, activeCategory]);
+  }, [customerVisibleMenuItems, currentPeriod, activeCategory]);
 
   const menuItemsById = useMemo(
-    () => Object.fromEntries(availableMenuItems.map((item) => [item.id, item])),
-    [availableMenuItems]
+    () => Object.fromEntries(customerVisibleMenuItems.map((item) => [item.id, item])),
+    [customerVisibleMenuItems]
   );
 
   const inviteUrl = useMemo(() => {
@@ -699,6 +736,12 @@ const {
 
     if (!businessStatus.isTakingOrders) {
       showToast(businessStatus.message, 'error');
+      return;
+    }
+
+    const unavailableItem = safeCart.find((item) => !menuItemsById[item.id]);
+    if (unavailableItem) {
+      showToast(`${unavailableItem.name} は現在注文できません`, 'error');
       return;
     }
 
@@ -855,7 +898,7 @@ const {
     loading,
     contentLoading,
     menuItems: filteredMenuItems,
-    allMenuItems: availableMenuItems,
+    allMenuItems: customerVisibleMenuItems,
     menuItemsById,
     categories,
     view,

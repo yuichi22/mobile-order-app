@@ -1069,6 +1069,146 @@ const handleClearLimitedQuantity = async (event, item) => {
 </div>
 
 
+                <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm md:col-span-2">
+                  <div className="mb-6 flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-base font-black text-gray-800">
+                        顧客画面への表示
+                      </div>
+                      <p className="mt-1 text-sm font-bold leading-relaxed text-gray-400">
+                        管理画面には商品を残したまま、お客様のメニュー画面だけ表示を制御できます。
+                      </p>
+                    </div>
+                    <div className={`rounded-2xl px-4 py-2 text-xs font-black ${
+                      (editingItem.customerVisibility || 'visible') === 'hidden'
+                        ? 'bg-gray-100 text-gray-500'
+                        : (editingItem.customerVisibility || 'visible') === 'scheduled'
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {(editingItem.customerVisibility || 'visible') === 'hidden'
+                        ? '非表示'
+                        : (editingItem.customerVisibility || 'visible') === 'scheduled'
+                          ? '予約表示'
+                          : '表示中'}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {[
+                      {
+                        value: 'visible',
+                        title: '表示',
+                        description: '通常通り顧客画面に表示します。'
+                      },
+                      {
+                        value: 'hidden',
+                        title: '非表示',
+                        description: '売り切れではなく、顧客画面から隠します。'
+                      },
+                      {
+                        value: 'scheduled',
+                        title: '表示予約',
+                        description: '開始日・終了日で表示を制御します。'
+                      }
+                    ].map((option) => {
+                      const selected = (editingItem.customerVisibility || 'visible') === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setEditingItem({
+                            ...editingItem,
+                            customerVisibility: option.value,
+                            visibleDateMode: option.value === 'scheduled' ? 'dateRange' : (editingItem.visibleDateMode || 'always')
+                          })}
+                          className={`rounded-3xl border-2 p-5 text-left transition-all ${
+                            selected
+                              ? 'scale-[1.02] border-orange-500 bg-orange-50 shadow-lg shadow-orange-100'
+                              : 'border-gray-100 bg-white hover:border-orange-200'
+                          }`}
+                        >
+                          <div className={`text-sm font-black ${selected ? 'text-orange-700' : 'text-gray-700'}`}>
+                            {option.title}
+                          </div>
+                          <p className={`mt-2 text-xs font-bold leading-relaxed ${selected ? 'text-orange-500/80' : 'text-gray-400'}`}>
+                            {option.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(editingItem.customerVisibility || 'visible') === 'scheduled' && (
+                    <div className="mt-6 rounded-3xl border-2 border-blue-100 bg-blue-50/60 p-6">
+                      <div className="mb-4">
+                        <div className="text-sm font-black text-blue-900">
+                          表示予約カレンダー
+                        </div>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-blue-500">
+                          開始日だけ、終了日だけ、期間指定のいずれにも対応します。空欄の側は制限なしです。
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="mb-2 block text-[11px] font-black uppercase text-blue-400">
+                            表示開始日
+                          </label>
+                          <input
+                            type="date"
+                            value={editingItem.visibleFromDate || ''}
+                            onChange={(event) => setEditingItem({
+                              ...editingItem,
+                              customerVisibility: 'scheduled',
+                              visibleDateMode: 'dateRange',
+                              visibleFromDate: event.target.value
+                            })}
+                            className="h-14 w-full rounded-2xl border-2 border-blue-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-blue-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-[11px] font-black uppercase text-blue-400">
+                            表示終了日
+                          </label>
+                          <input
+                            type="date"
+                            value={editingItem.visibleToDate || ''}
+                            onChange={(event) => setEditingItem({
+                              ...editingItem,
+                              customerVisibility: 'scheduled',
+                              visibleDateMode: 'dateRange',
+                              visibleToDate: event.target.value
+                            })}
+                            className="h-14 w-full rounded-2xl border-2 border-blue-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-blue-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({
+                            ...editingItem,
+                            customerVisibility: 'scheduled',
+                            visibleDateMode: 'dateRange',
+                            visibleFromDate: '',
+                            visibleToDate: ''
+                          })}
+                          className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-blue-500 shadow-sm"
+                        >
+                          日付をクリア
+                        </button>
+                        <p className="flex items-center text-xs font-bold text-blue-400">
+                          例：6月10日〜6月30日だけ表示、6月1日から表示、今月末で終了。
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
                   <div className="mb-6 flex items-center gap-2 text-orange-500">
                     <Clock size={18} strokeWidth={3} />
