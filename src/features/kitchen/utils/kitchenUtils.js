@@ -181,7 +181,14 @@ export const buildPendingItemSummary = (
       }
 
       const quantity = Number(item.quantity || 1);
-      const name = item.name || '未設定商品';
+      const masterItem = menuItemLookup[item.menuId] || menuItemLookup[item.id] || {};
+      const name = String(
+        item.kitchenName ||
+        masterItem.kitchenName ||
+        item.name ||
+        masterItem.name ||
+        '未設定商品'
+      ).trim();
       const itemId = item.menuId || item.id || name;
       const cookingCategoryIds = getCookingCategoryIds(item, menuItemLookup);
 
@@ -341,9 +348,8 @@ export const getKitchenPriorityScore = (order, currentTime, activeKitchenId, men
 
   const statusWeight =
     order?.status === 'pending' ? 40
-      : order?.status === 'cooking' ? 20
-        : order?.status === 'serving' ? 5
-          : 0;
+      : order?.status === 'serving' ? 5
+        : 0;
 
   return statusWeight + Math.min(elapsed, 60) + visibleQuantity * 2 + pendingItems * 3;
 };

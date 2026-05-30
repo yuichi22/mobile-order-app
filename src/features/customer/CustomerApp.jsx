@@ -148,20 +148,34 @@ const CustomerApp = ({
   const safeAllMenuItems = Array.isArray(allMenuItems) ? allMenuItems : [];
   const safeCart = Array.isArray(cart) ? cart : [];
   const safeMyOrderHistory = Array.isArray(myOrderHistory) ? myOrderHistory : [];
-  const orderedCrossSellItems = safeMyOrderHistory.flatMap((order) => (
-    Array.isArray(order?.items)
-      ? order.items.map((item) => ({
-          ...item,
-          quantity: Number(item.quantity || 0),
-          category: item.category || item.categoryId || item.menuCategory || '',
-          appliedPriceMode: item.appliedPriceMode || item.priceMode || ''
-        }))
-      : []
-  ));
+  const isCancelledCrossSellAccountingItem = (item) => (
+  item?.status === 'cancelled' ||
+  item?.kitchenStatus === 'cancelled' ||
+  item?.paymentStatus === 'cancelled' ||
+  item?.cancelledAt ||
+  item?.cancelledAtMs
+);
+
+const orderedCrossSellItems = safeMyOrderHistory.flatMap((order) => {
+    const isCancelledOrder = order?.status === 'cancelled' || order?.paymentStatus === 'cancelled';
+
+    if (isCancelledOrder || !Array.isArray(order?.items)) {
+      return [];
+    }
+
+    return order.items
+      .filter((item) => !isCancelledCrossSellAccountingItem(item))
+      .map((item) => ({
+        ...item,
+        quantity: Number(item.quantity || 0),
+        category: item.category || item.categoryId || item.menuCategory || '',
+        appliedPriceMode: item.appliedPriceMode || item.priceMode || ''
+      }));
+  });
 
   const crossSellAccountingItems = [
     ...orderedCrossSellItems,
-    ...safeCart
+    ...safeCart.filter((item) => !isCancelledCrossSellAccountingItem(item))
   ];
   const safeMenuItemsById = menuItemsById && typeof menuItemsById === 'object'
     ? menuItemsById
@@ -242,6 +256,7 @@ const historySheetDragControls = useDragControls();
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [pendingOpenReceiptId, setPendingOpenReceiptId] = useState('');
   const [cancellingOrderId, setCancellingOrderId] = useState('');
+  const [cancelDialog, setCancelDialog] = useState(null);
   const [hasInteractedWithCrossSellTab, setHasInteractedWithCrossSellTab] = useState(false);
   const returnCategoryIdAfterCrossSellRef = useRef('');
   const crossSellAddedMessageTimerRef = useRef(null);
@@ -805,7 +820,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
 
   const getCrossSellAccountingItems = (cartItems = safeCart) => ([
     ...orderedCrossSellItems,
-    ...(Array.isArray(cartItems) ? cartItems : [])
+    ...(Array.isArray(cartItems) ? cartItems : []).filter((item) => !isCancelledCrossSellAccountingItem(item))
   ]);
 
   const getFlowTriggerQuantity = (flow, cartItems = safeCart) => {
@@ -837,7 +852,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
 
     const accountingItems = [
       ...orderedCrossSellItems,
-      ...(Array.isArray(cartItems) ? cartItems : [])
+      ...(Array.isArray(cartItems) ? cartItems : []).filter((item) => !isCancelledCrossSellAccountingItem(item))
     ];
 
     return accountingItems
@@ -949,11 +964,12 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
   };
 
   const showCrossSellLimitToast = () => {
-    setToast({
-      message: '先にセット商品を減らしてください。',
-      description: 'セット価格の商品数が、セット対象数を超えています。',
-      type: 'info',
-      autoCloseMs: 2600
+    setCancelDialog({
+      type: 'alert',
+      title: 'セット商品を減らしてください',
+      message: 'セット商品だけを残すことはできません。',
+      description: '',
+      confirmLabel: '閉じる'
     });
   };
 
@@ -998,11 +1014,54 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
     return `${name}を追加しました。`;
   };
 
+const hasCrossSellSourcePayload = (item) => (
+  Boolean(
+    item?.crossSellSourceKey ||
+    item?.crossSellSourceFlowId ||
+    item?.crossSellSourceGroupKey ||
+    (Array.isArray(item?.crossSellSourceCategoryIds) && item.crossSellSourceCategoryIds.length > 0)
+  )
+);
+
+const buildCrossSellSourcePayload = (item) => ({
+  crossSellSourceKey: item?.crossSellSourceKey || '',
+  crossSellSourceFlowId: item?.crossSellSourceFlowId || '',
+  crossSellSourceStepId: item?.crossSellSourceStepId || '',
+  crossSellSourceGroupKey: item?.crossSellSourceGroupKey || '',
+  crossSellSourceCategoryIds: Array.isArray(item?.crossSellSourceCategoryIds)
+    ? item.crossSellSourceCategoryIds.map(String)
+    : []
+});
+
+const buildItemForCrossSellResolve = (item) => {
+  if (item?.appliedPriceMode !== 'crossSell' || hasCrossSellSourcePayload(item)) {
+    return item;
+  }
+
+  return {
+    ...item,
+    appliedPriceMode: 'normal',
+    price: item.originalPrice ?? item.price,
+    priceLabelText: item.originalPriceLabelText || item.priceLabelText || ''
+  };
+};
+
 const handleConfirmedCartAdd = (item, quantity = 1, selectedOptions = [], extraPayload = {}) => {
-  confirmAddToCart(item, quantity, selectedOptions, extraPayload);
+  const itemForResolve = buildItemForCrossSellResolve(item);
+  const resolvedItem = hasCrossSellSourcePayload(itemForResolve)
+    ? itemForResolve
+    : resolveOrderItemForCurrentMode(itemForResolve);
+
+
+  const resolvedPayload = {
+    ...extraPayload,
+    ...buildCrossSellSourcePayload(resolvedItem)
+  };
+
+  confirmAddToCart(resolvedItem, quantity, selectedOptions, resolvedPayload);
 
   const wasCrossSellActive = isCrossSellActive;
-  const handledByCrossSell = handleCartItemAdded(item);
+  const handledByCrossSell = handleCartItemAdded(resolvedItem);
 
   if (handledByCrossSell) {
     if (wasCrossSellActive) {
@@ -1312,12 +1371,161 @@ const canCancelCustomerOrder = (order) => {
   });
 };
 
-const handleCancelCustomerOrder = async (order) => {
-  if (!order?.id || cancellingOrderId) return;
+const getCustomerOrderItemIdentity = (item, index) => (
+  String(
+    item?.cartId ||
+    item?.lineId ||
+    item?.orderItemId ||
+    item?.id ||
+    index
+  )
+);
 
-  const confirmed = window.confirm('この注文をキャンセルしますか？\n調理開始前の注文のみキャンセルできます。');
-  if (!confirmed) return;
+const canCancelCustomerOrderItem = (order, item) => {
+  if (!order || !item) return false;
+  if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+  if (order.paymentStatus === 'paid') return false;
+  if (order.orderFlow === 'prepay') return false;
+  if (item.status === 'cancelled' || item.kitchenStatus === 'cancelled') return false;
+  if (
+    item.isPrepared === true ||
+    item.isStarted === true ||
+    item.isCooking === true ||
+    item.startedAt ||
+    item.startedAtMs ||
+    item.cookingStartedAtMs
+  ) {
+    return false;
+  }
 
+  const status = String(item.kitchenStatus || 'pending');
+  return status === 'pending';
+};
+
+const getCustomerOrderItemsForCrossSellCheck = (orders = filteredOrderHistory) => (
+  (Array.isArray(orders) ? orders : []).flatMap((historyOrder) => {
+    const isCancelledOrder = historyOrder?.status === 'cancelled' || historyOrder?.paymentStatus === 'cancelled';
+
+    if (isCancelledOrder || !Array.isArray(historyOrder?.items)) {
+      return [];
+    }
+
+    return historyOrder.items
+      .filter((historyItem) => (
+        historyItem?.status !== 'cancelled'
+        && historyItem?.kitchenStatus !== 'cancelled'
+      ))
+      .map((historyItem, historyIndex) => ({
+        ...historyItem,
+        __orderId: historyOrder.id,
+        __itemIndex: historyIndex,
+        __itemIdentity: getCustomerOrderItemIdentity(historyItem, historyIndex),
+        quantity: Number(historyItem.quantity || 0),
+        category: historyItem.category || historyItem.categoryId || historyItem.menuCategory || '',
+        categoryId: historyItem.categoryId || historyItem.category || historyItem.menuCategory || '',
+        appliedPriceMode: historyItem.appliedPriceMode || historyItem.priceMode || ''
+      }));
+  })
+);
+
+const wouldCancelCustomerOrderItemBreakCrossSellLimit = (order, item, itemIndex) => {
+  if (!order?.id || !item) return false;
+
+  if (item.appliedPriceMode === 'crossSell' || item.priceMode === 'crossSell') {
+    return false;
+  }
+
+  const targetIdentity = getCustomerOrderItemIdentity(item, itemIndex);
+  const currentOrders = Array.isArray(filteredOrderHistory) ? filteredOrderHistory : safeMyOrderHistory;
+  const hasCurrentOrder = currentOrders.some((candidateOrder) => String(candidateOrder?.id || '') === String(order.id || ''));
+  const sourceOrders = hasCurrentOrder
+    ? currentOrders
+    : [order, ...currentOrders];
+
+  const nextItems = getCustomerOrderItemsForCrossSellCheck(sourceOrders).filter((candidate) => !(
+    String(candidate.__orderId || '') === String(order.id || '')
+    && (
+      String(candidate.__itemIdentity || '') === String(targetIdentity || '')
+      || Number(candidate.__itemIndex) === Number(itemIndex)
+    )
+  ));
+
+  return wouldExceedCrossSellLimit(nextItems);
+};
+
+const executeCancelCustomerOrderItem = async (order, item, itemIndex) => {
+  setCancellingOrderId(`${order.id}:${itemIndex}`);
+
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+
+    if (!idToken) {
+      throw new Error('ログイン状態を確認できませんでした。');
+    }
+
+    const response = await fetch('/api/cancelCustomerOrderItem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        storeId,
+        sessionId,
+        orderId: order.id,
+        itemId: getCustomerOrderItemIdentity(item, itemIndex),
+        itemIndex,
+        participantId: order.participantId || order.customerId
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error?.message || '商品のキャンセルに失敗しました。');
+    }
+
+    setToast({
+      message: '商品をキャンセルしました。',
+      type: 'success'
+    });
+  } catch (cancelError) {
+    console.error('[CustomerApp] cancel order item failed', cancelError);
+    setToast({
+      message: cancelError.message || '商品のキャンセルに失敗しました。',
+      type: 'error'
+    });
+  } finally {
+    setCancellingOrderId('');
+  }
+};
+
+const handleCancelCustomerOrderItem = async (order, item, itemIndex) => {
+  if (!order?.id || !item || cancellingOrderId) return;
+
+  if (wouldCancelCustomerOrderItemBreakCrossSellLimit(order, item, itemIndex)) {
+    setCancelDialog({
+      type: 'alert',
+      title: 'セット商品を減らしてください',
+      message: 'セット商品だけを残すことはできません。',
+      description: '',
+      confirmLabel: '閉じる'
+    });
+    return;
+  }
+
+  setCancelDialog({
+    type: 'confirm',
+    title: '商品をキャンセルしますか？',
+    message: `「${item.name || 'この商品'}」をキャンセルします。`,
+    description: '調理開始前の商品だけキャンセルできます。',
+    cancelLabel: '戻る',
+    confirmLabel: 'キャンセルする',
+    onConfirm: () => executeCancelCustomerOrderItem(order, item, itemIndex)
+  });
+};
+
+const executeCancelCustomerOrder = async (order) => {
   setCancellingOrderId(order.id);
 
   try {
@@ -1361,6 +1569,21 @@ const handleCancelCustomerOrder = async (order) => {
     setCancellingOrderId('');
   }
 };
+
+const handleCancelCustomerOrder = async (order) => {
+  if (!order?.id || cancellingOrderId) return;
+
+  setCancelDialog({
+    type: 'confirm',
+    title: '注文をキャンセルしますか？',
+    message: 'この注文をキャンセルします。',
+    description: '調理開始前の注文のみキャンセルできます。',
+    cancelLabel: '戻る',
+    confirmLabel: 'キャンセルする',
+    onConfirm: () => executeCancelCustomerOrder(order)
+  });
+};
+
 
 const openReceiptSafely = (receipt) => {
   if (!receipt) {
@@ -1931,25 +2154,45 @@ if (shouldWaitForSessionBeforeWelcome) {
                       isCancelledOrder ||
                       item?.status === 'cancelled' ||
                       item?.kitchenStatus === 'cancelled';
+                    const canCancelItem = canCancelCustomerOrderItem(order, item);
+                    const isCancellingItem = cancellingOrderId === `${order.id}:${index}`;
 
                     return (
                       <div
                         key={`${order.id}-${index}`}
-                        className={`flex justify-between border-b border-gray-50 py-1 text-sm last:border-0 ${
+                        className={`border-b border-gray-50 py-2 text-sm last:border-0 ${
                           isCancelledItem ? 'text-gray-400 line-through' : ''
                         }`}
                       >
-                        <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
-                          {item.name} x{Number(item.quantity || 0)}
-                          {item.serviceTimingLabel && (
-                            <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
-                              {item.serviceTimingLabel}
-                            </span>
-                          )}
-                        </span>
-                        <span>
-                          ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
-                        </span>
+                        <div className="flex justify-between gap-3">
+                          <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
+                            {item.name} x{Number(item.quantity || 0)}
+                            {item.serviceTimingLabel && (
+                              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                                {item.serviceTimingLabel}
+                              </span>
+                            )}
+                            {item.appliedPriceMode === 'crossSell' && (
+                              <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">
+                                セット価格
+                              </span>
+                            )}
+                          </span>
+                          <span>
+                            ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {canCancelItem && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelCustomerOrderItem(order, item, index)}
+                            disabled={isCancellingItem}
+                            className="mt-2 inline-flex h-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 px-3 text-[11px] font-black text-red-500 transition-all hover:bg-red-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isCancellingItem ? 'キャンセル中...' : 'この商品をキャンセル'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -1995,6 +2238,73 @@ if (shouldWaitForSessionBeforeWelcome) {
         </div>
       </motion.div>
     </>
+  ) : null;
+
+  const cancelDialogModal = cancelDialog ? (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm animate-in fade-in">
+      <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
+        <div className={`mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full ${
+          cancelDialog.type === 'alert' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'
+        }`}>
+          {cancelDialog.type === 'alert' ? (
+            <ShieldAlert size={32} strokeWidth={2.8} />
+          ) : (
+            <Trash2 size={30} strokeWidth={2.8} />
+          )}
+        </div>
+
+        <h3 className="mb-2 text-center text-xl font-bold leading-relaxed text-gray-900">
+          {cancelDialog.title}
+        </h3>
+
+        {cancelDialog.message && (
+          <p className="text-center text-sm font-bold leading-relaxed text-gray-700">
+            {cancelDialog.message}
+          </p>
+        )}
+
+        {cancelDialog.description && (
+          <p className="mt-3 text-center text-xs font-bold leading-relaxed text-gray-400">
+            {cancelDialog.description}
+          </p>
+        )}
+
+        {cancelDialog.type === 'confirm' ? (
+          <div className="mt-7 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setCancelDialog(null)}
+              className="flex h-14 items-center justify-center rounded-[1.6rem] bg-gray-100 text-sm font-black text-gray-700 transition-transform active:scale-95"
+            >
+              {cancelDialog.cancelLabel || '戻る'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const action = cancelDialog.onConfirm;
+                setCancelDialog(null);
+
+                if (typeof action === 'function') {
+                  action();
+                }
+              }}
+              className="flex h-14 items-center justify-center rounded-[1.6rem] bg-red-500 text-sm font-black text-white shadow-lg shadow-red-100 transition-transform active:scale-95"
+            >
+              {cancelDialog.confirmLabel || 'キャンセルする'}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCancelDialog(null)}
+            className="mt-7 flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 text-sm font-black text-white shadow-lg transition-transform active:scale-95"
+          >
+            {cancelDialog.confirmLabel || '閉じる'}
+          </button>
+        )}
+      </div>
+    </div>
   ) : null;
 
   const actionModal = activeModal ? (
@@ -2678,6 +2988,8 @@ if (shouldWaitForSessionBeforeWelcome) {
           onClose={() => setIsInviteModalOpen(false)}
         />
       )}
+
+      {cancelDialogModal}
 
       {actionModal}
       {receiptModal}

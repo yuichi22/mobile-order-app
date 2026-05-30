@@ -3289,6 +3289,31 @@ export const createPostpayOrder = onRequest(
         priceLabelText: String(item.priceLabelText || ''),
         originalPrice: item.originalPrice ?? null,
         originalPriceLabelText: String(item.originalPriceLabelText || ''),
+        crossSellSourceKey: String(
+          item.crossSellSourceKey ||
+          item.sourceKey ||
+          ''
+        ),
+        crossSellSourceFlowId: String(
+          item.crossSellSourceFlowId ||
+          item.sourceFlowId ||
+          ''
+        ),
+        crossSellSourceStepId: String(
+          item.crossSellSourceStepId ||
+          item.sourceStepId ||
+          ''
+        ),
+        crossSellSourceGroupKey: String(
+          item.crossSellSourceGroupKey ||
+          item.sourceGroupKey ||
+          ''
+        ),
+        crossSellSourceCategoryIds: Array.isArray(item.crossSellSourceCategoryIds)
+          ? item.crossSellSourceCategoryIds.map(String)
+          : Array.isArray(item.sourceCategoryIds)
+            ? item.sourceCategoryIds.map(String)
+            : [],
         selectedOptions: Array.isArray(item.selectedOptions) ? item.selectedOptions : [],
         serviceTiming: String(item.serviceTiming || ''),
         serviceTimingLabel: String(item.serviceTimingLabel || ''),
@@ -3438,6 +3463,31 @@ export const createPostpayOrder = onRequest(
             priceLabelText: String(cartItem.priceLabelText || ''),
             originalPrice: cartItem.originalPrice ?? null,
             originalPriceLabelText: String(cartItem.originalPriceLabelText || ''),
+            crossSellSourceKey: String(
+              cartItem.crossSellSourceKey ||
+              cartItem.sourceKey ||
+              ''
+            ),
+            crossSellSourceFlowId: String(
+              cartItem.crossSellSourceFlowId ||
+              cartItem.sourceFlowId ||
+              ''
+            ),
+            crossSellSourceStepId: String(
+              cartItem.crossSellSourceStepId ||
+              cartItem.sourceStepId ||
+              ''
+            ),
+            crossSellSourceGroupKey: String(
+              cartItem.crossSellSourceGroupKey ||
+              cartItem.sourceGroupKey ||
+              ''
+            ),
+            crossSellSourceCategoryIds: Array.isArray(cartItem.crossSellSourceCategoryIds)
+              ? cartItem.crossSellSourceCategoryIds.map(String)
+              : Array.isArray(cartItem.sourceCategoryIds)
+                ? cartItem.sourceCategoryIds.map(String)
+                : [],
             options: selectedOptions.map((option) => option.name).filter(Boolean),
             serviceTiming: String(cartItem.serviceTiming || ''),
             serviceTimingLabel: String(cartItem.serviceTimingLabel || ''),
@@ -3542,8 +3592,10 @@ const isPreparedOrderItem = (item) => {
   return (
     item?.isPrepared === true ||
     item?.isStarted === true ||
+    item?.isCooking === true ||
     item?.startedAt ||
     item?.startedAtMs ||
+    item?.cookingStartedAtMs ||
     item?.preparedAt ||
     item?.preparedAtMs ||
     item?.servedAt ||
@@ -3568,6 +3620,262 @@ const calculateActiveItemsTotal = (items = []) => (
     return sum + (quantity * unitPrice);
   }, 0)
 );
+
+const isCrossSellOrderItem = (item) => (
+  item?.appliedPriceMode === 'crossSell' || item?.priceMode === 'crossSell'
+);
+
+const getOrderItemQuantity = (item) => (
+  Math.max(Number(item?.quantity || 0), 0)
+);
+
+const normalizeStringArray = (value) => (
+  Array.isArray(value)
+    ? value.map((item) => String(item || '').trim()).filter(Boolean)
+    : []
+);
+
+const getOrderItemCategoryId = (item) => (
+  String(item?.categoryId || item?.category || '').trim()
+);
+
+const getCrossSellFlowsFromSettings = (settings = {}) => {
+  if (Array.isArray(settings.flows)) return settings.flows;
+  if (Array.isArray(settings.items)) return settings.items;
+  if (Array.isArray(settings.list)) return settings.list;
+  if (Array.isArray(settings.crossSellFlows)) return settings.crossSellFlows;
+  return [];
+};
+
+const getCrossSellFlowTriggerCategoryIds = (flow = {}, crossSellSettings = {}) => {
+  const candidates = [
+    flow.triggerCategoryIds,
+    flow.triggerCategories,
+    flow.sourceCategoryIds,
+    flow.sourceCategories,
+    flow.categoryIds
+  ];
+
+  for (const candidate of candidates) {
+    const values = normalizeStringArray(candidate);
+    if (values.length > 0) return values;
+  }
+
+  const singleCandidates = [
+    flow.triggerCategoryId,
+    flow.sourceCategoryId,
+    flow.categoryId
+  ];
+
+  const singleValues = singleCandidates
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  if (singleValues.length > 0) return singleValues;
+
+  // フロントの flowHasTriggerForItem と同じく、triggerGroupId からトリガーカテゴリを解決する。
+  const triggerGroupId = String(
+    flow.triggerGroupId ||
+    flow.triggerGroupKey ||
+    flow.sourceGroupId ||
+    flow.sourceGroupKey ||
+    ''
+  ).trim();
+
+  if (!triggerGroupId) return [];
+
+  const group = getCrossSellGroupsFromSettings(crossSellSettings).find((candidate) => (
+    String(candidate?.id || candidate?.key || candidate?.groupId || '').trim() === triggerGroupId
+  ));
+
+  return normalizeStringArray(group?.categoryIds);
+};
+
+const getCrossSellGroupsFromSettings = (settings = {}) => (
+  Array.isArray(settings.groups)
+    ? settings.groups
+    : []
+);
+
+const getCrossSellStepOfferGroups = (step = {}, crossSellSettings = {}) => {
+  if (Array.isArray(step.offerGroups)) return step.offerGroups;
+  if (Array.isArray(step.groups)) return step.groups;
+  if (Array.isArray(step.offers)) return step.offers;
+
+  if (String(step?.type || '') === 'group') {
+    const groupId = String(step?.groupId || step?.groupKey || '').trim();
+
+    if (!groupId) return [];
+
+    const matchedGroup = getCrossSellGroupsFromSettings(crossSellSettings).find((group) => (
+      String(group?.id || group?.key || group?.groupId || '').trim() === groupId
+    ));
+
+    return matchedGroup ? [matchedGroup] : [];
+  }
+
+  if (String(step?.type || '') === 'category') {
+    const categoryIds = normalizeStringArray(step?.categoryIds);
+    const categoryId = String(step?.categoryId || '').trim();
+
+    const resolvedCategoryIds = categoryIds.length > 0
+      ? categoryIds
+      : categoryId
+        ? [categoryId]
+        : [];
+
+    return resolvedCategoryIds.length > 0
+      ? [{
+          id: step?.id || categoryId,
+          key: step?.id || categoryId,
+          categoryIds: resolvedCategoryIds
+        }]
+      : [];
+  }
+
+  return [];
+};
+
+const getCrossSellOfferGroupCategoryIds = (offerGroup = {}) => {
+  const candidates = [
+    offerGroup.categoryIds,
+    offerGroup.categories,
+    offerGroup.offerCategoryIds,
+    offerGroup.targetCategoryIds
+  ];
+
+  for (const candidate of candidates) {
+    const values = normalizeStringArray(candidate);
+    if (values.length > 0) return values;
+  }
+
+  const singleCandidates = [
+    offerGroup.categoryId,
+    offerGroup.offerCategoryId,
+    offerGroup.targetCategoryId
+  ];
+
+  return singleCandidates
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+};
+
+const getCrossSellOfferSourceKey = (flow = {}, offerGroup = {}) => (
+  [
+    String(flow?.id || ''),
+    String(offerGroup?.key || offerGroup?.groupId || offerGroup?.categoryId || ''),
+    Array.isArray(offerGroup?.categoryIds)
+      ? offerGroup.categoryIds.map(String).sort().join(',')
+      : ''
+  ].join('::')
+);
+
+const countItemsInCategoryIds = (items = [], categoryIds = []) => {
+  const normalizedCategoryIds = normalizeStringArray(categoryIds);
+
+  if (normalizedCategoryIds.length === 0) return 0;
+
+  return items.reduce((total, item) => {
+    const categoryId = getOrderItemCategoryId(item);
+    if (!normalizedCategoryIds.includes(categoryId)) return total;
+    return total + getOrderItemQuantity(item);
+  }, 0);
+};
+
+const getCrossSellOfferGroupKey = (offerGroup = {}) => (
+  String(
+    offerGroup?.key ||
+    offerGroup?.groupId ||
+    offerGroup?.categoryId ||
+    offerGroup?.offerCategoryId ||
+    offerGroup?.targetCategoryId ||
+    ''
+  ).trim()
+);
+
+const isCrossSellItemFromOfferGroup = (item = {}, offerGroup = {}, flow = {}) => {
+  const offerCategoryIds = getCrossSellOfferGroupCategoryIds(offerGroup);
+  const itemCategoryId = getOrderItemCategoryId(item);
+
+  if (!offerCategoryIds.includes(itemCategoryId)) {
+    return false;
+  }
+
+  const expectedSourceKey = getCrossSellOfferSourceKey(flow, offerGroup);
+  const itemSourceKey = String(item?.crossSellSourceKey || '').trim();
+
+  if (expectedSourceKey && itemSourceKey && itemSourceKey === expectedSourceKey) {
+    return true;
+  }
+
+  const expectedFlowId = String(flow?.id || '').trim();
+  const itemFlowId = String(item?.crossSellSourceFlowId || '').trim();
+
+  if (expectedFlowId && itemFlowId && expectedFlowId !== itemFlowId) {
+    return false;
+  }
+
+  const expectedGroupKey = getCrossSellOfferGroupKey(offerGroup);
+  const itemGroupKey = String(item?.crossSellSourceGroupKey || '').trim();
+
+  if (expectedGroupKey && itemGroupKey && expectedGroupKey !== itemGroupKey) {
+    return false;
+  }
+
+  const itemSourceCategoryIds = normalizeStringArray(item?.crossSellSourceCategoryIds);
+
+  if (itemSourceCategoryIds.length > 0) {
+    return itemSourceCategoryIds.some((categoryId) => offerCategoryIds.includes(categoryId));
+  }
+
+  // 古い注文など source 情報が足りない場合は、カテゴリ一致を優先して使用数に含める。
+  // ここで漏らすと、トリガー商品だけを消せてセット価格商品が残るため。
+  return true;
+};
+
+const countCrossSellItemsForOfferGroup = (crossSellItems = [], offerGroup = {}, flow = {}) => (
+  crossSellItems
+    .filter((item) => isCrossSellItemFromOfferGroup(item, offerGroup, flow))
+    .reduce((total, item) => total + getOrderItemQuantity(item), 0)
+);
+
+const assertCrossSellBalance = (items = [], crossSellSettings = {}) => {
+  const activeItems = Array.isArray(items)
+    ? items.filter((item) => !isCancelledOrderItem(item))
+    : [];
+
+  const crossSellItems = activeItems.filter((item) => isCrossSellOrderItem(item));
+
+  if (crossSellItems.length === 0) return;
+
+  const flows = getCrossSellFlowsFromSettings(crossSellSettings)
+    .filter((flow) => flow && flow.enabled !== false && flow.isActive !== false);
+
+  if (flows.length === 0) {
+    throw new Error('app/cross-sell-balance-required');
+  }
+
+  // トリガーになるのは「通常価格」かつ「その flow の triggerCategory に該当する商品」だけ。
+  // セット価格の商品は、たとえカテゴリが一致しても次のクロスセル権利を発生させない。
+  const triggerItems = activeItems.filter((item) => !isCrossSellOrderItem(item));
+
+  flows.forEach((flow) => {
+    const triggerCategoryIds = getCrossSellFlowTriggerCategoryIds(flow, crossSellSettings);
+    const triggerQuantity = countItemsInCategoryIds(triggerItems, triggerCategoryIds);
+
+    const steps = Array.isArray(flow.steps) ? flow.steps : [];
+
+    steps.forEach((step) => {
+      getCrossSellStepOfferGroups(step, crossSellSettings).forEach((offerGroup) => {
+        const usedQuantity = countCrossSellItemsForOfferGroup(crossSellItems, offerGroup, flow);
+
+        if (usedQuantity > triggerQuantity) {
+          throw new Error('app/cross-sell-balance-required');
+        }
+      });
+    });
+  });
+};
 
 export const cancelCustomerOrderItem = onRequest(
   { region: REGION, cors: true },
@@ -3616,6 +3924,12 @@ export const cancelCustomerOrderItem = onRequest(
         const order = orderSnapshot.data() || {};
         const items = Array.isArray(order.items) ? order.items : [];
 
+        const crossSellSettingsRef = storeRef.collection('settings').doc('crossSell');
+        const crossSellSettingsSnapshot = await transaction.get(crossSellSettingsRef);
+        const crossSellSettings = crossSellSettingsSnapshot.exists
+          ? (crossSellSettingsSnapshot.data() || {})
+          : {};
+
         if (String(order.sessionId || '') !== normalizedSessionId) {
           throw new Error('app/order-not-found');
         }
@@ -3639,17 +3953,6 @@ export const cancelCustomerOrderItem = onRequest(
 
         if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') {
           throw new Error('app/order-already-cancelled');
-        }
-
-        const orderKitchenStarted =
-          order.status === 'cooking' ||
-          order.status === 'serving' ||
-          order.status === 'completed' ||
-          order.cookingStartedAtMs ||
-          order.cookingStartedAt;
-
-        if (orderKitchenStarted) {
-          throw new Error('app/order-already-started');
         }
 
         if (!items.length) {
@@ -3711,6 +4014,14 @@ export const cancelCustomerOrderItem = onRequest(
             cancelledAtMs
           };
         });
+
+        // セット価格商品そのもののキャンセルは、調理前なら素早く許可する。
+        // バランスチェックは「通常価格のトリガー商品をキャンセルする時」だけ必要。
+        // 例：パスタを消すならセットドリンクだけ残らないように制限する。
+        // 例：セットドリンクを消すなら上限超過は起きないので制限しない。
+        if (!isCrossSellOrderItem(targetItem)) {
+          assertCrossSellBalance(nextItems, crossSellSettings);
+        }
 
         const activeItems = nextItems.filter((item) => !isCancelledOrderItem(item));
         const nextTotalPrice = calculateActiveItemsTotal(nextItems);
