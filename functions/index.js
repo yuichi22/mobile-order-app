@@ -3438,6 +3438,13 @@ export const createPostpayOrder = onRequest(
             priceLabelText: String(cartItem.priceLabelText || ''),
             originalPrice: cartItem.originalPrice ?? null,
             originalPriceLabelText: String(cartItem.originalPriceLabelText || ''),
+            crossSellSourceKey: String(cartItem.crossSellSourceKey || ''),
+            crossSellSourceFlowId: String(cartItem.crossSellSourceFlowId || ''),
+            crossSellSourceStepId: String(cartItem.crossSellSourceStepId || ''),
+            crossSellSourceGroupKey: String(cartItem.crossSellSourceGroupKey || ''),
+            crossSellSourceCategoryIds: Array.isArray(cartItem.crossSellSourceCategoryIds)
+              ? cartItem.crossSellSourceCategoryIds.map(String)
+              : [],
             options: selectedOptions.map((option) => option.name).filter(Boolean),
             serviceTiming: String(cartItem.serviceTiming || ''),
             serviceTimingLabel: String(cartItem.serviceTimingLabel || ''),
@@ -3568,6 +3575,34 @@ const calculateActiveItemsTotal = (items = []) => (
     return sum + (quantity * unitPrice);
   }, 0)
 );
+
+const isCrossSellOrderItem = (item) => (
+  item?.appliedPriceMode === 'crossSell' || item?.priceMode === 'crossSell'
+);
+
+const getOrderItemQuantity = (item) => (
+  Math.max(Number(item?.quantity || 0), 0)
+);
+
+const assertCrossSellBalance = (items = []) => {
+  const activeItems = Array.isArray(items)
+    ? items.filter((item) => !isCancelledOrderItem(item))
+    : [];
+
+  const crossSellQuantity = activeItems
+    .filter((item) => isCrossSellOrderItem(item))
+    .reduce((total, item) => total + getOrderItemQuantity(item), 0);
+
+  if (crossSellQuantity <= 0) return;
+
+  const triggerQuantity = activeItems
+    .filter((item) => !isCrossSellOrderItem(item))
+    .reduce((total, item) => total + getOrderItemQuantity(item), 0);
+
+  if (crossSellQuantity > triggerQuantity) {
+    throw new Error('app/cross-sell-balance-required');
+  }
+};
 
 export const cancelCustomerOrderItem = onRequest(
   { region: REGION, cors: true },
@@ -3711,6 +3746,8 @@ export const cancelCustomerOrderItem = onRequest(
             cancelledAtMs
           };
         });
+
+        assertCrossSellBalance(nextItems);
 
         const activeItems = nextItems.filter((item) => !isCancelledOrderItem(item));
         const nextTotalPrice = calculateActiveItemsTotal(nextItems);

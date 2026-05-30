@@ -1312,6 +1312,80 @@ const canCancelCustomerOrder = (order) => {
   });
 };
 
+const getCustomerOrderItemIdentity = (item, index) => (
+  String(
+    item?.cartId ||
+    item?.lineId ||
+    item?.orderItemId ||
+    item?.id ||
+    index
+  )
+);
+
+const canCancelCustomerOrderItem = (order, item) => {
+  if (!order || !item) return false;
+  if (order.status === 'cancelled' || order.paymentStatus === 'cancelled') return false;
+  if (order.paymentStatus === 'paid') return false;
+  if (order.orderFlow === 'prepay') return false;
+  if (item.status === 'cancelled' || item.kitchenStatus === 'cancelled') return false;
+  if (item.isPrepared === true || item.isStarted === true) return false;
+
+  const status = String(item.kitchenStatus || 'pending');
+  return status === 'pending';
+};
+
+const handleCancelCustomerOrderItem = async (order, item, itemIndex) => {
+  if (!order?.id || !item || cancellingOrderId) return;
+
+  const confirmed = window.confirm(`「${item.name || 'この商品'}」をキャンセルしますか？\n調理開始前の商品だけキャンセルできます。`);
+  if (!confirmed) return;
+
+  setCancellingOrderId(`${order.id}:${itemIndex}`);
+
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+
+    if (!idToken) {
+      throw new Error('ログイン状態を確認できませんでした。');
+    }
+
+    const response = await fetch('/api/cancelCustomerOrderItem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        storeId,
+        sessionId,
+        orderId: order.id,
+        itemId: getCustomerOrderItemIdentity(item, itemIndex),
+        itemIndex,
+        participantId: order.participantId || order.customerId
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error?.message || '商品のキャンセルに失敗しました。');
+    }
+
+    setToast({
+      message: '商品をキャンセルしました。',
+      type: 'success'
+    });
+  } catch (cancelError) {
+    console.error('[CustomerApp] cancel order item failed', cancelError);
+    setToast({
+      message: cancelError.message || '商品のキャンセルに失敗しました。',
+      type: 'error'
+    });
+  } finally {
+    setCancellingOrderId('');
+  }
+};
+
 const handleCancelCustomerOrder = async (order) => {
   if (!order?.id || cancellingOrderId) return;
 
@@ -1931,25 +2005,45 @@ if (shouldWaitForSessionBeforeWelcome) {
                       isCancelledOrder ||
                       item?.status === 'cancelled' ||
                       item?.kitchenStatus === 'cancelled';
+                    const canCancelItem = canCancelCustomerOrderItem(order, item);
+                    const isCancellingItem = cancellingOrderId === `${order.id}:${index}`;
 
                     return (
                       <div
                         key={`${order.id}-${index}`}
-                        className={`flex justify-between border-b border-gray-50 py-1 text-sm last:border-0 ${
+                        className={`border-b border-gray-50 py-2 text-sm last:border-0 ${
                           isCancelledItem ? 'text-gray-400 line-through' : ''
                         }`}
                       >
-                        <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
-                          {item.name} x{Number(item.quantity || 0)}
-                          {item.serviceTimingLabel && (
-                            <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
-                              {item.serviceTimingLabel}
-                            </span>
-                          )}
-                        </span>
-                        <span>
-                          ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
-                        </span>
+                        <div className="flex justify-between gap-3">
+                          <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
+                            {item.name} x{Number(item.quantity || 0)}
+                            {item.serviceTimingLabel && (
+                              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                                {item.serviceTimingLabel}
+                              </span>
+                            )}
+                            {item.appliedPriceMode === 'crossSell' && (
+                              <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">
+                                セット価格
+                              </span>
+                            )}
+                          </span>
+                          <span>
+                            ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {canCancelItem && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelCustomerOrderItem(order, item, index)}
+                            disabled={isCancellingItem}
+                            className="mt-2 inline-flex h-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 px-3 text-[11px] font-black text-red-500 transition-all hover:bg-red-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isCancellingItem ? 'キャンセル中...' : 'この商品をキャンセル'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
