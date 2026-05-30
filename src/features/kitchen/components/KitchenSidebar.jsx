@@ -307,12 +307,12 @@ const KitchenSidebar = ({
                   disabled={completedReadyCount === 0}
                   className={`flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-sm font-black shadow-sm transition-all active:scale-[0.98] ${
                     completedReadyCount > 0
-                      ? 'border-slate-200 bg-white text-slate-900 hover:border-slate-900 hover:bg-slate-900 hover:text-white'
+                      ? 'border-blue-300 bg-white text-blue-700 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-800'
                       : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none'
                   }`}
                 >
                   <CheckCircle size={18} strokeWidth={2.8} />
-                  完了伝票を一括クリア
+                  伝票を一括整理
                 </button>
               </div>
             )}

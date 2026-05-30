@@ -353,16 +353,31 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
       const resolveItemStatus = (item) => {
         if (item?.kitchenStatus === 'served') return 'served';
         if (item?.kitchenStatus === 'prepared' || item?.isPrepared) return 'prepared';
+        if (item?.kitchenStatus === 'cooking' || item?.isCooking) return 'cooking';
         return 'pending';
       };
 
       return sortedOrders.filter((order) => {
-        const items = Array.isArray(order?.items) ? order.items : [];
+        const items = getActiveKitchenItems(order?.items);
         if (items.length === 0) return false;
 
-        return items.every((item) => resolveItemStatus(item) === 'served');
+        const targetItems = items.filter((item) => {
+          if (activeKitchenId === 'all') return true;
+
+          const lookupId = item.menuId || item.id;
+          const masterItem = kdsData.menuItemLookup?.[lookupId] || {};
+          const targetKitchenIds = masterItem.kitchenIds || (
+            masterItem.kitchenId ? [masterItem.kitchenId] : []
+          );
+
+          return targetKitchenIds.some((kitchenId) => String(kitchenId) === String(activeKitchenId));
+        });
+
+        if (targetItems.length === 0) return false;
+
+        return targetItems.every((item) => resolveItemStatus(item) === 'served');
       });
-    }, [sortedOrders]);
+    }, [activeKitchenId, kdsData.menuItemLookup, sortedOrders]);
 
 
     useEffect(() => {
@@ -621,10 +636,46 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
   const handleClearCompletedOrders = async () => {
     if (completedReadyOrders.length === 0) return;
 
+    const resolveItemStatus = (item) => {
+      if (item?.kitchenStatus === 'served') return 'served';
+      if (item?.kitchenStatus === 'prepared' || item?.isPrepared) return 'prepared';
+      if (item?.kitchenStatus === 'cooking' || item?.isCooking) return 'cooking';
+      return 'pending';
+    };
+
     await Promise.all(
-      completedReadyOrders.map((order) => (
-        kdsData.updateOrderStatus(order.id, 'completed')
-      ))
+      completedReadyOrders.map((order) => {
+        const activeItems = getActiveKitchenItems(order?.items);
+        const allOrderServed = activeItems.length > 0 && activeItems.every((item) => (
+          resolveItemStatus(item) === 'served'
+        ));
+
+        // 全商品が提供済みなら、伝票自体を完了にしてキッチンから消す。
+        if (allOrderServed) {
+          return kdsData.updateOrderStatus(order.id, 'completed');
+        }
+
+        // 「全て表示」では、担当キッチンが特定できないため、
+        // 全商品提供済みでない伝票は完全消去しない。
+        if (activeKitchenId === 'all') {
+          return Promise.resolve();
+        }
+
+        // 現在のキッチン担当分だけ提供済みの場合は、伝票を消さずに
+        // このキッチンだけ後ろへ整理する。
+        const moveKey = String(activeKitchenId || 'all');
+        const currentMovedIds = Array.isArray(order?.movedToBackKitchenIds)
+          ? order.movedToBackKitchenIds.map(String)
+          : [];
+
+        const nextMovedIds = currentMovedIds.includes(moveKey)
+          ? currentMovedIds
+          : [...currentMovedIds, moveKey];
+
+        return kdsData.updateOrderMeta(order.id, {
+          movedToBackKitchenIds: nextMovedIds
+        });
+      })
     );
   };
 
