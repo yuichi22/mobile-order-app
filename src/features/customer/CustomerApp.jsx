@@ -289,6 +289,16 @@ const showCrossSellAddedMessage = (message) => {
   }, 3000);
 };
 
+useEffect(() => {
+  if (!cartBubbleMessage) return undefined;
+
+  const timer = window.setTimeout(() => {
+    setCartBubbleMessage('');
+  }, 1800);
+
+  return () => window.clearTimeout(timer);
+}, [cartBubbleMessage]);
+
   const moveToCategory = (categoryId) => {
     setActiveCategory(categoryId);
 
@@ -2684,7 +2694,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 className="flex h-14 w-full items-center justify-center rounded-[1.6rem] font-black text-white shadow-lg"
                 style={{ backgroundColor: customerThemeColor }}
               >
-                カートに追加
+                {isCrossSellActive ? '確定する' : 'カートに追加'}
               </button>
             </div>
           </div>
@@ -2707,10 +2717,10 @@ if (shouldWaitForSessionBeforeWelcome) {
               <CrossSellPrompt
                 title={activeCrossSellPrompt.title}
                 description={activeCrossSellPrompt.description}
-                skipLabel={activeCrossSellPrompt.skipLabel}
-                cartItemCount={crossSellCartCount}
+                skipLabel=""
+                cartItemCount={0}
                 customerThemeColor={customerThemeColor}
-                onSkip={handleSkipCrossSellStep}
+                onSkip={undefined}
               />
             )}
 <MenuLayoutRenderer
@@ -2750,7 +2760,26 @@ if (shouldWaitForSessionBeforeWelcome) {
           className="fixed left-0 right-0 z-40 px-4"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
         >
-          {safeCart.length > 0 ? (
+          {isCrossSellActive ? (
+            <button
+              type="button"
+              onClick={handleSkipCrossSellStep}
+              className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-800 px-6 font-bold text-white shadow-lg transition-transform active:scale-95"
+            >
+              <span className="text-base font-black">
+                おすすめを閉じる
+              </span>
+
+              {Number(crossSellCartCount || 0) > 0 && (
+                <span className="absolute right-5 inline-flex items-center gap-2">
+                  <ShoppingCart size={20} strokeWidth={3} />
+                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-white/20 px-2 py-0.5 text-xs font-black leading-none">
+                    +{Number(crossSellCartCount || 0)}
+                  </span>
+                </span>
+              )}
+            </button>
+          ) : safeCart.length > 0 ? (
           <button
             onClick={() => setIsCartOpen(true)}
             className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] px-6 font-bold text-white shadow-lg"

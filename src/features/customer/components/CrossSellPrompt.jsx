@@ -88,13 +88,15 @@ const CrossSellPrompt = ({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onSkip}
-            className="mt-3 flex h-11 w-full items-center justify-center rounded-[1.25rem] border border-gray-200 bg-white px-5 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
-          >
-            {skipLabel || 'おすすめを閉じる'}
-          </button>
+          {onSkip && (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="mt-3 flex h-11 w-full items-center justify-center rounded-[1.25rem] border border-gray-200 bg-white px-5 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+            >
+              {skipLabel || 'おすすめを閉じる'}
+            </button>
+          )}
         </div>
       </div>
     </motion.div>
