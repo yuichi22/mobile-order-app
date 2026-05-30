@@ -148,7 +148,15 @@ const CustomerApp = ({
   const safeAllMenuItems = Array.isArray(allMenuItems) ? allMenuItems : [];
   const safeCart = Array.isArray(cart) ? cart : [];
   const safeMyOrderHistory = Array.isArray(myOrderHistory) ? myOrderHistory : [];
-  const orderedCrossSellItems = safeMyOrderHistory.flatMap((order) => {
+  const isCancelledCrossSellAccountingItem = (item) => (
+  item?.status === 'cancelled' ||
+  item?.kitchenStatus === 'cancelled' ||
+  item?.paymentStatus === 'cancelled' ||
+  item?.cancelledAt ||
+  item?.cancelledAtMs
+);
+
+const orderedCrossSellItems = safeMyOrderHistory.flatMap((order) => {
     const isCancelledOrder = order?.status === 'cancelled' || order?.paymentStatus === 'cancelled';
 
     if (isCancelledOrder || !Array.isArray(order?.items)) {
@@ -156,10 +164,7 @@ const CustomerApp = ({
     }
 
     return order.items
-      .filter((item) => (
-        item?.status !== 'cancelled'
-        && item?.kitchenStatus !== 'cancelled'
-      ))
+      .filter((item) => !isCancelledCrossSellAccountingItem(item))
       .map((item) => ({
         ...item,
         quantity: Number(item.quantity || 0),
@@ -170,7 +175,7 @@ const CustomerApp = ({
 
   const crossSellAccountingItems = [
     ...orderedCrossSellItems,
-    ...safeCart
+    ...safeCart.filter((item) => !isCancelledCrossSellAccountingItem(item))
   ];
   const safeMenuItemsById = menuItemsById && typeof menuItemsById === 'object'
     ? menuItemsById
@@ -815,7 +820,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
 
   const getCrossSellAccountingItems = (cartItems = safeCart) => ([
     ...orderedCrossSellItems,
-    ...(Array.isArray(cartItems) ? cartItems : [])
+    ...(Array.isArray(cartItems) ? cartItems : []).filter((item) => !isCancelledCrossSellAccountingItem(item))
   ]);
 
   const getFlowTriggerQuantity = (flow, cartItems = safeCart) => {
@@ -847,7 +852,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
 
     const accountingItems = [
       ...orderedCrossSellItems,
-      ...(Array.isArray(cartItems) ? cartItems : [])
+      ...(Array.isArray(cartItems) ? cartItems : []).filter((item) => !isCancelledCrossSellAccountingItem(item))
     ];
 
     return accountingItems
@@ -1382,7 +1387,16 @@ const canCancelCustomerOrderItem = (order, item) => {
   if (order.paymentStatus === 'paid') return false;
   if (order.orderFlow === 'prepay') return false;
   if (item.status === 'cancelled' || item.kitchenStatus === 'cancelled') return false;
-  if (item.isPrepared === true || item.isStarted === true) return false;
+  if (
+    item.isPrepared === true ||
+    item.isStarted === true ||
+    item.isCooking === true ||
+    item.startedAt ||
+    item.startedAtMs ||
+    item.cookingStartedAtMs
+  ) {
+    return false;
+  }
 
   const status = String(item.kitchenStatus || 'pending');
   return status === 'pending';

@@ -3592,8 +3592,10 @@ const isPreparedOrderItem = (item) => {
   return (
     item?.isPrepared === true ||
     item?.isStarted === true ||
+    item?.isCooking === true ||
     item?.startedAt ||
     item?.startedAtMs ||
+    item?.cookingStartedAtMs ||
     item?.preparedAt ||
     item?.preparedAtMs ||
     item?.servedAt ||
@@ -3953,17 +3955,6 @@ export const cancelCustomerOrderItem = onRequest(
           throw new Error('app/order-already-cancelled');
         }
 
-        const orderKitchenStarted =
-          order.status === 'cooking' ||
-          order.status === 'serving' ||
-          order.status === 'completed' ||
-          order.cookingStartedAtMs ||
-          order.cookingStartedAt;
-
-        if (orderKitchenStarted) {
-          throw new Error('app/order-already-started');
-        }
-
         if (!items.length) {
           throw new Error('app/order-invalid');
         }
@@ -4024,7 +4015,13 @@ export const cancelCustomerOrderItem = onRequest(
           };
         });
 
-        assertCrossSellBalance(nextItems, crossSellSettings);
+        // セット価格商品そのもののキャンセルは、調理前なら素早く許可する。
+        // バランスチェックは「通常価格のトリガー商品をキャンセルする時」だけ必要。
+        // 例：パスタを消すならセットドリンクだけ残らないように制限する。
+        // 例：セットドリンクを消すなら上限超過は起きないので制限しない。
+        if (!isCrossSellOrderItem(targetItem)) {
+          assertCrossSellBalance(nextItems, crossSellSettings);
+        }
 
         const activeItems = nextItems.filter((item) => !isCancelledOrderItem(item));
         const nextTotalPrice = calculateActiveItemsTotal(nextItems);
