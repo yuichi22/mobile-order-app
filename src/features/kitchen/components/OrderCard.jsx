@@ -238,6 +238,20 @@ const canSelectCard =
     });
   }, [displayItems]);
 
+  const otherKitchenItems = activeKitchenId === 'all'
+    ? []
+    : displayItems.filter((item) => !item.isMatched);
+
+  const hasOtherKitchenItems = otherKitchenItems.length > 0;
+
+  const allOtherKitchenItemsServed = hasOtherKitchenItems && otherKitchenItems.every((item) => (
+    resolveKitchenStatus(item) === 'served'
+  ));
+
+  const firstOtherKitchenItemIndex = sortedDisplayItems.findIndex((item) => (
+    activeKitchenId !== 'all' && !item.isMatched
+  ));
+
   if (activeKitchenId !== 'all' && displayItems.every((item) => !item.isMatched)) {
     return null;
   }
@@ -638,31 +652,40 @@ const canSelectCard =
           const isDoneItem = isPreparedItem || isServedItem;
 
           const isDimmedItem = activeKitchenId !== 'all' && !item.isMatched;
+          const isOtherKitchenServedArea = isDimmedItem && allOtherKitchenItemsServed;
+          const shouldShowOtherKitchenServedLabel =
+            isOtherKitchenServedArea && index === firstOtherKitchenItemIndex;
           const isReadOnlyItem = viewMode !== 'active' || !(activeKitchenId === 'all' || item.isMatched);
           const canToggleItem = !isReadOnlyItem;
           const RowTag = canToggleItem ? 'button' : 'div';
 
           const rowPaddingClassName = isDimmedItem
-            ? 'pl-10 pr-3 py-1.5'
+            ? shouldShowOtherKitchenServedLabel
+              ? 'pl-10 pr-3 pb-2 pt-2.5'
+              : 'pl-10 pr-3 py-1.5'
             : 'px-5 py-3';
 
           const rowGapClassName = isDimmedItem ? 'gap-2' : 'gap-3';
 
-          const rowBackgroundClassName = isDimmedItem
-            ? isServedItem
-              ? 'bg-slate-100/80'
-              : isPreparedItem
-                ? 'bg-emerald-50/70'
-                : 'bg-slate-100/80'
-            : isServedItem
-              ? 'bg-slate-50'
-              : isPreparedItem
-                ? 'bg-green-50/60'
-                : 'bg-white';
+          const rowBackgroundClassName = isOtherKitchenServedArea
+            ? 'bg-emerald-100/90'
+            : isDimmedItem
+              ? isServedItem
+                ? 'bg-slate-100/80'
+                : isPreparedItem
+                  ? 'bg-emerald-50/70'
+                  : 'bg-slate-100/80'
+              : isServedItem
+                ? 'bg-slate-50'
+                : isPreparedItem
+                  ? 'bg-green-50/60'
+                  : 'bg-white';
 
-          const rowBorderClassName = isDimmedItem
-            ? 'border-b border-transparent'
-            : 'border-b border-slate-200/70';
+          const rowBorderClassName = isOtherKitchenServedArea
+            ? 'border-b border-emerald-300/80 ring-1 ring-inset ring-emerald-300/70'
+            : isDimmedItem
+              ? 'border-b border-transparent'
+              : 'border-b border-slate-200/70';
 
           const rowInteractionClassName = canToggleItem
             ? isServedItem
@@ -670,17 +693,23 @@ const canSelectCard =
               : isPreparedItem
                 ? 'cursor-pointer hover:bg-green-100/70 active:bg-green-100'
                 : 'cursor-pointer hover:bg-orange-50/50 active:bg-orange-100/60'
-            : 'cursor-default hover:bg-black/[0.02]';
+            : isOtherKitchenServedArea
+              ? 'cursor-default'
+              : 'cursor-default hover:bg-black/[0.02]';
 
-          const itemNameClassName = isDimmedItem
-            ? 'text-xs font-bold leading-tight tracking-tight text-gray-500'
-            : 'text-base font-bold leading-snug tracking-tight text-gray-800';
+          const itemNameClassName = isOtherKitchenServedArea
+            ? 'text-xs font-black leading-tight tracking-tight text-emerald-950'
+            : isDimmedItem
+              ? 'text-xs font-bold leading-tight tracking-tight text-gray-500'
+              : 'text-base font-bold leading-snug tracking-tight text-gray-800';
 
-          const itemStateNameClassName = isServedItem
-            ? 'text-slate-400 line-through decoration-2 decoration-slate-400'
-            : isPreparedItem
-              ? 'text-green-700'
-              : '';
+          const itemStateNameClassName = isOtherKitchenServedArea
+            ? 'text-emerald-950 line-through decoration-2 decoration-emerald-700/70'
+            : isServedItem
+              ? 'text-slate-400 line-through decoration-2 decoration-slate-400'
+              : isPreparedItem
+                ? 'text-green-700'
+                : '';
 
           const iconSizeClassName = isDimmedItem
             ? 'h-5 w-5'
@@ -692,15 +721,17 @@ const canSelectCard =
             ? 'h-5 min-w-[22px] rounded text-[10px]'
             : 'h-8 min-w-[32px] rounded-lg text-base';
 
-          const quantityClassName = isDimmedItem
-            ? 'bg-transparent text-gray-400 shadow-none'
-            : isServedItem
-              ? 'border border-slate-300 bg-slate-100 text-slate-500 shadow-none'
-              : quantity >= 4
-                ? 'border border-red-300 bg-red-50 text-red-700'
-                : quantity >= 2
-                  ? 'border border-orange-300 bg-orange-50 text-orange-700'
-                  : 'border border-slate-300 bg-white text-slate-900';
+          const quantityClassName = isOtherKitchenServedArea
+            ? 'border border-emerald-400 bg-emerald-200 text-emerald-950 shadow-none'
+            : isDimmedItem
+              ? 'bg-transparent text-gray-400 shadow-none'
+              : isServedItem
+                ? 'border border-slate-300 bg-slate-100 text-slate-500 shadow-none'
+                : quantity >= 4
+                  ? 'border border-red-300 bg-red-50 text-red-700'
+                  : quantity >= 2
+                    ? 'border border-orange-300 bg-orange-50 text-orange-700'
+                    : 'border border-slate-300 bg-white text-slate-900';
 
           const optionClassName = isDimmedItem
             ? 'rounded border px-1.5 py-0.5 text-[9px] font-bold'
@@ -767,6 +798,12 @@ const canSelectCard =
               )}
 
               <div className="min-w-0 flex-1">
+                {shouldShowOtherKitchenServedLabel && (
+                  <div className="mb-1 inline-flex rounded-full border border-emerald-400 bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                    別キッチン提供済み
+                  </div>
+                )}
+
                 <div className={`${itemNameClassName} ${itemStateNameClassName}`}>
                   {kitchenDisplayName}
                 </div>
