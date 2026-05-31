@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -80,7 +80,105 @@ const hasCrossSellPrice = (item) => (
 
 const getCartLineKey = (item) => String(item.cartId || item.id || '');
 
+const getMenuCartQuantity = (cartItems = [], menuItem = {}, crossSellOffer = null) => {
+  const menuItemId = String(menuItem.id || '').trim();
+  if (!menuItemId) return 0;
+
+  const expectedMode = crossSellOffer ? 'crossSell' : 'normal';
+  const expectedGroupKey = crossSellOffer ? String(crossSellOffer.offerGroupKey || '') : '';
+
+  return cartItems
+    .filter((cartItem) => String(cartItem.id || '') === menuItemId)
+    .filter((cartItem) => {
+      const mode = cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal';
+      if (mode !== expectedMode) return false;
+
+      if (expectedMode !== 'crossSell') return true;
+
+      return String(cartItem.crossSellSourceGroupKey || '') === expectedGroupKey;
+    })
+    .reduce((sum, cartItem) => sum + Number(cartItem.quantity || 0), 0);
+};
+
+
 const isCrossSellCartItem = (item) => item?.appliedPriceMode === 'crossSell';
+
+const isCancelledOrderForSetPrice = (order = {}) => (
+  order.status === 'cancelled' ||
+  order.cancelled === true ||
+  order.isCancelled === true ||
+  Boolean(order.cancelledAt)
+);
+
+const isCancelledOrderItemForSetPrice = (item = {}) => (
+  item.status === 'cancelled' ||
+  item.cancelled === true ||
+  item.isCancelled === true ||
+  Boolean(item.cancelledAt)
+);
+
+const normalizeOrderItemForSetPrice = (item = {}, order = {}, itemIndex = 0) => {
+  if (isCancelledOrderForSetPrice(order) || isCancelledOrderItemForSetPrice(item)) {
+    return null;
+  }
+
+  const quantity = Math.max(Number(item.quantity || 0), 0);
+  if (quantity <= 0) return null;
+
+  const itemId = String(
+    item.id ||
+    item.menuItemId ||
+    item.itemId ||
+    `${order.id || 'order'}:${itemIndex}`
+  ).trim();
+
+  if (!itemId) return null;
+
+  return {
+    id: itemId,
+    cartId: String(item.cartId || `${order.id || 'order'}:${itemId}:${itemIndex}`),
+    name: item.name || '商品',
+    quantity,
+    unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+    price: Number(item.unitPrice ?? item.price ?? 0),
+    originalPrice: item.originalPrice ?? null,
+    category: item.category || item.categoryId || '',
+    categoryId: item.categoryId || item.category || '',
+    kitchenName: item.kitchenName || '',
+    selectedOptions: Array.isArray(item.selectedOptions) ? item.selectedOptions : [],
+    allowsTakeout: item.allowsTakeout !== false,
+    allergens: item.allergens || [],
+    serviceTiming: item.serviceTiming || '',
+    serviceTimingLabel: item.serviceTimingLabel || '',
+    appliedPriceMode: item.appliedPriceMode === 'crossSell' || item.priceMode === 'crossSell'
+      ? 'crossSell'
+      : 'normal',
+    priceLabelText: item.priceLabelText || '',
+    originalPriceLabelText: item.originalPriceLabelText || '',
+    crossSellSourceKey: item.crossSellSourceKey || item.sourceKey || '',
+    crossSellSourceFlowId: item.crossSellSourceFlowId || item.sourceFlowId || '',
+    crossSellSourceStepId: item.crossSellSourceStepId || item.sourceStepId || '',
+    crossSellSourceGroupKey: item.crossSellSourceGroupKey || item.sourceGroupKey || '',
+    crossSellSourceCategoryIds: Array.isArray(item.crossSellSourceCategoryIds)
+      ? item.crossSellSourceCategoryIds.map(String)
+      : Array.isArray(item.sourceCategoryIds)
+        ? item.sourceCategoryIds.map(String)
+        : []
+  };
+};
+
+const normalizeSessionOrderItemsForSetPrice = (orders = []) => (
+  Array.isArray(orders)
+    ? orders.flatMap((order) => {
+        const items = Array.isArray(order?.items) ? order.items : [];
+
+        return items
+          .map((item, index) => normalizeOrderItemForSetPrice(item, order, index))
+          .filter(Boolean);
+      })
+    : []
+);
+
 
 const normalizeStringArray = (value) => (
   Array.isArray(value)
@@ -501,9 +599,12 @@ const StaffOrderPage = ({ storeId }) => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null);
   const [bootstrappingTableId, setBootstrappingTableId] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const hasInitializedCategorySelectionRef = useRef(false);
   const [cart, setCart] = useState([]);
+  const [sessionOrders, setSessionOrders] = useState([]);
   const [message, setMessage] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [completedOrderId, setCompletedOrderId] = useState('');
@@ -569,6 +670,34 @@ const StaffOrderPage = ({ storeId }) => {
       cancelled = true;
     };
   }, [storeId]);
+
+  useEffect(() => {
+    if (!storeId || !sessionInfo?.sessionId) {
+      setSessionOrders([]);
+      return undefined;
+    }
+
+    const ordersQuery = query(
+      collection(db, 'stores', storeId, 'orders'),
+      where('sessionId', '==', sessionInfo.sessionId)
+    );
+
+    return onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const nextOrders = snapshot.docs.map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data()
+        }));
+
+        setSessionOrders(nextOrders);
+      },
+      (snapshotError) => {
+        console.error('[StaffOrderPage] failed to subscribe staff session orders', snapshotError);
+        setSessionOrders([]);
+      }
+    );
+  }, [sessionInfo?.sessionId, storeId]);
 
   const tableItems = useMemo(() => normalizeTableItems(layoutItems), [layoutItems]);
   const currentPeriod = useCustomerCurrentPeriod(periods);
@@ -654,11 +783,24 @@ const StaffOrderPage = ({ storeId }) => {
 
   // selected category validity guard
   useEffect(() => {
+    if (!Array.isArray(activeCategories) || activeCategories.length === 0) {
+      return;
+    }
+
+    const firstCategoryId = String(activeCategories[0].id || '');
+    if (!firstCategoryId) return;
+
+    if (!hasInitializedCategorySelectionRef.current) {
+      hasInitializedCategorySelectionRef.current = true;
+      setSelectedCategoryId(firstCategoryId);
+      return;
+    }
+
     if (selectedCategoryId === 'all') return;
 
     const exists = activeCategories.some((category) => String(category.id) === String(selectedCategoryId));
-    if (!exists) {
-      setSelectedCategoryId('all');
+    if (!selectedCategoryId || !exists) {
+      setSelectedCategoryId(firstCategoryId);
     }
   }, [activeCategories, selectedCategoryId]);
 
@@ -690,12 +832,22 @@ const StaffOrderPage = ({ storeId }) => {
     cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
   ), [cart]);
 
+  const existingOrderItemsForSetPrice = useMemo(
+    () => normalizeSessionOrderItemsForSetPrice(sessionOrders),
+    [sessionOrders]
+  );
+
+  const setPriceReferenceItems = useMemo(
+    () => [...existingOrderItemsForSetPrice, ...cart],
+    [cart, existingOrderItemsForSetPrice]
+  );
+
   const crossSellSummary = useMemo(() => {
-    const normalQuantity = cart
+    const normalQuantity = setPriceReferenceItems
       .filter((item) => !isCrossSellCartItem(item))
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
-    const crossSellQuantity = cart
+    const crossSellQuantity = setPriceReferenceItems
       .filter(isCrossSellCartItem)
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
@@ -704,20 +856,29 @@ const StaffOrderPage = ({ storeId }) => {
       crossSellQuantity,
       remainingCrossSellQuantity: Math.max(normalQuantity - crossSellQuantity, 0)
     };
-  }, [cart]);
+  }, [setPriceReferenceItems]);
 
   const staffSetPriceDebugRows = useMemo(
-    () => buildStaffSetPriceDebugRows(cart, crossSellSettings || {}),
-    [cart, crossSellSettings]
+    () => buildStaffSetPriceDebugRows(setPriceReferenceItems, crossSellSettings || {}),
+    [crossSellSettings, setPriceReferenceItems]
   );
 
   const staffDisplayName = profileName || currentUser?.displayName || currentUser?.email || 'スタッフ';
+
+  const showTemporaryToast = (nextMessage) => {
+    setToastMessage(nextMessage);
+
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        setToastMessage('');
+      }, 1800);
+    }
+  };
 
   const handleSelectTable = async (table) => {
     if (!storeId || !table?.tableId || bootstrappingTableId) return;
 
     setError('');
-    setMessage('');
     setCompletedOrderId('');
     setBootstrappingTableId(table.tableId);
 
@@ -753,8 +914,8 @@ const StaffOrderPage = ({ storeId }) => {
         tableName: nextSessionInfo.tableName || table.tableName
       });
       setSessionInfo(nextSessionInfo);
+      setSessionOrders([]);
       setCart([]);
-      setMessage(`${nextSessionInfo.tableName || table.tableName || table.tableId} の注文入力を開始しました。`);
     } catch (selectError) {
       console.error('[StaffOrderPage] failed to select table', selectError);
       setError(selectError.message || 'テーブルの開始に失敗しました。');
@@ -763,9 +924,35 @@ const StaffOrderPage = ({ storeId }) => {
     }
   };
 
+  const canIncreaseCartLineQuantity = (targetItem, currentCart = cart) => {
+    if (!targetItem || targetItem.appliedPriceMode !== 'crossSell') {
+      return true;
+    }
+
+    const targetKey = getCartLineKey(targetItem);
+    const nextCart = currentCart.map((cartItem) => (
+      getCartLineKey(cartItem) === targetKey
+        ? { ...cartItem, quantity: Number(cartItem.quantity || 0) + 1 }
+        : cartItem
+    ));
+
+    const normalizedCart = normalizeCartSetPriceBalance(
+      nextCart,
+      existingOrderItemsForSetPrice,
+      crossSellSettings || {}
+    );
+
+    const normalizedTarget = normalizedCart.find((cartItem) => getCartLineKey(cartItem) === targetKey);
+
+    return Boolean(
+      normalizedTarget &&
+      normalizedTarget.appliedPriceMode === 'crossSell' &&
+      Number(normalizedTarget.quantity || 0) === Number(targetItem.quantity || 0) + 1
+    );
+  };
+
   const addToCart = (item) => {
     setCompletedOrderId('');
-    setMessage('');
     setError('');
 
     const itemId = String(item.id || '').trim();
@@ -773,9 +960,16 @@ const StaffOrderPage = ({ storeId }) => {
 
     setCart((current) => {
       const currentCart = Array.isArray(current) ? current : [];
+      const referenceItems = [...existingOrderItemsForSetPrice, ...currentCart];
       const normalPrice = getMenuPrice(item);
-      const crossSellOffer = resolveSetPriceOfferForItem(item, currentCart, crossSellSettings || {});
+      const crossSellOffer = resolveSetPriceOfferForItem(item, referenceItems, crossSellSettings || {});
+      const hadSetPricePotential = hasCrossSellPrice(item);
       const canUseCrossSellPrice = Boolean(crossSellOffer);
+
+      if (hadSetPricePotential && !canUseCrossSellPrice) {
+        showTemporaryToast('セット価格の残数がありません。通常価格で追加する場合は「すべて」または通常カテゴリーから選択してください。');
+        return currentCart;
+      }
 
       const appliedPriceMode = canUseCrossSellPrice ? 'crossSell' : 'normal';
       const unitPrice = canUseCrossSellPrice ? Number(item.crossSellPrice) : normalPrice;
@@ -814,10 +1008,6 @@ const StaffOrderPage = ({ storeId }) => {
       };
 
       if (appliedPriceMode === 'crossSell') {
-        window.setTimeout(() => {
-          setMessage(`${item.name || '商品'}をセット価格で追加しました。`);
-        }, 0);
-
         // 重要:
         // ここで normalizeCartSetPriceBalance() を通すと、
         // flow/group 別の残数判定ではなく簡易総数判定で crossSell 行が normal に戻る場合がある。
@@ -839,8 +1029,7 @@ const StaffOrderPage = ({ storeId }) => {
         : [...currentCart, nextCartItem];
 
       window.setTimeout(() => {
-        setMessage('');
-      }, 0);
+          }, 0);
 
       return nextCart;
     });
@@ -859,10 +1048,12 @@ const StaffOrderPage = ({ storeId }) => {
   };
 
   const clearTableSelection = () => {
+    hasInitializedCategorySelectionRef.current = false;
+    setSelectedCategoryId('');
     setSelectedTable(null);
     setSessionInfo(null);
+    setSessionOrders([]);
     setCart([]);
-    setMessage('');
     setError('');
     setCompletedOrderId('');
   };
@@ -874,7 +1065,6 @@ const StaffOrderPage = ({ storeId }) => {
 
     setSubmitting(true);
     setError('');
-    setMessage('');
 
     try {
       const idToken = await auth.currentUser?.getIdToken();
@@ -1160,6 +1350,12 @@ const StaffOrderPage = ({ storeId }) => {
         ) : (
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
             <div className="min-w-0">
+              {toastMessage && (
+                <div className="sticky top-[76px] z-30 mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 shadow-sm">
+                  {toastMessage}
+                </div>
+              )}
+
               <div className="mb-3 rounded-[1.5rem] bg-white p-4 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">
                   選択中テーブル
@@ -1174,18 +1370,6 @@ const StaffOrderPage = ({ storeId }) => {
 
               <div className="sticky top-[76px] z-20 mb-3 overflow-x-auto rounded-[1.25rem] bg-white p-2 shadow-sm">
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategoryId('all')}
-                    className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
-                      selectedCategoryId === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    すべて
-                  </button>
-
                   {activeCategories.map((category) => (
                     <button
                       key={category.id}
@@ -1200,12 +1384,26 @@ const StaffOrderPage = ({ storeId }) => {
                       {category.name}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategoryId('all')}
+                    className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
+                      selectedCategoryId === 'all'
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    すべて
+                  </button>
+
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {availableMenuItems.map((item) => {
-                  const showSetPrice = canShowSetPriceForMenuItem(item, cart, crossSellSettings || {});
+                  const setPriceOffer = resolveSetPriceOfferForItem(item, setPriceReferenceItems, crossSellSettings || {});
+                  const showSetPrice = Boolean(setPriceOffer);
+                  const menuCartQuantity = getMenuCartQuantity(cart, item, setPriceOffer);
 
                   return (
                     <button
@@ -1242,9 +1440,50 @@ const StaffOrderPage = ({ storeId }) => {
                           )}
                         </div>
 
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white">
+                      <div className="flex shrink-0 items-center gap-2">
+                        {menuCartQuantity > 0 && (
+                          <>
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+
+                                const targetCartItem = cart.find((cartItem) => (
+                                  String(cartItem.id || '') === String(item.id || '') &&
+                                  (cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal') === (setPriceOffer ? 'crossSell' : 'normal') &&
+                                  (!setPriceOffer || String(cartItem.crossSellSourceGroupKey || '') === String(setPriceOffer.offerGroupKey || ''))
+                                ));
+
+                                if (targetCartItem) {
+                                  changeQuantity(getCartLineKey(targetCartItem), -1);
+                                }
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter' && event.key !== ' ') return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm active:scale-95"
+                              aria-label="カートから1点減らす"
+                            >
+                              <Minus size={18} />
+                            </div>
+
+                            <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
+                              <ShoppingCart size={16} />
+                              <span className="text-sm font-black">
+                                {menuCartQuantity}
+                              </span>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white">
                           <Plus size={22} />
                         </div>
+                      </div>
                       </div>
                     </button>
                   );
@@ -1271,7 +1510,14 @@ const StaffOrderPage = ({ storeId }) => {
                 ) : (
                   <div className="space-y-3">
                     {cart.map((item) => (
-                      <div key={getCartLineKey(item)} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                      <div
+                        key={getCartLineKey(item)}
+                        className={`rounded-2xl border p-3 ${
+                          item.appliedPriceMode === 'crossSell'
+                            ? 'border-orange-200 bg-orange-50'
+                            : 'border-slate-100 bg-slate-50'
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-black text-slate-900">
@@ -1308,7 +1554,8 @@ const StaffOrderPage = ({ storeId }) => {
                           <button
                             type="button"
                             onClick={() => changeQuantity(getCartLineKey(item), 1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm"
+                            disabled={item.appliedPriceMode === 'crossSell' && !canIncreaseCartLineQuantity(item, cart)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm disabled:opacity-40"
                           >
                             <Plus size={16} />
                           </button>
@@ -1351,7 +1598,6 @@ const StaffOrderPage = ({ storeId }) => {
                         type="button"
                         onClick={() => {
                           setCompletedOrderId('');
-                          setMessage('続けて同じテーブルに注文できます。');
                         }}
                         className="h-12 rounded-2xl bg-slate-900 text-sm font-black text-white"
                       >

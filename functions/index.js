@@ -718,6 +718,37 @@ export const bootstrapCustomerSession = onRequest(
           };
         }
 
+        if (isStoreStaff) {
+          const nextParticipantToken = createParticipantToken();
+          const nextParticipantTokenHash = hashToken(nextParticipantToken);
+          const nextParticipantId = createParticipantId();
+
+          transaction.set(sessionsRef.doc(activeSession.id), {
+            members: FieldValue.arrayUnion(authUser.uid),
+            participantsByTokenHash: {
+              ...participantRecords,
+              [nextParticipantTokenHash]: {
+                participantId: nextParticipantId,
+                role: 'staff',
+                currentUserId: authUser.uid,
+                createdByStaff: true
+              }
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+            lastActivityAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          return {
+            action: 'staff-join',
+            sessionId: activeSession.id,
+            tableId: normalizedTableId,
+            tableDisplayName: activeSession.data.tableDisplayName || activeSession.data.tableName || tableDisplayName || '',
+            tableName: activeSession.data.tableName || activeSession.data.tableDisplayName || tableDisplayName || '',
+            participantToken: nextParticipantToken,
+            participantId: nextParticipantId
+          };
+        }
+
         transaction.set(tableEntryGuardRef, {
           tableId: normalizedTableId,
           activeSessionId: activeSession.id,
