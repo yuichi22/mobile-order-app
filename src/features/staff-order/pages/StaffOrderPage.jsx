@@ -100,6 +100,43 @@ const getMenuCartQuantity = (cartItems = [], menuItem = {}, crossSellOffer = nul
     .reduce((sum, cartItem) => sum + Number(cartItem.quantity || 0), 0);
 };
 
+const getMenuCartQuantityByMode = (cartItems = [], menuItem = {}, mode = 'normal', offerGroupKey = '') => {
+  const menuItemId = String(menuItem.id || '').trim();
+  const expectedMode = mode === 'crossSell' ? 'crossSell' : 'normal';
+  const expectedGroupKey = String(offerGroupKey || '');
+
+  if (!menuItemId) return 0;
+
+  return cartItems
+    .filter((cartItem) => String(cartItem.id || '') === menuItemId)
+    .filter((cartItem) => {
+      const cartMode = cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal';
+      if (cartMode !== expectedMode) return false;
+
+      if (expectedMode !== 'crossSell' || !expectedGroupKey) return true;
+
+      return String(cartItem.crossSellSourceGroupKey || '') === expectedGroupKey;
+    })
+    .reduce((sum, cartItem) => sum + Number(cartItem.quantity || 0), 0);
+};
+
+const findMenuCartLineByMode = (cartItems = [], menuItem = {}, mode = 'normal', offerGroupKey = '') => {
+  const menuItemId = String(menuItem.id || '').trim();
+  const expectedMode = mode === 'crossSell' ? 'crossSell' : 'normal';
+  const expectedGroupKey = String(offerGroupKey || '');
+
+  return cartItems.find((cartItem) => {
+    if (String(cartItem.id || '') !== menuItemId) return false;
+
+    const cartMode = cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal';
+    if (cartMode !== expectedMode) return false;
+
+    if (expectedMode !== 'crossSell' || !expectedGroupKey) return true;
+
+    return String(cartItem.crossSellSourceGroupKey || '') === expectedGroupKey;
+  }) || null;
+};
+
 
 const isCrossSellCartItem = (item) => item?.appliedPriceMode === 'crossSell';
 
@@ -951,7 +988,7 @@ const StaffOrderPage = ({ storeId }) => {
     );
   };
 
-  const addToCart = (item) => {
+  const addToCart = (item, preferredPriceMode = 'auto') => {
     setCompletedOrderId('');
     setError('');
 
@@ -963,11 +1000,12 @@ const StaffOrderPage = ({ storeId }) => {
       const referenceItems = [...existingOrderItemsForSetPrice, ...currentCart];
       const normalPrice = getMenuPrice(item);
       const crossSellOffer = resolveSetPriceOfferForItem(item, referenceItems, crossSellSettings || {});
-      const hadSetPricePotential = hasCrossSellPrice(item);
-      const canUseCrossSellPrice = Boolean(crossSellOffer);
+      const wantsNormalPrice = preferredPriceMode === 'normal';
+      const wantsSetPrice = preferredPriceMode === 'crossSell';
+      const canUseCrossSellPrice = !wantsNormalPrice && Boolean(crossSellOffer);
 
-      if (hadSetPricePotential && !canUseCrossSellPrice) {
-        showTemporaryToast('セット価格の残数がありません。通常価格で追加する場合は「すべて」または通常カテゴリーから選択してください。');
+      if (wantsSetPrice && !crossSellOffer) {
+        showTemporaryToast('セット価格の残数がありません。');
         return currentCart;
       }
 
@@ -1402,14 +1440,29 @@ const StaffOrderPage = ({ storeId }) => {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {availableMenuItems.map((item) => {
                   const setPriceOffer = resolveSetPriceOfferForItem(item, setPriceReferenceItems, crossSellSettings || {});
-                  const showSetPrice = Boolean(setPriceOffer);
-                  const menuCartQuantity = getMenuCartQuantity(cart, item, setPriceOffer);
+                  const setOfferGroupKey = String(setPriceOffer?.offerGroupKey || '');
+                  const canAddSetPrice = Boolean(setPriceOffer);
+                  const setPriceCartQuantity = getMenuCartQuantityByMode(cart, item, 'crossSell', setOfferGroupKey);
+                  const normalCartQuantity = getMenuCartQuantityByMode(cart, item, 'normal');
+                  const setPriceCartLine = findMenuCartLineByMode(cart, item, 'crossSell', setOfferGroupKey);
+                  const normalCartLine = findMenuCartLineByMode(cart, item, 'normal');
+                  const normalPrice = getMenuPrice(item);
+
+                  // セット残数がある時だけ、カード本体はセット価格表示。
+                  // セット残数が0になった後は、カード本体を定価表示へ戻す。
+                  // その商品がセット価格でカートに入っている場合だけ、下部にセット価格分サブ表示を残す。
+                  const shouldUseSetPriceAsMain = canAddSetPrice;
+                  const shouldShowUsedSetPriceSubcard = !canAddSetPrice && setPriceCartQuantity > 0;
+
+                  const activeCartQuantity = shouldUseSetPriceAsMain ? setPriceCartQuantity : normalCartQuantity;
+                  const activeCartLine = shouldUseSetPriceAsMain ? setPriceCartLine : normalCartLine;
+                  const activePriceMode = shouldUseSetPriceAsMain ? 'crossSell' : 'normal';
 
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => addToCart(item)}
+                      onClick={() => addToCart(item, activePriceMode)}
                       className="rounded-[1.5rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -1418,73 +1471,140 @@ const StaffOrderPage = ({ storeId }) => {
                             {item.name || '商品'}
                           </p>
 
-                          {showSetPrice ? (
+                          {shouldUseSetPriceAsMain ? (
                             <div className="mt-2 space-y-1">
                               <p className="text-sm font-black text-slate-400 line-through">
-                                {formatMoney(getMenuPrice(item))}
+                                通常価格 {formatMoney(normalPrice)}
                               </p>
                               <p className="inline-flex rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">
                                 セット価格 {formatMoney(Number(item.crossSellPrice))}
                               </p>
                             </div>
                           ) : (
-                            <p className="mt-2 text-xl font-black text-blue-600">
-                              {formatMoney(getMenuPrice(item))}
-                            </p>
-                          )}
-
-                          {item.kitchenName && (
-                            <p className="mt-2 text-[11px] font-bold text-slate-400">
-                              {item.kitchenName}
-                            </p>
+                            <div className="mt-2 space-y-1">
+                              <p className="text-xl font-black text-blue-600">
+                                {formatMoney(normalPrice)}
+                              </p>
+                              {item.kitchenName && (
+                                <p className="text-[11px] font-bold text-slate-400">
+                                  {item.kitchenName}
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
-                        {menuCartQuantity > 0 && (
-                          <>
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
+                        <div className="flex shrink-0 items-center gap-2">
+                          {activeCartQuantity > 0 && (
+                            <>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
 
-                                const targetCartItem = cart.find((cartItem) => (
-                                  String(cartItem.id || '') === String(item.id || '') &&
-                                  (cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal') === (setPriceOffer ? 'crossSell' : 'normal') &&
-                                  (!setPriceOffer || String(cartItem.crossSellSourceGroupKey || '') === String(setPriceOffer.offerGroupKey || ''))
-                                ));
+                                  if (activeCartLine) {
+                                    changeQuantity(getCartLineKey(activeCartLine), -1);
+                                  }
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
+                                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100 active:scale-95"
+                                aria-label="カートから1点減らす"
+                              >
+                                <Minus size={18} />
+                              </div>
 
-                                if (targetCartItem) {
-                                  changeQuantity(getCartLineKey(targetCartItem), -1);
-                                }
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key !== 'Enter' && event.key !== ' ') return;
-                                event.preventDefault();
-                                event.stopPropagation();
-                              }}
-                              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm active:scale-95"
-                              aria-label="カートから1点減らす"
-                            >
-                              <Minus size={18} />
-                            </div>
+                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
+                                <ShoppingCart size={16} />
+                                <span className="text-sm font-black">
+                                  {activeCartQuantity}
+                                </span>
+                              </div>
+                            </>
+                          )}
 
-                            <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
-                              <ShoppingCart size={16} />
-                              <span className="text-sm font-black">
-                                {menuCartQuantity}
-                              </span>
-                            </div>
-                          </>
-                        )}
-
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white">
-                          <Plus size={22} />
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              addToCart(item, activePriceMode);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter' && event.key !== ' ') return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              addToCart(item, activePriceMode);
+                            }}
+                            className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-sm active:scale-95 ${
+                              shouldUseSetPriceAsMain ? 'bg-orange-500' : 'bg-blue-600'
+                            }`}
+                            aria-label={shouldUseSetPriceAsMain ? 'セット価格で追加' : '通常価格で追加'}
+                          >
+                            <Plus size={22} />
+                          </div>
                         </div>
                       </div>
-                      </div>
+
+                      {shouldShowUsedSetPriceSubcard && (
+                        <div
+                          role="group"
+                          aria-label="セット価格分"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          className="mt-4 rounded-[1.25rem] border border-orange-200 bg-orange-50 p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-black text-orange-700">
+                                セット価格分
+                              </p>
+                              <p className="mt-1 text-2xl font-black text-orange-700">
+                                {formatMoney(Number(item.crossSellPrice))}
+                              </p>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (setPriceCartLine) {
+                                    changeQuantity(getCartLineKey(setPriceCartLine), -1);
+                                  }
+                                }}
+                                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100 active:scale-95"
+                                aria-label="セット価格分を1点減らす"
+                              >
+                                <Minus size={18} />
+                              </button>
+
+                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
+                                <ShoppingCart size={16} />
+                                <span className="text-sm font-black">
+                                  {setPriceCartQuantity}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled
+                                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-300 shadow-none"
+                                aria-label="セット価格分は追加できません"
+                              >
+                                <Plus size={22} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -1492,7 +1612,7 @@ const StaffOrderPage = ({ storeId }) => {
             </div>
 
             <aside className="lg:sticky lg:top-[92px] lg:self-start">
-              <div className="rounded-[1.75rem] bg-white p-4 shadow-sm">
+              <div className="rounded-[1.75rem] border-2 border-blue-200 bg-blue-100 p-4 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 text-lg font-black">
                     <ShoppingCart size={20} />
@@ -1504,7 +1624,7 @@ const StaffOrderPage = ({ storeId }) => {
                 </div>
 
                 {cart.length === 0 ? (
-                  <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                  <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400">
                     商品を選択してください。
                   </p>
                 ) : (
@@ -1512,11 +1632,7 @@ const StaffOrderPage = ({ storeId }) => {
                     {cart.map((item) => (
                       <div
                         key={getCartLineKey(item)}
-                        className={`rounded-2xl border p-3 ${
-                          item.appliedPriceMode === 'crossSell'
-                            ? 'border-orange-200 bg-orange-50'
-                            : 'border-slate-100 bg-slate-50'
-                        }`}
+                        className="rounded-2xl border border-blue-100 bg-white p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
