@@ -27,8 +27,10 @@ const loadAdminPage = () => import('../../features/admin/pages/AdminPage');
 const loadPlatformAdminPage = () => import('../../features/platform/pages/PlatformAdminPage');
 const loadPlatformSignupPage = () => import('../../features/platform/pages/PlatformSignupPage');
 const loadServePage = () => import('../../features/serve/pages/ServePage');
+const loadStaffOrderPage = () => import('../../features/staff-order/pages/StaffOrderPage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
+const StaffOrderPage = lazyWithRetry(loadStaffOrderPage, 'staff-order-page');
 
 const LoginPage = lazyWithRetry(loadLoginPage, 'login-page');
 const RegisterPage = lazyWithRetry(loadRegisterPage, 'register-page');
@@ -115,6 +117,7 @@ const AppRouter = () => {
   const effectiveMode = useMemo(() => {
     if (resolvedMode === 'kitchen' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'serve' && !canAccessKitchen(normalizedRole)) return 'launcher';
+    if (resolvedMode === 'staffOrder' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'platform' && !isSuperAdmin) return 'launcher';
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
@@ -127,7 +130,7 @@ const AppRouter = () => {
       loadLauncherPage,
       loadAdminPage,
       ...(isSuperAdmin ? [loadPlatformAdminPage] : []),
-      ...(canAccessKitchen(normalizedRole) ? [loadKitchenPage, loadServePage] : []),
+      ...(canAccessKitchen(normalizedRole) ? [loadKitchenPage, loadServePage, loadStaffOrderPage] : []),
       ...(currentUser.isAnonymous ? [loadCustomerPage] : [])
     ]);
   }, [currentUser, isSuperAdmin, normalizedRole]);
@@ -226,6 +229,32 @@ const AppRouter = () => {
     return (
       <Suspense fallback={<RouteLoader />}>
         <ResetPasswordPage />
+      </Suspense>
+    );
+  }
+
+  if (location.pathname === '/staff-order') {
+    if (!currentUser) {
+      const redirectPath = `${location.pathname}${location.search || ''}`;
+
+      return (
+        <Suspense fallback={<RouteLoader />}>
+          <LoginPage redirectTo={redirectPath} />
+        </Suspense>
+      );
+    }
+
+    if (!activeStoreId) {
+      return (
+        <Suspense fallback={<RouteLoader />}>
+          <LoginPage />
+        </Suspense>
+      );
+    }
+
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <StaffOrderPage storeId={activeStoreId} />
       </Suspense>
     );
   }
@@ -365,6 +394,13 @@ const AppRouter = () => {
         return (
           <Suspense fallback={<RouteLoader />}>
             <ServePage storeId={activeStoreId} />
+          </Suspense>
+        );
+
+      case 'staffOrder':
+        return (
+          <Suspense fallback={<RouteLoader />}>
+            <StaffOrderPage storeId={activeStoreId} />
           </Suspense>
         );
 

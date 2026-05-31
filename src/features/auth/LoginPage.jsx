@@ -7,7 +7,7 @@ import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { getAuthErrorMessage } from '../../shared/utils/authErrorMessages';
 import ForgotEmailHelpModal from './components/ForgotEmailHelpModal';
 
-const LoginPage = () => {
+const LoginPage = ({ redirectTo = '' }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,6 +16,8 @@ const LoginPage = () => {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(window.location.search);
+  const redirectTarget = redirectTo || searchParams.get('redirect') || '';
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -24,7 +26,7 @@ const LoginPage = () => {
 
     try {
       await login(email, password);
-      navigate('/');
+      navigate(redirectTarget || '/');
     } catch (loginError) {
       setError(getAuthErrorMessage(loginError, 'ログインに失敗しました。'));
     } finally {

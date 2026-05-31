@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList } from 'lucide-react';
 
 import { db } from '../../shared/api/firebase/client';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
@@ -96,6 +96,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const tableMenuOverrides = useTableMenuOverrides(storeId);
 
   const displaySessions = activeSessions.filter((session) => session.status === 'active');
+
+  const openStaffOrderTerminal = () => {
+    if (!storeId || typeof window === 'undefined') return;
+
+    const params = new URLSearchParams();
+    params.set('store_id', storeId);
+
+    const nextUrl = `${window.location.origin}/staff-order?${params.toString()}`;
+    window.open(nextUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const categoryNameMap = useMemo(() => {
     const map = {};
@@ -704,6 +714,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               >
                 <ShoppingBag size={15} />
                 テイクアウト注文
+              </button>
+
+              <button
+                type="button"
+                onClick={openStaffOrderTerminal}
+                className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-black active:scale-95"
+              >
+                <ClipboardList size={15} />
+                スタッフ注文
               </button>
 
             </div>

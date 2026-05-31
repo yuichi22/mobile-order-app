@@ -3258,8 +3258,17 @@ export const createPostpayOrder = onRequest(
         participantId,
         cart,
         totalPrice,
-        externalCustomer
+        externalCustomer,
+        orderSource,
+        isStaffOrder,
+        createdByStaffUid,
+        createdByStaffName
       } = req.body || {};
+
+      const normalizedOrderSource = String(orderSource || '').trim();
+      const shouldMarkStaffOrder = isStaffOrder === true || normalizedOrderSource === 'staff';
+      const normalizedCreatedByStaffUid = String(createdByStaffUid || '').trim();
+      const normalizedCreatedByStaffName = String(createdByStaffName || '').trim();
 
       const requestedPartySize = Number(partySize || 0);
 
@@ -3524,7 +3533,15 @@ export const createPostpayOrder = onRequest(
           totalPrice: Number(totalPrice || 0),
           orderFlow: 'postpay',
           paymentStatus: 'unpaid',
-          ...(externalCustomer ? { externalCustomer } : {})
+          ...(externalCustomer ? { externalCustomer } : {}),
+          ...(shouldMarkStaffOrder
+            ? {
+                orderSource: 'staff',
+                isStaffOrder: true,
+                createdByStaffUid: normalizedCreatedByStaffUid || uid || '',
+                createdByStaffName: normalizedCreatedByStaffName
+              }
+            : {})
         });
 
                 // [createPostpayOrder] mark session hasOrders
