@@ -112,6 +112,7 @@ const AppRouter = () => {
   };
 
   const [pendingSessionNavigation, setPendingSessionNavigation] = useState(null);
+  const [staffOrderAuthGraceExpired, setStaffOrderAuthGraceExpired] = useState(false);
   const pendingSessionNavigationRef = useRef(null);
 
   const resolvedMode = routeState.mode !== 'launcher' ? routeState.mode : mode;
@@ -168,6 +169,28 @@ const AppRouter = () => {
       }
     });
   };
+
+  useEffect(() => {
+    if (location.pathname !== '/staff-order') {
+      setStaffOrderAuthGraceExpired(false);
+      return undefined;
+    }
+
+    if (currentUser) {
+      setStaffOrderAuthGraceExpired(false);
+      return undefined;
+    }
+
+    setStaffOrderAuthGraceExpired(false);
+
+    const timer = window.setTimeout(() => {
+      setStaffOrderAuthGraceExpired(true);
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [currentUser, location.pathname]);
 
   useEffect(() => {
     if (!pendingSessionNavigation) return undefined;
@@ -240,6 +263,10 @@ const AppRouter = () => {
 
   if (location.pathname === '/staff-order') {
     if (!currentUser) {
+      if (!staffOrderAuthGraceExpired) {
+        return <RouteLoader />;
+      }
+
       const redirectPath = `${location.pathname}${location.search || ''}`;
 
       return (
@@ -250,11 +277,7 @@ const AppRouter = () => {
     }
 
     if (!activeStoreId) {
-      return (
-        <Suspense fallback={<RouteLoader />}>
-          <LoginPage />
-        </Suspense>
-      );
+      return <RouteLoader />;
     }
 
     return (

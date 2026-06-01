@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, LogIn, Store } from 'lucide-react';
 
@@ -14,10 +14,16 @@ const LoginPage = ({ redirectTo = '' }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showForgotEmailHelp, setShowForgotEmailHelp] = useState(false);
 
-  const { login } = useAuth();
+  const { currentUser, login } = useAuth();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(window.location.search);
   const redirectTarget = redirectTo || searchParams.get('redirect') || '';
+
+  useEffect(() => {
+    if (!currentUser || currentUser.isAnonymous) return;
+
+    navigate(redirectTarget || '/', { replace: true });
+  }, [currentUser, navigate, redirectTarget]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
