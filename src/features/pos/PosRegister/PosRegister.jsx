@@ -1695,7 +1695,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             <h3 className="text-xl font-black tracking-tight text-gray-900">
               {processingTitle}
             </h3>
-            <p className="mt-2 text-lg font-bold leading-relaxed text-gray-500">
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               {processingMessage}
             </p>
           </div>
@@ -1709,7 +1709,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
               {quantityPicker.title}
             </h3>
 
-            <p className="mt-3 text-lg font-bold leading-relaxed text-gray-500">
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
               {quantityPicker.description}
             </p>
 
@@ -1724,7 +1724,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                     key={quantity}
                     type="button"
                     onClick={() => updateQuantityPickerValue(quantity)}
-                    className={`h-11 rounded-xl border text-lg font-black transition-all ${
+                    className={`h-11 rounded-xl border text-sm font-black transition-all ${
                       Number(quantityPicker.quantity || 1) === quantity
                         ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-100'
                         : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50'
@@ -1741,7 +1741,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                 type="button"
                 onClick={closeQuantityPicker}
                 disabled={isCancelSubmitting}
-                className="flex-1 rounded-2xl bg-gray-100 py-4 text-lg font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
+                className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 やめる
               </button>
@@ -1750,7 +1750,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                 type="button"
                 onClick={confirmQuantityPicker}
                 disabled={isCancelSubmitting}
-                className={`flex-1 rounded-2xl py-4 text-lg font-black text-white shadow-lg transition-colors disabled:opacity-50 ${
+                className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:opacity-50 ${
                   quantityPicker.mode === 'cancel'
                     ? 'bg-red-500 shadow-red-100 hover:bg-red-600'
                     : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700'
@@ -1774,7 +1774,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
               {cancelTarget.title}
             </h3>
 
-            <p className="mt-3 text-lg font-bold leading-relaxed text-gray-500">
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
               {cancelTarget.description}
               <br />
               この操作は未会計の商品だけを対象にします。
@@ -1785,7 +1785,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                 type="button"
                 onClick={() => setCancelTarget(null)}
                 disabled={isCancelSubmitting}
-                className="flex-1 rounded-2xl bg-gray-100 py-4 text-lg font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
+                className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 やめる
               </button>
@@ -1794,7 +1794,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                 type="button"
                 onClick={executeCancelTarget}
                 disabled={isCancelSubmitting}
-                className="flex-1 rounded-2xl bg-red-500 py-4 text-lg font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:opacity-50"
+                className="flex-1 rounded-2xl bg-red-500 py-4 text-sm font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:opacity-50"
               >
                 取消する
               </button>

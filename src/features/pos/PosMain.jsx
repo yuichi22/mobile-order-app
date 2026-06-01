@@ -663,7 +663,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={onBack}
-              className="flex h-16 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 active:scale-95"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 active:scale-95"
               title="モード選択へ戻る"
               aria-label="モード選択へ戻る"
             >
@@ -734,11 +734,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <div className="absolute left-4 right-4 top-4 z-20 rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-xl backdrop-blur">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-lg font-black text-blue-600">
+                    <div className="flex items-center gap-2 text-sm font-black text-blue-600">
                       <MoveRight size={17} />
                       席移動モード
                     </div>
-                    <p className="mt-1 text-lg font-bold text-slate-700">
+                    <p className="mt-1 text-sm font-bold text-slate-700">
                       {getTableDisplayLabel(movingSession)} から移動先の空席を選択してください。
                     </p>
                     {moveError && (
@@ -895,10 +895,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         key={item.id}
                         type="button"
                         onClick={() => addTakeoutCartItem(item)}
-                        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99]"
+                        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99]"
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-lg font-black text-slate-800">
+                          <div className="truncate text-sm font-black text-slate-800">
                             {item.name || '未設定商品'}
                           </div>
                           <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
@@ -906,7 +906,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className="font-mono text-lg font-black text-slate-900">
+                          <span className="font-mono text-base font-black text-slate-900">
                             ¥{Number(item.takeoutPrice || 0).toLocaleString()}
                           </span>
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
@@ -926,7 +926,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       <div className="text-xs font-black uppercase tracking-widest text-slate-400">
                         仮伝票
                       </div>
-                      <div className="mt-1 text-lg font-bold text-slate-500">
+                      <div className="mt-1 text-sm font-bold text-slate-500">
                         テーブルは使用しません
                       </div>
                     </div>
@@ -943,7 +943,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   {takeoutCart.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
                       <ShoppingBag size={56} strokeWidth={1.5} />
-                      <p className="mt-3 text-lg font-black">
+                      <p className="mt-3 text-sm font-black">
                         商品を選択してください
                       </p>
                     </div>
@@ -956,7 +956,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate text-lg font-black text-slate-800">
+                              <div className="truncate text-sm font-black text-slate-800">
                                 {item.name}
                               </div>
                               <div className="mt-1 text-xs font-bold text-slate-400">
@@ -1012,7 +1012,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                           key={method.id}
                           type="button"
                           onClick={() => setTakeoutPaymentMethod(method.id)}
-                          className={`flex items-center justify-center gap-2 rounded-xl border py-4 text-lg font-black transition-all active:scale-[0.98] ${
+                          className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
                             takeoutPaymentMethod === method.id
                               ? method.activeClassName
                               : method.inactiveClassName
@@ -1032,11 +1032,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   }`}>
                     <div className="flex items-start gap-3">
                       {TakeoutPaymentIcon ? (
-                        <div className={`flex h-16 w-12 shrink-0 items-center justify-center rounded-2xl ${selectedTakeoutPaymentMethodOption.panelIconClassName}`}>
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${selectedTakeoutPaymentMethodOption.panelIconClassName}`}>
                           <TakeoutPaymentIcon size={24} strokeWidth={2.8} />
                         </div>
                       ) : (
-                        <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-gray-300 shadow-sm">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-gray-300 shadow-sm">
                           <CreditCard size={24} strokeWidth={2.8} />
                         </div>
                       )}
@@ -1060,7 +1060,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   {takeoutPaymentMethod === 'cash' && (
                     <div className="mb-3 rounded-2xl border-2 border-gray-200 bg-gray-50 p-3">
                       <div className="mb-3 grid grid-cols-2 gap-3">
-                        <label className="hidden block">
+                        <label className="block">
                           <span className="mb-1 block text-xs font-bold text-gray-500">お預かり</span>
                           <input
                             type="number"
@@ -1072,7 +1072,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         </label>
                         <div>
                           <div className="mb-1 text-xs font-bold text-gray-500">おつり</div>
-                          <div className="flex h-16 items-center rounded-xl bg-white px-3 font-mono text-2xl font-black text-blue-600">
+                          <div className="flex h-12 items-center rounded-xl bg-white px-3 font-mono text-2xl font-black text-blue-600">
                             ¥{takeoutChangeAmount.toLocaleString()}
                           </div>
                         </div>
@@ -1106,7 +1106,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         <button
                           type="button"
                           onClick={() => setTakeoutPaymentAmount((previous) => previous.slice(0, -1))}
-                          className="h-12 rounded-xl border border-red-100 bg-red-50 text-lg font-black text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
+                          className="h-12 rounded-xl border border-red-100 bg-red-50 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
                         >
                           削除
                         </button>
@@ -1115,7 +1115,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       <button
                         type="button"
                         onClick={() => setTakeoutPaymentAmount(String(takeoutCartTotal))}
-                        className="mt-2 h-16 w-full rounded-xl border border-blue-200 bg-blue-50 text-lg font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                        className="mt-2 h-11 w-full rounded-xl border border-blue-200 bg-blue-50 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
                       >
                         ちょうど
                       </button>
@@ -1131,7 +1131,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       (takeoutPaymentMethod === 'cash' && (Number(takeoutPaymentAmount) || 0) < takeoutCartTotal)
                     }
                     onClick={handleSubmitTakeoutTransaction}
-                    className={`flex h-16 w-full items-center justify-center gap-2 rounded-2xl text-lg font-black shadow-lg transition-all disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${takeoutPaymentActionClassName}`}
+                    className={`flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-sm font-black shadow-lg transition-all disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${takeoutPaymentActionClassName}`}
                   >
                     {isTakeoutSubmitting ? '保存中...' : takeoutPaymentActionLabel}
                   </button>
@@ -1156,12 +1156,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             会計が完了しました
           </h3>
 
-          <p className="mb-4 text-lg font-bold text-gray-400">
+          <p className="mb-4 text-sm font-bold text-gray-400">
             テイクアウト注文
           </p>
 
           <div className="mb-6 w-full space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <div className="flex items-center justify-between text-lg font-bold text-gray-600">
+            <div className="flex items-center justify-between text-sm font-bold text-gray-600">
               <span>今回の会計額</span>
               <span className="font-mono text-xl">
                 ¥{Number(lastTakeoutTransaction?.totalAmount || lastTakeoutTransaction?.total || 0).toLocaleString()}
@@ -1183,7 +1183,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               type="button"
               onClick={handlePrintTakeoutReceipt}
               disabled={isTakeoutReceiptPrinting}
-              className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-4 text-lg font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-4 text-sm font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isTakeoutReceiptPrinting ? '印刷中...' : 'レシートを印刷'}
             </button>

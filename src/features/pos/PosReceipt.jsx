@@ -54,7 +54,7 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             </p>
           )}
 
-        <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 text-left font-mono text-lg text-gray-600">
+        <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 text-left font-mono text-sm text-gray-600">
           <div className="flex justify-between">
             <span>小計</span>
             <span>¥{Number(data.subTotal || 0).toLocaleString()}</span>
@@ -162,11 +162,11 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
         </div>
 
         <div className="mb-4">
-          <div className="mb-2 flex justify-between text-lg font-bold">
+          <div className="mb-2 flex justify-between text-base font-bold">
             <span>合計</span>
             <span>¥{Number(data.totalAmount || 0).toLocaleString()}</span>
           </div>
-          <div className="hidden flex justify-between">
+          <div className="flex justify-between">
             <span>お預かり ({paymentLabel})</span>
             <span>¥{(Number(data.totalAmount || 0) + Number(data.changeAmount || 0)).toLocaleString()}</span>
           </div>
