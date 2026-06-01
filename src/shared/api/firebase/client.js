@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import {
-  browserSessionPersistence,
+  browserLocalPersistence,
   getAuth,
   onAuthStateChanged,
   setPersistence,
@@ -51,7 +51,7 @@ export const firebaseProjectId = firebaseConfig.projectId;
 
 export const ensureSessionPersistence = async () => {
   if (!persistencePromise) {
-    persistencePromise = setPersistence(auth, browserSessionPersistence).catch((error) => {
+    persistencePromise = setPersistence(auth, browserLocalPersistence).catch((error) => {
       persistencePromise = null;
       throw error;
     });
