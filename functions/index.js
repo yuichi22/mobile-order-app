@@ -674,11 +674,28 @@ export const bootstrapCustomerSession = onRequest(
         const matchedParticipant = requestedParticipantTokenHash
           ? participantRecords[requestedParticipantTokenHash] || null
           : null;
+
+        const matchedCurrentUserEntry = Object.entries(participantRecords).find(([, record]) => (
+          record?.currentUserId === authUser.uid
+        ));
+        const matchedCurrentUserTokenHash = matchedCurrentUserEntry?.[0] || '';
+        const matchedCurrentUserParticipant = matchedCurrentUserEntry?.[1] || null;
+
+        const isSameTableToken = Boolean(
+          requestedTableTokenHash
+          && activeSession.data.tableTokenHash === requestedTableTokenHash
+        );
+
         const canRestoreByParticipant = Boolean(
           requestedParticipantTokenHash
           && matchedParticipant
-          && requestedTableTokenHash
-          && activeSession.data.tableTokenHash === requestedTableTokenHash
+          && isSameTableToken
+        );
+
+        const canRestoreByCurrentUser = Boolean(
+          !canRestoreByParticipant
+          && matchedCurrentUserParticipant
+          && isSameTableToken
         );
 
         transaction.set(tableSessionRef, {
@@ -688,20 +705,28 @@ export const bootstrapCustomerSession = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
 
-        if (canRestoreByParticipant) {
+        if (canRestoreByParticipant || canRestoreByCurrentUser) {
+          const restoredParticipant = matchedParticipant || matchedCurrentUserParticipant;
+          const restoredParticipantToken = normalizedParticipantToken || createParticipantToken();
+          const restoredParticipantTokenHash = normalizedParticipantToken
+            ? requestedParticipantTokenHash
+            : hashToken(restoredParticipantToken);
+
+          const nextParticipantRecords = {
+            ...participantRecords,
+            [restoredParticipantTokenHash]: {
+              ...restoredParticipant,
+              currentUserId: authUser.uid
+            }
+          };
+
           const sessionRestorePayload = {
             members: FieldValue.arrayUnion(authUser.uid),
-            participantsByTokenHash: {
-              ...participantRecords,
-              [requestedParticipantTokenHash]: {
-                ...matchedParticipant,
-                currentUserId: authUser.uid
-              }
-            },
+            participantsByTokenHash: nextParticipantRecords,
             updatedAt: FieldValue.serverTimestamp()
           };
 
-          if (matchedParticipant.role === 'host') {
+          if (restoredParticipant.role === 'host') {
             sessionRestorePayload.hostUserId = authUser.uid;
           }
 
@@ -713,8 +738,8 @@ export const bootstrapCustomerSession = onRequest(
             tableId: normalizedTableId,
             tableDisplayName: activeSession.data.tableDisplayName || activeSession.data.tableName || tableDisplayName || '',
             tableName: activeSession.data.tableName || activeSession.data.tableDisplayName || tableDisplayName || '',
-            participantToken: normalizedParticipantToken,
-            participantId: matchedParticipant.participantId || ''
+            participantToken: restoredParticipantToken,
+            participantId: restoredParticipant.participantId || ''
           };
         }
 
