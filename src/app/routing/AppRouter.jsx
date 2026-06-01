@@ -60,6 +60,11 @@ const AppRouter = () => {
   const urlInviteToken = routeState.inviteToken;
   const normalizedRole = normalizeUserRole(role);
   const isSuperAdmin = normalizedRole === 'super_admin';
+  const isAuthTransitioning = Boolean(
+    loading ||
+    (currentUser && !currentUser.isAnonymous && typeof storeAccessStatus === 'undefined')
+  );
+
   const activeStoreId = currentUser && !currentUser.isAnonymous
     ? (isSuperAdmin && urlStoreId ? urlStoreId : contextStoreId)
     : (urlStoreId || contextStoreId);
@@ -197,7 +202,7 @@ const AppRouter = () => {
     };
   }, [pendingSessionNavigation]);
 
-  if (loading) {
+  if (isAuthTransitioning) {
     return <RouteLoader />;
   }
 

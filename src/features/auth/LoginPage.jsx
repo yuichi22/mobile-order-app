@@ -26,10 +26,9 @@ const LoginPage = ({ redirectTo = '' }) => {
 
     try {
       await login(email, password);
-      navigate(redirectTarget || '/');
+      navigate(redirectTarget || '/', { replace: true });
     } catch (loginError) {
       setError(getAuthErrorMessage(loginError, 'ログインに失敗しました。'));
-    } finally {
       setIsLoggingIn(false);
     }
   };
@@ -78,9 +77,9 @@ const LoginPage = ({ redirectTo = '' }) => {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98]"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-blue-400 disabled:shadow-none"
             >
-              {isLoggingIn ? <LoadingSpinner size={20} colorClass="text-white" /> : <><LogIn size={20} /><span>ログイン</span></>}
+              {isLoggingIn ? <><LoadingSpinner size={20} colorClass="text-white" /><span>ログイン中...</span></> : <><LogIn size={20} /><span>ログイン</span></>}
             </button>
           </form>
 
