@@ -50,13 +50,18 @@ export const printTestViaBridge = async (settings = {}) => {
 
 export const printReceiptViaBridge = async (payload, settings = {}) => {
   const baseUrl = getPrintBridgeUrl(settings);
+  const printerSettings = settings?.printerSettings || {};
 
   const response = await fetch(`${baseUrl}/print/receipt`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      ...payload,
+      printerIp: printerSettings.printerIp || payload?.printerIp || '',
+      printerPort: Number(printerSettings.printerPort || payload?.printerPort || 9100)
+    })
   });
 
   const data = await response.json().catch(() => null);
