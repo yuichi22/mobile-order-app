@@ -3001,11 +3001,12 @@ export const issuePostpayReceipt = onRequest(
 
       await verifyRequestUser(req);
 
-      const { storeId, sessionId, transactionId } = parseJsonBody(req);
+      const { storeId, sessionId, transactionId, recipientName } = parseJsonBody(req);
 
       const normalizedStoreId = String(storeId || '').trim();
       const normalizedSessionId = String(sessionId || '').trim();
       const normalizedTransactionId = String(transactionId || '').trim();
+      const normalizedRecipientName = String(recipientName || '').trim();
 
       if (!normalizedStoreId || !normalizedSessionId || !normalizedTransactionId) {
         return sendAppError(res, 400, 'app/invite-invalid', '領収書の発行情報が不足しています。');
@@ -3197,7 +3198,7 @@ export const issuePostpayReceipt = onRequest(
         },
 
         customer: {
-          name: transactionData.recipientName || ''
+          name: normalizedRecipientName || transactionData.recipientName || ''
         },
 
         items: receiptItems,
@@ -3230,7 +3231,8 @@ payment: {
       batch.set(transactionRef, {
         receiptId: receiptRef.id,
         receiptNo,
-        receiptIssuedAt: FieldValue.serverTimestamp()
+        receiptIssuedAt: FieldValue.serverTimestamp(),
+        ...(normalizedRecipientName ? { recipientName: normalizedRecipientName } : {})
       }, { merge: true });
 
       paidOrders.forEach((order) => {

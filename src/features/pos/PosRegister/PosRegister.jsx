@@ -1485,41 +1485,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       await batch.commit();
 
-      let issuedReceipt = null;
-
-      try {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (idToken && storeId && sessionId && transactionRef.id) {
-
-
-          const response = await fetch('/api/issuePostpayReceipt', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`
-            },
-            body: JSON.stringify({
-              storeId,
-              sessionId,
-              transactionId: transactionRef.id
-            })
-          });
-
-
-          const payload = await response.json().catch(() => ({}));
-
-          if (response.ok && payload?.ok) {
-            issuedReceipt = {
-              receiptId: payload.receiptId || '',
-              receiptNo: payload.receiptNo || ''
-            };
-          } else {
-            console.warn('[issuePostpayReceipt] failed', payload);
-          }
-        }
-      } catch (receiptError) {
-        console.warn('[issuePostpayReceipt] failed', receiptError);
-      }
+      const issuedReceipt = null;
 
       if (isSessionComplete) {
         onComplete({
@@ -1536,8 +1502,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           customerSummaries,
           lineItems: consolidatedItems,
           paymentMethod: resolvedPaymentMethod,
-          issueReceipt,
-          recipientName,
+          issueReceipt: false,
+          recipientName: '',
           sessionId,
           transactionId: transactionRef.id,
           receiptId: issuedReceipt?.receiptId || '',

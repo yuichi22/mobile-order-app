@@ -206,57 +206,43 @@ export const PosRegisterRight = ({
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="mb-3 shrink-0 space-y-2">
           <div className="grid gap-2">
-            <div className={`grid gap-2 ${allowTakeout ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              <button
-                onClick={() => setShowDiscountModal(true)}
-                disabled={orders.length === 0}
-                className={`flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
-                  discountType !== 'none'
-                    ? 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-400'
-                    : 'border-orange-100 bg-white text-orange-600 hover:bg-orange-50'
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <Percent size={16} />
-                <span>割引・値引</span>
-                {discountType !== 'none' && (
-                  <span className="min-w-0 truncate text-xs font-bold opacity-70">
-                    {discountDisplayLabel}
-                  </span>
-                )}
-              </button>
-
-              {allowTakeout && (
-                <button
-                  onClick={handleBulkTakeout}
-                  className={`flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
-                    isEverythingTakeout
-                      ? 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400'
-                      : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
-                  }`}
-                >
-                  {isEverythingTakeout ? <ShoppingBag size={16} /> : <Store size={16} />}
-                  <span>テイクアウト</span>
-                </button>
-              )}
-            </div>
-
             <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
-              <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-400">
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-400">
                 <span>小計 ¥{subTotal.toLocaleString()}</span>
-                {discountAmount > 0 && (
-                  <span className="text-red-400">
-                    割引 -¥{discountAmount.toLocaleString()}
-                  </span>
-                )}
                 <span>消費税 ¥{taxAmount.toLocaleString()}</span>
                 <span>{taxLabel}</span>
               </div>
 
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="shrink-0 text-sm font-black text-gray-600">税込合計</span>
-                <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-gray-900">
-                  ¥{totalAmount.toLocaleString()}
-                </span>
+              <div className="flex items-end justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(true)}
+                  disabled={orders.length === 0}
+                  className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
+                    discountType !== 'none'
+                      ? 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-400'
+                      : 'border-orange-100 bg-white text-orange-600 hover:bg-orange-50'
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <Percent size={16} />
+                  <span>割引・値引</span>
+                </button>
+
+                <div className="min-w-0 text-right">
+                  {discountAmount > 0 && (
+                    <div className="mb-1 truncate text-xs font-black text-red-500">
+                      {discountDisplayLabel ? `${discountDisplayLabel} ` : '割引 '}
+                      -¥{discountAmount.toLocaleString()}
+                    </div>
+                  )}
+
+                  <div className="flex items-baseline justify-end gap-3">
+                    <span className="shrink-0 text-sm font-black text-gray-600">税込合計</span>
+                    <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-gray-900">
+                      ¥{totalAmount.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -282,35 +268,36 @@ export const PosRegisterRight = ({
         </div>
 
         {paymentMethod === 'cash' ? (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col pb-2">
             <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                  <p className="mb-1 text-xs font-bold text-gray-500">お預かり</p>
-                  <div className="flex min-w-0 items-baseline text-gray-900">
-                    <span className="font-mono text-2xl font-bold">¥</span>
-                    <span className="ml-1 min-w-0 truncate font-mono text-3xl font-black tracking-tight">
-                      {(Number(paymentAmount) || 0).toLocaleString()}
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="shrink-0 text-xs font-bold text-gray-500">お預かり</span>
+                    <span className="min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
+                      ¥{(Number(paymentAmount) || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                  <p className="mb-1 text-xs font-bold text-gray-500">おつり</p>
-                  <div className={`min-w-0 truncate font-mono text-3xl font-black ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                    ¥{changeAmount.toLocaleString()}
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="shrink-0 text-xs font-bold text-gray-500">おつり</span>
+                    <span className={`min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                      ¥{changeAmount.toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[104px_1fr] gap-3">
-              <div className="grid grid-rows-4 gap-2">
+            <div className="grid min-h-0 flex-1 grid-cols-[96px_1fr] gap-2">
+              <div className="grid grid-rows-4 gap-1.5">
                 {[1000, 5000, 10000].map((amount) => (
                   <button
                     key={amount}
                     onClick={() => handleQuickAdd(amount)}
-                    className="rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    className="min-h-[56px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                   >
                     +{amount.toLocaleString()}
                   </button>
@@ -318,37 +305,37 @@ export const PosRegisterRight = ({
 
                 <button
                   onClick={handleFullPayment}
-                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                  className="min-h-[56px] rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
                 >
                   ちょうど
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[7, 8, 9, 4, 5, 6, 1, 2, 3].map((number) => (
                   <button
                     key={number}
                     onClick={() => handleNumClick(String(number))}
-                    className="rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                   >
                     {number}
                   </button>
                 ))}
                 <button
                   onClick={() => handleNumClick('0')}
-                  className="rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                  className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                 >
                   0
                 </button>
                 <button
                   onClick={() => handleNumClick('00')}
-                  className="rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                  className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                 >
                   00
                 </button>
                 <button
                   onClick={() => handleNumClick('backspace')}
-                  className="flex items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
+                  className="flex min-h-[56px] items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
                 >
                   <Delete size={24} />
                 </button>
@@ -400,38 +387,29 @@ export const PosRegisterRight = ({
             )}
           </div>
         )}
-
-        <div className="mt-5 shrink-0 border-t border-gray-100 pt-4">
-          <label className="flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              checked={issueReceipt}
-              onChange={(event) => setIssueReceipt(event.target.checked)}
-              className="h-5 w-5 rounded text-gray-800"
-            />
-            <span className="text-sm font-bold text-gray-600">領収書を発行する</span>
-            {issueReceipt && (
-              <input
-                type="text"
-                placeholder="宛名 (任意)"
-                value={recipientName}
-                onChange={(event) => setRecipientName(event.target.value)}
-                className="flex-grow border-b border-gray-300 bg-transparent px-2 py-1 text-sm outline-none focus:border-blue-500"
-                onClick={(event) => event.stopPropagation()}
-              />
-            )}
-          </label>
-        </div>
       </div>
 
       <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-3">
         <div className="space-y-2">
           {orders.length > 0 && (
-            <>
+            <div className="grid grid-cols-[96px_1fr] gap-2">
+              <button
+                type="button"
+                onPointerDown={startAbortLongPress}
+                onPointerUp={clearAbortLongPress}
+                onPointerLeave={clearAbortLongPress}
+                onPointerCancel={clearAbortLongPress}
+                onContextMenu={(event) => event.preventDefault()}
+                disabled={isPaymentSubmitting || showSuccessModal || showAbortModal}
+                className="flex min-h-[56px] w-full touch-none select-none items-center justify-center rounded-xl border border-red-100 bg-white px-2 text-xs font-black leading-tight text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+
               <button
                 onClick={handlePayment}
                 disabled={isPaymentDisabled}
-                className={`flex w-full items-center justify-center gap-3 rounded-xl py-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
+                className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
                   isPaymentDisabled
                     ? 'bg-gray-300 text-gray-500'
                     : paymentActionClassName
@@ -443,21 +421,7 @@ export const PosRegisterRight = ({
                   : paymentActionLabel}
                 <ChevronRight size={24} className="opacity-50" />
               </button>
-
-              <button
-                type="button"
-                onPointerDown={startAbortLongPress}
-                onPointerUp={clearAbortLongPress}
-                onPointerLeave={clearAbortLongPress}
-                onPointerCancel={clearAbortLongPress}
-                onContextMenu={(event) => event.preventDefault()}
-                disabled={isPaymentSubmitting || showSuccessModal || showAbortModal}
-                className="flex w-full touch-none select-none items-center justify-center gap-2 rounded-xl border border-red-100 bg-white py-2.5 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <LogOut size={18} />
-                会計をキャンセル（長押し）
-              </button>
-            </>
+            </div>
           )}
 
           {orders.length === 0 && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (

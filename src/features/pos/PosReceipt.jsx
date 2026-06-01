@@ -1,7 +1,9 @@
-import React from 'react';
-import { CheckCircle, Printer } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle, FileText, Printer } from 'lucide-react';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
+import { getIdToken } from 'firebase/auth';
+import { auth } from '../../shared/api/firebase/client';
 
 import { useStoreSettings } from '../store/hooks';
 
@@ -14,10 +16,76 @@ const formatPaymentMethod = (method) => {
 
 export const PosReceipt = ({ data, onNext, storeId }) => {
   const { settings } = useStoreSettings(storeId);
+  const [issuedReceipt, setIssuedReceipt] = useState({
+    receiptId: data.receiptId || '',
+    receiptNo: data.receiptNo || ''
+  });
+  const [recipientName, setRecipientName] = useState(data.recipientName || '');
+  const [isIssuingReceipt, setIsIssuingReceipt] = useState(false);
+
+  const handleIssueReceipt = async () => {
+    if (issuedReceipt.receiptNo || isIssuingReceipt) return;
+
+    const normalizedStoreId = storeId || data.storeId || '';
+    const normalizedSessionId = data.sessionId || '';
+    const normalizedTransactionId = data.transactionId || '';
+
+    if (!normalizedStoreId || !normalizedSessionId || !normalizedTransactionId) {
+      window.alert('領収書の発行情報が不足しています。');
+      return;
+    }
+
+    if (!auth.currentUser) {
+      window.alert('ログイン状態を確認できませんでした。');
+      return;
+    }
+
+    setIsIssuingReceipt(true);
+
+    try {
+      const token = await getIdToken(auth.currentUser);
+
+      const response = await fetch('/api/issuePostpayReceipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          storeId: normalizedStoreId,
+          sessionId: normalizedSessionId,
+          transactionId: normalizedTransactionId,
+          recipientName: recipientName.trim()
+        })
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.error?.message || '領収書の発行に失敗しました。');
+      }
+
+      setIssuedReceipt({
+        receiptId: payload.receiptId || '',
+        receiptNo: payload.receiptNo || ''
+      });
+    } catch (error) {
+      console.error('[issue receipt after payment error]', error);
+      window.alert(error.message || '領収書の発行に失敗しました。');
+    } finally {
+      setIsIssuingReceipt(false);
+    }
+  };
 
   const handlePrint = async () => {
     try {
-      const payload = buildPosReceiptPrintPayload(data, settings);
+      const payload = buildPosReceiptPrintPayload({
+        ...data,
+        receiptId: issuedReceipt.receiptId,
+        receiptNo: issuedReceipt.receiptNo,
+        issueReceipt: Boolean(issuedReceipt.receiptNo),
+        recipientName
+      }, settings);
       await printReceiptViaBridge(payload, settings);
     } catch (error) {
       console.error('[pos receipt print error]', error);
@@ -48,9 +116,9 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             合計 ¥{Number(data.totalAmount || 0).toLocaleString()}
           </p>
 
-          {data.receiptNo && (
+          {issuedReceipt.receiptNo && (
             <p className="mb-6 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-              領収書番号：{data.receiptNo}
+              領収書番号：{issuedReceipt.receiptNo}
             </p>
           )}
 
@@ -85,6 +153,34 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             レシートを印刷
           </button>
 
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left">
+            <label className="mb-2 block text-xs font-black text-slate-500">
+              領収書の宛名
+            </label>
+            <input
+              type="text"
+              value={recipientName}
+              onChange={(event) => setRecipientName(event.target.value)}
+              disabled={Boolean(issuedReceipt.receiptNo) || isIssuingReceipt}
+              placeholder="例：上様"
+              className="mb-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none transition focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+            />
+
+            <button
+              type="button"
+              onClick={handleIssueReceipt}
+              disabled={Boolean(issuedReceipt.receiptNo) || isIssuingReceipt}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 py-3 font-black text-blue-700 shadow-sm transition-all hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              <FileText size={18} />
+              {issuedReceipt.receiptNo
+                ? `領収書発行済み ${issuedReceipt.receiptNo}`
+                : isIssuingReceipt
+                  ? '領収書を発行中...'
+                  : '領収書を発行'}
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={onNext}
@@ -107,11 +203,11 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
           <span>{new Date().toLocaleString('ja-JP')}</span>
         </div>
           <div className="mb-2 border-b border-dashed border-black pb-2">
-            <p>No: {data.receiptNo || (data.sessionId ? data.sessionId.slice(0, 8) : '-')}</p>
-            {data.receiptNo && <p>領収書番号: {data.receiptNo}</p>}
-            {data.issueReceipt && (
+            <p>No: {issuedReceipt.receiptNo || (data.sessionId ? data.sessionId.slice(0, 8) : '-')}</p>
+            {issuedReceipt.receiptNo && <p>領収書番号: {issuedReceipt.receiptNo}</p>}
+            {issuedReceipt.receiptNo && (
               <p className="mt-1 text-xs font-bold">
-                宛名: {data.recipientName || '未指定'}
+                宛名: {recipientName || ''}
               </p>
             )}
           </div>
