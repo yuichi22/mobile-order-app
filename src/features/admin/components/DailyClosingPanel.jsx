@@ -439,22 +439,23 @@ const handleCloseDay = async (closingCheck = {}) => {
           </div>
 
           <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
-            <div className="mb-3 text-sm font-black text-emerald-900">
-              粗利・原価
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-black text-emerald-900">
+                粗利・原価
+              </div>
+              <div className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
+                原価登録済み {Number(summary?.costConfiguredItemCount || 0)}点
+              </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">粗利 税込</div>
+                <div className="text-xs font-black text-emerald-500">原価設定済み売上 税込</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.grossProfitTaxIncluded)}
+                  {formatCurrency(summary?.costConfiguredSalesTaxIncluded)}
                 </div>
-              </div>
-
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">粗利 税抜</div>
-                <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.grossProfitTaxExcluded)}
+                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                  税抜 {formatCurrency(summary?.costConfiguredSalesTaxExcluded)}
                 </div>
               </div>
 
@@ -463,12 +464,18 @@ const handleCloseDay = async (closingCheck = {}) => {
                 <div className="mt-2 text-2xl font-black text-gray-900">
                   {formatCurrency(summary?.costTaxIncludedTotal)}
                 </div>
+                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                  税抜 {formatCurrency(summary?.costTaxExcludedTotal)}
+                </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-gray-400">原価 税抜</div>
+                <div className="text-xs font-black text-emerald-500">粗利 税込</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.costTaxExcludedTotal)}
+                  {formatCurrency(summary?.grossProfitTaxIncluded)}
+                </div>
+                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                  税抜 {formatCurrency(summary?.grossProfitTaxExcluded)}
                 </div>
               </div>
 
@@ -482,17 +489,44 @@ const handleCloseDay = async (closingCheck = {}) => {
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
-              <div className="rounded-xl bg-white/80 px-4 py-3 text-xs font-bold text-gray-500">
-                原価登録済み：{Number(summary?.costConfiguredItemCount || 0)}点
+            {Number(summary?.costMissingItemCount || 0) > 0 && (
+              <div className="mt-4 rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-black text-amber-800">
+                    原価未設定の商品があります
+                  </div>
+                  <div className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-amber-700 shadow-sm">
+                    未設定 {Number(summary?.costMissingItemCount || 0)}点
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl bg-white px-4 py-3">
+                    <div className="text-[11px] font-black text-amber-500">原価未設定売上 税込</div>
+                    <div className="mt-1 text-lg font-black text-gray-900">
+                      {formatCurrency(summary?.costMissingSalesTaxIncluded)}
+                    </div>
+                    <div className="mt-1 text-[11px] font-bold text-gray-400">
+                      税抜 {formatCurrency(summary?.costMissingSalesTaxExcluded)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-white px-4 py-3">
+                    <div className="text-[11px] font-black text-amber-500">未設定売上比率</div>
+                    <div className="mt-1 text-lg font-black text-gray-900">
+                      {Number(summary?.costMissingSalesRate || 0).toFixed(1)}%
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-white px-4 py-3">
+                    <div className="text-[11px] font-black text-amber-500">入力推奨</div>
+                    <div className="mt-1 text-sm font-black leading-relaxed text-amber-800">
+                      正確な粗利を見るために、商品の原価入力をしてください。
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl bg-white/80 px-4 py-3 text-xs font-bold text-gray-500">
-                原価未設定：{Number(summary?.costMissingItemCount || 0)}点
-              </div>
-              <div className="rounded-xl bg-white/80 px-4 py-3 text-xs font-bold text-gray-500">
-                未集計売上：{formatCurrency(summary?.grossProfitUntrackedSalesTaxIncluded)}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">

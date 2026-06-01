@@ -497,53 +497,66 @@ const addGrossProfitSummary = (summary, transaction) => {
   if (!Array.isArray(transaction.items)) return;
 
   transaction.items.forEach((item) => {
-    const quantity = Math.max(toSafeDailyNumber(item.quantity, 0), 0);
-    if (quantity <= 0) return;
+    if (!item) return;
 
-    const salesTaxIncludedAmount = toSafeDailyNumber(
-      item.salesTaxIncludedAmount ?? item.taxIncludedAmount ?? item.totalPrice,
-      toSafeDailyNumber(item.unitPrice, 0) * quantity
-    );
+    const quantity = Math.max(Number(item.quantity || 0), 0);
+    const unitPrice = Number(item.unitPrice || item.price || 0);
+    const fallbackSalesIncluded = unitPrice * quantity;
 
-    const salesTaxExcludedAmount = toSafeDailyNumber(
-      item.salesTaxExcludedAmount,
+    const salesTaxIncludedAmount = Number(
+      item.totalPrice ??
+      item.salesTaxIncludedAmount ??
+      item.taxIncludedAmount ??
+      fallbackSalesIncluded
+    ) || 0;
+
+    const salesTaxExcludedAmount = Number(
+      item.salesTaxExcludedAmount ??
       salesTaxIncludedAmount
-    );
+    ) || 0;
 
-    if (!hasCostSnapshot(item)) {
+    const hasCost =
+      item.costPrice !== null &&
+      item.costPrice !== undefined &&
+      item.costPrice !== '' &&
+      Number.isFinite(Number(item.costPrice));
+
+    if (!hasCost) {
       summary.costMissingItemCount += quantity;
-      summary.costMissingItemTypes += 1;
-      summary.grossProfitUntrackedSalesTaxIncluded += salesTaxIncludedAmount;
-      summary.grossProfitUntrackedSalesTaxExcluded += salesTaxExcludedAmount;
+      summary.costMissingSalesTaxIncluded += salesTaxIncludedAmount;
+      summary.costMissingSalesTaxExcluded += salesTaxExcludedAmount;
       return;
     }
 
-    const costTaxIncludedAmount = toSafeDailyNumber(item.costTaxIncludedAmount, 0);
-    const costTaxExcludedAmount = toSafeDailyNumber(item.costTaxExcludedAmount, 0);
-    const costTaxAmount = toSafeDailyNumber(item.costTaxAmount, 0);
-    const grossProfitTaxIncluded = toSafeDailyNumber(
-      item.grossProfitTaxIncluded,
-      salesTaxIncludedAmount - costTaxIncludedAmount
-    );
-    const grossProfitTaxExcluded = toSafeDailyNumber(
-      item.grossProfitTaxExcluded,
-      salesTaxExcludedAmount - costTaxExcludedAmount
-    );
+    const costTaxIncludedAmount = Number(item.costTaxIncludedAmount || 0);
+    const costTaxExcludedAmount = Number(item.costTaxExcludedAmount ?? costTaxIncludedAmount) || 0;
+
+    const grossProfitTaxIncluded = Number(
+      item.grossProfitTaxIncluded ??
+      (salesTaxIncludedAmount - costTaxIncludedAmount)
+    ) || 0;
+
+    const grossProfitTaxExcluded = Number(
+      item.grossProfitTaxExcluded ??
+      (salesTaxExcludedAmount - costTaxExcludedAmount)
+    ) || 0;
 
     summary.costConfiguredItemCount += quantity;
-    summary.costConfiguredItemTypes += 1;
+
+    summary.costConfiguredSalesTaxIncluded += salesTaxIncludedAmount;
+    summary.costConfiguredSalesTaxExcluded += salesTaxExcludedAmount;
 
     summary.grossProfitTrackedSalesTaxIncluded += salesTaxIncludedAmount;
     summary.grossProfitTrackedSalesTaxExcluded += salesTaxExcludedAmount;
 
     summary.costTaxIncludedTotal += costTaxIncludedAmount;
     summary.costTaxExcludedTotal += costTaxExcludedAmount;
-    summary.costTaxTotal += costTaxAmount;
 
     summary.grossProfitTaxIncluded += grossProfitTaxIncluded;
     summary.grossProfitTaxExcluded += grossProfitTaxExcluded;
   });
 };
+
 
 const addPeriodSales = (summary, transaction, periods = []) => {
   const orderAnalyticsRecords = Array.isArray(transaction.orderAnalyticsRecords)
@@ -649,6 +662,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     grossProfitUntrackedSalesTaxIncluded: 0,
     grossProfitUntrackedSalesTaxExcluded: 0,
 
+    costConfiguredSalesTaxIncluded: 0,
+    costConfiguredSalesTaxExcluded: 0,
+    costMissingSalesTaxIncluded: 0,
+    costMissingSalesTaxExcluded: 0,
+
     paymentMethods: {},
     taxBreakdown: {},
     discounts: {},
@@ -693,10 +711,15 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
       ? Math.round((summary.grossProfitTaxIncluded / summary.grossProfitTrackedSalesTaxIncluded) * 1000) / 10
       : null;
 
+    const costMissingSalesRate = summary.totalSales > 0
+      ? Math.round((summary.costMissingSalesTaxIncluded / summary.totalSales) * 1000) / 10
+      : 0;
+
     return {
     ...publicSummary,
     customerCount,
     grossProfitRate,
+    costMissingSalesRate,
 
     paymentMethodList: paymentOrder.map((method) => (
       summary.paymentMethods[method] || {

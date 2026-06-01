@@ -67,12 +67,16 @@ const buildGrossProfitRows = (summary = {}) => {
       : `${Number(summary.grossProfitRate || 0).toFixed(1)}%`;
 
   return `
-    ${row('粗利 税込', formatCurrency(summary.grossProfitTaxIncluded), 'bold')}
-    ${row('粗利 税抜', formatCurrency(summary.grossProfitTaxExcluded))}
+    ${row('原価設定済み売上 税込', formatCurrency(summary.costConfiguredSalesTaxIncluded), 'bold')}
+    ${row('原価設定済み売上 税抜', formatCurrency(summary.costConfiguredSalesTaxExcluded))}
     ${row('原価 税込', formatCurrency(summary.costTaxIncludedTotal))}
     ${row('原価 税抜', formatCurrency(summary.costTaxExcludedTotal))}
+    ${row('粗利 税込', formatCurrency(summary.grossProfitTaxIncluded), 'bold')}
+    ${row('粗利 税抜', formatCurrency(summary.grossProfitTaxExcluded))}
     ${row('粗利率', grossProfitRate, 'bold')}
     ${row('原価登録済み', `${Number(summary.costConfiguredItemCount || 0).toLocaleString()}点`)}
+    ${row('原価未設定売上 税込', formatCurrency(summary.costMissingSalesTaxIncluded), Number(summary.costMissingSalesTaxIncluded || 0) > 0 ? 'bold' : '')}
+    ${row('原価未設定売上 税抜', formatCurrency(summary.costMissingSalesTaxExcluded))}
     ${row('原価未設定', `${Number(summary.costMissingItemCount || 0).toLocaleString()}点`)}
   `;
 };
