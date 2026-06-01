@@ -342,8 +342,8 @@ const QRGenerator = ({ storeId }) => {
                 </div>
 
                 {layoutItems.length > 0 ? (
-                  <div className="overflow-hidden rounded-3xl border border-gray-100 bg-slate-100 shadow-inner">
-                    <div className="h-[420px]">
+                  <div className="max-h-[520px] overflow-auto rounded-3xl border border-gray-100 bg-slate-100 shadow-inner">
+                    <div className="h-[420px] min-w-[820px]">
                       <FloorMapCanvas
                         mode="view"
                         items={layoutItems}
