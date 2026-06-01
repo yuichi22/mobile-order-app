@@ -44,7 +44,11 @@ export const subscribeToStoreSettings = (storeId, onData, onError) => (
       onData({
         name: 'My Store',
         taxRate: 10,
+        taxRateReduced: 8,
         taxRounding: TAX_ROUNDING_MODES.FLOOR,
+        menuPriceTaxMode: 'tax_included',
+        defaultCostTaxMode: 'tax_included',
+        defaultCostTaxRateType: 'standard',
         acceptedPaymentMethods: ['cash', 'card', 'qr'],
         allowSplitPayment: true,
         allowTakeout: true
@@ -55,7 +59,18 @@ export const subscribeToStoreSettings = (storeId, onData, onError) => (
     const data = snapshot.data();
     onData({
       ...data,
+      taxRate: Number(data.taxRate ?? 10),
+      taxRateReduced: Number(data.taxRateReduced ?? 8),
       taxRounding: normalizeTaxRounding(data.taxRounding),
+      menuPriceTaxMode: ['tax_included', 'tax_excluded'].includes(data.menuPriceTaxMode)
+        ? data.menuPriceTaxMode
+        : 'tax_included',
+      defaultCostTaxMode: ['tax_included', 'tax_excluded'].includes(data.defaultCostTaxMode)
+        ? data.defaultCostTaxMode
+        : 'tax_included',
+      defaultCostTaxRateType: ['standard', 'reduced', 'exempt'].includes(data.defaultCostTaxRateType)
+        ? data.defaultCostTaxRateType
+        : 'standard',
       acceptedPaymentMethods: Array.isArray(data.acceptedPaymentMethods) && data.acceptedPaymentMethods.length > 0
         ? data.acceptedPaymentMethods
         : ['cash', 'card', 'qr'],

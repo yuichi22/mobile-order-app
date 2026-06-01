@@ -495,6 +495,7 @@ export const StoreSettings = ({ storeId }) => {
             <MenuSettings
               menuItems={menuItems || []}
               kitchens={settings?.kitchens || []}
+              basicSettings={settings}
               cookingCategories={cookingCategories}
               loading={menuLoading}
               onSave={updateMenu}

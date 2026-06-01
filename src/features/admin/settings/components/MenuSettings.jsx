@@ -200,12 +200,16 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   takeoutPrice: '',
   optionGroups: [],
   crossSellPrice: null,
-  crossSellPriceLabelText: 'セット価格'
+  crossSellPriceLabelText: 'セット価格',
+  costPrice: '',
+  costTaxMode: 'inherit',
+  costTaxRateType: 'inherit'
 });
 
 const MenuSettings = ({
   menuItems = [],
   kitchens = [{ id: 'k1', name: 'メインキッチン', isDefault: true }],
+  basicSettings = {},
   cookingCategories = [],
   loading,
   onSave,
@@ -237,6 +241,16 @@ const MenuSettings = ({
     takeout: 'all',
     allergens: []
   });
+
+  const resolvedDefaultCostTaxModeLabel = basicSettings?.defaultCostTaxMode === 'tax_excluded'
+    ? '税抜で入力'
+    : '税込で入力';
+
+  const resolvedDefaultCostTaxRateTypeLabel = basicSettings?.defaultCostTaxRateType === 'reduced'
+    ? `軽減税率 ${Number(basicSettings?.taxRateReduced ?? 8)}%`
+    : basicSettings?.defaultCostTaxRateType === 'exempt'
+      ? '非課税/対象外'
+      : `標準税率 ${Number(basicSettings?.taxRate ?? 10)}%`;
 
   const defaultKitchenId = kitchens.find((kitchen) => kitchen.isDefault)?.id || kitchens[0]?.id || '';
   const categoryById = useMemo(
@@ -388,6 +402,9 @@ const MenuSettings = ({
       takeoutPrice: item.takeoutPrice ?? '',
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
+      costPrice: item.costPrice ?? '',
+      costTaxMode: item.costTaxMode || 'inherit',
+      costTaxRateType: item.costTaxRateType || 'inherit',
       optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : []
     });
 
@@ -563,6 +580,7 @@ const MenuSettings = ({
       const normalizedLimit = Number(editingItem.orderLimitPerOrder);
       const normalizedLimitedQuantity = Number(editingItem.limitedQuantity);
       const normalizedCrossSellPrice = Number(editingItem.crossSellPrice);
+      const normalizedCostPrice = Number(editingItem.costPrice);
       const normalizedTakeoutPrice = Math.max(Number(editingItem.takeoutPrice) || 0, 0);
 
       await onSave({
@@ -611,7 +629,19 @@ const MenuSettings = ({
           editingItem.crossSellPrice === undefined
             ? null
             : Math.max(0, normalizedCrossSellPrice),
-        crossSellPriceLabelText: String(editingItem.crossSellPriceLabelText || 'セット価格').trim()
+        crossSellPriceLabelText: String(editingItem.crossSellPriceLabelText || 'セット価格').trim(),
+        costPrice:
+          editingItem.costPrice === '' ||
+          editingItem.costPrice === null ||
+          editingItem.costPrice === undefined
+            ? null
+            : Math.max(0, normalizedCostPrice),
+        costTaxMode: ['inherit', 'tax_included', 'tax_excluded'].includes(editingItem.costTaxMode)
+          ? editingItem.costTaxMode
+          : 'inherit',
+        costTaxRateType: ['inherit', 'standard', 'reduced', 'exempt'].includes(editingItem.costTaxRateType)
+          ? editingItem.costTaxRateType
+          : 'inherit'
       });
 
       onSaved?.();
@@ -1016,6 +1046,88 @@ const handleClearLimitedQuantity = async (event, item) => {
                       )}
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-3xl border-2 border-gray-100 p-6 md:col-span-2">
+                  <div className="mb-4">
+                    <div className="text-base font-black text-gray-800">
+                      原価・粗利設定
+                    </div>
+                    <p className="mt-1 text-sm text-gray-400">
+                      日計の粗利計算に使う原価です。未入力の場合は原価未設定として扱います。
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                        原価
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editingItem.costPrice ?? ''}
+                          onChange={(event) => setEditingItem({
+                            ...editingItem,
+                            costPrice: event.target.value
+                          })}
+                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-blue-500"
+                          placeholder="未設定"
+                        />
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
+                          ¥
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                        原価の入力方式
+                      </label>
+                      <select
+                        value={editingItem.costTaxMode || 'inherit'}
+                        onChange={(event) => setEditingItem({
+                          ...editingItem,
+                          costTaxMode: event.target.value
+                        })}
+                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-blue-500"
+                      >
+                        <option value="inherit">基本設定に従う</option>
+                        <option value="tax_included">税込</option>
+                        <option value="tax_excluded">税抜</option>
+                      </select>
+                      <p className="mt-2 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-600">
+                        現在の基本設定：{resolvedDefaultCostTaxModeLabel}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                        原価の税区分
+                      </label>
+                      <select
+                        value={editingItem.costTaxRateType || 'inherit'}
+                        onChange={(event) => setEditingItem({
+                          ...editingItem,
+                          costTaxRateType: event.target.value
+                        })}
+                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-blue-500"
+                      >
+                        <option value="inherit">基本設定に従う</option>
+                        <option value="standard">標準税率</option>
+                        <option value="reduced">軽減税率</option>
+                        <option value="exempt">非課税/対象外</option>
+                      </select>
+                      <p className="mt-2 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-600">
+                        現在の基本設定：{resolvedDefaultCostTaxRateTypeLabel}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-xs font-bold leading-relaxed text-gray-400">
+                    注文作成時にこの原価を保存し、日計で粗利を集計する予定です。過去注文の粗利が後から変わらないようにします。
+                  </p>
                 </div>
 
                 <div className="rounded-3xl border-2 border-gray-100 p-6 md:col-span-2">

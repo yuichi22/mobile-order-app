@@ -88,6 +88,9 @@ const BasicSettings = ({
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [taxRounding, setTaxRounding] = useState('floor');
+  const [menuPriceTaxMode, setMenuPriceTaxMode] = useState('tax_included');
+  const [defaultCostTaxMode, setDefaultCostTaxMode] = useState('tax_included');
+  const [defaultCostTaxRateType, setDefaultCostTaxRateType] = useState('standard');
   const [enabledPaymentMethods, setEnabledPaymentMethods] = useState(['cash', 'card', 'qr']);
   const [allowTakeout, setAllowTakeout] = useState(true);
   const [newKitchenName, setNewKitchenName] = useState('');
@@ -178,6 +181,9 @@ const BasicSettings = ({
     setCustomerLogoPreview(null);
     setCustomerThemeColor(settings.customerThemeColor || '#0f172a');
     setTaxRounding(normalizeTaxRounding(settings.taxRounding));
+    setMenuPriceTaxMode(['tax_included', 'tax_excluded'].includes(settings.menuPriceTaxMode) ? settings.menuPriceTaxMode : 'tax_included');
+    setDefaultCostTaxMode(['tax_included', 'tax_excluded'].includes(settings.defaultCostTaxMode) ? settings.defaultCostTaxMode : 'tax_included');
+    setDefaultCostTaxRateType(['standard', 'reduced', 'exempt'].includes(settings.defaultCostTaxRateType) ? settings.defaultCostTaxRateType : 'standard');
     setEnabledPaymentMethods(
       Array.isArray(settings.acceptedPaymentMethods) && settings.acceptedPaymentMethods.length > 0
         ? settings.acceptedPaymentMethods
@@ -403,6 +409,9 @@ const handleTestPrinter = async () => {
         taxRate: Number(formData.get('taxRate')),
         taxRateReduced: Number(formData.get('taxRateReduced')),
         taxRounding,
+        menuPriceTaxMode,
+        defaultCostTaxMode,
+        defaultCostTaxRateType,
         acceptedPaymentMethods: enabledPaymentMethods,
         allowTakeout,
         noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
@@ -1065,6 +1074,115 @@ const handleTestPrinter = async () => {
               <p className="mt-3 text-xs font-medium leading-relaxed text-gray-400">
                 登録した分類は、メニュー設定で複数選択できます。キッチン画面では未完了商品の集計に表示されます。
               </p>
+            </div>
+          </div>
+        </SettingSection>
+
+
+        <SettingSection
+          title="売値・原価の税設定"
+          desc="メニュー価格と原価の入力方式を設定します。"
+          icon={Percent}
+        >
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
+              <p className="text-sm font-black text-orange-700">
+                既存メニューは税込価格として扱います
+              </p>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-orange-600/80">
+                税抜入力への切り替えは、注文作成と日計集計の対応後に使う想定です。現時点では税込入力のまま運用するのが安全です。
+              </p>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="space-y-3">
+                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                  売値の入力方式
+                </label>
+                <div className="grid gap-2">
+                  {[
+                    { value: 'tax_included', label: '税込で入力', note: '現在の既存仕様です' },
+                    { value: 'tax_excluded', label: '税抜で入力', note: '今後の拡張用です' }
+                  ].map((option) => {
+                    const isActive = menuPriceTaxMode === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setMenuPriceTaxMode(option.value)}
+                        className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                          isActive
+                            ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-orange-200 hover:text-orange-600'
+                        }`}
+                      >
+                        <div className="text-sm font-black">{option.label}</div>
+                        <div className="mt-1 text-xs font-bold opacity-70">{option.note}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                  原価の入力方式
+                </label>
+                <div className="grid gap-2">
+                  {[
+                    { value: 'tax_included', label: '税込で入力' },
+                    { value: 'tax_excluded', label: '税抜で入力' }
+                  ].map((option) => {
+                    const isActive = defaultCostTaxMode === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setDefaultCostTaxMode(option.value)}
+                        className={`rounded-2xl border-2 p-4 text-left text-sm font-black transition-all ${
+                          isActive
+                            ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                  原価の標準税区分
+                </label>
+                <div className="grid gap-2">
+                  {[
+                    { value: 'standard', label: '標準税率' },
+                    { value: 'reduced', label: '軽減税率' },
+                    { value: 'exempt', label: '非課税/対象外' }
+                  ].map((option) => {
+                    const isActive = defaultCostTaxRateType === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setDefaultCostTaxRateType(option.value)}
+                        className={`rounded-2xl border-2 p-4 text-left text-sm font-black transition-all ${
+                          isActive
+                            ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </SettingSection>
