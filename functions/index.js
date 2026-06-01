@@ -2767,6 +2767,181 @@ const buildSimpleTaxSummary = ({ totalAmount, taxRate = 10 }) => {
   ];
 };
 
+const normalizeTaxMode = (value, fallback = 'tax_included') => (
+  ['tax_included', 'tax_excluded'].includes(value) ? value : fallback
+);
+
+const normalizeCostTaxRateType = (value, fallback = 'standard') => (
+  ['standard', 'reduced', 'exempt'].includes(value) ? value : fallback
+);
+
+const normalizeTaxRoundingMode = (value) => (
+  ['floor', 'ceil', 'round'].includes(value) ? value : 'floor'
+);
+
+const applyTaxRoundingServer = (value, mode = 'floor') => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0;
+
+  const roundedBase = Number(amount.toFixed(8));
+  const normalizedMode = normalizeTaxRoundingMode(mode);
+
+  if (normalizedMode === 'ceil') return Math.ceil(roundedBase);
+  if (normalizedMode === 'round') return Math.round(roundedBase);
+  return Math.floor(roundedBase);
+};
+
+const splitTaxIncludedAmountServer = (taxIncludedAmount, taxRate, roundingMode = 'floor') => {
+  const included = Math.max(toSafeNumber(taxIncludedAmount, 0), 0);
+  const rate = Math.max(toSafeNumber(taxRate, 0), 0);
+
+  if (rate <= 0) {
+    return {
+      taxIncludedAmount: included,
+      taxExcludedAmount: included,
+      taxAmount: 0
+    };
+  }
+
+  const taxExcludedAmount = applyTaxRoundingServer(included / (1 + (rate / 100)), roundingMode);
+  return {
+    taxIncludedAmount: included,
+    taxExcludedAmount,
+    taxAmount: included - taxExcludedAmount
+  };
+};
+
+const toTaxIncludedAmountServer = (taxExcludedAmount, taxRate, roundingMode = 'floor') => {
+  const excluded = Math.max(toSafeNumber(taxExcludedAmount, 0), 0);
+  const rate = Math.max(toSafeNumber(taxRate, 0), 0);
+
+  if (rate <= 0) {
+    return {
+      taxIncludedAmount: excluded,
+      taxExcludedAmount: excluded,
+      taxAmount: 0
+    };
+  }
+
+  const taxIncludedAmount = applyTaxRoundingServer(excluded * (1 + (rate / 100)), roundingMode);
+  return {
+    taxIncludedAmount,
+    taxExcludedAmount: excluded,
+    taxAmount: taxIncludedAmount - excluded
+  };
+};
+
+const resolveSalesTaxSnapshot = ({ menuData = {}, storeData = {}, taxIncludedAmount = 0 }) => {
+  const included = Math.max(toSafeNumber(taxIncludedAmount, 0), 0);
+
+  const taxRateType = menuData.taxRateType === 'reduced'
+    || menuData.isReducedTaxRate === true
+    || menuData.allowsTakeout === true && menuData.takeoutSelected === true
+    ? 'reduced'
+    : 'standard';
+
+  const salesTaxRate = taxRateType === 'reduced'
+    ? Math.max(toSafeNumber(storeData.taxRateReduced, 8), 0)
+    : Math.max(toSafeNumber(storeData.taxRate, 10), 0);
+
+  const taxRounding = normalizeTaxRoundingMode(storeData.taxRounding);
+  const breakdown = splitTaxIncludedAmountServer(included, salesTaxRate, taxRounding);
+
+  return {
+    salesTaxRateType: taxRateType,
+    salesTaxRate,
+    salesTaxIncludedAmount: breakdown.taxIncludedAmount,
+    salesTaxExcludedAmount: breakdown.taxExcludedAmount,
+    salesTaxAmount: breakdown.taxAmount
+  };
+};
+
+const resolveCostSnapshot = ({ menuData = {}, storeData = {}, quantity = 1, salesTaxIncludedAmount = 0 }) => {
+  const salesSnapshot = resolveSalesTaxSnapshot({
+    menuData,
+    storeData,
+    taxIncludedAmount: salesTaxIncludedAmount
+  });
+
+  const rawCostPrice = menuData.costPrice;
+
+  if (rawCostPrice === null || rawCostPrice === undefined || rawCostPrice === '') {
+    return {
+      costPrice: null,
+      costTaxMode: normalizeTaxMode(storeData.defaultCostTaxMode, 'tax_included'),
+      costTaxRateType: normalizeCostTaxRateType(storeData.defaultCostTaxRateType, 'standard'),
+      costTaxRate: null,
+      unitCostTaxIncluded: null,
+      unitCostTaxExcluded: null,
+      unitCostTaxAmount: null,
+      costTaxIncludedAmount: null,
+      costTaxExcludedAmount: null,
+      costTaxAmount: null,
+      ...salesSnapshot,
+      grossProfitTaxIncluded: null,
+      grossProfitTaxExcluded: null,
+      grossProfitRate: null
+    };
+  }
+
+  const normalizedQuantity = Math.max(toSafeNumber(quantity, 0), 0);
+  const unitCost = Math.max(toSafeNumber(rawCostPrice, 0), 0);
+
+  const defaultCostTaxMode = normalizeTaxMode(storeData.defaultCostTaxMode, 'tax_included');
+  const defaultCostTaxRateType = normalizeCostTaxRateType(storeData.defaultCostTaxRateType, 'standard');
+
+  const costTaxMode = normalizeTaxMode(
+    menuData.costTaxMode === 'inherit' ? defaultCostTaxMode : menuData.costTaxMode,
+    defaultCostTaxMode
+  );
+
+  const costTaxRateType = normalizeCostTaxRateType(
+    menuData.costTaxRateType === 'inherit' ? defaultCostTaxRateType : menuData.costTaxRateType,
+    defaultCostTaxRateType
+  );
+
+  const costTaxRate = costTaxRateType === 'exempt'
+    ? 0
+    : costTaxRateType === 'reduced'
+      ? Math.max(toSafeNumber(storeData.taxRateReduced, 8), 0)
+      : Math.max(toSafeNumber(storeData.taxRate, 10), 0);
+
+  const taxRounding = normalizeTaxRoundingMode(storeData.taxRounding);
+
+  const unitCostBreakdown = costTaxMode === 'tax_excluded'
+    ? toTaxIncludedAmountServer(unitCost, costTaxRate, taxRounding)
+    : splitTaxIncludedAmountServer(unitCost, costTaxRate, taxRounding);
+
+  const costTaxIncludedAmount = unitCostBreakdown.taxIncludedAmount * normalizedQuantity;
+  const costTaxExcludedAmount = unitCostBreakdown.taxExcludedAmount * normalizedQuantity;
+  const costTaxAmount = unitCostBreakdown.taxAmount * normalizedQuantity;
+
+  const salesIncluded = Math.max(toSafeNumber(salesSnapshot.salesTaxIncludedAmount, 0), 0);
+  const salesExcluded = Math.max(toSafeNumber(salesSnapshot.salesTaxExcludedAmount, 0), 0);
+  const grossProfitTaxIncluded = salesIncluded - costTaxIncludedAmount;
+  const grossProfitTaxExcluded = salesExcluded - costTaxExcludedAmount;
+
+  return {
+    ...salesSnapshot,
+    costPrice: unitCost,
+    costTaxMode,
+    costTaxRateType,
+    costTaxRate,
+    unitCostTaxIncluded: unitCostBreakdown.taxIncludedAmount,
+    unitCostTaxExcluded: unitCostBreakdown.taxExcludedAmount,
+    unitCostTaxAmount: unitCostBreakdown.taxAmount,
+    costTaxIncludedAmount,
+    costTaxExcludedAmount,
+    costTaxAmount,
+    grossProfitTaxIncluded,
+    grossProfitTaxExcluded,
+    grossProfitRate: salesIncluded > 0
+      ? Math.round((grossProfitTaxIncluded / salesIncluded) * 1000) / 10
+      : null
+  };
+};
+
+
 async function getTableDisplayName({ storeId, tableId }) {
   const normalizedStoreId = String(storeId || '').trim();
   const normalizedTableId = String(tableId || '').trim();
@@ -2948,26 +3123,44 @@ export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async
     const storeData = await getReceiptStoreData(storeRef);
     const tableDisplayName = await getTableDisplayName({ storeId, tableId });
 
+    const menuSnapshots = await Promise.all(
+      cart.map((item) => storeRef.collection('menuItems').doc(String(item.id || '')).get())
+    );
+
     const orderRef = storeRef.collection('orders').doc();
 
-    const orderItems = cart.map((item) => ({
-      id: String(item.id || ''),
-      name: String(item.name || '商品'),
-      quantity: Math.max(Number(item.quantity || 0), 0),
-      unitPrice: Number(item.unitPrice || item.price || 0),
-      category: String(item.category || item.categoryId || ''),
-      categoryId: String(item.category || item.categoryId || ''),
-      appliedPriceMode: item.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal',
-      priceLabelText: String(item.priceLabelText || ''),
-      originalPrice: item.originalPrice ?? null,
-      originalPriceLabelText: String(item.originalPriceLabelText || ''),
-      selectedOptions: Array.isArray(item.selectedOptions) ? item.selectedOptions : [],
-      options: Array.isArray(item.selectedOptions)
-        ? item.selectedOptions.map((option) => option.name).filter(Boolean)
-        : [],
-      serviceTiming: String(item.serviceTiming || ''),
-      serviceTimingLabel: String(item.serviceTimingLabel || '')
-    }));
+    const orderItems = cart.map((item, index) => {
+      const quantity = Math.max(Number(item.quantity || 0), 0);
+      const unitPrice = Number(item.unitPrice || item.price || 0);
+      const taxIncludedAmount = quantity * unitPrice;
+      const menuData = menuSnapshots[index]?.exists ? menuSnapshots[index].data() || {} : {};
+
+      return {
+        id: String(item.id || ''),
+        name: String(item.name || menuData.name || '商品'),
+        quantity,
+        unitPrice,
+        taxIncludedAmount,
+        category: String(item.category || item.categoryId || menuData.category || ''),
+        categoryId: String(item.category || item.categoryId || menuData.category || ''),
+        appliedPriceMode: item.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal',
+        priceLabelText: String(item.priceLabelText || ''),
+        originalPrice: item.originalPrice ?? null,
+        originalPriceLabelText: String(item.originalPriceLabelText || ''),
+        selectedOptions: Array.isArray(item.selectedOptions) ? item.selectedOptions : [],
+        options: Array.isArray(item.selectedOptions)
+          ? item.selectedOptions.map((option) => option.name).filter(Boolean)
+          : [],
+        serviceTiming: String(item.serviceTiming || ''),
+        serviceTimingLabel: String(item.serviceTimingLabel || ''),
+        ...resolveCostSnapshot({
+          menuData,
+          storeData,
+          quantity,
+          salesTaxIncludedAmount: taxIncludedAmount
+        })
+      };
+    });
 
     const orderData = {
       tableId,
@@ -3411,8 +3604,12 @@ export const createPostpayOrder = onRequest(
           .collection('tables')
           .doc(normalizedTableId);
 
+        const settingsRef = storeRef.collection('settings').doc('basic');
+
         const sessionSnapshot = await transaction.get(sessionRef);
         const tableSnapshot = await transaction.get(tableRef);
+        const settingsSnapshot = await transaction.get(settingsRef);
+        const storeData = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
 
         if (!sessionSnapshot.exists) {
           throw new Error('セッション情報が見つかりません。');
@@ -3518,12 +3715,16 @@ export const createPostpayOrder = onRequest(
             ? cartItem.selectedOptions
             : [];
 
+          const unitPrice = Number(cartItem.unitPrice || menuData.price || 0);
+          const taxIncludedAmount = quantity * unitPrice;
+
           orderItems.push({
             id: cartItem.id,
             name: cartItem.name || menuData.name || '商品',
             kitchenName: String(cartItem.kitchenName || menuData.kitchenName || '').trim(),
             quantity,
-            unitPrice: Number(cartItem.unitPrice || menuData.price || 0),
+            unitPrice,
+            taxIncludedAmount,
             category: String(cartItem.category || menuData.category || ''),
             categoryId: String(cartItem.categoryId || cartItem.category || menuData.category || ''),
             appliedPriceMode: cartItem.appliedPriceMode === 'crossSell' ? 'crossSell' : 'normal',
@@ -3560,7 +3761,13 @@ export const createPostpayOrder = onRequest(
             serviceTimingLabel: String(cartItem.serviceTimingLabel || ''),
             allowsTakeout: cartItem.allowsTakeout !== false,
             allergens: cartItem.allergens || [],
-            limitedQuantity: menuData.limitedQuantity ?? null
+            limitedQuantity: menuData.limitedQuantity ?? null,
+            ...resolveCostSnapshot({
+              menuData,
+              storeData,
+              quantity,
+              salesTaxIncludedAmount: taxIncludedAmount
+            })
           });
         });
 

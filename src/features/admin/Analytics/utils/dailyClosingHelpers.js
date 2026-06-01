@@ -481,6 +481,70 @@ const addCategorySales = (summary, transaction) => {
   });
 };
 
+const toSafeDailyNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const hasCostSnapshot = (item) => (
+  item?.costTaxIncludedAmount !== null &&
+  item?.costTaxIncludedAmount !== undefined &&
+  item?.costTaxExcludedAmount !== null &&
+  item?.costTaxExcludedAmount !== undefined
+);
+
+const addGrossProfitSummary = (summary, transaction) => {
+  if (!Array.isArray(transaction.items)) return;
+
+  transaction.items.forEach((item) => {
+    const quantity = Math.max(toSafeDailyNumber(item.quantity, 0), 0);
+    if (quantity <= 0) return;
+
+    const salesTaxIncludedAmount = toSafeDailyNumber(
+      item.salesTaxIncludedAmount ?? item.taxIncludedAmount ?? item.totalPrice,
+      toSafeDailyNumber(item.unitPrice, 0) * quantity
+    );
+
+    const salesTaxExcludedAmount = toSafeDailyNumber(
+      item.salesTaxExcludedAmount,
+      salesTaxIncludedAmount
+    );
+
+    if (!hasCostSnapshot(item)) {
+      summary.costMissingItemCount += quantity;
+      summary.costMissingItemTypes += 1;
+      summary.grossProfitUntrackedSalesTaxIncluded += salesTaxIncludedAmount;
+      summary.grossProfitUntrackedSalesTaxExcluded += salesTaxExcludedAmount;
+      return;
+    }
+
+    const costTaxIncludedAmount = toSafeDailyNumber(item.costTaxIncludedAmount, 0);
+    const costTaxExcludedAmount = toSafeDailyNumber(item.costTaxExcludedAmount, 0);
+    const costTaxAmount = toSafeDailyNumber(item.costTaxAmount, 0);
+    const grossProfitTaxIncluded = toSafeDailyNumber(
+      item.grossProfitTaxIncluded,
+      salesTaxIncludedAmount - costTaxIncludedAmount
+    );
+    const grossProfitTaxExcluded = toSafeDailyNumber(
+      item.grossProfitTaxExcluded,
+      salesTaxExcludedAmount - costTaxExcludedAmount
+    );
+
+    summary.costConfiguredItemCount += quantity;
+    summary.costConfiguredItemTypes += 1;
+
+    summary.grossProfitTrackedSalesTaxIncluded += salesTaxIncludedAmount;
+    summary.grossProfitTrackedSalesTaxExcluded += salesTaxExcludedAmount;
+
+    summary.costTaxIncludedTotal += costTaxIncludedAmount;
+    summary.costTaxExcludedTotal += costTaxExcludedAmount;
+    summary.costTaxTotal += costTaxAmount;
+
+    summary.grossProfitTaxIncluded += grossProfitTaxIncluded;
+    summary.grossProfitTaxExcluded += grossProfitTaxExcluded;
+  });
+};
+
 const addPeriodSales = (summary, transaction, periods = []) => {
   const orderAnalyticsRecords = Array.isArray(transaction.orderAnalyticsRecords)
     ? transaction.orderAnalyticsRecords
@@ -571,6 +635,20 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     discountTotal: 0,
     itemCount: 0,
 
+    costConfiguredItemCount: 0,
+    costConfiguredItemTypes: 0,
+    costMissingItemCount: 0,
+    costMissingItemTypes: 0,
+    costTaxIncludedTotal: 0,
+    costTaxExcludedTotal: 0,
+    costTaxTotal: 0,
+    grossProfitTaxIncluded: 0,
+    grossProfitTaxExcluded: 0,
+    grossProfitTrackedSalesTaxIncluded: 0,
+    grossProfitTrackedSalesTaxExcluded: 0,
+    grossProfitUntrackedSalesTaxIncluded: 0,
+    grossProfitUntrackedSalesTaxExcluded: 0,
+
     paymentMethods: {},
     taxBreakdown: {},
     discounts: {},
@@ -599,6 +677,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
     addCategorySales(summary, transaction);
+    addGrossProfitSummary(summary, transaction);
     addPeriodSales(summary, transaction, normalizedPeriods);
   });
 
@@ -610,9 +689,14 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     const { sessionGuestCounts, ...publicSummary } = summary;
 
+    const grossProfitRate = summary.grossProfitTrackedSalesTaxIncluded > 0
+      ? Math.round((summary.grossProfitTaxIncluded / summary.grossProfitTrackedSalesTaxIncluded) * 1000) / 10
+      : null;
+
     return {
     ...publicSummary,
     customerCount,
+    grossProfitRate,
 
     paymentMethodList: paymentOrder.map((method) => (
       summary.paymentMethods[method] || {
