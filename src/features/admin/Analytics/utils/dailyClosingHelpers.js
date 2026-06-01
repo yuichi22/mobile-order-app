@@ -707,8 +707,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     const { sessionGuestCounts, ...publicSummary } = summary;
 
-    const grossProfitRate = summary.grossProfitTrackedSalesTaxIncluded > 0
-      ? Math.round((summary.grossProfitTaxIncluded / summary.grossProfitTrackedSalesTaxIncluded) * 1000) / 10
+    // 粗利率は会計・経営管理で見やすいように税抜同士で算出する。
+    const grossProfitRate = summary.grossProfitTrackedSalesTaxExcluded > 0
+      ? Math.round((summary.grossProfitTaxExcluded / summary.grossProfitTrackedSalesTaxExcluded) * 1000) / 10
       : null;
 
     const costMissingSalesRate = summary.totalSales > 0
