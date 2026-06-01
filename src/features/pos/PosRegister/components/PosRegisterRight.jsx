@@ -284,23 +284,22 @@ export const PosRegisterRight = ({
         {paymentMethod === 'cash' ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
-              <div>
-                <p className="mb-1 text-xs font-bold text-gray-500">お預かり</p>
-                <div className="flex items-baseline text-gray-900">
-                  <span className="font-mono text-3xl font-bold">¥</span>
-                  <input
-                    type="number"
-                    value={paymentAmount}
-                    onChange={(event) => setPaymentAmount(event.target.value)}
-                    className="w-40 bg-transparent font-mono text-3xl font-bold outline-none placeholder-gray-300 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    placeholder="0"
-                  />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
+                  <p className="mb-1 text-xs font-bold text-gray-500">お預かり</p>
+                  <div className="flex min-w-0 items-baseline text-gray-900">
+                    <span className="font-mono text-2xl font-bold">¥</span>
+                    <span className="ml-1 min-w-0 truncate font-mono text-3xl font-black tracking-tight">
+                      {(Number(paymentAmount) || 0).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="mb-1 text-xs font-bold text-gray-500">おつり</p>
-                <div className={`whitespace-nowrap font-mono text-xl font-bold ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                  ¥{changeAmount.toLocaleString()}
+
+                <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
+                  <p className="mb-1 text-xs font-bold text-gray-500">おつり</p>
+                  <div className={`min-w-0 truncate font-mono text-3xl font-black ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                    ¥{changeAmount.toLocaleString()}
+                  </div>
                 </div>
               </div>
             </div>
