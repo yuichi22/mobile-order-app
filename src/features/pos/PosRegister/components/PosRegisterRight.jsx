@@ -210,7 +210,7 @@ export const PosRegisterRight = ({
               <button
                 onClick={() => setShowDiscountModal(true)}
                 disabled={orders.length === 0}
-                className={`flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
+                className={`flex h-16 items-center justify-center gap-2 rounded-xl border px-3 text-lg font-black transition-all ${
                   discountType !== 'none'
                     ? 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-400'
                     : 'border-orange-100 bg-white text-orange-600 hover:bg-orange-50'
@@ -228,7 +228,7 @@ export const PosRegisterRight = ({
               {allowTakeout && (
                 <button
                   onClick={handleBulkTakeout}
-                  className={`flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
+                  className={`flex h-16 items-center justify-center gap-2 rounded-xl border px-3 text-lg font-black transition-all ${
                     isEverythingTakeout
                       ? 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400'
                       : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
@@ -253,7 +253,7 @@ export const PosRegisterRight = ({
               </div>
 
               <div className="flex items-baseline justify-between gap-3">
-                <span className="shrink-0 text-sm font-black text-gray-600">税込合計</span>
+                <span className="shrink-0 text-lg font-black text-gray-600">税込合計</span>
                 <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-gray-900">
                   ¥{totalAmount.toLocaleString()}
                 </span>
@@ -268,7 +268,7 @@ export const PosRegisterRight = ({
               <button
                 key={method.id}
                 onClick={() => setPaymentMethod(method.id)}
-                className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
+                className={`flex items-center justify-center gap-2 rounded-xl border py-4 text-lg font-black transition-all active:scale-[0.98] ${
                   paymentMethod === method.id
                     ? method.activeClassName
                     : method.inactiveClassName
@@ -284,7 +284,7 @@ export const PosRegisterRight = ({
         {paymentMethod === 'cash' ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
-              <div>
+              <div className="hidden">
                 <p className="mb-1 text-xs font-bold text-gray-500">お預かり</p>
                 <div className="flex items-baseline text-gray-900">
                   <span className="font-mono text-3xl font-bold">¥</span>
@@ -311,7 +311,7 @@ export const PosRegisterRight = ({
                   <button
                     key={amount}
                     onClick={() => handleQuickAdd(amount)}
-                    className="rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    className="rounded-xl border border-gray-200 bg-white px-3 text-lg font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                   >
                     +{amount.toLocaleString()}
                   </button>
@@ -319,7 +319,7 @@ export const PosRegisterRight = ({
 
                 <button
                   onClick={handleFullPayment}
-                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 text-lg font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
                 >
                   ちょうど
                 </button>
@@ -366,7 +366,7 @@ export const PosRegisterRight = ({
                   <CreditCard size={52} />
                 </div>
                 <p className="text-xl font-black text-gray-700">支払い方法を選択</p>
-                <p className="mt-2 text-sm font-bold text-gray-400">
+                <p className="mt-2 text-lg font-bold text-gray-400">
                   現金・カード・QRのいずれかを選んでください
                 </p>
               </>
@@ -380,7 +380,7 @@ export const PosRegisterRight = ({
                 <p className={`text-2xl font-black ${selectedPaymentMethodOption?.panelTitleClassName || ''}`}>
                   カード決済
                 </p>
-                <p className={`mt-2 text-sm font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
+                <p className={`mt-2 text-lg font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
                   端末でカード決済を完了してください
                 </p>
               </>
@@ -394,7 +394,7 @@ export const PosRegisterRight = ({
                 <p className={`text-2xl font-black ${selectedPaymentMethodOption?.panelTitleClassName || ''}`}>
                   QR決済
                 </p>
-                <p className={`mt-2 text-sm font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
+                <p className={`mt-2 text-lg font-bold ${selectedPaymentMethodOption?.panelTextClassName || ''}`}>
                   QR決済端末で決済を完了してください
                 </p>
               </>
@@ -417,7 +417,7 @@ export const PosRegisterRight = ({
                 placeholder="宛名 (任意)"
                 value={recipientName}
                 onChange={(event) => setRecipientName(event.target.value)}
-                className="flex-grow border-b border-gray-300 bg-transparent px-2 py-1 text-sm outline-none focus:border-blue-500"
+                className="flex-grow border-b border-gray-300 bg-transparent px-2 py-1 text-lg outline-none focus:border-blue-500"
                 onClick={(event) => event.stopPropagation()}
               />
             )}
@@ -432,7 +432,7 @@ export const PosRegisterRight = ({
               <button
                 onClick={handlePayment}
                 disabled={isPaymentDisabled}
-                className={`flex w-full items-center justify-center gap-3 rounded-xl py-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
+                className={`flex w-full items-center justify-center gap-3 rounded-xl py-4 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
                   isPaymentDisabled
                     ? 'bg-gray-300 text-gray-500'
                     : paymentActionClassName
@@ -453,7 +453,7 @@ export const PosRegisterRight = ({
                 onPointerCancel={clearAbortLongPress}
                 onContextMenu={(event) => event.preventDefault()}
                 disabled={isPaymentSubmitting || showSuccessModal || showAbortModal}
-                className="flex w-full touch-none select-none items-center justify-center gap-2 rounded-xl border border-red-100 bg-white py-2.5 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full touch-none select-none items-center justify-center gap-2 rounded-xl border border-red-100 bg-white py-4 text-lg font-black text-red-500 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <LogOut size={18} />
                 会計をキャンセル（長押し）
