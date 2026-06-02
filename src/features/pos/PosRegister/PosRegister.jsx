@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, onSnapshot, writeBatch, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, getDocs, increment, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
 import { auth, db } from '../../../shared/api/firebase/client';
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
