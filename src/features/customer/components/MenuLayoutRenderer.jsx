@@ -61,18 +61,20 @@ const MenuImage = ({
 );
 
 const AllergenChips = ({ allergens = [] }) => {
-  if (!allergens.length) return null;
+  const labels = allergens
+    .map((allergenId) => getAllergenLabel(allergenId))
+    .filter(Boolean);
+
+  if (!labels.length) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {allergens.slice(0, 3).map((allergenId) => (
-        <span
-          key={allergenId}
-          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700"
-        >
-          {getAllergenLabel(allergenId)}
+    <div className="mt-2 max-w-full">
+      <div className="inline-flex max-w-full items-center overflow-hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black leading-none text-amber-700 shadow-sm">
+        <span className="mr-1.5 shrink-0 text-amber-500">アレルギー</span>
+        <span className="min-w-0 truncate">
+          {labels.join('｜')}
         </span>
-      ))}
+      </div>
     </div>
   );
 };
