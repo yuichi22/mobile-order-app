@@ -11,7 +11,14 @@ import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import FloorMapCanvas from '../../shared/components/floor-map/FloorMapCanvas';
 import TableMenuOverrideModal from './components/TableMenuOverrideModal';
 import { saveTableMenuOverride } from './services/tableMenuOverrideService';
-import { useCategoryData, useFloorLayout, useMenuData, usePeriodData, useStoreSettings } from '../store/hooks';
+import {
+  useCategoryData,
+  useFloorLayout,
+  useMenuData,
+  usePeriodData,
+  useProductMasterData,
+  useStoreSettings
+} from '../store/hooks';
 import {
   normalizeTaxRounding,
   splitTaxIncludedAmount
@@ -82,7 +89,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const { menuItems = [] } = useMenuData(storeId);
   const { categories = [] } = useCategoryData(storeId);
   const { settings } = useStoreSettings(storeId);
+  const {
+    products: productMasterProducts = [],
+    productCategories: productMasterCategories = [],
+    loading: productMasterLoading
+  } = useProductMasterData(storeId);
   const [isTakeoutMode, setIsTakeoutMode] = useState(registerMode === 'pos');
+  const [posProductKeyword, setPosProductKeyword] = useState('');
+  const [posProductCategoryId, setPosProductCategoryId] = useState('');
+  const [posManualName, setPosManualName] = useState('');
+  const [posManualPrice, setPosManualPrice] = useState('');
   const [takeoutCart, setTakeoutCart] = useState([]);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
@@ -96,6 +112,145 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const tableMenuOverrides = useTableMenuOverrides(storeId);
 
   const displaySessions = activeSessions.filter((session) => session.status === 'active');
+
+  const posCategoryNameMap = useMemo(() => {
+    const map = {};
+
+    if (Array.isArray(productMasterCategories)) {
+      productMasterCategories.forEach((category) => {
+        if (!category?.id) return;
+        map[category.id] = category.name || 'カテゴリー';
+      });
+    }
+
+    return map;
+  }, [productMasterCategories]);
+
+  const activePosProducts = useMemo(() => (
+    Array.isArray(productMasterProducts)
+      ? productMasterProducts
+        .filter((product) => product && product.isArchived !== true && product.isActive !== false)
+        .map((product) => ({
+          ...product,
+          resolvedPrice: Number(product.priceTaxIncluded ?? product.price ?? 0) || 0,
+          resolvedCategoryName: posCategoryNameMap[product.categoryId] || product.categoryName || 'カテゴリー'
+        }))
+        .filter((product) => Number(product.resolvedPrice || 0) >= 0)
+        .sort((left, right) => (
+          String(left.resolvedCategoryName || '').localeCompare(String(right.resolvedCategoryName || ''), 'ja')
+          || String(left.brandName || '').localeCompare(String(right.brandName || ''), 'ja')
+          || String(left.name || '').localeCompare(String(right.name || ''), 'ja')
+        ))
+      : []
+  ), [posCategoryNameMap, productMasterProducts]);
+
+  const filteredPosProducts = useMemo(() => {
+    const normalizedKeyword = posProductKeyword.trim().toLowerCase();
+
+    return activePosProducts.filter((product) => {
+      if (posProductCategoryId && product.categoryId !== posProductCategoryId) return false;
+
+      if (!normalizedKeyword) return true;
+
+      return [
+        product.name,
+        product.sku,
+        product.productCode,
+        product.barcode,
+        product.resolvedCategoryName
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedKeyword));
+    });
+  }, [activePosProducts, posProductCategoryId, posProductKeyword]);
+
+  const addPosCartItem = (payload) => {
+    if (!payload?.id) return;
+
+    setTakeoutCart((current) => {
+      const existing = current.find((item) => item.id === payload.id);
+
+      if (existing) {
+        return current.map((item) => (
+          item.id === payload.id
+            ? { ...item, quantity: Number(item.quantity || 0) + Number(payload.quantity || 1) }
+            : item
+        ));
+      }
+
+      return [
+        ...current,
+        {
+          ...payload,
+          quantity: Number(payload.quantity || 1)
+        }
+      ];
+    });
+  };
+
+  const addPosProductToCart = (product) => {
+    if (!product?.id) return;
+
+    addPosCartItem({
+      id: `product:${product.id}`,
+      productId: product.id,
+      sourceType: 'retail',
+      name: product.name || '商品',
+      categoryId: product.categoryId || '',
+      categoryName: product.resolvedCategoryName || 'カテゴリー',
+      takeoutPrice: Number(product.resolvedPrice || 0),
+      unitPrice: Number(product.resolvedPrice || 0),
+      priceTaxIncluded: Number(product.resolvedPrice || 0),
+      barcode: product.barcode || '',
+      sku: product.sku || product.productCode || '',
+      quantity: 1
+    });
+  };
+
+  const addManualPosItem = () => {
+    const normalizedName = posManualName.trim() || '手入力商品';
+    const normalizedPrice = Math.max(Number(posManualPrice || 0) || 0, 0);
+
+    if (normalizedPrice <= 0) {
+      alert('金額を入力してください');
+      return;
+    }
+
+    addPosCartItem({
+      id: `manual:${Date.now()}`,
+      sourceType: 'manual',
+      name: normalizedName,
+      categoryId: posProductCategoryId || '',
+      categoryName: posCategoryNameMap[posProductCategoryId] || '手入力',
+      takeoutPrice: normalizedPrice,
+      unitPrice: normalizedPrice,
+      priceTaxIncluded: normalizedPrice,
+      quantity: 1
+    });
+
+    setPosManualName('');
+    setPosManualPrice('');
+  };
+
+  const addPosProductByCode = (codeText) => {
+    const normalizedCode = String(codeText || '').trim().toLowerCase();
+    if (!normalizedCode) return false;
+
+    const matchedProduct = activePosProducts.find((product) => (
+      [product.barcode, product.sku, product.productCode]
+        .filter(Boolean)
+        .some((value) => String(value).trim().toLowerCase() === normalizedCode)
+    ));
+
+    if (!matchedProduct) {
+      setPosProductKeyword(codeText);
+      alert('商品マスターに一致するバーコード / 品番 / SKU がありません。検索欄に入力しました。');
+      return false;
+    }
+
+    addPosProductToCart(matchedProduct);
+    return true;
+  };
 
   useEffect(() => {
     setIsTakeoutMode(registerMode === 'pos');
@@ -603,10 +758,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   const handleScanSubmit = (event) => {
     event.preventDefault();
-    if (scanInput.trim()) {
-      onScanSession(scanInput.trim());
+
+    const normalizedInput = scanInput.trim();
+    if (!normalizedInput) return;
+
+    if (registerMode === 'pos') {
+      addPosProductByCode(normalizedInput);
       setScanInput('');
+      return;
     }
+
+    onScanSession(normalizedInput);
+    setScanInput('');
   };
 
   const handleMouseDown = (event) => {
@@ -684,7 +847,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   value={scanInput}
                   onChange={(event) => setScanInput(event.target.value)}
                   className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-3 font-mono text-base"
-                  placeholder="卓番号・バーコードをスキャン..."
+                  placeholder={registerMode === 'pos' ? 'バーコード / 品番 / SKU をスキャン...' : '卓番号・バーコードをスキャン...'}
                 />
               </div>
               <button type="submit" className="h-11 whitespace-nowrap rounded-lg bg-blue-600 px-4 font-bold text-white">
@@ -734,6 +897,133 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           </div>
 
           <div className="relative flex-grow overflow-hidden bg-slate-100" ref={mapWrapperRef}>
+
+            {registerMode === 'pos' ? (
+              <div className="flex h-full min-h-0 flex-col bg-slate-50">
+                <div className="shrink-0 border-b border-slate-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-slate-900">商品入力</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">
+                        商品マスターから選択、または手入力で仮伝票に追加します。
+                      </div>
+                    </div>
+                    <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                      {filteredPosProducts.length}件
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 xl:grid-cols-[1fr_160px]">
+                    <input
+                      value={posProductKeyword}
+                      onChange={(event) => setPosProductKeyword(event.target.value)}
+                      placeholder="商品名 / 品番 / バーコードで検索"
+                      className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
+                    />
+                    <select
+                      value={posProductCategoryId}
+                      onChange={(event) => setPosProductCategoryId(event.target.value)}
+                      className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
+                    >
+                      <option value="">すべて</option>
+                      {productMasterCategories.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-[1fr_260px]">
+                  <div className="min-h-0 overflow-y-auto p-4">
+                    {productMasterLoading ? (
+                      <div className="flex h-full items-center justify-center">
+                        <LoadingSpinner />
+                      </div>
+                    ) : filteredPosProducts.length === 0 ? (
+                      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
+                        <ShoppingBag size={48} className="text-slate-300" />
+                        <p className="mt-3 text-sm font-black text-slate-500">
+                          商品が見つかりません
+                        </p>
+                        <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+                          POS設定の商品マスターに商品を登録してください。
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 xl:grid-cols-2 2xl:grid-cols-3">
+                        {filteredPosProducts.map((product) => (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => addPosProductToCart(product)}
+                            className="flex min-h-[86px] flex-col justify-between rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99]"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black text-slate-800">
+                                {product.name || '商品'}
+                              </div>
+                              <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                                {product.sku || product.productCode || product.barcode || product.resolvedCategoryName}
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                              <span className="truncate text-[11px] font-bold text-slate-400">
+                                {product.resolvedCategoryName}
+                              </span>
+                              <span className="font-mono text-base font-black text-slate-900">
+                                ¥{Number(product.resolvedPrice || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-h-0 border-l border-slate-200 bg-white p-4">
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      手入力
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">商品名</span>
+                        <input
+                          value={posManualName}
+                          onChange={(event) => setPosManualName(event.target.value)}
+                          placeholder="例：雑貨"
+                          className="h-11 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">金額</span>
+                        <input
+                          type="number"
+                          value={posManualPrice}
+                          onChange={(event) => setPosManualPrice(event.target.value)}
+                          placeholder="0"
+                          className="h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-right font-mono text-2xl font-black text-slate-900 outline-none focus:border-blue-400"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={addManualPosItem}
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white shadow-lg transition-all hover:bg-black active:scale-[0.98]"
+                      >
+                        <Plus size={17} />
+                        手入力で追加
+                      </button>
+                    </div>
+
+                    <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs font-bold leading-relaxed text-blue-700">
+                      バーコード読取は上部入力欄で先行対応しています。次フェーズで商品マスター在庫・SKU・保留に接続します。
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
 
             {movingSession && (
               <div className="absolute left-4 right-4 top-4 z-20 rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-xl backdrop-blur">
@@ -840,6 +1130,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   )
                 )}
               </div>
+            )}
+              </>
             )}
           </div>
         </div>
