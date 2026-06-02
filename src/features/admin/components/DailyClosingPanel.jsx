@@ -45,6 +45,17 @@ const createDateFromInputValue = (value) => {
   return nextDate;
 };
 
+const AMOUNT_DISPLAY_STORAGE_KEY = 'dailyClosingAmountDisplayMode';
+
+const getInitialAmountDisplayMode = () => {
+  try {
+    const savedMode = window.localStorage.getItem(AMOUNT_DISPLAY_STORAGE_KEY);
+    return savedMode === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+  } catch {
+    return 'tax_included';
+  }
+};
+
 const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [closingStatus, setClosingStatus] = useState(null);
@@ -52,6 +63,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [changeFundAmount, setChangeFundAmount] = useState(0);
   const [isLoadingClosedDaily, setIsLoadingClosedDaily] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
+  const [amountDisplayMode, setAmountDisplayMode] = useState(getInitialAmountDisplayMode);
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
@@ -143,9 +155,42 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     };
   }, [storeId, dateKey]);
 
-  const averageSpendPerCustomer = Number(summary?.customerCount || 0) > 0
-  ? Math.round(Number(summary?.totalSales || 0) / Number(summary?.customerCount || 0))
-  : 0;
+  const averageSpendPerCustomerTaxIncluded = Number(summary?.customerCount || 0) > 0
+    ? Math.round(Number(summary?.totalSales || 0) / Number(summary?.customerCount || 0))
+    : 0;
+
+  const averageSpendPerCustomerTaxExcluded = Number(summary?.customerCount || 0) > 0
+    ? Math.round(Number(summary?.totalSalesTaxExcluded || 0) / Number(summary?.customerCount || 0))
+    : 0;
+
+  const isTaxExcludedMain = amountDisplayMode === 'tax_excluded';
+  const amountDisplayLabel = isTaxExcludedMain ? '税抜' : '税込';
+
+  const updateAmountDisplayMode = (nextMode) => {
+    const normalizedMode = nextMode === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+    setAmountDisplayMode(normalizedMode);
+
+    try {
+      window.localStorage.setItem(AMOUNT_DISPLAY_STORAGE_KEY, normalizedMode);
+    } catch {
+      // localStorage が使えない環境では、その画面内だけの切り替えにする。
+    }
+  };
+
+  const resolveMainAmount = (taxIncludedAmount, taxExcludedAmount) => (
+    isTaxExcludedMain ? taxExcludedAmount : taxIncludedAmount
+  );
+
+  const resolveSubAmount = (taxIncludedAmount, taxExcludedAmount) => (
+    isTaxExcludedMain
+      ? `税込 ${formatCurrency(taxIncludedAmount)}`
+      : `税抜 ${formatCurrency(taxExcludedAmount)}`
+  );
+
+  const averageSpendPerCustomer = resolveMainAmount(
+    averageSpendPerCustomerTaxIncluded,
+    averageSpendPerCustomerTaxExcluded
+  );
 
   const paymentMethodList = Array.isArray(summary?.paymentMethodList)
     ? summary.paymentMethodList
@@ -397,12 +442,40 @@ const handleCloseDay = async (closingCheck = {}) => {
         <>
           <div className="grid gap-3 md:grid-cols-5">
             <div className="rounded-2xl bg-orange-50 p-4">
-              <div className="text-xs font-black text-orange-500">売上合計 税込</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-black text-orange-500">
+                  売上合計 {amountDisplayLabel}
+                </div>
+                <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => updateAmountDisplayMode('tax_excluded')}
+                    className={`rounded-full px-2 py-1 transition-colors ${
+                      isTaxExcludedMain
+                        ? 'bg-orange-500 text-white'
+                        : 'text-orange-500'
+                    }`}
+                  >
+                    税抜
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateAmountDisplayMode('tax_included')}
+                    className={`rounded-full px-2 py-1 transition-colors ${
+                      !isTaxExcludedMain
+                        ? 'bg-orange-500 text-white'
+                        : 'text-orange-500'
+                    }`}
+                  >
+                    税込
+                  </button>
+                </div>
+              </div>
               <div className="mt-2 text-2xl font-black text-gray-900">
-                {formatCurrency(summary?.totalSales)}
+                {formatCurrency(resolveMainAmount(summary?.totalSales, summary?.totalSalesTaxExcluded))}
               </div>
               <div className="mt-1 text-[11px] font-bold text-orange-500/80">
-                税抜 {formatCurrency(summary?.totalSalesTaxExcluded)}
+                {resolveSubAmount(summary?.totalSales, summary?.totalSalesTaxExcluded)}
                 <span className="mx-1 text-orange-300">/</span>
                 内税 {formatCurrency(summary?.totalTaxAmount)}
               </div>
@@ -419,10 +492,13 @@ const handleCloseDay = async (closingCheck = {}) => {
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-            <div className="text-xs font-black text-gray-400">客単価</div>
-            <div className="mt-2 text-2xl font-black text-gray-900">
+              <div className="text-xs font-black text-gray-400">客単価 {amountDisplayLabel}</div>
+              <div className="mt-2 text-2xl font-black text-gray-900">
                 {formatCurrency(averageSpendPerCustomer)}
-            </div>
+              </div>
+              <div className="mt-1 text-[11px] font-bold text-gray-400">
+                {resolveSubAmount(averageSpendPerCustomerTaxIncluded, averageSpendPerCustomerTaxExcluded)}
+              </div>
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
@@ -455,32 +531,32 @@ const handleCloseDay = async (closingCheck = {}) => {
 
             <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">原価設定済み売上 税込</div>
+                <div className="text-xs font-black text-emerald-500">原価設定済み売上 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.costConfiguredSalesTaxIncluded)}
+                  {formatCurrency(summary?.costConfiguredSalesTaxExcluded)}
                 </div>
                 <div className="mt-1 text-[11px] font-bold text-gray-400">
-                  税抜 {formatCurrency(summary?.costConfiguredSalesTaxExcluded)}
+                  税込 {formatCurrency(summary?.costConfiguredSalesTaxIncluded)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-gray-400">原価 税込</div>
+                <div className="text-xs font-black text-gray-400">原価 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.costTaxIncludedTotal)}
+                  {formatCurrency(summary?.costTaxExcludedTotal)}
                 </div>
                 <div className="mt-1 text-[11px] font-bold text-gray-400">
-                  税抜 {formatCurrency(summary?.costTaxExcludedTotal)}
+                  税込 {formatCurrency(summary?.costTaxIncludedTotal)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">粗利 税込</div>
+                <div className="text-xs font-black text-emerald-500">粗利 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
-                  {formatCurrency(summary?.grossProfitTaxIncluded)}
+                  {formatCurrency(summary?.grossProfitTaxExcluded)}
                 </div>
                 <div className="mt-1 text-[11px] font-bold text-gray-400">
-                  税抜 {formatCurrency(summary?.grossProfitTaxExcluded)}
+                  税込 {formatCurrency(summary?.grossProfitTaxIncluded)}
                 </div>
               </div>
 
@@ -507,12 +583,12 @@ const handleCloseDay = async (closingCheck = {}) => {
 
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-xl bg-white px-4 py-3">
-                    <div className="text-[11px] font-black text-amber-500">原価未設定売上 税込</div>
+                    <div className="text-[11px] font-black text-amber-500">原価未設定売上 税抜</div>
                     <div className="mt-1 text-lg font-black text-gray-900">
-                      {formatCurrency(summary?.costMissingSalesTaxIncluded)}
+                      {formatCurrency(summary?.costMissingSalesTaxExcluded)}
                     </div>
                     <div className="mt-1 text-[11px] font-bold text-gray-400">
-                      税抜 {formatCurrency(summary?.costMissingSalesTaxExcluded)}
+                      税込 {formatCurrency(summary?.costMissingSalesTaxIncluded)}
                     </div>
                   </div>
 
