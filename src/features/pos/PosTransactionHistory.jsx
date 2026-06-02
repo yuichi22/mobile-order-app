@@ -89,10 +89,17 @@ const buildPaymentSummaryFromTickets = (tickets = []) => {
   return [base.cash, base.card, base.qr];
 };
 
+const isRetailExtraItem = (item) => (
+  item?.isOrderRetailExtra === true ||
+  item?.sourceType === 'retail' ||
+  String(item?.id || '').startsWith('order-retail:')
+);
+
 const buildTicketItemKey = (item) => {
   const optionsKey = Array.isArray(item?.options) ? item.options.join('|') : '';
   return [
-    item?.id || item?.name || '',
+    isRetailExtraItem(item) ? 'retail' : 'order',
+    item?.productId || item?.id || item?.name || '',
     Number(item?.unitPrice || 0),
     item?.isTakeout === true ? 'takeout' : 'store',
     item?.taxRate || '',
@@ -518,6 +525,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           paymentMethod: '',
           paymentBreakdown: [],
           orderIds: [],
+          sourceTransactionIds: [],
           items: [],
           paidOrders: [],
           excludedOrders: []
@@ -598,6 +606,46 @@ export const PosTransactionHistory = ({ storeId }) => {
         timestamp: order.timestamp,
         paidAt: order.paidAt
       });
+    });
+
+    transactions.forEach((transaction) => {
+      if (!transaction || transaction?.isPaid === false) return;
+
+      const sessionKey = transaction.sessionId || transaction.sourceSessionId || '';
+      if (!sessionKey || !grouped.has(sessionKey)) return;
+
+      const retailExtraItems = Array.isArray(transaction.items)
+        ? transaction.items.filter((item) => isRetailExtraItem(item))
+        : [];
+
+      if (retailExtraItems.length === 0) return;
+
+      const ticket = grouped.get(sessionKey);
+      const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+      const transactionAmount = Number(transaction.totalAmount || transaction.totalPrice || 0);
+
+      ticket.sourceTransactionIds = Array.isArray(ticket.sourceTransactionIds)
+        ? [...new Set([...ticket.sourceTransactionIds, transaction.id].filter(Boolean))]
+        : [transaction.id].filter(Boolean);
+
+      ticket.items = [...ticket.items, ...retailExtraItems];
+
+      if (transaction.paidAt && (!ticket.paidAt || transaction.paidAt > ticket.paidAt)) {
+        ticket.paidAt = transaction.paidAt;
+      }
+
+      const existingPaidOrder = ticket.paidOrders.find((entry) => entry.id === transaction.id);
+      if (!existingPaidOrder) {
+        ticket.paidOrders.push({
+          id: transaction.id,
+          totalPrice: transactionAmount,
+          paymentMethod,
+          timestamp: transaction.timestamp,
+          paidAt: transaction.paidAt || transaction.timestamp,
+          items: retailExtraItems,
+          isTransaction: true
+        });
+      }
     });
 
     const orderBackedTickets = Array.from(grouped.values())
@@ -1355,6 +1403,7 @@ export const PosTransactionHistory = ({ storeId }) => {
                         <ul className="space-y-3">
                           {ticket.items.map((item, index) => {
                             const isTakeoutItem = item.isTakeout === true;
+                            const isRetailItem = isRetailExtraItem(item);
                             const itemTaxRate = item.taxRate || (
                               isTakeoutItem ? ticket.taxRates.reducedRate : ticket.taxRates.standardRate
                             );
@@ -1365,6 +1414,11 @@ export const PosTransactionHistory = ({ storeId }) => {
                                   <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
                                       <span className="font-bold leading-tight text-gray-700">{item.name}</span>
+                                      {isRetailItem && (
+                                        <span className="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[9px] font-bold leading-none text-emerald-600">
+                                          物販
+                                        </span>
+                                      )}
                                       {isTakeoutItem && (
                                         <span className="shrink-0 rounded border border-orange-200 bg-orange-50 px-1 py-0.5 text-[9px] font-bold leading-none text-orange-600">
                                           軽減税率 {itemTaxRate}%
