@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, increment, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList } from 'lucide-react';
 
 import { db } from '../../shared/api/firebase/client';
@@ -99,6 +99,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [posProductCategoryId, setPosProductCategoryId] = useState('');
   const [posManualName, setPosManualName] = useState('');
   const [posManualPrice, setPosManualPrice] = useState('');
+  const [posProductMessage, setPosProductMessage] = useState(null);
   const [takeoutCart, setTakeoutCart] = useState([]);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
@@ -126,6 +127,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     return map;
   }, [productMasterCategories]);
 
+  const getProductStockQuantity = (product) => {
+    const stockValue = product?.inventoryQuantity ?? product?.quantity ?? 0;
+    const stockNumber = Number(stockValue);
+    return Number.isFinite(stockNumber) ? Math.max(Math.floor(stockNumber), 0) : 0;
+  };
+
   const activePosProducts = useMemo(() => (
     Array.isArray(productMasterProducts)
       ? productMasterProducts
@@ -133,6 +140,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         .map((product) => ({
           ...product,
           resolvedPrice: Number(product.priceTaxIncluded ?? product.price ?? 0) || 0,
+          resolvedStock: getProductStockQuantity(product),
           resolvedCategoryName: posCategoryNameMap[product.categoryId] || product.categoryName || 'カテゴリー'
         }))
         .filter((product) => Number(product.resolvedPrice || 0) >= 0)
@@ -164,6 +172,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     });
   }, [activePosProducts, posProductCategoryId, posProductKeyword]);
 
+  const getRetailCartQuantity = (productId) => (
+    takeoutCart
+      .filter((item) => item.sourceType === 'retail' && item.productId === productId)
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  );
+
+  const setPosMessage = (message, type = 'info') => {
+    setPosProductMessage({ message, type, key: Date.now() });
+  };
+
   const addPosCartItem = (payload) => {
     if (!payload?.id) return;
 
@@ -189,7 +207,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   };
 
   const addPosProductToCart = (product) => {
-    if (!product?.id) return;
+    if (!product?.id) return false;
+
+    const stockQuantity = Number(product.resolvedStock ?? getProductStockQuantity(product));
+    const currentQuantity = getRetailCartQuantity(product.id);
+
+    if (stockQuantity <= 0) {
+      setPosMessage(`${product.name || '商品'} は在庫がありません。`, 'error');
+      return false;
+    }
+
+    if (currentQuantity >= stockQuantity) {
+      setPosMessage(`${product.name || '商品'} は在庫数 ${stockQuantity} 点を超えて追加できません。`, 'error');
+      return false;
+    }
 
     addPosCartItem({
       id: `product:${product.id}`,
@@ -203,8 +234,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       priceTaxIncluded: Number(product.resolvedPrice || 0),
       barcode: product.barcode || '',
       sku: product.sku || product.productCode || '',
+      stockQuantity,
       quantity: 1
     });
+
+    setPosMessage(`${product.name || '商品'} を追加しました。`, 'success');
+    return true;
   };
 
   const addManualPosItem = () => {
@@ -212,7 +247,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     const normalizedPrice = Math.max(Number(posManualPrice || 0) || 0, 0);
 
     if (normalizedPrice <= 0) {
-      alert('金額を入力してください');
+      setPosMessage('手入力商品の金額を入力してください。', 'error');
       return;
     }
 
@@ -230,6 +265,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     setPosManualName('');
     setPosManualPrice('');
+    setPosMessage(`${normalizedName} を追加しました。`, 'success');
   };
 
   const addPosProductByCode = (codeText) => {
@@ -244,12 +280,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     if (!matchedProduct) {
       setPosProductKeyword(codeText);
-      alert('商品マスターに一致するバーコード / 品番 / SKU がありません。検索欄に入力しました。');
+      setPosMessage('商品マスターに一致するバーコード / 品番 / SKU がありません。検索欄に入力しました。', 'error');
       return false;
     }
 
-    addPosProductToCart(matchedProduct);
-    return true;
+    return addPosProductToCart(matchedProduct);
   };
 
   useEffect(() => {
@@ -396,12 +431,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const items = takeoutCart.map((item) => ({
         id: item.id,
         menuItemId: item.id,
+        productId: item.productId || '',
+        sourceType: item.sourceType || 'takeout',
         name: item.name || '未設定商品',
         categoryId: item.categoryId || '',
         categoryName: item.categoryName || 'カテゴリー未設定',
         unitPrice: Number(item.takeoutPrice || 0),
         quantity: Number(item.quantity || 1),
         totalPrice: Number(item.takeoutPrice || 0) * Number(item.quantity || 1),
+        barcode: item.barcode || '',
+        sku: item.sku || '',
+        stockQuantity: item.stockQuantity ?? null,
         isTakeout: true,
         allowsTakeout: true,
         taxRate: reducedTax,
@@ -436,12 +476,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         }
       };
 
-      await writeBatch(db)
-        .set(transactionRef, {
+      const batch = writeBatch(db);
+
+      batch.set(transactionRef, {
           sessionId,
           tableId: 'takeout',
-          tableDisplayName: 'テイクアウト',
-          tableName: 'テイクアウト',
+          tableDisplayName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
+          tableName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
 
           orderType: 'takeout',
           serviceType: 'takeout',
@@ -495,16 +536,38 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           businessDate,
 
           isPaid: true
-        })
-        .commit();
+        });
+
+      const retailQuantityByProductId = new Map();
+      takeoutCart.forEach((item) => {
+        if (item.sourceType !== 'retail' || !item.productId) return;
+        const quantity = Math.max(Number(item.quantity || 0), 0);
+        if (quantity <= 0) return;
+        retailQuantityByProductId.set(
+          item.productId,
+          (retailQuantityByProductId.get(item.productId) || 0) + quantity
+        );
+      });
+
+      retailQuantityByProductId.forEach((quantity, productId) => {
+        const productRef = doc(db, 'stores', storeId, 'products', productId);
+        batch.update(productRef, {
+          inventoryQuantity: increment(-quantity),
+          quantity: increment(-quantity),
+          lastPosSoldAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
 
       setLastTakeoutTransaction({
         id: transactionRef.id,
         transactionId: transactionRef.id,
         sessionId,
         tableId: 'takeout',
-        tableDisplayName: 'テイクアウト',
-        tableName: 'テイクアウト',
+        tableDisplayName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
+        tableName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
         isTakeout: true,
         orderType: 'takeout',
         serviceType: 'takeout',
@@ -913,6 +976,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     </div>
                   </div>
 
+                  {posProductMessage && (
+                    <div className={`mb-3 rounded-2xl border px-4 py-3 text-xs font-black ${
+                      posProductMessage.type === 'error'
+                        ? 'border-red-100 bg-red-50 text-red-600'
+                        : posProductMessage.type === 'success'
+                          ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                          : 'border-blue-100 bg-blue-50 text-blue-600'
+                    }`}>
+                      {posProductMessage.message}
+                    </div>
+                  )}
+
                   <div className="grid gap-2 xl:grid-cols-[1fr_160px]">
                     <input
                       value={posProductKeyword}
@@ -951,31 +1026,55 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     ) : (
                       <div className="grid gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-                        {filteredPosProducts.map((product) => (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => addPosProductToCart(product)}
-                            className="flex min-h-[86px] flex-col justify-between rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99]"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-black text-slate-800">
-                                {product.name || '商品'}
+                        {filteredPosProducts.map((product) => {
+                          const stockQuantity = Number(product.resolvedStock || 0);
+                          const cartQuantity = getRetailCartQuantity(product.id);
+                          const isOutOfStock = stockQuantity <= 0;
+                          const isReachedCartLimit = cartQuantity >= stockQuantity;
+                          const isDisabled = isOutOfStock || isReachedCartLimit;
+
+                          return (
+                            <button
+                              key={product.id}
+                              type="button"
+                              onClick={() => addPosProductToCart(product)}
+                              disabled={isDisabled}
+                              className={`flex min-h-[98px] flex-col justify-between rounded-2xl border p-3 text-left shadow-sm transition-all active:scale-[0.99] ${
+                                isDisabled
+                                  ? 'cursor-not-allowed border-slate-100 bg-slate-100 opacity-70'
+                                  : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className={`truncate text-sm font-black ${isDisabled ? 'text-slate-400' : 'text-slate-800'}`}>
+                                  {product.name || '商品'}
+                                </div>
+                                <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                                  {product.sku || product.productCode || product.barcode || product.resolvedCategoryName}
+                                </div>
                               </div>
-                              <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
-                                {product.sku || product.productCode || product.barcode || product.resolvedCategoryName}
+                              <div className="mt-3 flex items-end justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[11px] font-bold text-slate-400">
+                                    {product.resolvedCategoryName}
+                                  </div>
+                                  <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                    isOutOfStock
+                                      ? 'bg-red-50 text-red-500'
+                                      : isReachedCartLimit
+                                        ? 'bg-orange-50 text-orange-500'
+                                        : 'bg-emerald-50 text-emerald-600'
+                                  }`}>
+                                    在庫 {stockQuantity.toLocaleString()} / 選択 {cartQuantity.toLocaleString()}
+                                  </div>
+                                </div>
+                                <span className={`font-mono text-base font-black ${isDisabled ? 'text-slate-400' : 'text-slate-900'}`}>
+                                  ¥{Number(product.resolvedPrice || 0).toLocaleString()}
+                                </span>
                               </div>
-                            </div>
-                            <div className="mt-3 flex items-center justify-between gap-2">
-                              <span className="truncate text-[11px] font-bold text-slate-400">
-                                {product.resolvedCategoryName}
-                              </span>
-                              <span className="font-mono text-base font-black text-slate-900">
-                                ¥{Number(product.resolvedPrice || 0).toLocaleString()}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1263,6 +1362,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                               <div className="mt-1 text-xs font-bold text-slate-400">
                                 ¥{Number(item.takeoutPrice || 0).toLocaleString()} / {item.categoryName}
                               </div>
+                              {item.sourceType === 'retail' && (
+                                <div className="mt-1 text-[11px] font-black text-emerald-600">
+                                  商品マスター在庫対象 / 在庫 {Number(item.stockQuantity ?? 0).toLocaleString()}
+                                </div>
+                              )}
+                              {item.sourceType === 'manual' && (
+                                <div className="mt-1 text-[11px] font-black text-slate-400">
+                                  手入力商品 / 在庫対象外
+                                </div>
+                              )}
                             </div>
 
                             <button
