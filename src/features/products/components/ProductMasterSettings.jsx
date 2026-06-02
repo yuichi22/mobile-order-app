@@ -170,18 +170,25 @@ const TableTextInput = ({ value, onChange, type = 'text', className = '', placeh
   />
 );
 
-const TableSelect = ({ value, onChange, children, className = '' }) => (
-  <select
-    value={value || ''}
-    onChange={(event) => onChange(event.target.value)}
-    className={classNames(
-      'h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
-      className
-    )}
-  >
-    {children}
-  </select>
-);
+const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty = false }) => {
+  const isEmpty = !String(value || '').trim();
+
+  return (
+    <select
+      value={value || ''}
+      onChange={(event) => onChange(event.target.value)}
+      className={classNames(
+        'h-9 w-full rounded-lg border px-2 text-sm font-black outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
+        alertWhenEmpty && isEmpty
+          ? 'border-orange-200 bg-orange-50 text-orange-700'
+          : 'border-slate-200 bg-white text-slate-800',
+        className
+      )}
+    >
+      {children}
+    </select>
+  );
+};
 
 const MiniRadio = ({ label, checked, onChange }) => (
   <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-slate-600">
@@ -195,15 +202,22 @@ const MiniRadio = ({ label, checked, onChange }) => (
   </label>
 );
 
-const PillToggle = ({ checked, onChange, onLabel = 'あり', offLabel = 'なし' }) => (
+const PillToggle = ({
+  checked,
+  onChange,
+  onLabel = 'あり',
+  offLabel = 'なし',
+  activeClassName = 'bg-blue-600 text-white shadow-sm shadow-blue-200',
+  inactiveClassName = 'bg-slate-200 text-slate-500',
+  className = ''
+}) => (
   <button
     type="button"
     onClick={() => onChange(!checked)}
     className={classNames(
-      'inline-flex h-8 min-w-[78px] items-center justify-center rounded-full px-3 text-xs font-black transition active:scale-95',
-      checked
-        ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-        : 'bg-slate-200 text-slate-500'
+      'inline-flex h-8 min-w-[122px] items-center justify-center whitespace-nowrap rounded-full px-5 text-xs font-black transition active:scale-95',
+      checked ? activeClassName : inactiveClassName,
+      className
     )}
   >
     {checked ? onLabel : offLabel}
@@ -226,11 +240,7 @@ const StatusPill = ({ product }) => {
   return <span className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-600">登録・更新</span>;
 };
 
-const FieldLabel = ({ children }) => (
-  <div className="mb-1 text-[10px] font-black tracking-widest text-slate-400">
-    {children}
-  </div>
-);
+const FieldLabel = () => null;
 
 const ProductMasterTable = ({
   products,
@@ -320,7 +330,7 @@ const ProductMasterTable = ({
           isNew ? 'border-orange-100 bg-orange-50/50' : 'border-slate-100 bg-white'
         )}
       >
-        <div className="grid grid-cols-[88px_minmax(120px,1fr)_minmax(170px,1.4fr)_minmax(140px,1.15fr)_repeat(6,minmax(74px,0.72fr))_minmax(110px,0.9fr)_minmax(104px,0.9fr)_minmax(70px,0.55fr)] gap-2">
+        <div className="grid grid-cols-[88px_minmax(120px,1fr)_minmax(170px,1.4fr)_minmax(140px,1.15fr)_repeat(6,minmax(74px,0.72fr))_minmax(138px,1.05fr)_minmax(150px,1.15fr)_minmax(70px,0.55fr)] gap-2">
           <div className="row-span-2 rounded-xl bg-slate-50 p-2">
             <div className="text-[10px] font-black tracking-widest text-slate-400">ID</div>
             <div className="mt-1 text-sm font-black text-slate-900">
@@ -351,8 +361,8 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>ブランド</FieldLabel>
-            <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })}>
-              <option value="">未設定</option>
+            <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
+              <option value="">ブランド</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </TableSelect>
           </div>
@@ -373,32 +383,32 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>サイズ</FieldLabel>
-            <TableTextInput value={row.size} onChange={(value) => update({ size: value })} />
+            <TableTextInput value={row.size} onChange={(value) => update({ size: value })} placeholder="サイズ" />
           </div>
 
           <div>
             <FieldLabel>色</FieldLabel>
-            <TableTextInput value={row.colorName} onChange={(value) => update({ colorName: value })} />
+            <TableTextInput value={row.colorName} onChange={(value) => update({ colorName: value })} placeholder="色" />
           </div>
 
           <div>
             <FieldLabel>金額</FieldLabel>
-            <TableTextInput type="number" value={row.priceTaxIncluded} onChange={(value) => update({ priceTaxIncluded: value })} className="text-right" />
+            <TableTextInput type="number" value={row.priceTaxIncluded} onChange={(value) => update({ priceTaxIncluded: value })} placeholder="金額" className="text-right" />
           </div>
 
           <div>
             <FieldLabel>LOT数</FieldLabel>
-            <TableTextInput type="number" value={row.orderLot ?? row.reorderLot ?? ''} onChange={(value) => update({ orderLot: value, reorderLot: value })} className="text-right" />
+            <TableTextInput type="number" value={row.orderLot ?? row.reorderLot ?? ''} onChange={(value) => update({ orderLot: value, reorderLot: value })} placeholder="LOT" className="text-right" />
           </div>
 
           <div>
             <FieldLabel>発注点</FieldLabel>
-            <TableTextInput type="number" value={row.reorderPoint} onChange={(value) => update({ reorderPoint: value })} className="text-right" />
+            <TableTextInput type="number" value={row.reorderPoint} onChange={(value) => update({ reorderPoint: value })} placeholder="発注点" className="text-right" />
           </div>
 
           <div>
             <FieldLabel>発注数</FieldLabel>
-            <TableTextInput type="number" value={row.reorderQuantity} onChange={(value) => update({ reorderQuantity: value })} className="text-right" />
+            <TableTextInput type="number" value={row.reorderQuantity} onChange={(value) => update({ reorderQuantity: value })} placeholder="発注数" className="text-right" />
           </div>
 
           <div>
@@ -435,44 +445,42 @@ const ProductMasterTable = ({
                   departmentId: matchedCategory?.departmentId || row.departmentId || 'retail'
                 });
               }}
+              alertWhenEmpty
             >
-              <option value="">未設定</option>
+              <option value="">カテゴリー</option>
               {productCategories.map((category) => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </TableSelect>
           </div>
 
-          <div>
+          <div className="col-span-3">
             <FieldLabel>商品名</FieldLabel>
             <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
           </div>
 
-          <div>
-            <FieldLabel>表示</FieldLabel>
-            <div className="flex h-9 items-center gap-2">
-              <PillToggle checked={row.labelEnabled} onChange={(value) => update({ labelEnabled: value })} onLabel="ラベルあり" offLabel="ラベルなし" />
-            </div>
-          </div>
-
-          <div>
-            <FieldLabel>Shopify</FieldLabel>
-            <div className="flex h-9 items-center gap-2">
+          <div className="col-span-2">
+            <FieldLabel>表示 / Shopify</FieldLabel>
+            <div className="flex h-9 items-center gap-3 px-2">
+              <PillToggle
+                checked={row.labelEnabled}
+                onChange={(value) => update({ labelEnabled: value })}
+                onLabel="ラベルあり"
+                offLabel="ラベルなし"
+                className="min-w-[128px]"
+              />
               <PillToggle
                 checked={row.shopifyCreateEnabled}
                 onChange={(value) => update({ shopifyCreateEnabled: value })}
-                onLabel="ON"
-                offLabel="OFF"
+                onLabel="Shopify ON"
+                offLabel="Shopify OFF"
+                activeClassName="bg-emerald-600 text-white shadow-sm shadow-emerald-200"
+                inactiveClassName="bg-slate-200 text-slate-500"
+                className="min-w-[148px]"
               />
             </div>
           </div>
-
-          <div className="col-span-8 flex items-end gap-3 text-xs font-bold text-slate-400">
-            <span>税込 {formatCurrency(row.priceTaxIncluded)}</span>
-            <span>税抜 {formatCurrency(row.priceTaxExcluded)}</span>
-            <span>仕入先 {suppliers.find((supplier) => supplier.id === row.supplierId)?.name || '未設定'}</span>
-          </div>
-        </div>
+</div>
       </div>
     );
   };
@@ -491,9 +499,27 @@ const ProductMasterTable = ({
         </div>
       </div>
 
-      <div className="space-y-3 p-4">
-        {renderEditableRow(newRow, { isNew: true })}
-        {products.map((product) => renderEditableRow(getDraft(product)))}
+      <div className="overflow-x-auto p-4">
+        <div className="min-w-[1450px] space-y-3">
+          <div className="grid grid-cols-[88px_minmax(120px,1fr)_minmax(170px,1.4fr)_minmax(140px,1.15fr)_repeat(6,minmax(74px,0.72fr))_minmax(138px,1.05fr)_minmax(150px,1.15fr)_minmax(70px,0.55fr)] gap-2 px-3 pb-1 text-[11px] font-black tracking-widest text-slate-400">
+            <div>操作</div>
+            <div>ブランド / カテゴリー</div>
+            <div>品番 / 商品名</div>
+            <div>バーコード</div>
+            <div>サイズ</div>
+            <div>色</div>
+            <div className="text-right">金額</div>
+            <div className="text-right">LOT</div>
+            <div className="text-right">発注点</div>
+            <div className="text-right">発注数</div>
+            <div>入庫履歴</div>
+            <div>ステータス</div>
+            <div className="text-right">在庫</div>
+          </div>
+
+          {renderEditableRow(newRow, { isNew: true })}
+          {products.map((product) => renderEditableRow(getDraft(product)))}
+        </div>
       </div>
 
       {products.length === 0 && (
