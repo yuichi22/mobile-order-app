@@ -62,7 +62,7 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   }
 ];
 
-export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack }) => {
+export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, registerMode = 'order' }) => {
   const [scanInput, setScanInput] = useState('');
   const [viewMode, setViewMode] = useState('map');
   const inputRef = useRef(null);
@@ -82,7 +82,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const { menuItems = [] } = useMenuData(storeId);
   const { categories = [] } = useCategoryData(storeId);
   const { settings } = useStoreSettings(storeId);
-  const [isTakeoutMode, setIsTakeoutMode] = useState(false);
+  const [isTakeoutMode, setIsTakeoutMode] = useState(registerMode === 'pos');
   const [takeoutCart, setTakeoutCart] = useState([]);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
@@ -96,6 +96,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const tableMenuOverrides = useTableMenuOverrides(storeId);
 
   const displaySessions = activeSessions.filter((session) => session.status === 'active');
+
+  useEffect(() => {
+    setIsTakeoutMode(registerMode === 'pos');
+  }, [registerMode]);
 
   const openStaffOrderTerminal = () => {
     if (!storeId || typeof window === 'undefined') return;
@@ -692,40 +696,41 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
         <div className="relative flex flex-grow flex-col overflow-hidden rounded-xl bg-white shadow-sm">
           <div className="z-10 flex items-center justify-between gap-3 border-b bg-gray-50 p-3 font-bold text-gray-700">
-            <span>利用中テーブル ({displaySessions.length})</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMenuOverrideOpen(true)}
-                className="flex h-9 items-center gap-2 rounded-lg bg-orange-500 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-orange-600 active:scale-95"
-              >
-                <Clock size={15} />
-                時間帯メニュー変更
-              </button>
+            <span>{registerMode === 'pos' ? 'POSレジ' : `利用中テーブル (${displaySessions.length})`}</span>
+            {registerMode !== 'pos' && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMenuOverrideOpen(true)}
+                  className="flex h-9 items-center gap-2 rounded-lg bg-orange-500 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-orange-600 active:scale-95"
+                >
+                  <Clock size={15} />
+                  時間帯メニュー変更
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setIsTakeoutMode(true)}
-                className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black shadow-sm transition-colors active:scale-95 ${
-                  isTakeoutMode
-                    ? 'bg-slate-900 text-white hover:bg-black'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                <ShoppingBag size={15} />
-                テイクアウト注文
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTakeoutMode(true)}
+                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black shadow-sm transition-colors active:scale-95 ${
+                    isTakeoutMode
+                      ? 'bg-slate-900 text-white hover:bg-black'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <ShoppingBag size={15} />
+                  {registerMode === 'pos' ? 'POSレジ' : 'テイクアウト注文'}
+                </button>
 
-              <button
-                type="button"
-                onClick={openStaffOrderTerminal}
-                className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-black active:scale-95"
-              >
-                <ClipboardList size={15} />
-                スタッフ注文
-              </button>
-
-            </div>
+                <button
+                  type="button"
+                  onClick={openStaffOrderTerminal}
+                  className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-black active:scale-95"
+                >
+                  <ClipboardList size={15} />
+                  スタッフ注文
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="relative flex-grow overflow-hidden bg-slate-100" ref={mapWrapperRef}>
@@ -856,21 +861,25 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-black text-slate-900">
                   <ShoppingBag size={20} />
-                  テイクアウト注文
+                  {registerMode === 'pos' ? 'POSレジ' : 'テイクアウト注文'}
                 </h2>
                 <p className="mt-1 text-xs font-bold text-slate-400">
-                  テイクアウト価格が設定されている商品だけ表示しています。
+                  {registerMode === 'pos'
+                    ? 'まずは既存のテイクアウト会計画面をPOSレジの入口として使います。次フェーズで商品マスター連動・バーコード読取・保留へ拡張します。'
+                    : 'テイクアウト価格が設定されている商品だけ表示しています。'}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={closeTakeoutMode}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200"
-                aria-label="テイクアウト注文を閉じる"
-              >
-                <X size={17} />
-              </button>
+              {registerMode !== 'pos' && (
+                <button
+                  type="button"
+                  onClick={closeTakeoutMode}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200"
+                  aria-label="テイクアウト注文を閉じる"
+                >
+                  <X size={17} />
+                </button>
+              )}
             </div>
 
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-2">

@@ -270,7 +270,7 @@ const TimeSettings = ({
   );
 };
 
-export const StoreSettings = ({ storeId }) => {
+export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
   const { logout, role, currentUser, profileName } = useAuth();
   const { settings, updateSettings, loading: settingsLoading } = useStoreSettings(storeId);
   const {
@@ -290,7 +290,7 @@ export const StoreSettings = ({ storeId }) => {
     updateCookingCategories
   } = useCookingCategoryData(storeId);
 
-  const [settingsMode, setSettingsMode] = useState('order');
+  const [settingsMode, setSettingsMode] = useState(initialSettingsMode === 'pos' ? 'pos' : 'order');
   const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });

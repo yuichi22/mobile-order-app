@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  ShoppingBag,
   Utensils
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -76,6 +77,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const [activeSessions, setActiveSessions] = useState([]);
   const [toast, setToast] = useState(null);
   const [posView, setPosView] = useState('scan');
+  const [registerMode, setRegisterMode] = useState('order');
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
   const [lastPaymentData, setLastPaymentData] = useState(null);
 
@@ -227,6 +229,22 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     setLastPaymentData(null);
   };
 
+  const switchRegisterMode = (nextMode) => {
+    setRegisterMode(nextMode);
+    setActiveTab('pos');
+
+    if (posView !== 'scan') {
+      setPosView('scan');
+      setCurrentPosSessionId(null);
+      setLastPaymentData(null);
+    }
+  };
+
+  const openSettingsForCurrentRegisterMode = () => {
+    setSettingsReturnMode('pos');
+    setActiveTab('settings');
+  };
+
   const isFixedPosLayout = activeAdminTab === 'pos';
 
   const appShellClassName = 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-100 font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]';
@@ -266,8 +284,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       return;
                     }
 
-                    setSettingsReturnMode('pos');
-                    setActiveTab('settings');
+                    openSettingsForCurrentRegisterMode();
                   }}
                   className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
                   aria-label={activeAdminTab === 'settings' ? 'レジ画面に戻る' : '設定画面を開く'}
@@ -281,12 +298,33 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </button>
               )}
 
-              <OperationTabButton
-                active={activeAdminTab === 'pos'}
-                icon={CreditCard}
-                label="レジ"
-                onClick={() => setActiveTab('pos')}
-              />
+              <div className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => switchRegisterMode('order')}
+                  className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all active:scale-95 ${
+                    activeAdminTab === 'pos' && registerMode === 'order'
+                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
+                  }`}
+                >
+                  <CreditCard size={15} strokeWidth={2.7} />
+                  ORDERレジ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => switchRegisterMode('pos')}
+                  className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all active:scale-95 ${
+                    activeAdminTab === 'pos' && registerMode === 'pos'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-300'
+                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
+                  }`}
+                >
+                  <ShoppingBag size={15} strokeWidth={2.7} />
+                  POSレジ
+                </button>
+              </div>
 
               {canViewAnalytics && (
                 <>
@@ -330,24 +368,26 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
-              <button
-                type="button"
-                onClick={
-                  activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
-                    ? switchFromSettingsToRegister
-                    : (onSwitchToKitchen || onBack)
-                }
-                className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
-              >
-                {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
-                  <CreditCard size={18} strokeWidth={2.8} />
-                ) : (
-                  <ChefHat size={18} strokeWidth={2.8} />
-                )}
-                {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
-                  ? 'レジモードへ'
-                  : 'キッチンモードへ'}
-              </button>
+              {!(activeAdminTab === 'pos' && registerMode === 'pos') && (
+                <button
+                  type="button"
+                  onClick={
+                    activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                      ? switchFromSettingsToRegister
+                      : (onSwitchToKitchen || onBack)
+                  }
+                  className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
+                >
+                  {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
+                    <CreditCard size={18} strokeWidth={2.8} />
+                  ) : (
+                    <ChefHat size={18} strokeWidth={2.8} />
+                  )}
+                  {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                    ? 'レジモードへ'
+                    : 'キッチンモードへ'}
+                </button>
+              )}
 
               {typeof onSwitchToServe === 'function' && (
                 <button
@@ -374,6 +414,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onScanSession={handlePosScan}
                   onSelectSession={handlePosScan}
                   storeId={storeId}
+                  registerMode={registerMode}
                   onBack={!showAdminHeader ? onBack : undefined}
                 />
               )}
@@ -412,7 +453,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
         {activeAdminTab === 'settings' && canViewSettings && (
           <Suspense fallback={<TabLoader />}>
-            <StoreSettingsPage user={user} storeId={storeId} />
+            <StoreSettingsPage
+              user={user}
+              storeId={storeId}
+              initialSettingsMode={registerMode === 'pos' ? 'pos' : 'order'}
+            />
           </Suspense>
         )}
       </main>
