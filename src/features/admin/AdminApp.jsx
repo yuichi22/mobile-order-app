@@ -231,12 +231,17 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
   const switchRegisterMode = (nextMode) => {
     setRegisterMode(nextMode);
-    setActiveTab('pos');
 
-    if (posView !== 'scan') {
-      setPosView('scan');
-      setCurrentPosSessionId(null);
-      setLastPaymentData(null);
+    // 設定画面を開いている時は、画面遷移せず設定内容だけ切り替える。
+    // レジ画面上で押した時だけ、レジ画面に戻して選択モードを反映する。
+    if (activeAdminTab !== 'settings') {
+      setActiveTab('pos');
+
+      if (posView !== 'scan') {
+        setPosView('scan');
+        setCurrentPosSessionId(null);
+        setLastPaymentData(null);
+      }
     }
   };
 
@@ -298,33 +303,35 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </button>
               )}
 
-              <div className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => switchRegisterMode('order')}
-                  className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all active:scale-95 ${
-                    activeAdminTab === 'pos' && registerMode === 'order'
+              <button
+                type="button"
+                onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
+                className="group flex h-11 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm transition-all hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+                aria-label={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+                title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+              >
+                <span
+                  className={`flex h-9 items-center gap-2 rounded-full px-4 text-xs font-black transition-all ${
+                    registerMode === 'order'
                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
+                      : 'text-gray-500 group-hover:text-orange-600'
                   }`}
                 >
                   <CreditCard size={15} strokeWidth={2.7} />
                   ORDERレジ
-                </button>
+                </span>
 
-                <button
-                  type="button"
-                  onClick={() => switchRegisterMode('pos')}
-                  className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black transition-all active:scale-95 ${
-                    activeAdminTab === 'pos' && registerMode === 'pos'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-300'
-                      : 'text-gray-500 hover:bg-white hover:text-gray-900'
+                <span
+                  className={`flex h-9 items-center gap-2 rounded-full px-4 text-xs font-black transition-all ${
+                    registerMode === 'pos'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                      : 'text-gray-500 group-hover:text-blue-700'
                   }`}
                 >
                   <ShoppingBag size={15} strokeWidth={2.7} />
                   POSレジ
-                </button>
-              </div>
+                </span>
+              </button>
 
               {canViewAnalytics && (
                 <>

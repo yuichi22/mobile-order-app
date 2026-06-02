@@ -291,6 +291,10 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
   } = useCookingCategoryData(storeId);
 
   const [settingsMode, setSettingsMode] = useState(initialSettingsMode === 'pos' ? 'pos' : 'order');
+
+  useEffect(() => {
+    setSettingsMode(initialSettingsMode === 'pos' ? 'pos' : 'order');
+  }, [initialSettingsMode]);
   const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -363,6 +367,12 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
     : availableMenuItems[0]?.id;
 
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
+  const settingsActiveClassName = settingsMode === 'pos'
+    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+    : 'bg-orange-500 text-white shadow-lg shadow-orange-500/20';
+  const settingsActiveTextClassName = settingsMode === 'pos'
+    ? 'text-blue-400'
+    : 'text-orange-400';
 
   useEffect(() => {
     if (!activeSubTab && availableMenuItems[0]?.id) {
@@ -431,39 +441,6 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
-          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-2">
-            <div className="mb-2 px-2 text-[10px] font-black tracking-widest text-slate-500">設定モード</div>
-            <div className="grid grid-cols-2 gap-2">
-              {SETTINGS_MODE_ITEMS.map((modeItem) => {
-                const ModeIcon = modeItem.icon;
-                const active = settingsMode === modeItem.id;
-
-                return (
-                  <button
-                    key={modeItem.id}
-                    type="button"
-                    onClick={() => {
-                      setSettingsMode(modeItem.id);
-                      const firstItem = SETTINGS_MENU_ITEMS.find((item) => (
-                        canAccessSettingsSection(normalizedRole, item.id)
-                        && (item.mode === modeItem.id || item.mode === 'shared')
-                      ));
-                      if (firstItem) setSubTab(firstItem.id);
-                    }}
-                    className={`flex h-12 items-center justify-center gap-2 rounded-2xl text-xs font-black transition ${
-                      active
-                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                        : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <ModeIcon size={15} />
-                    {modeItem.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="mb-3 px-2">
             <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
             <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
@@ -478,7 +455,7 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
                 type="button"
                 onClick={() => setSubTab(item.id)}
                 className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
-                  isActive ? 'bg-orange-500 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                 }`}
               >
                 <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
