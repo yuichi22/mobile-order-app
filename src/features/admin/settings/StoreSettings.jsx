@@ -439,7 +439,7 @@ export const StoreSettings = ({ storeId }) => {
       <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-gray-50/50">
         <div className="h-[2cm] w-full flex-shrink-0" />
 
-        <div className="max-w-[1400px] p-8 pb-32 lg:p-12">
+        <div className={`${activeSubTab === 'products' ? 'w-full max-w-none' : 'max-w-[1400px]'} p-8 pb-32 lg:p-12`}>
           {isOwner && !ownerSetupDataLoading && ownerSetupSteps.some((step) => !step.isComplete) && (
             <OwnerSetupGuide
               ownerName={profileName}
