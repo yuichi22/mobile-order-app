@@ -167,3 +167,80 @@ export const subscribeToStoreConfig = (storeId, onData, onError) => (
 export const saveStoreConfig = async (storeId, config) => {
   await setDoc(storeRootDocRef(storeId), { ...config, updatedAt: serverTimestamp() }, { merge: true });
 };
+
+export const subscribeToProductMasterItems = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'products'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+const saveStoreCollectionDoc = async (storeId, collectionName, itemData) => {
+  const docRef = itemData.id
+    ? doc(db, 'stores', storeId, collectionName, itemData.id)
+    : doc(storeCollectionRef(storeId, collectionName));
+
+  const { id: _id, ...payload } = itemData;
+
+  await setDoc(docRef, {
+    ...payload,
+    createdAt: payload.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  return docRef.id;
+};
+
+export const saveProductMasterItem = async (storeId, itemData) => {
+  const productId = await saveStoreCollectionDoc(storeId, 'products', itemData);
+
+  if (!itemData.id) {
+    await setDoc(
+      doc(db, 'stores', storeId, 'inventory', productId),
+      {
+        productId,
+        quantity: 0,
+        availableQuantity: 0,
+        reservedQuantity: 0,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  }
+
+  return productId;
+};
+
+export const subscribeToProductCategories = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'productCategories'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+export const saveProductCategory = async (storeId, itemData) => {
+  await saveStoreCollectionDoc(storeId, 'productCategories', itemData);
+};
+
+export const subscribeToProductCategoryGroups = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'productCategoryGroups'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+export const saveProductCategoryGroup = async (storeId, itemData) => {
+  await saveStoreCollectionDoc(storeId, 'productCategoryGroups', itemData);
+};
+
+export const subscribeToProductBrands = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'brands'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+export const saveProductBrand = async (storeId, itemData) => {
+  await saveStoreCollectionDoc(storeId, 'brands', itemData);
+};
+
+export const subscribeToSuppliers = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'suppliers'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+export const saveSupplier = async (storeId, itemData) => {
+  await saveStoreCollectionDoc(storeId, 'suppliers', itemData);
+};
+
+export const deleteProductMasterDoc = async (storeId, collectionName, itemId) => {
+  await deleteDoc(doc(db, 'stores', storeId, collectionName, itemId));
+};
+

@@ -202,6 +202,79 @@ service cloud.firestore {
         allow write: if isPlatformAdmin() || isStoreManager(storeId);
       }
 
+
+      match /products/{productId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+
+        match /priceHistory/{historyId} {
+          allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+          allow write: if isPlatformAdmin() || isStoreManager(storeId);
+        }
+      }
+
+      match /productCategories/{categoryId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /productCategoryGroups/{groupId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /brands/{brandId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /suppliers/{supplierId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /inventory/{productId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /stockMovements/{movementId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow create: if isPlatformAdmin() || isStoreManager(storeId);
+        allow update, delete: if false;
+      }
+
+      match /stockIns/{stockInId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+
+        match /items/{itemId} {
+          allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+          allow write: if isPlatformAdmin() || isStoreManager(storeId);
+        }
+      }
+
+      match /inventoryCounts/{countId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+
+        match /items/{itemId} {
+          allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+          allow write: if isPlatformAdmin() || isStoreManager(storeId);
+        }
+      }
+
+      match /purchaseOrders/{purchaseOrderId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
+      match /shopifySyncLogs/{logId} {
+        allow read: if isPlatformAdmin() || isStoreManager(storeId);
+        allow create: if isPlatformAdmin() || isStoreManager(storeId);
+        allow update, delete: if false;
+      }
+
       match /discounts/{discountId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreManager(storeId);

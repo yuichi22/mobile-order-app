@@ -13,7 +13,8 @@ import {
   Tag,
   Users,
   Sparkles,
-  Utensils
+  Utensils,
+  Package
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
@@ -35,6 +36,7 @@ import {
   useFloorLayout,
   useMenuData,
   usePeriodData,
+  useProductMasterData,
   useStoreSettings
 } from '../../store/hooks';
 
@@ -49,9 +51,11 @@ import PeriodSettings from './components/PeriodSettings';
 import QRGenerator from './components/QRGenerator';
 import StaffInviteSettings from './components/StaffInviteSettings';
 import CrossSellSettings from './components/CrossSellSettings';
+import ProductMasterSettings from '../../products/components/ProductMasterSettings';
 
 const SETTINGS_MENU_ITEMS = [
   { id: 'menu', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
+  { id: 'products', label: '商品マスター', icon: Package, desc: '物販商品・カテゴリー・ブランド・仕入先' },
   { id: 'category', label: 'カテゴリー設定', icon: Tag, desc: 'メニューカテゴリの追加と並び順' },
   {
     id: 'crossSell',
@@ -256,6 +260,7 @@ export const StoreSettings = ({ storeId }) => {
     loading: businessLoading
   } = useBusinessSettings(storeId);
   const { menuItems, loading: menuLoading, updateMenu, deleteMenu } = useMenuData(storeId);
+  const productMaster = useProductMasterData(storeId);
   const { discounts, loading: discountsLoading, saveDiscount, deleteDiscount } = useDiscountData(storeId);
   const { layoutItems, saveLayout, loading: layoutLoading } = useFloorLayout(storeId);
   const { categories, loading: categoryLoading, updateCategories } = useCategoryData(storeId);
@@ -292,7 +297,8 @@ export const StoreSettings = ({ storeId }) => {
     categoryLoading ||
     periodLoading ||
     layoutLoading ||
-    cookingCategoryLoading;
+    cookingCategoryLoading ||
+    productMaster.loading;
 
   const ownerGuideDismissed = useMemo(
     () =>
@@ -487,6 +493,28 @@ export const StoreSettings = ({ storeId }) => {
             menuItems={menuItems || []}
             onSaved={showSaveComplete}
           />
+          )}
+
+          {activeSubTab === 'products' && canAccessSettingsSection(normalizedRole, 'products') && (
+            <ProductMasterSettings
+              products={productMaster.products}
+              productCategories={productMaster.productCategories}
+              productCategoryGroups={productMaster.productCategoryGroups}
+              brands={productMaster.brands}
+              suppliers={productMaster.suppliers}
+              loading={productMaster.loading}
+              onSaveProduct={productMaster.saveProduct}
+              onDeleteProduct={productMaster.deleteProduct}
+              onSaveCategory={productMaster.saveCategory}
+              onDeleteCategory={productMaster.deleteCategory}
+              onSaveCategoryGroup={productMaster.saveCategoryGroup}
+              onDeleteCategoryGroup={productMaster.deleteCategoryGroup}
+              onSaveBrand={productMaster.saveBrand}
+              onDeleteBrand={productMaster.deleteBrand}
+              onSaveSupplier={productMaster.saveSupplier}
+              onDeleteSupplier={productMaster.deleteSupplier}
+              onSaved={showSaveComplete}
+            />
           )}
 
 

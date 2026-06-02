@@ -7,3 +7,4 @@ export { useMenuData } from './useMenuData';
 export { usePeriodData } from './usePeriodData';
 export { useStoreConfig } from './useStoreConfig';
 export { useStoreSettings } from './useStoreSettings';
+export { useProductMasterData } from '../../products/hooks/useProductMasterData';
