@@ -14,7 +14,8 @@ import {
   Users,
   Sparkles,
   Utensils,
-  Package
+  Package,
+  ShoppingBag
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
@@ -53,24 +54,42 @@ import StaffInviteSettings from './components/StaffInviteSettings';
 import CrossSellSettings from './components/CrossSellSettings';
 import ProductMasterSettings from '../../products/components/ProductMasterSettings';
 
+const SETTINGS_MODE_ITEMS = [
+  {
+    id: 'order',
+    label: 'ORDER',
+    title: 'ORDER設定',
+    desc: 'モバイルオーダー・飲食メニュー',
+    icon: Utensils
+  },
+  {
+    id: 'pos',
+    label: 'POS',
+    title: 'POS設定',
+    desc: '物販レジ・商品マスター',
+    icon: ShoppingBag
+  }
+];
+
 const SETTINGS_MENU_ITEMS = [
-  { id: 'menu', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
-  { id: 'products', label: '商品マスター', icon: Package, desc: '物販商品・カテゴリー・ブランド・仕入先' },
-  { id: 'category', label: 'カテゴリー設定', icon: Tag, desc: 'メニューカテゴリの追加と並び順' },
+  { id: 'menu', mode: 'order', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
+  { id: 'category', mode: 'order', label: 'カテゴリー設定', icon: Tag, desc: 'メニューカテゴリの追加と並び順' },
   {
     id: 'crossSell',
+    mode: 'order',
     label: 'クロスセル設定',
     icon: Sparkles,
     desc: 'セットドリンクやデザートの提案導線を設定します'
   },
-  { id: 'qrcode', label: 'QRコード発行', icon: QrCode, desc: 'テーブルに貼るQRコードを発行' },
+  { id: 'qrcode', mode: 'order', label: 'QRコード発行', icon: QrCode, desc: 'テーブルに貼るQRコードを発行' },
+  { id: 'time', mode: 'order', label: '時間帯設定', icon: Clock, desc: '提供時間帯と営業時間の設定' },
+  { id: 'layout', mode: 'order', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
+  { id: 'discount', mode: 'order', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
 
-  { id: 'time', label: '時間帯設定', icon: Clock, desc: '提供時間帯と営業時間の設定' },
-  { id: 'layout', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
+  { id: 'products', mode: 'pos', label: '商品マスター', icon: Package, desc: '物販商品・カテゴリー・ブランド・仕入先' },
 
-  { id: 'discount', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
-  { id: 'staff', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
-  { id: 'basic', label: '基本設定', icon: Store, desc: '店舗名や連絡先などの基本情報' }
+  { id: 'staff', mode: 'shared', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
+  { id: 'basic', mode: 'shared', label: '基本設定', icon: Store, desc: '店舗名や連絡先などの基本情報' }
 ];
 
 const getDefaultSettingsSubTab = (role) => {
@@ -271,6 +290,7 @@ export const StoreSettings = ({ storeId }) => {
     updateCookingCategories
   } = useCookingCategoryData(storeId);
 
+  const [settingsMode, setSettingsMode] = useState('order');
   const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -331,13 +351,24 @@ export const StoreSettings = ({ storeId }) => {
   }, [isOwner, storeId]);
 
   const availableMenuItems = useMemo(
-    () => SETTINGS_MENU_ITEMS.filter((item) => canAccessSettingsSection(normalizedRole, item.id)),
-    [normalizedRole]
+    () => SETTINGS_MENU_ITEMS.filter((item) => (
+      canAccessSettingsSection(normalizedRole, item.id)
+      && (item.mode === settingsMode || item.mode === 'shared')
+    )),
+    [normalizedRole, settingsMode]
   );
 
-  const activeSubTab = canAccessSettingsSection(normalizedRole, subTab)
+  const activeSubTab = availableMenuItems.some((item) => item.id === subTab)
     ? subTab
     : availableMenuItems[0]?.id;
+
+  const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
+
+  useEffect(() => {
+    if (!activeSubTab && availableMenuItems[0]?.id) {
+      setSubTab(availableMenuItems[0].id);
+    }
+  }, [activeSubTab, availableMenuItems]);
 
   const ownerSetupSteps = useMemo(() => {
     if (!isOwner) return [];
@@ -400,8 +431,42 @@ export const StoreSettings = ({ storeId }) => {
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
+          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-2">
+            <div className="mb-2 px-2 text-[10px] font-black tracking-widest text-slate-500">設定モード</div>
+            <div className="grid grid-cols-2 gap-2">
+              {SETTINGS_MODE_ITEMS.map((modeItem) => {
+                const ModeIcon = modeItem.icon;
+                const active = settingsMode === modeItem.id;
+
+                return (
+                  <button
+                    key={modeItem.id}
+                    type="button"
+                    onClick={() => {
+                      setSettingsMode(modeItem.id);
+                      const firstItem = SETTINGS_MENU_ITEMS.find((item) => (
+                        canAccessSettingsSection(normalizedRole, item.id)
+                        && (item.mode === modeItem.id || item.mode === 'shared')
+                      ));
+                      if (firstItem) setSubTab(firstItem.id);
+                    }}
+                    className={`flex h-12 items-center justify-center gap-2 rounded-2xl text-xs font-black transition ${
+                      active
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                        : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <ModeIcon size={15} />
+                    {modeItem.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="mb-3 px-2">
-            <span className="text-[10px] font-black tracking-widest text-slate-500">店舗設定</span>
+            <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
+            <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
           </div>
 
           {availableMenuItems.map((item) => {
