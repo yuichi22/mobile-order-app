@@ -15,6 +15,7 @@ import {
   useDiscountData,
   useMenuData,
   usePeriodData,
+  useProductMasterData,
   useStoreSettings
 } from '../../store/hooks';
 
@@ -110,6 +111,15 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [tableId, setTableId] = useState(null);
   const [tableDisplayName, setTableDisplayName] = useState('');
   const [guestCount, setGuestCount] = useState(0);
+
+  const {
+    products: productMasterProducts = [],
+    productCategories: productMasterCategories = [],
+    loading: productMasterLoading
+  } = useProductMasterData(storeId);
+  const [orderRetailKeyword, setOrderRetailKeyword] = useState('');
+  const [orderRetailCart, setOrderRetailCart] = useState([]);
+  const [orderRetailMessage, setOrderRetailMessage] = useState(null);
 
   const { discounts } = useDiscountData(storeId) || { discounts: [] };
   const { settings } = useStoreSettings(storeId);
@@ -340,6 +350,148 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const selectedItemCount = activeSelectedItemKeys.size;
   const totalPayableItemCount = allPayableItemEntries.length;
 
+
+  const orderRetailCategoryNameMap = useMemo(() => {
+    const map = {};
+    if (Array.isArray(productMasterCategories)) {
+      productMasterCategories.forEach((category) => {
+        if (!category?.id) return;
+        map[category.id] = category.name || 'カテゴリー';
+      });
+    }
+    return map;
+  }, [productMasterCategories]);
+
+  const getOrderRetailStockQuantity = (product) => {
+    const stockValue = product?.inventoryQuantity ?? product?.quantity ?? 0;
+    const stockNumber = Number(stockValue);
+    return Number.isFinite(stockNumber) ? Math.max(Math.floor(stockNumber), 0) : 0;
+  };
+
+  const activeOrderRetailProducts = useMemo(() => (
+    Array.isArray(productMasterProducts)
+      ? productMasterProducts
+        .filter((product) => product && product.isArchived !== true && product.isActive !== false)
+        .map((product) => ({
+          ...product,
+          resolvedPrice: Number(product.priceTaxIncluded ?? product.price ?? 0) || 0,
+          resolvedStock: getOrderRetailStockQuantity(product),
+          resolvedCategoryName: orderRetailCategoryNameMap[product.categoryId] || product.categoryName || 'カテゴリー'
+        }))
+        .filter((product) => Number(product.resolvedPrice || 0) >= 0)
+        .sort((left, right) => (
+          String(left.resolvedCategoryName || '').localeCompare(String(right.resolvedCategoryName || ''), 'ja')
+          || String(left.brandName || '').localeCompare(String(right.brandName || ''), 'ja')
+          || String(left.name || '').localeCompare(String(right.name || ''), 'ja')
+        ))
+      : []
+  ), [orderRetailCategoryNameMap, productMasterProducts]);
+
+  const filteredOrderRetailProducts = useMemo(() => {
+    const normalizedKeyword = orderRetailKeyword.trim().toLowerCase();
+
+    return activeOrderRetailProducts.filter((product) => {
+      if (!normalizedKeyword) return true;
+
+      return [
+        product.name,
+        product.sku,
+        product.productCode,
+        product.barcode,
+        product.resolvedCategoryName
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedKeyword));
+    });
+  }, [activeOrderRetailProducts, orderRetailKeyword]);
+
+  const getOrderRetailCartQuantity = (productId) => (
+    orderRetailCart
+      .filter((item) => item.sourceType === 'retail' && item.productId === productId)
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  );
+
+  const setOrderRetailStatusMessage = (message, type = 'info') => {
+    setOrderRetailMessage({ message, type, key: Date.now() });
+  };
+
+  const addOrderRetailProduct = (product) => {
+    if (!product?.id) return false;
+
+    const stockQuantity = Number(product.resolvedStock ?? getOrderRetailStockQuantity(product));
+    const currentQuantity = getOrderRetailCartQuantity(product.id);
+
+    if (stockQuantity <= 0) {
+      setOrderRetailStatusMessage(`${product.name || '商品'} は在庫がありません。`, 'error');
+      return false;
+    }
+
+    if (currentQuantity >= stockQuantity) {
+      setOrderRetailStatusMessage(`${product.name || '商品'} は在庫数 ${stockQuantity} 点を超えて追加できません。`, 'error');
+      return false;
+    }
+
+    const payload = {
+      id: `order-retail:${product.id}`,
+      productId: product.id,
+      sourceType: 'retail',
+      isOrderRetailExtra: true,
+      name: product.name || '商品',
+      categoryId: product.categoryId || '',
+      categoryName: product.resolvedCategoryName || 'カテゴリー',
+      unitPrice: Number(product.resolvedPrice || 0),
+      takeoutPrice: Number(product.resolvedPrice || 0),
+      priceTaxIncluded: Number(product.resolvedPrice || 0),
+      barcode: product.barcode || '',
+      sku: product.sku || product.productCode || '',
+      stockQuantity,
+      quantity: 1
+    };
+
+    setOrderRetailCart((current) => {
+      const existing = current.find((item) => item.id === payload.id);
+      if (existing) {
+        return current.map((item) => (
+          item.id === payload.id
+            ? { ...item, quantity: Number(item.quantity || 0) + 1 }
+            : item
+        ));
+      }
+      return [...current, payload];
+    });
+
+    setOrderRetailStatusMessage(`${product.name || '商品'} を会計に追加しました。`, 'success');
+    return true;
+  };
+
+  const updateOrderRetailCartQuantity = (itemId, delta) => {
+    setOrderRetailCart((current) => (
+      current
+        .map((item) => {
+          if (item.id !== itemId) return item;
+
+          const currentQuantity = Number(item.quantity || 0);
+          const nextQuantity = Math.max(currentQuantity + delta, 0);
+
+          if (
+            item.sourceType === 'retail' &&
+            delta > 0 &&
+            nextQuantity > Number(item.stockQuantity || 0)
+          ) {
+            setOrderRetailStatusMessage(`${item.name || '商品'} は在庫数 ${Number(item.stockQuantity || 0)} 点を超えて追加できません。`, 'error');
+            return item;
+          }
+
+          return { ...item, quantity: nextQuantity };
+        })
+        .filter((item) => Number(item.quantity || 0) > 0)
+    ));
+  };
+
+  const removeOrderRetailCartItem = (itemId) => {
+    setOrderRetailCart((current) => current.filter((item) => item.id !== itemId));
+  };
+
   const consolidatedItems = useMemo(() => {
     if (!orders || !Array.isArray(orders)) return [];
     const items = [];
@@ -407,8 +559,47 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         }
       });
     });
+    orderRetailCart.forEach((item) => {
+      const quantity = Number(item.quantity || 0);
+      const unitPrice = Number(item.unitPrice ?? item.takeoutPrice ?? 0);
+      if (quantity <= 0) return;
+
+      const detailKey = `order-retail-extra:${item.productId || item.id}`;
+
+      items.push({
+        ...item,
+        id: item.id,
+        menuItemId: item.id,
+        productId: item.productId || '',
+        sourceType: item.sourceType || 'retail',
+        isOrderRetailExtra: true,
+        name: item.name || '物販商品',
+        unitPrice,
+        quantity,
+        totalPrice: unitPrice * quantity,
+        allowsTakeout: false,
+        isTakeout: false,
+        categoryId: item.categoryId || '',
+        categoryName: item.categoryName || '物販',
+        _key: detailKey,
+        itemKeys: [detailKey],
+        details: [{
+          key: detailKey,
+          unitPrice,
+          quantity,
+          allowsTakeout: false,
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || '物販',
+          sourceType: item.sourceType || 'retail',
+          isOrderRetailExtra: true,
+          productId: item.productId || '',
+          stockQuantity: item.stockQuantity ?? null
+        }]
+      });
+    });
+
     return items;
-  }, [orders, paidItemKeys, currentPayTargetItemKeys, menuItemSnapshotMap]);
+  }, [orders, paidItemKeys, currentPayTargetItemKeys, menuItemSnapshotMap, orderRetailCart]);
 
   const ordersByCustomer = useMemo(
     () => groupOrdersByCustomer(orders),
@@ -1129,6 +1320,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
   const hasOrderItems = Array.isArray(consolidatedItems) && consolidatedItems.length > 0;
   const hasCheckoutAmount = Number(totalAmount || 0) > 0;
+  const effectiveTotalPayableItemCount = Number(totalPayableItemCount || 0) + Number(orderRetailCart.length || 0);
   const isEmptyCheckout = !hasOrderItems && !hasCheckoutAmount;
 
   const handleAbortSession = () => {
@@ -1150,12 +1342,20 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       return;
     }
 
+    if (orderRetailCart.length > 0 && Number(discountAmount || 0) > 0) {
+      alert('物販を合算する会計では、割引・値引は次フェーズで対応します。今回は割引を外して会計してください。');
+      return;
+    }
+
     setIsPaymentSubmitting(true);
 
     try {
       const batch = writeBatch(db);
       const newlyPaidKeys = new Set();
-      consolidatedItems.forEach((item) => item.details.forEach((detail) => newlyPaidKeys.add(detail.key)));
+      consolidatedItems.forEach((item) => {
+        if (item.isOrderRetailExtra) return;
+        item.details.forEach((detail) => newlyPaidKeys.add(detail.key));
+      });
 
       const isSessionComplete = orders.every((order) => {
         if (!order.items || !Array.isArray(order.items)) return true;
@@ -1322,41 +1522,43 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       }));
       const customerIds = customerSummaries.map((entry) => entry.customerId);
 
-      const transactionTaxSummary = orderSummaries.reduce(
-        (summaryAcc, summary, index) => {
-          const orderDiscountAmount = orderDiscountAllocations[index] || 0;
-          const [reducedDiscountAmount, standardDiscountAmount] = allocateAmountByWeight(
-            orderDiscountAmount,
-            [summary.rawOrderReducedIncl, summary.rawOrderStandardIncl]
-          );
+      let rawTransactionReducedIncl = 0;
+      let rawTransactionStandardIncl = 0;
 
-          const reducedIncl = Math.max(0, summary.rawOrderReducedIncl - reducedDiscountAmount);
-          const standardIncl = Math.max(0, summary.rawOrderStandardIncl - standardDiscountAmount);
+      consolidatedItems.forEach((item) => {
+        (item.details || []).forEach((detail) => {
+          const detailUnitPrice = Number(detail.unitPrice || 0);
+          const detailQuantity = Number(detail.quantity || 0);
+          const detailNetUnitPrice = applyTaxRounding(detailUnitPrice / standardDivider, taxRounding);
 
-          const reducedBreakdown = splitTaxIncludedAmount(reducedIncl, reducedTax, taxRounding);
-          const standardBreakdown = splitTaxIncludedAmount(standardIncl, standardTax, taxRounding);
+          if (allowTakeout && detail.allowsTakeout !== false && activeTakeoutItemKeys.has(detail.key)) {
+            rawTransactionReducedIncl += toTaxIncludedAmount(detailNetUnitPrice, reducedTax, taxRounding) * detailQuantity;
+          } else {
+            rawTransactionStandardIncl += detailUnitPrice * detailQuantity;
+          }
+        });
+      });
 
-          summaryAcc.reducedTaxIncluded += Number(reducedIncl);
-          summaryAcc.reducedTaxExcluded += Number(reducedBreakdown.baseAmount);
-          summaryAcc.reducedTaxAmount += Number(reducedBreakdown.taxAmount);
-
-          summaryAcc.standardTaxIncluded += Number(standardIncl);
-          summaryAcc.standardTaxExcluded += Number(standardBreakdown.baseAmount);
-          summaryAcc.standardTaxAmount += Number(standardBreakdown.taxAmount);
-
-          return summaryAcc;
-        },
-        {
-          reducedTaxRate: Number(taxRateReduced),
-          standardTaxRate: Number(taxRateStandard),
-          reducedTaxIncluded: 0,
-          reducedTaxExcluded: 0,
-          reducedTaxAmount: 0,
-          standardTaxIncluded: 0,
-          standardTaxExcluded: 0,
-          standardTaxAmount: 0
-        }
+      const [transactionReducedDiscountAmount, transactionStandardDiscountAmount] = allocateAmountByWeight(
+        discountAmount,
+        [rawTransactionReducedIncl, rawTransactionStandardIncl]
       );
+
+      const transactionReducedIncl = Math.max(0, rawTransactionReducedIncl - transactionReducedDiscountAmount);
+      const transactionStandardIncl = Math.max(0, rawTransactionStandardIncl - transactionStandardDiscountAmount);
+      const transactionReducedBreakdown = splitTaxIncludedAmount(transactionReducedIncl, reducedTax, taxRounding);
+      const transactionStandardBreakdown = splitTaxIncludedAmount(transactionStandardIncl, standardTax, taxRounding);
+
+      const transactionTaxSummary = {
+        reducedTaxRate: Number(taxRateReduced),
+        standardTaxRate: Number(taxRateStandard),
+        reducedTaxIncluded: Number(transactionReducedIncl),
+        reducedTaxExcluded: Number(transactionReducedBreakdown.baseAmount),
+        reducedTaxAmount: Number(transactionReducedBreakdown.taxAmount),
+        standardTaxIncluded: Number(transactionStandardIncl),
+        standardTaxExcluded: Number(transactionStandardBreakdown.baseAmount),
+        standardTaxAmount: Number(transactionStandardBreakdown.taxAmount)
+      };
 
     const appliedDiscount = Number(discountAmount) > 0
       ? {
@@ -1475,6 +1677,27 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         isPaid: true
       });
 
+      const orderRetailQuantityByProductId = new Map();
+      orderRetailCart.forEach((item) => {
+        if (item.sourceType !== 'retail' || !item.productId) return;
+        const quantity = Math.max(Number(item.quantity || 0), 0);
+        if (quantity <= 0) return;
+        orderRetailQuantityByProductId.set(
+          item.productId,
+          (orderRetailQuantityByProductId.get(item.productId) || 0) + quantity
+        );
+      });
+
+      orderRetailQuantityByProductId.forEach((quantity, productId) => {
+        const productRef = doc(db, 'stores', storeId, 'products', productId);
+        batch.update(productRef, {
+          inventoryQuantity: increment(-quantity),
+          quantity: increment(-quantity),
+          lastOrderRegisterSoldAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
       if (isSessionComplete) {
         batch.update(doc(db, 'stores', storeId, 'sessions', sessionId), { status: 'paid', closedAt: serverTimestamp() });
         const requestQuery = query(collection(db, 'stores', storeId, 'serviceRequests'), where('sessionId', '==', sessionId), where('status', '==', 'pending'));
@@ -1486,6 +1709,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       await batch.commit();
 
       const issuedReceipt = null;
+
+      setOrderRetailCart([]);
+      setOrderRetailKeyword('');
+      setOrderRetailMessage(null);
 
       if (isSessionComplete) {
         onComplete({
@@ -1814,6 +2041,16 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         onRequestCancelTarget={handleRequestCancelTarget}
         setShowSplitModal={setShowSplitModal}
         toggleItemTakeout={toggleItemTakeout}
+        productMasterLoading={productMasterLoading}
+        orderRetailProducts={filteredOrderRetailProducts}
+        orderRetailKeyword={orderRetailKeyword}
+        setOrderRetailKeyword={setOrderRetailKeyword}
+        orderRetailCart={orderRetailCart}
+        orderRetailMessage={orderRetailMessage}
+        addOrderRetailProduct={addOrderRetailProduct}
+        updateOrderRetailCartQuantity={updateOrderRetailCartQuantity}
+        removeOrderRetailCartItem={removeOrderRetailCartItem}
+        getOrderRetailCartQuantity={getOrderRetailCartQuantity}
       />
       <PosRegisterRight
         orders={orders}
@@ -1839,7 +2076,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         setRecipientName={setRecipientName}
         checkoutSelectionMode={checkoutSelectionMode}
         selectedItemCount={selectedItemCount}
-        totalPayableItemCount={totalPayableItemCount}
+        totalPayableItemCount={effectiveTotalPayableItemCount}
         settings={settings}
         consolidatedItems={consolidatedItems}
         takeoutItemKeys={activeTakeoutItemKeys}

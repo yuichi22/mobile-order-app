@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Calculator, Check, ChevronLeft, RotateCcw, ShoppingBag, Store, User, Utensils } from 'lucide-react';
+import { Calculator, Check, ChevronLeft, Minus, Package, Plus, RotateCcw, ShoppingBag, Store, Trash2, User, Utensils } from 'lucide-react';
 import {
   formatOrderCustomerLabel,
   groupOrdersByCustomer
@@ -61,7 +61,17 @@ export const PosRegisterLeft = ({
   clearCustomSelection,
   onRequestCancelTarget,
   setShowSplitModal,
-  toggleItemTakeout
+  toggleItemTakeout,
+  productMasterLoading = false,
+  orderRetailProducts = [],
+  orderRetailKeyword = '',
+  setOrderRetailKeyword,
+  orderRetailCart = [],
+  orderRetailMessage = null,
+  addOrderRetailProduct,
+  updateOrderRetailCartQuantity,
+  removeOrderRetailCartItem,
+  getOrderRetailCartQuantity
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
   const isCustomMode = checkoutSelectionMode === 'custom';
@@ -359,6 +369,146 @@ export const PosRegisterLeft = ({
             </div>
           );
         })}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-black text-slate-900">
+                <Package size={16} />
+                物販追加
+              </h3>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                テーブル会計に商品マスターの商品を合算します。
+              </p>
+            </div>
+            {orderRetailCart.length > 0 && (
+              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-600">
+                追加 {orderRetailCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}点
+              </div>
+            )}
+          </div>
+
+          {orderRetailMessage && (
+            <div className={`mb-3 rounded-xl border px-3 py-2 text-xs font-black ${
+              orderRetailMessage.type === 'error'
+                ? 'border-red-100 bg-red-50 text-red-600'
+                : orderRetailMessage.type === 'success'
+                  ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                  : 'border-blue-100 bg-blue-50 text-blue-600'
+            }`}>
+              {orderRetailMessage.message}
+            </div>
+          )}
+
+          <input
+            value={orderRetailKeyword}
+            onChange={(event) => setOrderRetailKeyword?.(event.target.value)}
+            placeholder="商品名 / 品番 / バーコードで検索"
+            className="mb-3 h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
+          />
+
+          {productMasterLoading ? (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center text-xs font-bold text-slate-400">
+              商品マスターを読み込み中...
+            </div>
+          ) : orderRetailProducts.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-bold text-slate-400">
+              商品が見つかりません。
+            </div>
+          ) : (
+            <div className="grid gap-2 xl:grid-cols-2">
+              {orderRetailProducts.slice(0, 12).map((product) => {
+                const stockQuantity = Number(product.resolvedStock || 0);
+                const cartQuantity = getOrderRetailCartQuantity?.(product.id) || 0;
+                const isDisabled = stockQuantity <= 0 || cartQuantity >= stockQuantity;
+
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => addOrderRetailProduct?.(product)}
+                    disabled={isDisabled}
+                    className={`flex min-h-[76px] flex-col justify-between rounded-xl border p-3 text-left shadow-sm transition-all active:scale-[0.99] ${
+                      isDisabled
+                        ? 'cursor-not-allowed border-slate-100 bg-slate-100 opacity-70'
+                        : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className={`truncate text-sm font-black ${isDisabled ? 'text-slate-400' : 'text-slate-800'}`}>
+                        {product.name || '商品'}
+                      </div>
+                      <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                        {product.sku || product.productCode || product.barcode || product.resolvedCategoryName}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        stockQuantity <= 0
+                          ? 'bg-red-50 text-red-500'
+                          : cartQuantity >= stockQuantity
+                            ? 'bg-orange-50 text-orange-500'
+                            : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        在庫 {stockQuantity.toLocaleString()} / 選択 {Number(cartQuantity).toLocaleString()}
+                      </span>
+                      <span className="font-mono text-sm font-black text-slate-900">
+                        ¥{Number(product.resolvedPrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {orderRetailCart.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
+              <div className="mb-2 text-[11px] font-black tracking-widest text-emerald-700">
+                追加済み物販
+              </div>
+              <div className="space-y-2">
+                {orderRetailCart.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 shadow-sm">
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-black text-slate-800">{item.name}</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                        ¥{Number(item.unitPrice || item.takeoutPrice || 0).toLocaleString()} / 在庫 {Number(item.stockQuantity || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateOrderRetailCartQuantity?.(item.id, -1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <span className="w-7 text-center font-mono text-sm font-black text-slate-800">
+                        {Number(item.quantity || 0)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOrderRetailCartQuantity?.(item.id, 1)}
+                        disabled={Number(item.quantity || 0) >= Number(item.stockQuantity || 0)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+                      >
+                        <Plus size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeOrderRetailCartItem?.(item.id)}
+                        className="ml-1 flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
