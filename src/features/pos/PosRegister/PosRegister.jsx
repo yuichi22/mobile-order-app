@@ -1342,11 +1342,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       return;
     }
 
-    if (orderRetailCart.length > 0 && Number(discountAmount || 0) > 0) {
-      alert('物販を合算する会計では、割引・値引は次フェーズで対応します。今回は割引を外して会計してください。');
-      return;
-    }
-
     setIsPaymentSubmitting(true);
 
     try {
@@ -1579,6 +1574,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
             ? Number(selectedDiscount?.quantity || selectedDiscount?.count || 1)
             : 1,
           amount: Number(discountAmount),
+          includesRetailItems: orderRetailCart.length > 0,
+          retailItemCount: orderRetailCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+          retailItemAmount: orderRetailCart.reduce((sum, item) => (
+            sum + (Number(item.unitPrice || item.takeoutPrice || 0) * Number(item.quantity || 0))
+          ), 0),
           items: Array.isArray(selectedDiscount?.items) ? selectedDiscount.items : [],
           label:
             selectedDiscount?.type === 'amount' && selectedDiscount?.name
