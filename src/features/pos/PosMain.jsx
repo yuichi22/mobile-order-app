@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, increment, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw } from 'lucide-react';
 
 import { db } from '../../shared/api/firebase/client';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
@@ -69,6 +69,35 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   }
 ];
 
+const POS_HOLD_STORAGE_VERSION = 1;
+
+const getPosHoldStorageKey = (storeId) => `akuto-pos-holds:${storeId || 'unknown'}`;
+
+const readPosHoldsFromStorage = (storeId) => {
+  if (typeof window === 'undefined' || !storeId) return [];
+
+  try {
+    const raw = window.localStorage.getItem(getPosHoldStorageKey(storeId));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('[PosMain] failed to read POS holds', error);
+    return [];
+  }
+};
+
+const writePosHoldsToStorage = (storeId, holds) => {
+  if (typeof window === 'undefined' || !storeId) return;
+
+  try {
+    window.localStorage.setItem(getPosHoldStorageKey(storeId), JSON.stringify(Array.isArray(holds) ? holds : []));
+  } catch (error) {
+    console.warn('[PosMain] failed to write POS holds', error);
+  }
+};
+
 export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, registerMode = 'order' }) => {
   const [scanInput, setScanInput] = useState('');
   const [viewMode, setViewMode] = useState('map');
@@ -100,6 +129,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [posManualName, setPosManualName] = useState('');
   const [posManualPrice, setPosManualPrice] = useState('');
   const [posProductMessage, setPosProductMessage] = useState(null);
+  const [posHolds, setPosHolds] = useState([]);
+  const [activePosHoldId, setActivePosHoldId] = useState('');
   const [takeoutCart, setTakeoutCart] = useState([]);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
@@ -113,6 +144,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const tableMenuOverrides = useTableMenuOverrides(storeId);
 
   const displaySessions = activeSessions.filter((session) => session.status === 'active');
+
+  useEffect(() => {
+    if (registerMode !== 'pos' || !storeId) return;
+    setPosHolds(readPosHoldsFromStorage(storeId));
+  }, [registerMode, storeId]);
+
+  const savePosHolds = (nextHolds) => {
+    setPosHolds(nextHolds);
+    writePosHoldsToStorage(storeId, nextHolds);
+  };
 
   const posCategoryNameMap = useMemo(() => {
     const map = {};
@@ -383,17 +424,106 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const updateTakeoutCartQuantity = (itemId, delta) => {
     setTakeoutCart((current) => (
       current
-        .map((item) => (
-          item.id === itemId
-            ? { ...item, quantity: Math.max(Number(item.quantity || 0) + delta, 0) }
-            : item
-        ))
+        .map((item) => {
+          if (item.id !== itemId) return item;
+
+          const currentQuantity = Number(item.quantity || 0);
+          const nextQuantity = Math.max(currentQuantity + delta, 0);
+
+          if (
+            registerMode === 'pos' &&
+            item.sourceType === 'retail' &&
+            delta > 0 &&
+            nextQuantity > Number(item.stockQuantity || 0)
+          ) {
+            setPosMessage(`${item.name || '商品'} は在庫数 ${Number(item.stockQuantity || 0)} 点を超えて追加できません。`, 'error');
+            return item;
+          }
+
+          return { ...item, quantity: nextQuantity };
+        })
         .filter((item) => Number(item.quantity || 0) > 0)
     ));
   };
 
   const removeTakeoutCartItem = (itemId) => {
     setTakeoutCart((current) => current.filter((item) => item.id !== itemId));
+  };
+
+  const holdCurrentPosCart = () => {
+    if (registerMode !== 'pos' || takeoutCart.length === 0) {
+      setPosMessage('保留する商品がありません。', 'error');
+      return;
+    }
+
+    const now = new Date();
+    const holdId = activePosHoldId || `hold-${now.getTime()}`;
+    const holdTotal = takeoutCart.reduce((sum, item) => (
+      sum + Number(item.takeoutPrice || 0) * Number(item.quantity || 0)
+    ), 0);
+
+    const hold = {
+      id: holdId,
+      version: POS_HOLD_STORAGE_VERSION,
+      title: `保留 ${now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`,
+      cart: takeoutCart,
+      totalAmount: Number(holdTotal),
+      itemCount: takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      createdAt: activePosHoldId
+        ? (posHolds.find((item) => item.id === activePosHoldId)?.createdAt || now.toISOString())
+        : now.toISOString(),
+      updatedAt: now.toISOString()
+    };
+
+    const nextHolds = [
+      hold,
+      ...posHolds.filter((item) => item.id !== holdId)
+    ].slice(0, 20);
+
+    savePosHolds(nextHolds);
+    setTakeoutCart([]);
+    setTakeoutPaymentAmount('');
+    setTakeoutPaymentMethod('');
+    setActivePosHoldId('');
+    setPosMessage('仮伝票を保留しました。', 'success');
+  };
+
+  const restorePosHold = (holdId) => {
+    const hold = posHolds.find((item) => item.id === holdId);
+    if (!hold) return;
+
+    if (takeoutCart.length > 0 && !window.confirm('現在の仮伝票を置き換えて、保留を復帰しますか？')) {
+      return;
+    }
+
+    setTakeoutCart(Array.isArray(hold.cart) ? hold.cart : []);
+    setTakeoutPaymentAmount('');
+    setTakeoutPaymentMethod('');
+    setActivePosHoldId(hold.id);
+    setPosMessage(`${hold.title || '保留'} を復帰しました。`, 'success');
+  };
+
+  const deletePosHold = (holdId) => {
+    const hold = posHolds.find((item) => item.id === holdId);
+    if (!hold) return;
+    if (!window.confirm(`${hold.title || '保留'} を削除しますか？`)) return;
+
+    const nextHolds = posHolds.filter((item) => item.id !== holdId);
+    savePosHolds(nextHolds);
+
+    if (activePosHoldId === holdId) {
+      setActivePosHoldId('');
+    }
+
+    setPosMessage('保留を削除しました。', 'success');
+  };
+
+  const clearActivePosHoldAfterPayment = () => {
+    if (!activePosHoldId) return;
+
+    const nextHolds = posHolds.filter((item) => item.id !== activePosHoldId);
+    savePosHolds(nextHolds);
+    setActivePosHoldId('');
   };
 
   const closeTakeoutMode = () => {
@@ -594,6 +724,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         isPaid: true
       });
 
+      clearActivePosHoldAfterPayment();
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
       setTakeoutPaymentMethod('');
@@ -1256,7 +1387,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </h2>
                 <p className="mt-1 text-xs font-bold text-slate-400">
                   {registerMode === 'pos'
-                    ? 'まずは既存のテイクアウト会計画面をPOSレジの入口として使います。次フェーズで商品マスター連動・バーコード読取・保留へ拡張します。'
+                    ? '商品マスター・手入力・バーコード読取・保留に対応したPOSレジです。'
                     : 'テイクアウト価格が設定されている商品だけ表示しています。'}
                 </p>
               </div>
@@ -1324,10 +1455,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <div className="flex items-baseline justify-between gap-3">
                     <div>
                       <div className="text-xs font-black uppercase tracking-widest text-slate-400">
-                        仮伝票
+                        {registerMode === 'pos' ? 'POS仮伝票' : '仮伝票'}
                       </div>
                       <div className="mt-1 text-sm font-bold text-slate-500">
-                        テーブルは使用しません
+                        {activePosHoldId
+                          ? `保留復帰中: ${posHolds.find((hold) => hold.id === activePosHoldId)?.title || activePosHoldId}`
+                          : 'テーブルは使用しません'}
                       </div>
                     </div>
                     <div className="text-right">
@@ -1337,7 +1470,74 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     </div>
                   </div>
+
+                  {registerMode === 'pos' && (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={holdCurrentPosCart}
+                        disabled={takeoutCart.length === 0}
+                        className="flex h-10 items-center justify-center gap-2 rounded-xl bg-amber-500 text-xs font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        <PauseCircle size={15} />
+                        保留する
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTakeoutCart([]);
+                          setTakeoutPaymentAmount('');
+                          setTakeoutPaymentMethod('');
+                          setActivePosHoldId('');
+                          setPosMessage('仮伝票をクリアしました。', 'success');
+                        }}
+                        disabled={takeoutCart.length === 0}
+                        className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <X size={15} />
+                        クリア
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {registerMode === 'pos' && posHolds.length > 0 && (
+                  <div className="shrink-0 border-b border-slate-100 bg-amber-50/60 px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] font-black tracking-widest text-amber-700">保留一覧</div>
+                      <div className="text-[11px] font-black text-amber-600">{posHolds.length}件</div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {posHolds.map((hold) => (
+                        <div
+                          key={hold.id}
+                          className="flex min-w-[180px] items-center justify-between gap-2 rounded-xl border border-amber-100 bg-white px-3 py-2 shadow-sm"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => restorePosHold(hold.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <div className="truncate text-xs font-black text-slate-800">
+                              {hold.title || '保留'}
+                            </div>
+                            <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                              {Number(hold.itemCount || 0).toLocaleString()}点 / ¥{Number(hold.totalAmount || 0).toLocaleString()}
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deletePosHold(hold.id)}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-50 text-red-400 hover:bg-red-50 hover:text-red-500"
+                            aria-label="保留を削除"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-4">
                   {takeoutCart.length === 0 ? (
@@ -1364,7 +1564,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                               </div>
                               {item.sourceType === 'retail' && (
                                 <div className="mt-1 text-[11px] font-black text-emerald-600">
-                                  商品マスター在庫対象 / 在庫 {Number(item.stockQuantity ?? 0).toLocaleString()}
+                                  商品マスター在庫対象 / 在庫 {Number(item.stockQuantity ?? 0).toLocaleString()} / 選択 {Number(item.quantity || 0).toLocaleString()}
                                 </div>
                               )}
                               {item.sourceType === 'manual' && (
@@ -1398,7 +1598,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                               <button
                                 type="button"
                                 onClick={() => updateTakeoutCartQuantity(item.id, 1)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50"
+                                disabled={
+                                  registerMode === 'pos' &&
+                                  item.sourceType === 'retail' &&
+                                  Number(item.quantity || 0) >= Number(item.stockQuantity || 0)
+                                }
+                                className="flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
                               >
                                 <Plus size={15} />
                               </button>
