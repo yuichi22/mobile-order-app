@@ -397,9 +397,14 @@ const handleCloseDay = async (closingCheck = {}) => {
         <>
           <div className="grid gap-3 md:grid-cols-5">
             <div className="rounded-2xl bg-orange-50 p-4">
-              <div className="text-xs font-black text-orange-500">売上合計</div>
+              <div className="text-xs font-black text-orange-500">売上合計 税込</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {formatCurrency(summary?.totalSales)}
+              </div>
+              <div className="mt-1 text-[11px] font-bold text-orange-500/80">
+                税抜 {formatCurrency(summary?.totalSalesTaxExcluded)}
+                <span className="mx-1 text-orange-300">/</span>
+                内税 {formatCurrency(summary?.totalTaxAmount)}
               </div>
             </div>
 

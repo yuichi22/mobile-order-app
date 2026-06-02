@@ -168,6 +168,8 @@ export const printDailyClosingReceipt = ({
   }
 
   const totalSales = Number(summary?.totalSales || closedDailyData?.totalSales || 0);
+  const totalSalesTaxExcluded = Number(summary?.totalSalesTaxExcluded || 0);
+  const totalTaxAmount = Number(summary?.totalTaxAmount || 0);
   const customerCount = Number(summary?.customerCount || closedDailyData?.customerCount || 0);
   const transactionCount = Number(summary?.transactionCount || closedDailyData?.transactionCount || 0);
   const itemCount = Number(summary?.itemCount || closedDailyData?.itemCount || 0);
@@ -305,7 +307,9 @@ export const printDailyClosingReceipt = ({
 
           ${section(`
             ${sectionTitle('サマリー')}
-            ${row('売上合計', formatCurrency(totalSales), 'total')}
+            ${row('売上合計 税込', formatCurrency(totalSales), 'total')}
+            ${row('売上合計 税抜', formatCurrency(totalSalesTaxExcluded))}
+            ${row('内消費税', formatCurrency(totalTaxAmount))}
             ${row('来客数', `${customerCount.toLocaleString()}名`)}
             ${row('客単価', formatCurrency(averageSpendPerCustomer))}
             ${row('会計件数', `${transactionCount.toLocaleString()}件`)}

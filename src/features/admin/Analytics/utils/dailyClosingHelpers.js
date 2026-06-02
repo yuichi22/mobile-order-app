@@ -712,6 +712,12 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
       ? Math.round((summary.grossProfitTaxExcluded / summary.grossProfitTrackedSalesTaxExcluded) * 1000) / 10
       : null;
 
+    const totalSalesTaxExcluded = Object.values(summary.taxBreakdown || {})
+      .reduce((sum, entry) => sum + Number(entry.baseAmount || 0), 0);
+
+    const totalTaxAmount = Object.values(summary.taxBreakdown || {})
+      .reduce((sum, entry) => sum + Number(entry.tax || 0), 0);
+
     const costMissingSalesRate = summary.totalSales > 0
       ? Math.round((summary.costMissingSalesTaxIncluded / summary.totalSales) * 1000) / 10
       : 0;
@@ -719,6 +725,8 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     return {
     ...publicSummary,
     customerCount,
+    totalSalesTaxExcluded: totalSalesTaxExcluded > 0 ? totalSalesTaxExcluded : summary.totalSales,
+    totalTaxAmount,
     grossProfitRate,
     costMissingSalesRate,
 
