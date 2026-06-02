@@ -205,7 +205,31 @@ service cloud.firestore {
 
       match /products/{productId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
-        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+
+        // 商品マスターの作成・削除・通常編集は manager 以上。
+        allow create, delete: if isPlatformAdmin() || isStoreManager(storeId);
+
+        // staff は POS / ORDERレジ会計時の在庫減算に必要な項目だけ更新可能。
+        allow update: if isPlatformAdmin()
+          || isStoreManager(storeId)
+          || (
+            isStoreStaff(storeId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'inventoryQuantity',
+              'quantity',
+              'lastPosSoldAt',
+              'lastOrderRegisterSoldAt',
+              'updatedAt'
+            ])
+            && (
+              !('inventoryQuantity' in request.resource.data)
+              || request.resource.data.inventoryQuantity is number
+            )
+            && (
+              !('quantity' in request.resource.data)
+              || request.resource.data.quantity is number
+            )
+          );
 
         match /priceHistory/{historyId} {
           allow read: if isPlatformAdmin() || isStoreStaff(storeId);
