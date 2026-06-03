@@ -737,207 +737,53 @@ export const PosTransactionHistory = ({ storeId }) => {
   }, [orders, settings, transactionsBySession]);
 
   const paidSessionTickets = useMemo(() => {
-    const grouped = new Map();
+    const orderById = new Map();
+    const ordersBySession = new Map();
 
     orders.forEach((order) => {
-      const isPaidActiveOrder =
-        order?.paymentStatus === 'paid' &&
-        order?.status !== 'cancelled' &&
-        order?.paymentStatus !== 'cancelled';
+      if (order?.id) orderById.set(order.id, order);
 
-      const matchesPaidDate = !selectedPaidDate || (
-        toDateInputValue(order.paidAt) === selectedPaidDate ||
-        toDateInputValue(order.paidAt || order.timestamp) === selectedPaidDate
-      );
-
-      if (!isPaidActiveOrder || !matchesPaidDate) return;
-
-      const sessionKey = order.sessionId || `single-${order.id}`;
-
-      if (!grouped.has(sessionKey)) {
-        grouped.set(sessionKey, {
-          id: `paid-session-${sessionKey}`,
-          sourceSessionId: sessionKey,
-          sessionId: order.sessionId || '',
-          tableId: order.tableId,
-          tableDisplayName: order.tableDisplayName || order.tableName || '',
-          tableName: order.tableName || order.tableDisplayName || '',
-          timestamp: order.timestamp,
-          paidAt: order.paidAt,
-          cancelledAt: resolveCancelDateValue(order),
-          status: 'paid',
-          totalPrice: 0,
-          subtotal: 0,
-          taxAmountReduced: 0,
-          taxAmountStandard: 0,
-          discountAmount: 0,
-          guestCount: Number(
-            order.guestCount ||
-            order.numberOfGuests ||
-            order.partySize ||
-            order.customerCount ||
-            0
-          ),
-          paymentMethod: '',
-          paymentBreakdown: [],
-          orderIds: [],
-          sourceTransactionIds: [],
-          items: [],
-          paidOrders: [],
-          excludedOrders: []
-        });
+      const sessionKey = String(order?.sessionId || '').trim();
+      if (sessionKey) {
+        if (!ordersBySession.has(sessionKey)) ordersBySession.set(sessionKey, []);
+        ordersBySession.get(sessionKey).push(order);
       }
+    });
 
-      const ticket = grouped.get(sessionKey);
+    const resolveLinkedOrders = (transaction) => {
+      const linkedOrderIds = [];
 
-      if (order.timestamp && (!ticket.timestamp || order.timestamp < ticket.timestamp)) {
-        ticket.timestamp = order.timestamp;
-      }
+      if (Array.isArray(transaction?.customerSummaries)) {
+        transaction.customerSummaries.forEach((summary) => {
+          if (!Array.isArray(summary?.orderIds)) return;
 
-      if (order.paidAt && (!ticket.paidAt || order.paidAt > ticket.paidAt)) {
-        ticket.paidAt = order.paidAt;
-      }
-
-      const orderTotal = Number(order.totalPrice || 0);
-      const paymentMethod = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
-      ticket.guestCount = Math.max(
-        Number(ticket.guestCount || 0),
-        Number(
-          order.guestCount ||
-          order.numberOfGuests ||
-          order.partySize ||
-          order.customerCount ||
-          0
-        )
-      );
-
-      if (isPaidActiveOrder) {
-        if (paidPaymentFilter !== 'all' && paymentMethod !== paidPaymentFilter) return;
-
-        ticket.orderIds.push(order.id);
-        ticket.paidOrders.push({
-          id: order.id,
-          totalPrice: orderTotal,
-          paymentMethod,
-          timestamp: order.timestamp,
-          paidAt: order.paidAt,
-          items: Array.isArray(order.items) ? order.items : []
-        });
-
-        ticket.totalPrice += orderTotal;
-        ticket.subtotal += Number(order.subtotal || orderTotal || 0);
-        ticket.taxAmountReduced += Number(order.taxAmountReduced || 0);
-        ticket.taxAmountStandard += Number(order.taxAmountStandard || 0);
-        ticket.discountAmount += Number(order.discountAmount || 0);
-
-        if (Array.isArray(order.items)) {
-          ticket.items = [...ticket.items, ...order.items];
-        }
-
-        const existingBreakdown = ticket.paymentBreakdown.find((entry) => entry.method === paymentMethod);
-        if (existingBreakdown) {
-          existingBreakdown.count += 1;
-          existingBreakdown.total += orderTotal;
-        } else {
-          ticket.paymentBreakdown.push({
-            method: paymentMethod,
-            label: formatPaymentMethod(paymentMethod),
-            count: 1,
-            total: orderTotal
+          summary.orderIds.forEach((orderId) => {
+            const normalizedOrderId = String(orderId || '').trim();
+            if (normalizedOrderId && !linkedOrderIds.includes(normalizedOrderId)) {
+              linkedOrderIds.push(normalizedOrderId);
+            }
           });
-        }
-
-        ticket.paymentMethod = ticket.paymentBreakdown.length === 1
-          ? ticket.paymentBreakdown[0].method
-          : 'mixed';
-
-        return;
-      }
-
-      ticket.excludedOrders.push({
-        id: order.id,
-        totalPrice: orderTotal,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        timestamp: order.timestamp,
-        paidAt: order.paidAt
-      });
-    });
-
-    transactions.forEach((transaction) => {
-      if (!transaction || transaction?.isPaid === false) return;
-
-      const sessionKey = transaction.sessionId || transaction.sourceSessionId || '';
-      if (!sessionKey || !grouped.has(sessionKey)) return;
-
-      const retailExtraItems = Array.isArray(transaction.items)
-        ? transaction.items.filter((item) => isRetailExtraItem(item))
-        : [];
-
-      if (retailExtraItems.length === 0) return;
-
-      const ticket = grouped.get(sessionKey);
-      const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
-      const transactionAmount = Number(transaction.totalAmount || transaction.totalPrice || 0);
-
-      ticket.sourceTransactionIds = Array.isArray(ticket.sourceTransactionIds)
-        ? [...new Set([...ticket.sourceTransactionIds, transaction.id].filter(Boolean))]
-        : [transaction.id].filter(Boolean);
-
-      ticket.items = [...ticket.items, ...retailExtraItems];
-
-      if (transaction.paidAt && (!ticket.paidAt || transaction.paidAt > ticket.paidAt)) {
-        ticket.paidAt = transaction.paidAt;
-      }
-
-      const existingPaidOrder = ticket.paidOrders.find((entry) => entry.id === transaction.id);
-      if (!existingPaidOrder) {
-        ticket.paidOrders.push({
-          id: transaction.id,
-          totalPrice: transactionAmount,
-          paymentMethod,
-          timestamp: transaction.timestamp,
-          paidAt: transaction.paidAt || transaction.timestamp,
-          items: retailExtraItems,
-          isTransaction: true
         });
       }
-    });
 
-    const orderBackedTickets = Array.from(grouped.values())
-      .filter((ticket) => ticket.paidOrders.length > 0)
-      .map((ticket) => {
-        const items = consolidateTicketItems(ticket.items);
+      const linkedOrders = linkedOrderIds
+        .map((orderId) => orderById.get(orderId))
+        .filter(Boolean);
 
-        return {
-          ...ticket,
-          items,
-          taxRates: resolveTicketTaxRates(items, settings)
-        };
-      });
+      if (linkedOrders.length > 0) return linkedOrders;
 
-    const standaloneTakeoutTickets = transactions
+      const sessionKey = String(transaction?.sessionId || transaction?.sourceSessionId || '').trim();
+      return sessionKey ? (ordersBySession.get(sessionKey) || []) : [];
+    };
+
+    const transactionTickets = transactions
+      .filter((transaction) => transaction && transaction?.isPaid !== false)
       .filter((transaction) => {
-        const isTakeoutTransaction =
-          transaction?.isTakeout === true ||
-          transaction?.orderType === 'takeout' ||
-          transaction?.serviceType === 'takeout';
+        const transactionDate =
+          toDateInputValue(transaction.paidAt) ||
+          toDateInputValue(transaction.timestamp);
 
-        if (!isTakeoutTransaction || transaction?.isPaid === false) return false;
-
-        const hasLinkedOrder = Array.isArray(transaction.customerSummaries) &&
-          transaction.customerSummaries.some((summary) => (
-            Array.isArray(summary?.orderIds) && summary.orderIds.length > 0
-          ));
-
-        if (hasLinkedOrder) return false;
-
-        const matchesPaidDate = !selectedPaidDate || (
-          toDateInputValue(transaction.paidAt) === selectedPaidDate ||
-          toDateInputValue(transaction.paidAt || transaction.timestamp) === selectedPaidDate
-        );
-
-        if (!matchesPaidDate) return false;
+        if (selectedPaidDate && transactionDate !== selectedPaidDate) return false;
 
         const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
         if (paidPaymentFilter !== 'all' && paymentMethod !== paidPaymentFilter) return false;
@@ -945,58 +791,114 @@ export const PosTransactionHistory = ({ storeId }) => {
         return true;
       })
       .map((transaction) => {
-        const items = consolidateTicketItems(
-          Array.isArray(transaction.items) ? transaction.items : []
-        );
+        const linkedOrders = resolveLinkedOrders(transaction);
+        const primaryOrder = linkedOrders[0] || null;
         const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
+        const transactionTotal = Number(transaction.totalAmount || transaction.totalPrice || transaction.amount || 0);
+
+        const transactionItems = Array.isArray(transaction.items) && transaction.items.length > 0
+          ? transaction.items
+          : linkedOrders.flatMap((order) => Array.isArray(order.items) ? order.items : []);
+
+        const items = consolidateTicketItems(transactionItems);
+
+        const hasCancelledLinkedOrder = linkedOrders.some((order) => (
+          order?.status === 'cancelled' ||
+          order?.paymentStatus === 'cancelled'
+        ));
+
+        const orderIds = linkedOrders
+          .map((order) => order?.id)
+          .filter(Boolean);
 
         return {
           id: `paid-transaction-${transaction.id}`,
           sourceTransactionId: transaction.id,
-          sourceSessionId: transaction.sessionId || '',
-          sessionId: transaction.sessionId || '',
-          tableId: transaction.tableId || 'takeout',
-          tableDisplayName: transaction.tableDisplayName || transaction.tableName || 'テイクアウト',
-          tableName: transaction.tableName || transaction.tableDisplayName || 'テイクアウト',
-          timestamp: transaction.timestamp,
-          paidAt: transaction.paidAt || transaction.timestamp,
+          sourceSessionId: transaction.sessionId || transaction.sourceSessionId || '',
+          sessionId: transaction.sessionId || transaction.sourceSessionId || '',
+          tableId: transaction.tableId || primaryOrder?.tableId || 'takeout',
+          tableDisplayName:
+            transaction.tableDisplayName ||
+            transaction.tableName ||
+            primaryOrder?.tableDisplayName ||
+            primaryOrder?.tableName ||
+            (transaction.isTakeout ? 'テイクアウト' : ''),
+          tableName:
+            transaction.tableName ||
+            transaction.tableDisplayName ||
+            primaryOrder?.tableName ||
+            primaryOrder?.tableDisplayName ||
+            (transaction.isTakeout ? 'テイクアウト' : ''),
+          timestamp:
+            transaction.timestamp ||
+            primaryOrder?.timestamp ||
+            transaction.paidAt ||
+            null,
+          paidAt:
+            transaction.paidAt ||
+            transaction.timestamp ||
+            primaryOrder?.paidAt ||
+            null,
           status: 'paid',
-          totalPrice: Number(transaction.totalAmount || transaction.totalPrice || 0),
-          subtotal: Number(transaction.subTotal || transaction.subtotal || 0),
+          totalPrice: transactionTotal,
+          subtotal: Number(transaction.subTotal || transaction.subtotal || transactionTotal || 0),
           taxAmountReduced: Number(transaction.taxAmountReduced || 0),
           taxAmountStandard: Number(transaction.taxAmountStandard || 0),
           discountAmount: Number(transaction.discountAmount || 0),
-          guestCount: Number(transaction.guestCount || 0),
+          guestCount: Number(
+            transaction.guestCount ||
+            primaryOrder?.guestCount ||
+            primaryOrder?.numberOfGuests ||
+            primaryOrder?.partySize ||
+            primaryOrder?.customerCount ||
+            0
+          ),
           paymentMethod,
           paymentBreakdown: [{
             method: paymentMethod,
             label: formatPaymentMethod(paymentMethod),
             count: 1,
-            total: Number(transaction.totalAmount || transaction.totalPrice || 0)
+            total: transactionTotal
           }],
-          orderIds: [],
+          orderIds,
+          sourceTransactionIds: [transaction.id].filter(Boolean),
           items,
-          paidOrders: [{
-            id: transaction.id,
-            totalPrice: Number(transaction.totalAmount || transaction.totalPrice || 0),
-            paymentMethod,
-            timestamp: transaction.timestamp,
-            paidAt: transaction.paidAt || transaction.timestamp,
-            items
-          }],
+          paidOrders: linkedOrders.length > 0
+            ? linkedOrders.map((order) => ({
+                id: order.id,
+                totalPrice: Number(order.totalPrice || 0),
+                paymentMethod,
+                timestamp: order.timestamp,
+                paidAt: order.paidAt || transaction.paidAt || transaction.timestamp,
+                status: order.status,
+                paymentStatus: order.paymentStatus,
+                items: Array.isArray(order.items) ? order.items : []
+              }))
+            : [{
+                id: transaction.id,
+                totalPrice: transactionTotal,
+                paymentMethod,
+                timestamp: transaction.timestamp,
+                paidAt: transaction.paidAt || transaction.timestamp,
+                items
+              }],
           excludedOrders: [],
-          isTakeout: true,
+          hasCancelledLinkedOrder,
+          isTakeout:
+            transaction?.isTakeout === true ||
+            transaction?.orderType === 'takeout' ||
+            transaction?.serviceType === 'takeout' ||
+            String(transaction?.tableId || '').toLowerCase() === 'takeout',
           taxRates: resolveTicketTaxRates(items, settings)
         };
       });
 
-    return [...orderBackedTickets, ...standaloneTakeoutTickets]
-      .sort((left, right) => {
-        const leftTime = left.paidAt?.getTime?.() || left.timestamp?.getTime?.() || 0;
-        const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
-        return rightTime - leftTime;
-      });
-  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate, settings, transactions]);
+    return transactionTickets.sort((left, right) => {
+      const leftTime = left.paidAt?.getTime?.() || left.timestamp?.getTime?.() || 0;
+      const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
+      return rightTime - leftTime;
+    });
+  }, [orders, paidPaymentFilter, selectedPaidDate, settings, transactions]);
 
   const clearCloseTicketLongPress = () => {
     if (closeTicketTimerRef.current) {
@@ -1190,28 +1092,25 @@ export const PosTransactionHistory = ({ storeId }) => {
       qr: { method: 'qr', label: 'QR決済', count: 0, total: 0 }
     };
 
-    orders.forEach((order) => {
-      const isPaidActiveOrder =
-        order?.paymentStatus === 'paid' &&
-        order?.status !== 'cancelled' &&
-        order?.paymentStatus !== 'cancelled';
+    transactions.forEach((transaction) => {
+      if (!transaction || transaction?.isPaid === false) return;
 
-      if (!isPaidActiveOrder) return;
-      if (selectedPaidDate && (
-        toDateInputValue(order.paidAt) !== selectedPaidDate &&
-        toDateInputValue(order.paidAt || order.timestamp) !== selectedPaidDate
-      )) return;
+      const transactionDate =
+        toDateInputValue(transaction.paidAt) ||
+        toDateInputValue(transaction.timestamp);
 
-      const method = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
+      if (selectedPaidDate && transactionDate !== selectedPaidDate) return;
+
+      const method = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
       if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
       if (!base[method]) return;
 
       base[method].count += 1;
-      base[method].total += Number(order.totalPrice || 0);
+      base[method].total += Number(transaction.totalAmount || transaction.totalPrice || transaction.amount || 0);
     });
 
     return [base.cash, base.card, base.qr];
-  }, [orders, paidPaymentFilter, paymentMethodByOrderId, selectedPaidDate]);
+  }, [paidPaymentFilter, selectedPaidDate, transactions]);
 
   const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
     sum + Number(entry.total || 0)
@@ -1544,6 +1443,11 @@ export const PosTransactionHistory = ({ storeId }) => {
                     >
                       {isCancelled ? 'キャンセル' : isPaid ? '会計済み' : '未会計'}
                     </span>
+                    {isPaid && ticket.hasCancelledLinkedOrder && (
+                      <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
+                        注文キャンセルあり
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
                     <span>注文 {formatDateTimeShort(ticket.timestamp) || formatTime(ticket.timestamp)}</span>
