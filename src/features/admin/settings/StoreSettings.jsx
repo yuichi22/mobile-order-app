@@ -18,7 +18,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { getActiveRegisterContext, getAvailableRegisters, setActiveRegisterContext } from '../../pos/utils/registerContext';
+import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
 import { db } from '../../../shared/api/firebase/client';
@@ -292,20 +292,15 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
   } = useCookingCategoryData(storeId);
 
   const [settingsMode, setSettingsMode] = useState(initialSettingsMode === 'pos' ? 'pos' : 'order');
-  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId));
+  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId, settings?.registers));
 
   useEffect(() => {
     setSettingsMode(initialSettingsMode === 'pos' ? 'pos' : 'order');
   }, [initialSettingsMode]);
 
   useEffect(() => {
-    setActiveRegisterContextState(getActiveRegisterContext(storeId));
-  }, [storeId]);
-
-  const handleSelectRegister = (register) => {
-    const nextRegister = setActiveRegisterContext(storeId, register);
-    setActiveRegisterContextState(nextRegister);
-  };
+    setActiveRegisterContextState(syncActiveRegisterName(storeId, settings?.registers));
+  }, [storeId, settings?.registers]);
 
   const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -453,32 +448,13 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
-          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-2">
-            <div className="mb-2 px-2 text-[10px] font-black tracking-widest text-slate-500">使用レジ</div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {getAvailableRegisters().map((register) => {
-                const active = activeRegisterContext?.id === register.id;
-
-                return (
-                  <button
-                    key={register.id}
-                    type="button"
-                    onClick={() => handleSelectRegister(register)}
-                    className={`flex h-10 items-center justify-center rounded-2xl text-[11px] font-black transition-all active:scale-95 ${
-                      active
-                        ? 'bg-slate-100 text-slate-950 shadow-lg'
-                        : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                    aria-label={`${register.name}を使用`}
-                    title={`${register.name}を使用`}
-                  >
-                    {register.label || register.name}
-                  </button>
-                );
-              })}
+          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-4">
+            <div className="text-[10px] font-black tracking-widest text-slate-500">使用レジ</div>
+            <div className="mt-2 truncate text-lg font-black tracking-tight text-white">
+              {activeRegisterContext?.name || 'レジ1'}
             </div>
-            <div className="mt-2 px-2 text-[10px] font-bold leading-relaxed text-slate-500">
-              選択したレジはORDER/POS会計に反映されます。
+            <div className="mt-1 text-[10px] font-bold leading-relaxed text-slate-500">
+              基本設定で変更できます。
             </div>
           </div>
 

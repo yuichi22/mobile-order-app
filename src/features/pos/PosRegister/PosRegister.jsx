@@ -76,6 +76,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
 };
 
 export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
+  const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkoutSelectionMode, setCheckoutSelectionMode] = useState('all');
@@ -1704,7 +1705,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       };
 
       const currentPeriodSnapshot = resolveCurrentPeriodSnapshot();
-      const registerContext = getActiveRegisterContext(storeId);
+      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers);
       const hasOrderRetailExtras = orderRetailCart.length > 0;
 
       const transactionItems = consolidatedItems.map((item) => {

@@ -100,6 +100,7 @@ const writePosHoldsToStorage = (storeId, holds) => {
 };
 
 export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, registerMode = 'order' }) => {
+  const { settings: storeSettings } = useStoreSettings(storeId);
   const [scanInput, setScanInput] = useState('');
   const [viewMode, setViewMode] = useState('map');
   const inputRef = useRef(null);
@@ -607,7 +608,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         }
       };
 
-      const registerContext = getActiveRegisterContext(storeId);
+      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers);
       const hasManualSale = items.some((item) => item?.sourceType === 'manual');
       const hasBarcodeSale = items.some((item) => item?.sourceType === 'barcode');
       const hasRetailSale = items.some((item) => item?.sourceType === 'retail');

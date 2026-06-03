@@ -29,12 +29,15 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
+import { getActiveRegisterContext, getAvailableRegisters, setActiveRegisterContext } from '../../../pos/utils/registerContext';
 
 const SettingSection = ({ title, desc, icon, children }) => {
   const SectionIcon = icon;
 
   return (
     <div className="grid grid-cols-1 gap-8 border-b border-gray-200 py-10 last:border-0 lg:grid-cols-12 lg:gap-12">
+
+
       <div className="space-y-2 lg:col-span-4">
         <div className="mb-1 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
@@ -85,6 +88,57 @@ const BasicSettings = ({
   onSaved
 }) => {
   const formRef = useRef(null);
+  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => (
+    getActiveRegisterContext(storeId, settings?.registers)
+  ));
+
+  useEffect(() => {
+    setActiveRegisterContextState(getActiveRegisterContext(storeId, settings?.registers));
+  }, [storeId, settings?.registers]);
+
+  const registerOptions = useMemo(
+    () => getAvailableRegisters(settings?.registers),
+    [settings?.registers]
+  );
+
+  const [registerDrafts, setRegisterDrafts] = useState(() => registerOptions);
+
+  useEffect(() => {
+    setRegisterDrafts(registerOptions);
+  }, [registerOptions]);
+
+  const saveRegisterDrafts = async (nextRegisters = registerDrafts) => {
+    const normalizedRegisters = getAvailableRegisters(nextRegisters);
+
+    await onSave({
+      ...settings,
+      registers: normalizedRegisters
+    });
+
+    return normalizedRegisters;
+  };
+
+  const updateRegisterNameDraft = (registerId, name) => {
+    setRegisterDrafts((current) => (
+      getAvailableRegisters(current).map((register) => (
+        register.id === registerId
+          ? { ...register, name, label: name }
+          : register
+      ))
+    ));
+  };
+
+  const commitRegisterNameDraft = async () => {
+    await saveRegisterDrafts(registerDrafts);
+  };
+
+  const handleSelectActiveRegister = async (register) => {
+    const normalizedDrafts = await saveRegisterDrafts(registerDrafts);
+    const latestRegister = normalizedDrafts.find((entry) => entry.id === register.id) || register;
+    const nextRegister = setActiveRegisterContext(storeId, latestRegister);
+    setActiveRegisterContextState(nextRegister);
+  };
+
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [taxRounding, setTaxRounding] = useState('floor');
@@ -455,6 +509,69 @@ const handleTestPrinter = async () => {
 
   return (
     <div className="mx-auto w-full max-w-6xl animate-in fade-in pb-32 duration-500">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-5">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            Register Settings
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-900">
+            レジ設定
+          </h2>
+          <p className="mt-1 text-sm font-bold leading-relaxed text-gray-400">
+            レジ名と、この端末で使用するレジを設定します。選択したレジはORDER/POS会計に記録されます。
+          </p>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-3">
+          {registerDrafts.map((register) => {
+            const active = activeRegisterContext?.id === register.id;
+
+            return (
+              <div
+                key={register.id}
+                className={`rounded-2xl border p-4 transition-all ${
+                  active
+                    ? 'border-slate-900 bg-slate-50 shadow-sm'
+                    : 'border-gray-100 bg-white'
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="text-xs font-black text-gray-400">{register.id}</span>
+                  {active && (
+                    <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
+                      この端末
+                    </span>
+                  )}
+                </div>
+
+                <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                  レジ名
+                </label>
+                <input
+                  value={register.name || ''}
+                  onChange={(event) => updateRegisterNameDraft(register.id, event.target.value)}
+                  onBlur={commitRegisterNameDraft}
+                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  placeholder="例：メインレジ"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectActiveRegister(register)}
+                  className={`mt-3 flex h-11 w-full items-center justify-center rounded-2xl text-sm font-black transition-all active:scale-95 ${
+                    active
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-950'
+                  }`}
+                >
+                  {active ? 'この端末で使用中' : 'この端末で使う'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="pb-10 pt-6">
         <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
           <span>Settings</span>

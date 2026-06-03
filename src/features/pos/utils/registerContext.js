@@ -44,10 +44,36 @@ export const buildRegisterOptions = (count = 3) => (
   })
 );
 
-export const getAvailableRegisters = () => DEFAULT_REGISTERS;
+const normalizeRegister = (register, fallback = {}) => {
+  const id = String(register?.id || fallback.id || DEFAULT_REGISTER_ID).trim() || DEFAULT_REGISTER_ID;
+  const fallbackName = fallback.name || `レジ${parseRegisterNumber(id)}`;
+  const name = String(register?.name || register?.label || fallbackName || DEFAULT_REGISTER_NAME).trim() || fallbackName;
 
-export const getRegisterContextById = (registerId) => {
-  const found = DEFAULT_REGISTERS.find((register) => register.id === registerId);
+  return {
+    id,
+    name,
+    label: name
+  };
+};
+
+export const normalizeRegisters = (registers) => {
+  const sourceRegisters = Array.isArray(registers) && registers.length > 0
+    ? registers
+    : DEFAULT_REGISTERS;
+
+  const normalized = DEFAULT_REGISTERS.map((defaultRegister) => {
+    const matched = sourceRegisters.find((register) => register?.id === defaultRegister.id);
+    return normalizeRegister(matched || defaultRegister, defaultRegister);
+  });
+
+  return normalized;
+};
+
+export const getAvailableRegisters = (registers) => normalizeRegisters(registers);
+
+export const getRegisterContextById = (registerId, registers) => {
+  const normalizedRegisters = normalizeRegisters(registers);
+  const found = normalizedRegisters.find((register) => register.id === registerId);
   if (found) return found;
 
   const id = registerId || DEFAULT_REGISTER_ID;
@@ -58,13 +84,9 @@ export const getRegisterContextById = (registerId) => {
   };
 };
 
-export const getActiveRegisterContext = (storeId) => {
+export const getActiveRegisterContext = (storeId, registers) => {
   if (!canUseBrowserStorage()) {
-    return {
-      id: DEFAULT_REGISTER_ID,
-      name: DEFAULT_REGISTER_NAME,
-      label: DEFAULT_REGISTER_NAME
-    };
+    return getRegisterContextById(DEFAULT_REGISTER_ID, registers);
   }
 
   try {
@@ -72,7 +94,7 @@ export const getActiveRegisterContext = (storeId) => {
     const nameKey = buildStorageKey(storeId, 'activeRegisterName');
 
     const storedId = window.localStorage.getItem(idKey) || DEFAULT_REGISTER_ID;
-    const fallback = getRegisterContextById(storedId);
+    const fallback = getRegisterContextById(storedId, registers);
     const storedName = window.localStorage.getItem(nameKey) || fallback.name || DEFAULT_REGISTER_NAME;
 
     return {
@@ -82,11 +104,7 @@ export const getActiveRegisterContext = (storeId) => {
       label: storedName
     };
   } catch (error) {
-    return {
-      id: DEFAULT_REGISTER_ID,
-      name: DEFAULT_REGISTER_NAME,
-      label: DEFAULT_REGISTER_NAME
-    };
+    return getRegisterContextById(DEFAULT_REGISTER_ID, registers);
   }
 };
 
@@ -115,4 +133,13 @@ export const setActiveRegisterContext = (storeId, register) => {
     name,
     label: register?.label || name
   };
+};
+
+export const syncActiveRegisterName = (storeId, registers) => {
+  const activeRegister = getActiveRegisterContext(storeId, registers);
+  const latestRegister = getRegisterContextById(activeRegister.id, registers);
+
+  if (activeRegister.name === latestRegister.name) return activeRegister;
+
+  return setActiveRegisterContext(storeId, latestRegister);
 };
