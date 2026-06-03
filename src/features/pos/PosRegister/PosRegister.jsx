@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { collection, doc, getDocs, increment, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
+import { getActiveRegisterContext } from '../utils/registerContext';
 import { auth, db } from '../../../shared/api/firebase/client';
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import {
@@ -1608,6 +1609,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       };
 
       const currentPeriodSnapshot = resolveCurrentPeriodSnapshot();
+      const registerContext = getActiveRegisterContext(storeId);
+      const hasOrderRetailExtras = orderRetailCart.length > 0;
 
       const transactionItems = consolidatedItems.map((item) => {
         const categoryId =
@@ -1634,6 +1637,15 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       batch.set(transactionRef, {
         sessionId,
         tableId,
+
+        registerId: registerContext.id,
+        registerName: registerContext.name,
+        registerMode: 'order',
+        salesChannel: 'order_register',
+        salesChannelLabel: 'ORDERレジ',
+        salesSubChannel: hasOrderRetailExtras ? 'order_table_with_retail' : 'order_table',
+        salesSubChannelLabel: hasOrderRetailExtras ? '店内注文会計 + 物販' : '店内注文会計',
+
         customerIds,
         customerSummaries,
         items: transactionItems,

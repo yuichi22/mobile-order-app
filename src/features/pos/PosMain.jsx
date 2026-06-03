@@ -3,6 +3,7 @@ import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/ta
 import { collection, doc, getDocs, increment, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw } from 'lucide-react';
 
+import { getActiveRegisterContext } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
@@ -606,6 +607,31 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         }
       };
 
+      const registerContext = getActiveRegisterContext(storeId);
+      const hasManualSale = items.some((item) => item?.sourceType === 'manual');
+      const hasBarcodeSale = items.some((item) => item?.sourceType === 'barcode');
+      const hasRetailSale = items.some((item) => item?.sourceType === 'retail');
+
+      const salesSubChannel = registerMode === 'pos'
+        ? hasManualSale
+          ? 'pos_manual'
+          : hasBarcodeSale
+            ? 'pos_barcode'
+            : hasRetailSale
+              ? 'pos_product_master'
+              : 'pos_sale'
+        : 'order_takeout';
+
+      const salesSubChannelLabel = registerMode === 'pos'
+        ? hasManualSale
+          ? '手入力販売'
+          : hasBarcodeSale
+            ? 'バーコード販売'
+            : hasRetailSale
+              ? '商品マスター販売'
+              : 'POS販売'
+        : 'テイクアウト注文会計';
+
       const batch = writeBatch(db);
 
       batch.set(transactionRef, {
@@ -613,6 +639,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           tableId: 'takeout',
           tableDisplayName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
           tableName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
+
+          registerId: registerContext.id,
+          registerName: registerContext.name,
+          registerMode: registerMode === 'pos' ? 'pos' : 'order',
+          salesChannel: registerMode === 'pos' ? 'pos_register' : 'order_register',
+          salesChannelLabel: registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
+          salesSubChannel,
+          salesSubChannelLabel,
 
           orderType: 'takeout',
           serviceType: 'takeout',
@@ -698,6 +732,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         tableId: 'takeout',
         tableDisplayName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
         tableName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
+        registerId: registerContext.id,
+        registerName: registerContext.name,
+        registerMode: registerMode === 'pos' ? 'pos' : 'order',
+        salesChannel: registerMode === 'pos' ? 'pos_register' : 'order_register',
+        salesChannelLabel: registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
+        salesSubChannel,
+        salesSubChannelLabel,
         isTakeout: true,
         orderType: 'takeout',
         serviceType: 'takeout',
