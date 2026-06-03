@@ -5,7 +5,7 @@ import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
   CheckCircle2, ChevronDown, CreditCard, Filter, Printer, QrCode, Receipt, Tag, XCircle, LogOut
 } from 'lucide-react';
-import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -45,6 +45,35 @@ const formatTransactionDateTime = (ticket = {}) => {
     hour: '2-digit',
     minute: '2-digit'
   }).format(date);
+};
+
+
+const buildDateRangeFromInput = (dateInputValue) => {
+  if (!dateInputValue) return null;
+
+  const [year, month, day] = String(dateInputValue).split('-').map((value) => Number(value));
+  if (!year || !month || !day) return null;
+
+  const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const end = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+
+  return {
+    start,
+    end,
+    startTimestamp: Timestamp.fromDate(start),
+    endTimestamp: Timestamp.fromDate(end)
+  };
+};
+
+const mergeDocsById = (...docLists) => {
+  const map = new Map();
+
+  docLists.flat().forEach((docSnap) => {
+    if (!docSnap?.id || map.has(docSnap.id)) return;
+    map.set(docSnap.id, docSnap);
+  });
+
+  return Array.from(map.values());
 };
 
 
@@ -336,6 +365,7 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
   const [selectedPaidDate, setSelectedPaidDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const selectedPaidDateRange = useMemo(() => buildDateRangeFromInput(selectedPaidDate), [selectedPaidDate]);
   const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
   const todayDateValue = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [closeTicketTarget, setCloseTicketTarget] = useState(null);
@@ -347,45 +377,147 @@ export const PosTransactionHistory = ({ storeId }) => {
   useEffect(() => {
     if (!storeId) return undefined;
 
-    const ordersQuery = query(
-      collection(db, 'stores', storeId, 'orders'),
-      orderBy('timestamp', 'desc'),
-      limit(100)
-    );
+    setLoading(true);
 
-    return onSnapshot(ordersQuery, (snapshot) => {
-      setOrders(snapshot.docs.map((orderDoc) => ({
-        id: orderDoc.id,
-        ...orderDoc.data(),
-        timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
-        paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
-      })));
-      setLoading(false);
-    });
-  }, [storeId]);
+    const ordersCollection = collection(db, 'stores', storeId, 'orders');
+
+    if (!selectedPaidDateRange) {
+      const ordersQuery = query(
+        ordersCollection,
+        orderBy('timestamp', 'desc'),
+        limit(300)
+      );
+
+      return onSnapshot(ordersQuery, (snapshot) => {
+        setOrders(snapshot.docs.map((orderDoc) => ({
+          id: orderDoc.id,
+          ...orderDoc.data(),
+          timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
+          paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
+        })));
+        setLoading(false);
+      });
+    }
+
+    let isActive = true;
+
+    const loadOrdersForSelectedDate = async () => {
+      try {
+        const paidAtQuery = query(
+          ordersCollection,
+          where('paidAt', '>=', selectedPaidDateRange.startTimestamp),
+          where('paidAt', '<', selectedPaidDateRange.endTimestamp),
+          orderBy('paidAt', 'desc'),
+          limit(1000)
+        );
+
+        const timestampQuery = query(
+          ordersCollection,
+          where('timestamp', '>=', selectedPaidDateRange.startTimestamp),
+          where('timestamp', '<', selectedPaidDateRange.endTimestamp),
+          orderBy('timestamp', 'desc'),
+          limit(1000)
+        );
+
+        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
+          getDocs(paidAtQuery),
+          getDocs(timestampQuery)
+        ]);
+
+        if (!isActive) return;
+
+        const mergedDocs = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs);
+
+        setOrders(mergedDocs.map((orderDoc) => ({
+          id: orderDoc.id,
+          ...orderDoc.data(),
+          timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
+          paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
+        })));
+      } catch (error) {
+        console.error('[PosTransactionHistory] failed to load orders for selected date', error);
+        if (isActive) setOrders([]);
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
+
+    loadOrdersForSelectedDate();
+
+    return () => {
+      isActive = false;
+    };
+  }, [storeId, selectedPaidDateRange]);
 
   useEffect(() => {
     if (!storeId) return undefined;
 
-    const transactionsQuery = query(
-      collection(db, 'stores', storeId, 'transactions'),
-      orderBy('timestamp', 'desc'),
-      limit(150)
-    );
+    const transactionsCollection = collection(db, 'stores', storeId, 'transactions');
 
-    return onSnapshot(transactionsQuery, (snapshot) => {
-      setTransactions(snapshot.docs.map((transactionDoc) => {
-        const data = transactionDoc.data();
+    const mapTransactionDoc = (transactionDoc) => {
+      const data = transactionDoc.data();
 
-        return {
-          id: transactionDoc.id,
-          ...data,
-          timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
-          paidAt: data.paidAt?.toDate ? data.paidAt.toDate() : null
-        };
-      }));
-    });
-  }, [storeId]);
+      return {
+        id: transactionDoc.id,
+        ...data,
+        timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
+        paidAt: data.paidAt?.toDate ? data.paidAt.toDate() : null
+      };
+    };
+
+    if (!selectedPaidDateRange) {
+      const transactionsQuery = query(
+        transactionsCollection,
+        orderBy('timestamp', 'desc'),
+        limit(300)
+      );
+
+      return onSnapshot(transactionsQuery, (snapshot) => {
+        setTransactions(snapshot.docs.map(mapTransactionDoc));
+      });
+    }
+
+    let isActive = true;
+
+    const loadTransactionsForSelectedDate = async () => {
+      try {
+        const paidAtQuery = query(
+          transactionsCollection,
+          where('paidAt', '>=', selectedPaidDateRange.startTimestamp),
+          where('paidAt', '<', selectedPaidDateRange.endTimestamp),
+          orderBy('paidAt', 'desc'),
+          limit(1000)
+        );
+
+        const timestampQuery = query(
+          transactionsCollection,
+          where('timestamp', '>=', selectedPaidDateRange.startTimestamp),
+          where('timestamp', '<', selectedPaidDateRange.endTimestamp),
+          orderBy('timestamp', 'desc'),
+          limit(1000)
+        );
+
+        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
+          getDocs(paidAtQuery),
+          getDocs(timestampQuery)
+        ]);
+
+        if (!isActive) return;
+
+        const mergedDocs = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs);
+        setTransactions(mergedDocs.map(mapTransactionDoc));
+      } catch (error) {
+        console.error('[PosTransactionHistory] failed to load transactions for selected date', error);
+        if (isActive) setTransactions([]);
+      }
+    };
+
+    loadTransactionsForSelectedDate();
+
+    return () => {
+      isActive = false;
+    };
+  }, [storeId, selectedPaidDateRange]);
 
   const transactionsBySession = useMemo(() => {
     const map = new Map();
@@ -949,7 +1081,10 @@ export const PosTransactionHistory = ({ storeId }) => {
         order?.paymentStatus !== 'cancelled';
 
       if (!isPaidActiveOrder) return;
-      if (selectedPaidDate && toDateInputValue(order.paidAt) !== selectedPaidDate) return;
+      if (selectedPaidDate && (
+        toDateInputValue(order.paidAt) !== selectedPaidDate &&
+        toDateInputValue(order.paidAt || order.timestamp) !== selectedPaidDate
+      )) return;
 
       const method = paymentMethodByOrderId.get(order.id) || getPaymentMethodKey(order.paymentMethod);
       if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
