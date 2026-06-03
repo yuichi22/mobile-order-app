@@ -301,8 +301,8 @@ const getTransactionAmount = (record) => (
 );
 
 const getRecordDate = (record) => (
-  toDate(record?.timestamp) ||
   toDate(record?.paidAt) ||
+  toDate(record?.timestamp) ||
   toDate(record?.createdAt) ||
   new Date()
 );

@@ -568,7 +568,7 @@ const addPeriodSales = (summary, transaction, periods = []) => {
   if (orderAnalyticsRecords.length > 0 && periods.length > 0) {
     orderAnalyticsRecords.forEach((orderRecord) => {
       const matchedPeriod = resolvePeriodByDate(
-        orderRecord.timestamp || orderRecord.paidAt || transaction.timestamp,
+        orderRecord.paidAt || orderRecord.timestamp || transaction.paidAt || transaction.timestamp,
         periods
       );
 

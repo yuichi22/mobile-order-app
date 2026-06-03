@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../../../shared/api/firebase/client';
 
@@ -161,7 +161,12 @@ const buildOrderAnalyticsRecord = (order, transaction, allocatedAmount = 0, tran
   transactionId: transaction.id,
   sessionId: order.sessionId || transaction.sessionId || '',
   tableId: order.tableId || transaction.tableId || '',
-  timestamp: toDate(order.timestamp) || toDate(transaction.timestamp) || new Date(),
+  timestamp:
+    toDate(order.paidAt) ||
+    toDate(transaction.paidAt) ||
+    toDate(transaction.timestamp) ||
+    toDate(order.timestamp) ||
+    new Date(),
   paidAt: toDate(order.paidAt) || toDate(transaction.paidAt) || null,
   totalAmount: Number(allocatedAmount || 0) || 0,
   guestCount: Number(transaction.guestCount || 0) || 0,
@@ -188,96 +193,122 @@ export const useDailyTransactions = ({ storeId, targetDate }) => {
 
     const start = toStartOfDay(targetDate);
     const end = toEndOfDay(targetDate);
+    const startTimestamp = Timestamp.fromDate(start);
+    const endTimestamp = Timestamp.fromDate(end);
+    const transactionsCollection = collection(db, 'stores', storeId, 'transactions');
 
-    const transactionsQuery = query(
-      collection(db, 'stores', storeId, 'transactions'),
-      where('timestamp', '>=', start),
-      where('timestamp', '<=', end)
-    );
+    const mapTransactionDoc = (transactionDoc) => {
+      const data = transactionDoc.data();
 
-    const unsubscribe = onSnapshot(
-      transactionsQuery,
-      async (snapshot) => {
-        try {
-          const fetched = snapshot.docs.map((transactionDoc) => {
-            const data = transactionDoc.data();
+      return {
+        id: transactionDoc.id,
+        ...data,
+        timestamp: toDate(data.paidAt) || toDate(data.timestamp) || null,
+        paidAt: toDate(data.paidAt) || null
+      };
+    };
 
-            return {
-              id: transactionDoc.id,
-              ...data,
-              timestamp: toDate(data.timestamp) || toDate(data.paidAt) || null,
-              paidAt: toDate(data.paidAt) || null
-            };
-          });
+    const mergeDocsById = (...docLists) => {
+      const map = new Map();
 
-          fetched.sort((left, right) => {
-            const leftTime = left.timestamp?.getTime?.() || 0;
-            const rightTime = right.timestamp?.getTime?.() || 0;
+      docLists.flat().forEach((docSnap) => {
+        if (!docSnap?.id || map.has(docSnap.id)) return;
+        map.set(docSnap.id, docSnap);
+      });
+
+      return Array.from(map.values());
+    };
+
+    const loadTransactions = async () => {
+      try {
+        const paidAtQuery = query(
+          transactionsCollection,
+          where('paidAt', '>=', startTimestamp),
+          where('paidAt', '<=', endTimestamp)
+        );
+
+        const timestampQuery = query(
+          transactionsCollection,
+          where('timestamp', '>=', startTimestamp),
+          where('timestamp', '<=', endTimestamp)
+        );
+
+        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
+          getDocs(paidAtQuery),
+          getDocs(timestampQuery)
+        ]);
+
+        if (!isActive) return;
+
+        const fetched = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs)
+          .map(mapTransactionDoc)
+          .sort((left, right) => {
+            const leftTime =
+              left.paidAt?.getTime?.() ||
+              left.timestamp?.getTime?.() ||
+              0;
+            const rightTime =
+              right.paidAt?.getTime?.() ||
+              right.timestamp?.getTime?.() ||
+              0;
             return leftTime - rightTime;
           });
 
-          const transactionsWithOrders = await Promise.all(
-            fetched.map(async (transaction) => {
-              const orderIds = getLinkedOrderIds(transaction);
+        const transactionsWithOrders = await Promise.all(
+          fetched.map(async (transaction) => {
+            const orderIds = getLinkedOrderIds(transaction);
 
-              if (orderIds.length === 0) {
-                return {
-                  ...transaction,
-                  orderAnalyticsRecords: []
-                };
-              }
-
-              const orderSnapshots = await Promise.all(
-                orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
-              );
-
-              const existingOrders = orderSnapshots
-                .filter((orderSnapshot) => orderSnapshot.exists())
-                .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
-
-              const amountByOrderId = allocateTransactionAmountByOrder(
-                transaction,
-                existingOrders.map((order) => order.id)
-              );
-
-              const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
-                order,
-                transaction,
-                amountByOrderId[order.id] || 0,
-                getTransactionItemsForOrder(transaction, order.id)
-              ));
-
+            if (orderIds.length === 0) {
               return {
                 ...transaction,
-                orderAnalyticsRecords
+                orderAnalyticsRecords: []
               };
-            })
-          );
+            }
 
-          if (!isActive) return;
+            const orderSnapshots = await Promise.all(
+              orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
+            );
 
-          setTransactions(transactionsWithOrders);
-          setLoading(false);
-        } catch (error) {
-          console.error('Firestore Error (DailyTransactions Linked Orders):', error);
-          if (isActive) {
-            setTransactions([]);
-            setLoading(false);
-          }
-        }
-      },
-      (error) => {
+            const existingOrders = orderSnapshots
+              .filter((orderSnapshot) => orderSnapshot.exists())
+              .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
+
+            const amountByOrderId = allocateTransactionAmountByOrder(
+              transaction,
+              existingOrders.map((order) => order.id)
+            );
+
+            const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
+              order,
+              transaction,
+              amountByOrderId[order.id] || 0,
+              getTransactionItemsForOrder(transaction, order.id)
+            ));
+
+            return {
+              ...transaction,
+              orderAnalyticsRecords
+            };
+          })
+        );
+
+        if (!isActive) return;
+
+        setTransactions(transactionsWithOrders);
+        setLoading(false);
+      } catch (error) {
         console.error('Firestore Error (DailyTransactions):', error);
         if (isActive) {
           setTransactions([]);
           setLoading(false);
         }
       }
-    );
+    };
+
+    loadTransactions();
 
     return () => {
       isActive = false;
-      unsubscribe();
     };
   }, [storeId, targetDate]);
 

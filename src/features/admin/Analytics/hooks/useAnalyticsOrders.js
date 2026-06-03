@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../../../shared/api/firebase/client';
 import { toDate } from '../utils/analyticsHelpers';
@@ -138,12 +138,16 @@ const buildOrderAnalyticsRecord = (order, transaction, allocatedAmount = 0, tran
   transactionId: transaction.id,
   sessionId: order.sessionId || transaction.sessionId || '',
   tableId: order.tableId || transaction.tableId || '',
-  timestamp: order.timestamp?.toDate
-    ? order.timestamp.toDate()
-    : toDate(order.timestamp) || toDate(transaction.timestamp) || new Date(),
-  paidAt: order.paidAt?.toDate
-    ? order.paidAt.toDate()
-    : toDate(order.paidAt) || toDate(transaction.paidAt) || null,
+  timestamp:
+    (order.paidAt?.toDate ? order.paidAt.toDate() : toDate(order.paidAt)) ||
+    (transaction.paidAt?.toDate ? transaction.paidAt.toDate() : toDate(transaction.paidAt)) ||
+    (transaction.timestamp?.toDate ? transaction.timestamp.toDate() : toDate(transaction.timestamp)) ||
+    (order.timestamp?.toDate ? order.timestamp.toDate() : toDate(order.timestamp)) ||
+    new Date(),
+  paidAt:
+    (order.paidAt?.toDate ? order.paidAt.toDate() : toDate(order.paidAt)) ||
+    (transaction.paidAt?.toDate ? transaction.paidAt.toDate() : toDate(transaction.paidAt)) ||
+    null,
   totalAmount: Number(allocatedAmount || 0) || 0,
   guestCount: Number(transaction.guestCount || 0) || 0,
   items: Array.isArray(transactionItems) && transactionItems.length > 0
@@ -168,120 +172,149 @@ export const useAnalyticsOrders = ({
       return undefined;
     }
 
-    let start = toDate(currentDate) || new Date();
-    let end = toDate(currentDate) || new Date();
-
-    if (period === 'daily') {
-      start.setHours(0, 0, 0, 0);
-
-      end = new Date(start);
-      end.setHours(23, 59, 59, 999);
-    } else if (period === 'monthly') {
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-
-      end = new Date(start);
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);
-      end.setHours(23, 59, 59, 999);
-    } else if (period === 'weekly') {
-      end = toDate(weeklyBaseDate || currentDate) || new Date();
-      end.setHours(23, 59, 59, 999);
-
-      start = new Date(end);
-      start.setDate(start.getDate() - (53 * 7) + 1);
-      start.setHours(0, 0, 0, 0);
-    } else if (period === 'custom') {
-      start = toDate(customRange.start) || new Date();
-      start.setHours(0, 0, 0, 0);
-
-      end = toDate(customRange.end) || new Date();
-      end.setHours(23, 59, 59, 999);
-    }
-
-    const analyticsQuery = query(
-      collection(db, 'stores', storeId, 'transactions'),
-      where('timestamp', '>=', start),
-      where('timestamp', '<=', end)
-    );
-
     let isActive = true;
 
-    const unsubscribe = onSnapshot(
-      analyticsQuery,
-      async (snapshot) => {
-        try {
-          const fetched = snapshot.docs
-            .map((transactionDoc) => {
-              const data = transactionDoc.data();
+    const loadAnalyticsOrders = async () => {
+      let start = toDate(currentDate) || new Date();
+      let end = toDate(currentDate) || new Date();
 
-              return {
-                id: transactionDoc.id,
-                ...data,
-                timestamp: data.timestamp?.toDate
-                  ? data.timestamp.toDate()
-                  : data.paidAt?.toDate
-                    ? data.paidAt.toDate()
-                    : new Date()
-              };
-            })
-            .filter((transaction) => transaction.isPaid !== false);
+      if (period === 'daily') {
+        start.setHours(0, 0, 0, 0);
 
-          const withOrderAnalyticsRecords = await Promise.all(
-            fetched.map(async (transaction) => {
-              const orderIds = getLinkedOrderIds(transaction);
+        end = new Date(start);
+        end.setHours(23, 59, 59, 999);
+      } else if (period === 'monthly') {
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
 
-              if (orderIds.length === 0) {
-                return {
-                  ...transaction,
-                  orderAnalyticsRecords: []
-                };
-              }
+        end = new Date(start);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+        end.setHours(23, 59, 59, 999);
+      } else if (period === 'weekly') {
+        end = toDate(weeklyBaseDate || currentDate) || new Date();
+        end.setHours(23, 59, 59, 999);
 
-              const orderSnapshots = await Promise.all(
-                orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
-              );
+        start = new Date(end);
+        start.setDate(start.getDate() - (53 * 7) + 1);
+        start.setHours(0, 0, 0, 0);
+      } else if (period === 'custom') {
+        start = toDate(customRange.start) || new Date();
+        start.setHours(0, 0, 0, 0);
 
-              const existingOrders = orderSnapshots
-                .filter((orderSnapshot) => orderSnapshot.exists())
-                .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
+        end = toDate(customRange.end) || new Date();
+        end.setHours(23, 59, 59, 999);
+      }
 
-              const amountByOrderId = allocateTransactionAmountByOrder(
-                transaction,
-                existingOrders.map((order) => order.id)
-              );
+      const startTimestamp = Timestamp.fromDate(start);
+      const endTimestamp = Timestamp.fromDate(end);
+      const transactionsCollection = collection(db, 'stores', storeId, 'transactions');
 
-              const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
-                order,
-                transaction,
-                amountByOrderId[order.id] || 0,
-                getTransactionItemsForOrder(transaction, order.id)
-              ));
+      const mapTransactionDoc = (transactionDoc) => {
+        const data = transactionDoc.data();
 
+        const paidAt = data.paidAt?.toDate
+          ? data.paidAt.toDate()
+          : toDate(data.paidAt);
+
+        const timestamp = paidAt ||
+          (data.timestamp?.toDate ? data.timestamp.toDate() : toDate(data.timestamp)) ||
+          new Date();
+
+        return {
+          id: transactionDoc.id,
+          ...data,
+          timestamp,
+          paidAt
+        };
+      };
+
+      const mergeDocsById = (...docLists) => {
+        const map = new Map();
+
+        docLists.flat().forEach((docSnap) => {
+          if (!docSnap?.id || map.has(docSnap.id)) return;
+          map.set(docSnap.id, docSnap);
+        });
+
+        return Array.from(map.values());
+      };
+
+      try {
+        const paidAtQuery = query(
+          transactionsCollection,
+          where('paidAt', '>=', startTimestamp),
+          where('paidAt', '<=', endTimestamp)
+        );
+
+        const timestampQuery = query(
+          transactionsCollection,
+          where('timestamp', '>=', startTimestamp),
+          where('timestamp', '<=', endTimestamp)
+        );
+
+        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
+          getDocs(paidAtQuery),
+          getDocs(timestampQuery)
+        ]);
+
+        if (!isActive) return;
+
+        const fetched = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs)
+          .map(mapTransactionDoc)
+          .filter((transaction) => transaction.isPaid !== false);
+
+        const withOrderAnalyticsRecords = await Promise.all(
+          fetched.map(async (transaction) => {
+            const orderIds = getLinkedOrderIds(transaction);
+
+            if (orderIds.length === 0) {
               return {
                 ...transaction,
-                orderAnalyticsRecords
+                orderAnalyticsRecords: []
               };
-            })
-          );
+            }
 
-          if (isActive) {
-            setOrders(withOrderAnalyticsRecords);
-          }
-        } catch (error) {
-          console.error('Firestore Error (Analytics Linked Orders):', error);
-          if (isActive) setOrders([]);
+            const orderSnapshots = await Promise.all(
+              orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
+            );
+
+            const existingOrders = orderSnapshots
+              .filter((orderSnapshot) => orderSnapshot.exists())
+              .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
+
+            const amountByOrderId = allocateTransactionAmountByOrder(
+              transaction,
+              existingOrders.map((order) => order.id)
+            );
+
+            const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
+              order,
+              transaction,
+              amountByOrderId[order.id] || 0,
+              getTransactionItemsForOrder(transaction, order.id)
+            ));
+
+            return {
+              ...transaction,
+              orderAnalyticsRecords
+            };
+          })
+        );
+
+        if (isActive) {
+          setOrders(withOrderAnalyticsRecords);
         }
-      },
-      (error) => {
+      } catch (error) {
         console.error('Firestore Error (Analytics Transactions):', error);
-        setOrders([]);
+        if (isActive) setOrders([]);
       }
-    );
+    };
+
+    loadAnalyticsOrders();
 
     return () => {
       isActive = false;
-      unsubscribe();
     };
   }, [storeId, period, currentDate, customRange, weeklyBaseDate]);
 
