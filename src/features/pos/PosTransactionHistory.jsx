@@ -11,6 +11,43 @@ import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { useStoreSettings } from '../store/hooks';
 
+const toDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value?.seconds === 'number') {
+    return new Date(value.seconds * 1000);
+  }
+  return null;
+};
+
+const formatTransactionDateTime = (ticket = {}) => {
+  const date =
+    toDateValue(ticket.cancelledAt) ||
+    toDateValue(ticket.canceledAt) ||
+    toDateValue(ticket.cancelAt) ||
+    toDateValue(ticket.voidedAt) ||
+    toDateValue(ticket.refundedAt) ||
+    toDateValue(ticket.paidAt) ||
+    toDateValue(ticket.completedAt) ||
+    toDateValue(ticket.createdAt) ||
+    toDateValue(ticket.updatedAt);
+
+  if (!date) return '';
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+};
+
+
 const formatPaymentMethod = (method) => {
   if (method === 'mixed') return '混在';
   if (method === 'cash') return '現金';
@@ -984,7 +1021,11 @@ export const PosTransactionHistory = ({ storeId }) => {
   };
 
   const formatTicketPaidTime = (ticket, isPaid, isCancelled) => {
-    if (isCancelled) return 'キャンセル';
+    if (isCancelled) {
+      const cancelledTime = formatTransactionDateTime(ticket);
+      return cancelledTime ? `キャンセル ${cancelledTime}` : 'キャンセル';
+    }
+
     if (!isPaid) return '未会計';
     return formatTime(ticket?.paidAt);
   };
