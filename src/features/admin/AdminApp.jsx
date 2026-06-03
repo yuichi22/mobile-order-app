@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useStoreSettings } from '../store/hooks';
+import { getActiveRegisterContext, getAvailableRegisters, setActiveRegisterContext } from '../pos/utils/registerContext';
 
 import { useAuth } from '../../app/providers/useAuth';
 import { auth, db } from '../../shared/api/firebase/client';
@@ -78,6 +79,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const [toast, setToast] = useState(null);
   const [posView, setPosView] = useState('scan');
   const [registerMode, setRegisterMode] = useState('order');
+  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId));
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
   const [lastPaymentData, setLastPaymentData] = useState(null);
 
@@ -229,6 +231,15 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     setLastPaymentData(null);
   };
 
+  useEffect(() => {
+    setActiveRegisterContextState(getActiveRegisterContext(storeId));
+  }, [storeId]);
+
+  const handleSelectRegister = (register) => {
+    const nextRegister = setActiveRegisterContext(storeId, register);
+    setActiveRegisterContextState(nextRegister);
+  };
+
   const switchRegisterMode = (nextMode) => {
     setRegisterMode(nextMode);
 
@@ -302,6 +313,29 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   )}
                 </button>
               )}
+
+              <div className="flex h-11 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+                {getAvailableRegisters().map((register) => {
+                  const active = activeRegisterContext?.id === register.id;
+
+                  return (
+                    <button
+                      key={register.id}
+                      type="button"
+                      onClick={() => handleSelectRegister(register)}
+                      className={`flex h-9 items-center rounded-full px-3 text-xs font-black transition-all active:scale-95 ${
+                        active
+                          ? 'bg-slate-900 text-white shadow-md shadow-slate-300'
+                          : 'text-gray-500 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                      aria-label={`${register.name}を使用`}
+                      title={`${register.name}を使用`}
+                    >
+                      {register.label || register.name}
+                    </button>
+                  );
+                })}
+              </div>
 
               <button
                 type="button"
