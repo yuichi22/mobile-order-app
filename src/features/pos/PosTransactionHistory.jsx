@@ -25,17 +25,8 @@ const toDateValue = (value) => {
   return null;
 };
 
-const formatTransactionDateTime = (ticket = {}) => {
-  const date =
-    toDateValue(ticket.cancelledAt) ||
-    toDateValue(ticket.canceledAt) ||
-    toDateValue(ticket.cancelAt) ||
-    toDateValue(ticket.voidedAt) ||
-    toDateValue(ticket.refundedAt) ||
-    toDateValue(ticket.paidAt) ||
-    toDateValue(ticket.completedAt) ||
-    toDateValue(ticket.createdAt) ||
-    toDateValue(ticket.updatedAt);
+const formatDateTimeShort = (value) => {
+  const date = toDateValue(value);
 
   if (!date) return '';
 
@@ -45,6 +36,48 @@ const formatTransactionDateTime = (ticket = {}) => {
     hour: '2-digit',
     minute: '2-digit'
   }).format(date);
+};
+
+const resolveCancelDateValue = (ticket = {}) => (
+  toDateValue(ticket.cancelledAt) ||
+  toDateValue(ticket.canceledAt) ||
+  toDateValue(ticket.cancelAt) ||
+  toDateValue(ticket.voidedAt) ||
+  toDateValue(ticket.refundedAt) ||
+  toDateValue(ticket.closedAt) ||
+  toDateValue(ticket.updatedAt) ||
+  null
+);
+
+const resolvePaidDateValue = (ticket = {}) => (
+  toDateValue(ticket.paidAt) ||
+  toDateValue(ticket.completedAt) ||
+  null
+);
+
+const resolveOrderDateValue = (ticket = {}) => (
+  toDateValue(ticket.timestamp) ||
+  toDateValue(ticket.createdAt) ||
+  toDateValue(ticket.updatedAt) ||
+  null
+);
+
+const resolveHistoryDateValue = (ticket = {}) => {
+  if (ticket?.status === 'cancelled') {
+    return resolveCancelDateValue(ticket) || resolveOrderDateValue(ticket);
+  }
+
+  if (ticket?.status === 'paid') {
+    return resolvePaidDateValue(ticket) || resolveOrderDateValue(ticket);
+  }
+
+  return resolveOrderDateValue(ticket);
+};
+
+const formatTransactionDateTime = (ticket = {}) => {
+  const date = resolveCancelDateValue(ticket);
+
+  return formatDateTimeShort(date);
 };
 
 
@@ -74,6 +107,43 @@ const mergeDocsById = (...docLists) => {
   });
 
   return Array.from(map.values());
+};
+
+const chunkArray = (items = [], size = 10) => {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+};
+
+const hydrateOrderSessions = async (ordersCollection, docs = []) => {
+  const sessionIds = [
+    ...new Set(
+      docs
+        .map((docSnap) => String(docSnap.data()?.sessionId || '').trim())
+        .filter((sessionId) => sessionId && !sessionId.startsWith('single-'))
+    )
+  ];
+
+  if (sessionIds.length === 0) return docs;
+
+  const sessionSnapshots = await Promise.all(
+    chunkArray(sessionIds, 10).map((sessionIdChunk) => (
+      getDocs(query(
+        ordersCollection,
+        where('sessionId', 'in', sessionIdChunk),
+        limit(1000)
+      ))
+    ))
+  );
+
+  return mergeDocsById(
+    docs,
+    ...sessionSnapshots.map((snapshot) => snapshot.docs)
+  );
 };
 
 
@@ -381,6 +451,13 @@ export const PosTransactionHistory = ({ storeId }) => {
 
     const ordersCollection = collection(db, 'stores', storeId, 'orders');
 
+    const mapOrderDoc = (orderDoc) => ({
+      id: orderDoc.id,
+      ...orderDoc.data(),
+      timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
+      paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
+    });
+
     if (!selectedPaidDateRange) {
       const ordersQuery = query(
         ordersCollection,
@@ -389,51 +466,53 @@ export const PosTransactionHistory = ({ storeId }) => {
       );
 
       return onSnapshot(ordersQuery, (snapshot) => {
-        setOrders(snapshot.docs.map((orderDoc) => ({
-          id: orderDoc.id,
-          ...orderDoc.data(),
-          timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
-          paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
-        })));
+        setOrders(snapshot.docs.map(mapOrderDoc));
         setLoading(false);
       });
     }
 
     let isActive = true;
 
+    const buildRangeQuery = (fieldName) => query(
+      ordersCollection,
+      where(fieldName, '>=', selectedPaidDateRange.startTimestamp),
+      where(fieldName, '<', selectedPaidDateRange.endTimestamp),
+      orderBy(fieldName, 'desc'),
+      limit(1000)
+    );
+
     const loadOrdersForSelectedDate = async () => {
       try {
-        const paidAtQuery = query(
-          ordersCollection,
-          where('paidAt', '>=', selectedPaidDateRange.startTimestamp),
-          where('paidAt', '<', selectedPaidDateRange.endTimestamp),
-          orderBy('paidAt', 'desc'),
-          limit(1000)
-        );
-
-        const timestampQuery = query(
-          ordersCollection,
-          where('timestamp', '>=', selectedPaidDateRange.startTimestamp),
-          where('timestamp', '<', selectedPaidDateRange.endTimestamp),
-          orderBy('timestamp', 'desc'),
-          limit(1000)
-        );
-
-        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
-          getDocs(paidAtQuery),
-          getDocs(timestampQuery)
+        const [
+          paidAtSnapshot,
+          timestampSnapshot,
+          cancelledAtSnapshot,
+          closedAtSnapshot,
+          updatedAtSnapshot
+        ] = await Promise.all([
+          getDocs(buildRangeQuery('paidAt')),
+          getDocs(buildRangeQuery('timestamp')),
+          getDocs(buildRangeQuery('cancelledAt')),
+          getDocs(buildRangeQuery('closedAt')),
+          getDocs(buildRangeQuery('updatedAt'))
         ]);
 
         if (!isActive) return;
 
-        const mergedDocs = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs);
+        const mergedDocs = await hydrateOrderSessions(
+          ordersCollection,
+          mergeDocsById(
+            paidAtSnapshot.docs,
+            timestampSnapshot.docs,
+            cancelledAtSnapshot.docs,
+            closedAtSnapshot.docs,
+            updatedAtSnapshot.docs
+          )
+        );
 
-        setOrders(mergedDocs.map((orderDoc) => ({
-          id: orderDoc.id,
-          ...orderDoc.data(),
-          timestamp: orderDoc.data().timestamp?.toDate ? orderDoc.data().timestamp.toDate() : new Date(),
-          paidAt: orderDoc.data().paidAt?.toDate ? orderDoc.data().paidAt.toDate() : null
-        })));
+        if (!isActive) return;
+
+        setOrders(mergedDocs.map(mapOrderDoc));
       } catch (error) {
         console.error('[PosTransactionHistory] failed to load orders for selected date', error);
         if (isActive) setOrders([]);
@@ -578,6 +657,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           tableName: order.tableName || order.tableDisplayName || '',
           timestamp: order.timestamp,
           paidAt: order.paidAt,
+          cancelledAt: resolveCancelDateValue(order),
           status: 'paid',
           totalPrice: 0,
           subtotal: 0,
@@ -602,6 +682,12 @@ export const PosTransactionHistory = ({ storeId }) => {
       if (!ticket.sessionId && order.sessionId) ticket.sessionId = order.sessionId;
       if (order.timestamp < ticket.timestamp) ticket.timestamp = order.timestamp;
       if (order.paidAt && (!ticket.paidAt || order.paidAt > ticket.paidAt)) ticket.paidAt = order.paidAt;
+
+      const orderCancelledAt = resolveCancelDateValue(order);
+      if (orderCancelledAt && (!ticket.cancelledAt || orderCancelledAt > ticket.cancelledAt)) {
+        ticket.cancelledAt = orderCancelledAt;
+      }
+
       const isCancelled = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
 
       if (isCancelled) {
@@ -678,6 +764,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           tableName: order.tableName || order.tableDisplayName || '',
           timestamp: order.timestamp,
           paidAt: order.paidAt,
+          cancelledAt: resolveCancelDateValue(order),
           status: 'paid',
           totalPrice: 0,
           subtotal: 0,
@@ -1031,8 +1118,21 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
   };
 
+
+
+
   const getTicketBusinessDate = (ticket) => {
-    const targetDate = ticket?.paidAt || ticket?.timestamp || null;
+    const targetDate = resolvePaidDateValue(ticket) || resolveOrderDateValue(ticket);
+    return toDateInputValue(targetDate);
+  };
+
+  const getTicketCancelDate = (ticket) => {
+    const targetDate = resolveCancelDateValue(ticket) || resolveOrderDateValue(ticket);
+    return toDateInputValue(targetDate);
+  };
+
+  const getTicketHistoryDate = (ticket) => {
+    const targetDate = resolveHistoryDateValue(ticket);
     return toDateInputValue(targetDate);
   };
 
@@ -1057,15 +1157,31 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
 
     if (filter === 'unpaid') {
-      return groupedTickets.filter((ticket) => ticket.status === 'unpaid');
+      return groupedTickets
+        .filter((ticket) => ticket.status === 'unpaid')
+        .filter((ticket) => !selectedPaidDate || getTicketHistoryDate(ticket) === selectedPaidDate);
     }
 
     if (filter === 'cancelled') {
-      return groupedTickets.filter((ticket) => ticket.status === 'cancelled');
+      return groupedTickets
+        .filter((ticket) => ticket.status === 'cancelled')
+        .filter((ticket) => !selectedPaidDate || getTicketCancelDate(ticket) === selectedPaidDate)
+        .sort((left, right) => {
+          const leftTime = (resolveCancelDateValue(left) || resolveOrderDateValue(left))?.getTime?.() || 0;
+          const rightTime = (resolveCancelDateValue(right) || resolveOrderDateValue(right))?.getTime?.() || 0;
+          return rightTime - leftTime;
+        });
     }
 
-    return groupedTickets;
-  }, [filter, groupedTickets, paidSessionTickets]);
+    return groupedTickets
+      .filter((ticket) => !selectedPaidDate || getTicketHistoryDate(ticket) === selectedPaidDate)
+      .sort((left, right) => {
+        const leftTime = resolveHistoryDateValue(left)?.getTime?.() || 0;
+        const rightTime = resolveHistoryDateValue(right)?.getTime?.() || 0;
+        return rightTime - leftTime;
+      });
+  }, [filter, groupedTickets, paidSessionTickets, selectedPaidDate]);
+
 
   const paidPaymentSummary = useMemo(() => {
     const base = {
@@ -1155,10 +1271,21 @@ export const PosTransactionHistory = ({ storeId }) => {
     return count > 0 ? `${count}名` : '人数未設定';
   };
 
+  const isDifferentHistoryDate = (ticket, isPaid, isCancelled) => {
+    const orderDate = toDateInputValue(resolveOrderDateValue(ticket));
+    const historyDate = isCancelled
+      ? toDateInputValue(resolveCancelDateValue(ticket))
+      : isPaid
+        ? toDateInputValue(resolvePaidDateValue(ticket))
+        : '';
+
+    return Boolean(orderDate && historyDate && orderDate !== historyDate);
+  };
+
   const formatTicketPaidTime = (ticket, isPaid, isCancelled) => {
     if (isCancelled) {
       const cancelledTime = formatTransactionDateTime(ticket);
-      return cancelledTime ? `キャンセル ${cancelledTime}` : 'キャンセル';
+      return cancelledTime || '日時未記録';
     }
 
     if (!isPaid) return '未会計';
@@ -1181,7 +1308,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           </span>
         </div>
 
-        {filter === 'paid' && (
+        {(filter === 'paid' || filter === 'cancelled') && (
           <div className="flex shrink-0 items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
             <button
               type="button"
@@ -1251,7 +1378,7 @@ export const PosTransactionHistory = ({ storeId }) => {
         </button>
       </div>
 
-      {filter === 'paid' && (
+      {(filter === 'paid' || filter === 'cancelled') && (
         <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
           <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50 p-2.5">
             <div className="grid grid-cols-4 gap-1 rounded-xl bg-white p-1 shadow-sm">
@@ -1347,7 +1474,9 @@ export const PosTransactionHistory = ({ storeId }) => {
                 ? selectedPaidDate
                   ? '選択した日付・支払い方法の会計済み伝票がありません'
                   : '選択した支払い方法の会計済み伝票がありません'
-                : '該当する会計履歴がありません'}
+                : filter === 'cancelled' && selectedPaidDate
+                  ? '選択した日付のキャンセル履歴がありません'
+                  : '該当する会計履歴がありません'}
             </p>
           </div>
         )}
@@ -1356,6 +1485,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           const isExpanded = expandedTicketId === ticket.id;
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
+          const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
           const ticketCardDomId = `pos-ticket-card-${String(ticket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
           const previousTicket = filteredTickets[index - 1] || null;
@@ -1416,9 +1546,17 @@ export const PosTransactionHistory = ({ storeId }) => {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
-                    <span>注文 {formatTime(ticket.timestamp)}</span>
+                    <span>注文 {formatDateTimeShort(ticket.timestamp) || formatTime(ticket.timestamp)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span>会計 {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
+                    <span>{isCancelled ? 'キャンセル' : '会計'} {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
+                    {hasDifferentHistoryDate && (
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-gray-300" />
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
+                          注文日違い
+                        </span>
+                      </>
+                    )}
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
                     <span>{formatGuestCount(ticket)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
