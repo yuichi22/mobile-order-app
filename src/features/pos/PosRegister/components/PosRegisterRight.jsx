@@ -59,6 +59,10 @@ export const PosRegisterRight = ({
   orders,
   subTotal,
   discountAmount,
+  promoExpenseAmount,
+  voucherAmount,
+  settlementAdjustmentTotal,
+  salesAmountBeforeSettlementAdjustments,
   taxAmount,
   totalAmount,
   discountType,
@@ -225,7 +229,7 @@ export const PosRegisterRight = ({
                   } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <Percent size={16} />
-                  <span>割引・値引</span>
+                  <span>割引/金券</span>
                 </button>
 
                 <div className="min-w-0 text-right">
@@ -235,9 +239,24 @@ export const PosRegisterRight = ({
                       -¥{discountAmount.toLocaleString()}
                     </div>
                   )}
+                  {Number(promoExpenseAmount || 0) > 0 && (
+                    <div className="mb-1 truncate text-xs font-black text-emerald-600">
+                      販促費 -¥{Number(promoExpenseAmount || 0).toLocaleString()}
+                    </div>
+                  )}
+                  {Number(voucherAmount || 0) > 0 && (
+                    <div className="mb-1 truncate text-xs font-black text-sky-600">
+                      金券/売掛 -¥{Number(voucherAmount || 0).toLocaleString()}
+                    </div>
+                  )}
+                  {Number(settlementAdjustmentTotal || 0) > 0 && (
+                    <div className="mb-1 truncate text-[11px] font-bold text-gray-400">
+                      調整前 ¥{Number(salesAmountBeforeSettlementAdjustments || 0).toLocaleString()}
+                    </div>
+                  )}
 
                   <div className="flex items-baseline justify-end gap-3">
-                    <span className="shrink-0 text-sm font-black text-gray-600">税込合計</span>
+                    <span className="shrink-0 text-sm font-black text-gray-600">お支払い額</span>
                     <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-gray-900">
                       ¥{totalAmount.toLocaleString()}
                     </span>

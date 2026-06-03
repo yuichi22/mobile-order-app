@@ -640,6 +640,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     taxAmount,
     totalAmount,
     discountAmount,
+    promoExpenseAmount,
+    voucherAmount,
+    settlementAdjustmentTotal,
+    salesAmountBeforeSettlementAdjustments,
     taxAmountReduced,
     taxAmountStandard,
     taxRateReduced,
@@ -651,6 +655,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         taxAmount: 0,
         totalAmount: 0,
         discountAmount: 0,
+        promoExpenseAmount: 0,
+        voucherAmount: 0,
+        settlementAdjustmentTotal: 0,
+        salesAmountBeforeSettlementAdjustments: 0,
         taxAmountReduced: 0,
         taxAmountStandard: 0,
         taxRateReduced: Number(settings?.taxRateReduced ?? 8),
@@ -681,13 +689,52 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     });
 
     const rawTotalIncl = totalReducedIncl + totalStandardIncl;
-    let discount = 0;
-    if (discountType === 'percent') discount = Math.floor(rawTotalIncl * (Number(discountValue) / 100));
-    if (discountType === 'amount') discount = Number(discountValue);
 
-    const finalTotalAmount = Math.max(0, rawTotalIncl - discount);
+    let salesDiscountRaw = 0;
+    let promoExpenseRaw = 0;
+    let voucherRaw = 0;
+
+    const addAccountingAdjustment = (category, amount) => {
+      const normalizedAmount = Math.max(Number(amount) || 0, 0);
+      if (normalizedAmount <= 0) return;
+
+      if (category === 'promo_expense') {
+        promoExpenseRaw += normalizedAmount;
+        return;
+      }
+
+      if (category === 'voucher_payment') {
+        voucherRaw += normalizedAmount;
+        return;
+      }
+
+      salesDiscountRaw += normalizedAmount;
+    };
+
+    if (discountType === 'percent') {
+      const percentAmount = Math.floor(rawTotalIncl * (Number(discountValue) / 100));
+      addAccountingAdjustment(selectedDiscount?.accountingCategory || 'sales_discount', percentAmount);
+    }
+
+    if (discountType === 'amount') {
+      if (Array.isArray(selectedDiscount?.items) && selectedDiscount.items.length > 0) {
+        selectedDiscount.items.forEach((item) => {
+          addAccountingAdjustment(item.accountingCategory || 'sales_discount', Number(item.amount || 0));
+        });
+      } else {
+        addAccountingAdjustment(selectedDiscount?.accountingCategory || 'sales_discount', Number(discountValue || 0));
+      }
+    }
+
+    const salesDiscountAmount = Math.min(salesDiscountRaw, rawTotalIncl);
+    const salesAmountBeforeSettlement = Math.max(0, rawTotalIncl - salesDiscountAmount);
+    const promoExpenseAmountValue = Math.min(promoExpenseRaw, salesAmountBeforeSettlement);
+    const voucherAmountValue = Math.min(voucherRaw, Math.max(0, salesAmountBeforeSettlement - promoExpenseAmountValue));
+    const settlementAdjustmentTotalValue = promoExpenseAmountValue + voucherAmountValue;
+
+    const finalTotalAmount = Math.max(0, salesAmountBeforeSettlement - settlementAdjustmentTotalValue);
     const [reducedDiscountAmount, standardDiscountAmount] = allocateAmountByWeight(
-      discount,
+      salesDiscountAmount,
       [totalReducedIncl, totalStandardIncl]
     );
     const currentReducedIncl = totalReducedIncl - reducedDiscountAmount;
@@ -700,13 +747,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       subTotal: Number(reducedBreakdown.baseAmount + standardBreakdown.baseAmount),
       taxAmount: Number(reducedBreakdown.taxAmount + standardBreakdown.taxAmount),
       totalAmount: Number(finalTotalAmount),
-      discountAmount: Number(discount),
+      discountAmount: Number(salesDiscountAmount),
+      promoExpenseAmount: Number(promoExpenseAmountValue),
+      voucherAmount: Number(voucherAmountValue),
+      settlementAdjustmentTotal: Number(settlementAdjustmentTotalValue),
+      salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlement),
       taxAmountReduced: Number(reducedBreakdown.taxAmount),
       taxAmountStandard: Number(standardBreakdown.taxAmount),
       taxRateReduced: reducedRate,
       taxRateStandard: standardRate
     };
-  }, [activeTakeoutItemKeys, allowTakeout, consolidatedItems, discountType, discountValue, settings]);
+  }, [activeTakeoutItemKeys, allowTakeout, consolidatedItems, discountType, discountValue, selectedDiscount, settings]);
 
   const changeAmount = useMemo(() => {
     const paid = Number(paymentAmount) || 0;
@@ -1556,6 +1607,33 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         standardTaxAmount: Number(transactionStandardBreakdown.taxAmount)
       };
 
+    const selectedAccountingAdjustmentItems = Array.isArray(selectedDiscount?.items) && selectedDiscount.items.length > 0
+      ? selectedDiscount.items
+      : selectedDiscount
+        ? [{
+            id: selectedDiscount.id || null,
+            name: selectedDiscount.name || '',
+            type: selectedDiscount.type || discountType,
+            value: Number(selectedDiscount.value ?? discountValue) || 0,
+            accountingCategory: selectedDiscount.accountingCategory || 'sales_discount',
+            count: selectedDiscount.type === 'amount'
+              ? Number(selectedDiscount.quantity || selectedDiscount.count || 1)
+              : 1,
+            quantity: selectedDiscount.type === 'amount'
+              ? Number(selectedDiscount.quantity || selectedDiscount.count || 1)
+              : 1,
+            amount: Number(discountType === 'percent' ? discountAmount : discountValue || 0)
+          }]
+        : [];
+
+    const promoExpenseItems = selectedAccountingAdjustmentItems
+      .filter((item) => item.accountingCategory === 'promo_expense')
+      .map((item) => ({ ...item, type: item.type || 'amount', accountingCategory: 'promo_expense' }));
+
+    const voucherItems = selectedAccountingAdjustmentItems
+      .filter((item) => item.accountingCategory === 'voucher_payment')
+      .map((item) => ({ ...item, type: item.type || 'amount', accountingCategory: 'voucher_payment' }));
+
     const appliedDiscount = Number(discountAmount) > 0
       ? {
           id: selectedDiscount?.id || null,
@@ -1567,6 +1645,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
                 : `${Number(discountValue || 0).toLocaleString()}円割引`
             ),
           type: selectedDiscount?.type || discountType,
+          accountingCategory: 'sales_discount',
           value: Number(selectedDiscount?.value ?? discountValue) || 0,
           count: selectedDiscount?.type === 'amount'
             ? Number(selectedDiscount?.quantity || selectedDiscount?.count || 1)
@@ -1580,7 +1659,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           retailItemAmount: orderRetailCart.reduce((sum, item) => (
             sum + (Number(item.unitPrice || item.takeoutPrice || 0) * Number(item.quantity || 0))
           ), 0),
-          items: Array.isArray(selectedDiscount?.items) ? selectedDiscount.items : [],
+          items: selectedAccountingAdjustmentItems.filter((item) => (item.accountingCategory || 'sales_discount') === 'sales_discount'),
           label:
             selectedDiscount?.type === 'amount' && selectedDiscount?.name
               ? `${selectedDiscount.name} × ${Number(selectedDiscount?.quantity || selectedDiscount?.count || 1)}枚`
@@ -1657,6 +1736,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
         subTotal: Number(subTotal),
         discountAmount: Number(discountAmount),
+        promoExpenseAmount: Number(promoExpenseAmount),
+        voucherAmount: Number(voucherAmount),
+        settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
+        salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments),
         totalAmount: Number(totalAmount),
 
         taxAmount: Number(taxAmount),
@@ -1678,6 +1761,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
         appliedDiscount,
         appliedDiscounts: appliedDiscount ? [appliedDiscount] : [],
+
+        promoExpenseItems,
+        vouchers: voucherItems,
+        accountingAdjustments: selectedAccountingAdjustmentItems,
 
         paymentMethod: resolvedPaymentMethod,
         paymentMethodGroup: resolvedPaymentMethod,
@@ -1737,6 +1824,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           taxRateReduced: Number(taxRateReduced),
           taxRateStandard: Number(taxRateStandard),
           discountAmount: Number(discountAmount),
+          promoExpenseAmount: Number(promoExpenseAmount),
+          voucherAmount: Number(voucherAmount),
+          settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
+          salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments),
+          promoExpenseItems,
+          vouchers: voucherItems,
+          accountingAdjustments: selectedAccountingAdjustmentItems,
           customerIds,
           customerSummaries,
           lineItems: consolidatedItems,
@@ -1756,7 +1850,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
           method: resolvedPaymentMethod,
           receiptId: issuedReceipt?.receiptId || '',
           receiptNo: issuedReceipt?.receiptNo || '',
-          transactionId: transactionRef.id
+          transactionId: transactionRef.id,
+          promoExpenseAmount: Number(promoExpenseAmount),
+          voucherAmount: Number(voucherAmount),
+          settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
+          salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments)
         });
 
         setPaidItemKeys(new Set([...paidItemKeys, ...newlyPaidKeys]));
@@ -2068,6 +2166,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         orders={orders}
         subTotal={subTotal}
         discountAmount={discountAmount}
+        promoExpenseAmount={promoExpenseAmount}
+        voucherAmount={voucherAmount}
+        settlementAdjustmentTotal={settlementAdjustmentTotal}
+        salesAmountBeforeSettlementAdjustments={salesAmountBeforeSettlementAdjustments}
         taxAmount={taxAmount}
         totalAmount={totalAmount}
         discountType={discountType}

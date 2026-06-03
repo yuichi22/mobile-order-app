@@ -426,6 +426,66 @@ const addDiscounts = (summary, transaction) => {
   }
 };
 
+const addAdjustmentEntry = (summary, key, entry, fallbackIndex = 0) => {
+  const amount = Number(entry?.amount || 0);
+  if (amount <= 0) return;
+
+  const quantity = Math.max(1, Number(entry?.quantity ?? entry?.count ?? 1) || 1);
+  const id = entry.id || entry.name || entry.label || `${key}_${fallbackIndex}`;
+  const name = entry.name || entry.label || (key === 'promoExpenses' ? '販促費' : '金券/売掛');
+
+  if (!summary[key][id]) {
+    summary[key][id] = {
+      id,
+      name,
+      count: 0,
+      quantity: 0,
+      amount: 0,
+      value: Number(entry.value || 0),
+      type: entry.type || 'amount',
+      accountingCategory: key === 'promoExpenses' ? 'promo_expense' : 'voucher_payment'
+    };
+  }
+
+  summary[key][id].count += 1;
+  summary[key][id].quantity += quantity;
+  summary[key][id].amount += amount;
+};
+
+const addSettlementAdjustments = (summary, transaction) => {
+  const promoExpenseAmount = Number(transaction.promoExpenseAmount || 0);
+  const voucherAmount = Number(transaction.voucherAmount || 0);
+
+  if (promoExpenseAmount > 0) summary.promoExpenseTotal += promoExpenseAmount;
+  if (voucherAmount > 0) summary.voucherTotal += voucherAmount;
+
+  if (Array.isArray(transaction.promoExpenseItems) && transaction.promoExpenseItems.length > 0) {
+    transaction.promoExpenseItems.forEach((item, index) => addAdjustmentEntry(summary, 'promoExpenses', item, index));
+  } else if (promoExpenseAmount > 0) {
+    addAdjustmentEntry(summary, 'promoExpenses', {
+      id: 'promo_expense',
+      name: '販促費',
+      amount: promoExpenseAmount,
+      value: promoExpenseAmount,
+      count: 1,
+      quantity: 1
+    }, 0);
+  }
+
+  if (Array.isArray(transaction.vouchers) && transaction.vouchers.length > 0) {
+    transaction.vouchers.forEach((item, index) => addAdjustmentEntry(summary, 'vouchers', item, index));
+  } else if (voucherAmount > 0) {
+    addAdjustmentEntry(summary, 'vouchers', {
+      id: 'voucher_payment',
+      name: '金券/売掛',
+      amount: voucherAmount,
+      value: voucherAmount,
+      count: 1,
+      quantity: 1
+    }, 0);
+  }
+};
+
 const addItems = (summary, transaction) => {
   if (!Array.isArray(transaction.items)) return;
 
@@ -646,6 +706,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     otherSales: 0,
 
     discountTotal: 0,
+    promoExpenseTotal: 0,
+    voucherTotal: 0,
+    settlementAdjustmentTotal: 0,
     itemCount: 0,
 
     costConfiguredItemCount: 0,
@@ -670,6 +733,8 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     paymentMethods: {},
     taxBreakdown: {},
     discounts: {},
+    promoExpenses: {},
+    vouchers: {},
     items: {},
     categories: {},
     periods: {}
@@ -679,9 +744,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     if (transaction.isPaid === false) return;
 
     const totalAmount = Number(transaction.totalAmount || 0);
+    const settlementAdjustmentTotal = Number(transaction.settlementAdjustmentTotal || 0);
 
     summary.transactionCount += 1;
-    summary.totalSales += totalAmount;
+    summary.totalSales += totalAmount + settlementAdjustmentTotal;
+    summary.settlementAdjustmentTotal += settlementAdjustmentTotal;
 
     const guestCount = getTransactionGuestCount(transaction);
     const sessionKey = getTransactionSessionKey(transaction);
@@ -692,6 +759,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     addPaymentMethod(summary, transaction.paymentMethodGroup || transaction.paymentMethod, totalAmount);
     addDiscounts(summary, transaction);
+    addSettlementAdjustments(summary, transaction);
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
     addCategorySales(summary, transaction);
@@ -749,6 +817,12 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
       }),
 
     discountList: Object.values(summary.discounts)
+      .sort((left, right) => right.amount - left.amount),
+
+    promoExpenseList: Object.values(summary.promoExpenses)
+      .sort((left, right) => right.amount - left.amount),
+
+    voucherList: Object.values(summary.vouchers)
       .sort((left, right) => right.amount - left.amount),
 
     itemList: Object.values(summary.items)

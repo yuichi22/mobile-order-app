@@ -204,6 +204,14 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     ? summary.discountList
     : [];
 
+  const promoExpenseList = Array.isArray(summary?.promoExpenseList)
+    ? summary.promoExpenseList
+    : [];
+
+  const voucherList = Array.isArray(summary?.voucherList)
+    ? summary.voucherList
+    : [];
+
   const timeSlotList = Array.isArray(summary?.timeSlotList)
     ? summary.timeSlotList
     : [];
@@ -251,6 +259,8 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
       paymentMethodList,
       taxBreakdownList,
       discountList,
+      promoExpenseList,
+      voucherList,
       timeSlotList,
       categoryList,
       closedDailyData,
@@ -313,10 +323,15 @@ const handleCloseDay = async (closingCheck = {}) => {
       otherSales: Number(summary?.otherSales || 0),
 
       discountTotal: Number(summary?.discountTotal || 0),
+      promoExpenseTotal: Number(summary?.promoExpenseTotal || 0),
+      voucherTotal: Number(summary?.voucherTotal || 0),
+      settlementAdjustmentTotal: Number(summary?.settlementAdjustmentTotal || 0),
 
       paymentMethods: paymentMethodList,
       taxBreakdown: taxBreakdownList,
       discounts: discountList,
+      promoExpenses: promoExpenseList,
+      vouchers: voucherList,
       timeSlots: timeSlotList,
       categories: categoryList,
 
@@ -698,12 +713,12 @@ const handleCloseDay = async (closingCheck = {}) => {
             <div className="rounded-2xl border border-gray-100 p-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <TicketPercent size={16} />
-                値引・クーポン利用
+                割引/金券
               </div>
 
               <div className="mb-3 rounded-xl bg-orange-50 px-4 py-3">
                 <div className="text-xs font-black text-orange-500">
-                  割引クーポン合計金額
+                  売上値引合計
                 </div>
                 <div className="mt-1 text-xl font-black text-gray-900">
                   {formatCurrency(summary?.discountTotal)}
@@ -713,7 +728,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="space-y-2">
                 {discountList.length === 0 ? (
                   <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
-                    値引・クーポンの利用はありません
+                    売上値引の利用はありません
                   </div>
                 ) : (
                   discountList.map((discount) => (
@@ -735,6 +750,64 @@ const handleCloseDay = async (closingCheck = {}) => {
                       <div className="ml-3 shrink-0 text-sm font-black text-gray-900">
                         {formatCurrency(discount.amount)}
                       </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3">
+                <div className="text-xs font-black text-emerald-600">販促費合計</div>
+                <div className="mt-1 text-xl font-black text-gray-900">
+                  {formatCurrency(summary?.promoExpenseTotal)}
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {promoExpenseList.length === 0 ? (
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                    販促費の利用はありません
+                  </div>
+                ) : (
+                  promoExpenseList.map((entry) => (
+                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-emerald-900">{entry.name || '販促費'}</div>
+                        <div className="text-[11px] font-bold text-emerald-500">
+                          {Number(entry.quantity || entry.count || 0)}枚
+                          <span className="mx-1 text-emerald-200">/</span>
+                          {Number(entry.count || 0)}会計
+                        </div>
+                      </div>
+                      <div className="ml-3 shrink-0 text-sm font-black text-emerald-900">{formatCurrency(entry.amount)}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3">
+                <div className="text-xs font-black text-sky-600">金券/売掛合計</div>
+                <div className="mt-1 text-xl font-black text-gray-900">
+                  {formatCurrency(summary?.voucherTotal)}
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {voucherList.length === 0 ? (
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                    金券/売掛の利用はありません
+                  </div>
+                ) : (
+                  voucherList.map((entry) => (
+                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-sky-50 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-sky-900">{entry.name || '金券/売掛'}</div>
+                        <div className="text-[11px] font-bold text-sky-500">
+                          {Number(entry.quantity || entry.count || 0)}枚
+                          <span className="mx-1 text-sky-200">/</span>
+                          {Number(entry.count || 0)}会計
+                        </div>
+                      </div>
+                      <div className="ml-3 shrink-0 text-sm font-black text-sky-900">{formatCurrency(entry.amount)}</div>
                     </div>
                   ))
                 )}

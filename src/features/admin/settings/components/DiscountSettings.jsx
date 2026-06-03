@@ -12,11 +12,34 @@ import {
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 
+const ACCOUNTING_CATEGORY_OPTIONS = [
+  {
+    id: 'sales_discount',
+    label: '売上値引',
+    desc: '売上金額そのものを減らします。通常の割引・値引きはこちらです。'
+  },
+  {
+    id: 'promo_expense',
+    label: '販促費',
+    desc: 'スタンプカードなど。お客様支払額は減らし、日計では販促費として別枠表示します。'
+  },
+  {
+    id: 'voucher_payment',
+    label: '金券/売掛',
+    desc: '地域ギフト券など。お客様支払額は減らし、日計では金券・売掛回収として別枠表示します。'
+  }
+];
+
+const getAccountingCategoryLabel = (value) => (
+  ACCOUNTING_CATEGORY_OPTIONS.find((option) => option.id === value)?.label || '売上値引'
+);
+
 const createBlankDiscount = () => ({
   id: null,
   name: '',
   type: 'amount',
   value: '',
+  accountingCategory: 'sales_discount',
   note: ''
 });
 
@@ -35,7 +58,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
     setEditingDiscount({
       ...discount,
       type: discount.type || 'amount',
-      value: discount.value ?? ''
+      value: discount.value ?? '',
+      accountingCategory: discount.accountingCategory || 'sales_discount'
     });
     setDiscountType(discount.type || 'amount');
   };
@@ -59,6 +83,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
         name: String(formData.get('name') || '').trim(),
         type: discountType,
         value: Number(formData.get('value')) || 0,
+        accountingCategory: String(formData.get('accountingCategory') || 'sales_discount'),
         note: String(formData.get('note') || '').trim()
       });
 
@@ -212,6 +237,32 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                   </div>
 
                   <div>
+                    <label className="mb-5 block text-sm font-black uppercase tracking-widest text-gray-500">
+                      会計区分
+                    </label>
+                    <div className="space-y-3">
+                      {ACCOUNTING_CATEGORY_OPTIONS.map((option) => (
+                        <label
+                          key={option.id}
+                          className="flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-gray-100 bg-white p-4 transition-all hover:border-orange-200 hover:bg-orange-50/30"
+                        >
+                          <input
+                            type="radio"
+                            name="accountingCategory"
+                            value={option.id}
+                            defaultChecked={(editingDiscount.accountingCategory || 'sales_discount') === option.id}
+                            className="mt-1 h-4 w-4 accent-orange-500"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-black text-gray-800">{option.label}</span>
+                            <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-400">{option.desc}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">
                       備考メモ
                     </label>
@@ -276,7 +327,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                   <th className="w-20 px-4 py-5 text-center">#</th>
                   <th className="w-24 px-4 py-5 text-center">形式</th>
                   <th className="px-4 py-5">名称</th>
-                  <th className="w-[25%] px-4 py-5 text-left">割引内容</th>
+                  <th className="w-[22%] px-4 py-5 text-left">割引内容</th>
+                  <th className="w-[16%] px-4 py-5 text-left">会計区分</th>
                   <th className="w-[15%] px-4 py-5 text-left">備考</th>
                   <th className="w-32 px-4 py-5 text-right">操作</th>
                 </tr>
@@ -353,6 +405,12 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                           </span>
                         )}
                       </div>
+                    </td>
+
+                    <td className="px-4 py-5">
+                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                        {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
+                      </span>
                     </td>
 
                     <td className="px-4 py-5">

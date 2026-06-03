@@ -1,6 +1,12 @@
 import React, { useMemo } from 'react';
 import { Calculator, Check, ChevronRight, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
 
+const getAccountingCategoryLabel = (category) => {
+  if (category === 'promo_expense') return '販促費';
+  if (category === 'voucher_payment') return '金券/売掛';
+  return '売上値引';
+};
+
 export const PosModals = ({
   showSuccessModal,
   setShowSuccessModal,
@@ -168,11 +174,11 @@ export const PosModals = ({
           <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
               <Percent size={20} className="text-orange-500" />
-              割引・クーポンを適用
+              割引/金券を適用
             </h3>
 
             <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-400">
-              <div>クーポン名</div>
+              <div>項目名</div>
               <div className="text-center">数量</div>
               <div className="text-right">小計</div>
             </div>
@@ -180,7 +186,7 @@ export const PosModals = ({
             <div className="mb-4 min-h-0 flex-grow overflow-y-auto pr-1">
               {discounts.length === 0 ? (
                 <div className="rounded-xl bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
-                  登録済みの割引・クーポンがありません
+                  登録済みの割引/金券がありません
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -232,10 +238,15 @@ export const PosModals = ({
                           <div className="truncate text-sm font-black text-gray-800">
                             {discount.name || '値引き'}
                           </div>
-                          <div className="mt-0.5 text-[11px] font-bold text-gray-400">
-                            {isAmountDiscount
-                              ? `1枚 ${unitValue.toLocaleString()}円`
-                              : `${unitValue}%割引`}
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold text-gray-400">
+                            <span>
+                              {isAmountDiscount
+                                ? `1枚 ${unitValue.toLocaleString()}円`
+                                : `${unitValue}%割引`}
+                            </span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
+                              {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
+                            </span>
                           </div>
                         </div>
 
@@ -315,7 +326,7 @@ export const PosModals = ({
                   </span>
                 </div>
                 <div className="mt-1 text-[11px] font-bold text-orange-600">
-                  クーポン名を押すと数量が1増えます。
+                  項目名を押すと数量が1増えます。
                 </div>
               </div>
 
@@ -336,6 +347,7 @@ export const PosModals = ({
                         name: discount.name || '値引き',
                         type,
                         value: unitValue,
+                        accountingCategory: discount.accountingCategory || 'sales_discount',
                         count: quantity,
                         quantity,
                         amount: unitValue * quantity
@@ -359,6 +371,7 @@ export const PosModals = ({
                       name: selectedPercentDiscount.name || '値引き',
                       type: 'percent',
                       value: unitValue,
+                      accountingCategory: selectedPercentDiscount.accountingCategory || 'sales_discount',
                       count: 1,
                       quantity: 1
                     });
@@ -394,6 +407,9 @@ export const PosModals = ({
                     id: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].id : 'multiple_coupons',
                     name: displayName,
                     type: 'amount',
+                    accountingCategory: selectedAmountDiscounts.length === 1
+                      ? selectedAmountDiscounts[0].accountingCategory || 'sales_discount'
+                      : 'mixed',
                     value: selectedAmountDiscounts.length === 1
                       ? selectedAmountDiscounts[0].value
                       : 0,
