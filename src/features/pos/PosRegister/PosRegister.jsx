@@ -348,6 +348,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     return allPayableItemKeys;
   }, [activeSelectedItemKeys, allPayableItemKeys, checkoutSelectionMode]);
 
+  const currentPayTargetSignature = useMemo(() => (
+    Array.from(currentPayTargetItemKeys).sort().join('|')
+  ), [currentPayTargetItemKeys]);
+
   const selectedItemCount = activeSelectedItemKeys.size;
   const totalPayableItemCount = allPayableItemEntries.length;
 
@@ -763,6 +767,12 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     const paid = Number(paymentAmount) || 0;
     return Math.max(0, paid - totalAmount);
   }, [paymentAmount, totalAmount]);
+
+  // reset stale payment input when checkout target changes
+  useEffect(() => {
+    setPaymentAmount('');
+    setPaymentMethod('');
+  }, [checkoutSelectionMode, currentPayTargetSignature, totalAmount]);
 
   const getCancellableOrderItemEntries = (order) => {
     if (!order?.items || !Array.isArray(order.items)) return [];
@@ -1389,7 +1399,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     if (isPaymentSubmitting) return;
     if (consolidatedItems.length === 0) return;
 
-    if (resolvedPaymentMethod === 'cash' && (Number(paymentAmount) || 0) < totalAmount) {
+    const checkoutTotalAmount = Number(totalAmount || 0);
+    if (checkoutTotalAmount <= 0) {
+      alert('会計金額が正しくありません。会計対象を選び直してください。');
+      return;
+    }
+
+    if (resolvedPaymentMethod === 'cash' && (Number(paymentAmount) || 0) < checkoutTotalAmount) {
       alert('お預かり金額が不足しています');
       return;
     }
