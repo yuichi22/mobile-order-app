@@ -233,11 +233,34 @@ const BasicSettings = ({
   };
 
   const commitRegisterNameDraft = async () => {
-    await saveRegisterDrafts(registerDrafts);
+    await saveRegisterDrafts(registerDrafts, departmentDrafts);
+  };
+
+  const buildDepartmentRegisterSettingsPayload = () => {
+    const normalizedDepartments = getAvailableDepartments(departmentDrafts);
+    const normalizedRegisters = getAvailableRegisters(registerDrafts, normalizedDepartments).map((register) => {
+      const department = getDepartmentById(register.departmentId, normalizedDepartments);
+
+      return {
+        ...register,
+        departmentId: department.id,
+        departmentName: department.name,
+        registerMode: department.registerMode
+      };
+    });
+
+    return {
+      departments: normalizedDepartments,
+      registers: normalizedRegisters
+    };
   };
 
   const handleSelectActiveRegister = async (register) => {
-    const normalizedDrafts = await saveRegisterDrafts(registerDrafts);
+    const departmentRegisterSettings = buildDepartmentRegisterSettingsPayload();
+    const normalizedDrafts = await saveRegisterDrafts(
+      departmentRegisterSettings.registers,
+      departmentRegisterSettings.departments
+    );
     const latestRegister = normalizedDrafts.find((entry) => entry.id === register.id) || register;
     const nextRegister = setActiveRegisterContext(storeId, latestRegister);
     setActiveRegisterContextState(nextRegister);
@@ -559,7 +582,10 @@ const handleTestPrinter = async () => {
 
     try {
       const formData = new FormData(event.currentTarget);
+      const departmentRegisterSettings = buildDepartmentRegisterSettingsPayload();
+
       await onSave({
+        ...departmentRegisterSettings,
         name: formData.get('name'),
         address: formData.get('address'),
         tel: formData.get('tel'),
@@ -586,6 +612,13 @@ const handleTestPrinter = async () => {
           autoPrintReceipt: formData.get('printerAutoPrintReceipt') === 'on'
         }
       });
+
+      setDepartmentDrafts(departmentRegisterSettings.departments);
+      setRegisterDrafts(departmentRegisterSettings.registers);
+      setActiveRegisterContextState(
+        getActiveRegisterContext(storeId, departmentRegisterSettings.registers, departmentRegisterSettings.departments)
+      );
+
       onSaved?.();
 
       if (typeof onSaveCookingCategories === 'function') {
