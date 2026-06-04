@@ -105,6 +105,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
   const [showAbortModal, setShowAbortModal] = useState(false);
   const [abortReason, setAbortReason] = useState('manual_abort');
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const [isPaymentFlowLocked, setIsPaymentFlowLocked] = useState(false);
   const [processingAction, setProcessingAction] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
@@ -1412,6 +1413,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     }
 
     setIsPaymentSubmitting(true);
+    setIsPaymentFlowLocked(true);
 
     try {
       const batch = writeBatch(db);
@@ -1818,13 +1820,34 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
       if (isSessionComplete) {
         batch.update(doc(db, 'stores', storeId, 'sessions', sessionId), { status: 'paid', closedAt: serverTimestamp() });
-        const requestQuery = query(collection(db, 'stores', storeId, 'serviceRequests'), where('sessionId', '==', sessionId), where('status', '==', 'pending'));
-        const requestSnapshot = await getDocs(requestQuery);
-        requestSnapshot.forEach((docSnap) => batch.update(docSnap.ref, { status: 'completed' }));
-        await clearSessionAccess(batch);
       }
 
+      const runPostPaymentCleanup = async () => {
+        if (!isSessionComplete) return;
+
+        try {
+          const cleanupBatch = writeBatch(db);
+
+          const requestQuery = query(
+            collection(db, 'stores', storeId, 'serviceRequests'),
+            where('sessionId', '==', sessionId),
+            where('status', '==', 'pending')
+          );
+          const requestSnapshot = await getDocs(requestQuery);
+          requestSnapshot.forEach((docSnap) => cleanupBatch.update(docSnap.ref, { status: 'completed' }));
+
+          await clearSessionAccess(cleanupBatch);
+          await cleanupBatch.commit();
+        } catch (cleanupError) {
+          console.error('会計後片付け処理エラー:', cleanupError);
+        }
+      };
+
       await batch.commit();
+
+      if (isSessionComplete) {
+        void runPostPaymentCleanup();
+      }
 
       const issuedReceipt = null;
 
@@ -2218,6 +2241,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         showSuccessModal={showSuccessModal}
         showAbortModal={showAbortModal}
         isPaymentSubmitting={isPaymentSubmitting}
+        isPaymentFlowLocked={isPaymentFlowLocked}
         handlePayment={handlePayment}
         handleAbortSession={handleAbortSession}
         tableId={tableId}

@@ -92,6 +92,7 @@ export const PosRegisterRight = ({
   showSuccessModal,
   showAbortModal,
   isPaymentSubmitting,
+  isPaymentFlowLocked,
   handlePayment,
   handleAbortSession,
   tableId,
@@ -174,7 +175,7 @@ export const PosRegisterRight = ({
   };
 
   const startAbortLongPress = () => {
-    if (isPaymentSubmitting || showSuccessModal || showAbortModal) return;
+    if (isPaymentFlowLocked || isPaymentSubmitting || showSuccessModal || showAbortModal) return;
 
     clearAbortLongPress();
     abortPressTimerRef.current = window.setTimeout(() => {
@@ -443,11 +444,11 @@ export const PosRegisterRight = ({
             </div>
           )}
 
-          {orders.length === 0 && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (
+          {orders.length === 0 && !isPaymentFlowLocked && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (
             <div>
               <button
                 type="button"
-                onClick={handleAbortSession}
+                onClick={(isPaymentFlowLocked || isPaymentSubmitting) ? undefined : handleAbortSession}
                 className="flex w-full items-center justify-center gap-3 rounded-xl bg-red-500 py-4 text-xl font-bold text-white shadow-lg transition-all hover:bg-red-600 active:scale-[0.98]"
               >
                 <LogOut size={24} />

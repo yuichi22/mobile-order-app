@@ -1239,14 +1239,27 @@ export const PosTransactionHistory = ({ storeId }) => {
       .map((ticket) => {
         const items = consolidateTicketItems(ticket.items);
 
+        const paymentBreakdown = ticket.paymentBreakdown.sort((left, right) => {
+          const order = { cash: 1, card: 2, qr: 3, other: 4, mixed: 5 };
+          return (order[left.method] || 99) - (order[right.method] || 99);
+        });
+
+        const displayPaidOrders = paymentBreakdown.map((entry, index) => ({
+          id: `${ticket.id || 'payment'}-${entry.method || 'payment'}-${index}`,
+          paymentMethod: entry.method,
+          totalPrice: Number(entry.total || 0),
+          timestamp: ticket.timestamp,
+          paidAt: ticket.paidAt,
+          isDisplayPaymentBreakdown: true,
+          label: entry.label || formatPaymentMethod(entry.method)
+        }));
+
         return {
           ...ticket,
           items,
           taxRates: resolveTicketTaxRates(items, settings),
-          paymentBreakdown: ticket.paymentBreakdown.sort((left, right) => {
-            const order = { cash: 1, card: 2, qr: 3, other: 4, mixed: 5 };
-            return (order[left.method] || 99) - (order[right.method] || 99);
-          })
+          paymentBreakdown,
+          paidOrders: displayPaidOrders
         };
       })
       .sort((left, right) => {
