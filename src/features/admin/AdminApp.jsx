@@ -1,4 +1,4 @@
-﻿import React, { Suspense, useEffect, useState } from 'react';
+﻿import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -77,7 +77,32 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const [activeSessions, setActiveSessions] = useState([]);
   const [toast, setToast] = useState(null);
   const [posView, setPosView] = useState('scan');
-  const [registerMode, setRegisterMode] = useState('order');
+  const getStoredRegisterMode = () => {
+    if (typeof window === 'undefined' || !storeId) return 'order';
+
+    try {
+      const saved = window.localStorage.getItem(`akuto:${storeId}:adminRegisterMode`);
+      return saved === 'pos' ? 'pos' : 'order';
+    } catch (error) {
+      return 'order';
+    }
+  };
+
+  const saveStoredRegisterMode = (nextMode) => {
+    if (typeof window === 'undefined' || !storeId) return;
+
+    try {
+      window.localStorage.setItem(
+        `akuto:${storeId}:adminRegisterMode`,
+        nextMode === 'pos' ? 'pos' : 'order'
+      );
+    } catch (error) {
+      // localStorage が使えない環境では画面内 state のみで維持する。
+    }
+  };
+
+  const [registerMode, setRegisterMode] = useState(() => getStoredRegisterMode());
+  const lastRegisterModeRef = useRef(registerMode);
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
   const [lastPaymentData, setLastPaymentData] = useState(null);
 
@@ -85,6 +110,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const canViewAnalytics = canAccessAnalytics(normalizedRole);
   const canViewSettings = canAccessSettings(normalizedRole);
   const showAdminHeader = canViewAnalytics || canViewSettings;
+
+
+  useEffect(() => {
+    const normalizedMode = registerMode === 'pos' ? 'pos' : 'order';
+    lastRegisterModeRef.current = normalizedMode;
+    saveStoredRegisterMode(normalizedMode);
+  }, [registerMode, storeId]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -116,6 +148,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     }
 
     setSettingsReturnMode('pos');
+    const restoredMode = lastRegisterModeRef.current === 'pos' ? 'pos' : 'order';
+    setRegisterMode(restoredMode);
     setActiveTab('pos');
   };
 
@@ -131,6 +165,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
     return canAccessAdminTab(normalizedRole, activeTab) ? activeTab : 'pos';
   })();
+
+  const showRegisterModeToggle = activeAdminTab === 'pos' || activeAdminTab === 'settings';
+  const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing' || activeAdminTab === 'analytics';
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -230,7 +267,10 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   };
 
   const switchRegisterMode = (nextMode) => {
-    setRegisterMode(nextMode);
+    const normalizedMode = nextMode === 'pos' ? 'pos' : 'order';
+    lastRegisterModeRef.current = normalizedMode;
+    setRegisterMode(normalizedMode);
+    saveStoredRegisterMode(normalizedMode);
 
     // 設定画面を開いている時は、画面遷移せず設定内容だけ切り替える。
     // レジ画面上で押した時だけ、レジ画面に戻して選択モードを反映する。
@@ -303,35 +343,62 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
-                className="group flex h-11 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm transition-all hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
-                aria-label={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
-                title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
-              >
-                <span
-                  className={`flex h-9 items-center gap-2 rounded-full px-4 text-xs font-black transition-all ${
-                    registerMode === 'order'
-                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                      : 'text-gray-500 group-hover:text-orange-600'
-                  }`}
-                >
-                  <CreditCard size={15} strokeWidth={2.7} />
-                  ORDERレジ
-                </span>
+              <div className="flex h-11 w-[260px] shrink-0 items-center">
+                {showRegisterModeToggle && (
+                  <button
+                    type="button"
+                    onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
+                    className="group flex h-11 w-full items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+                    aria-label={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+                    title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+                  >
+                    <span
+                      className={`flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-xs font-black transition-all duration-200 ${
+                        registerMode === 'order'
+                          ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                          : 'text-gray-500 group-hover:text-orange-600'
+                      }`}
+                    >
+                      <CreditCard size={15} strokeWidth={2.7} />
+                      ORDERレジ
+                    </span>
 
-                <span
-                  className={`flex h-9 items-center gap-2 rounded-full px-4 text-xs font-black transition-all ${
-                    registerMode === 'pos'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                      : 'text-gray-500 group-hover:text-blue-700'
-                  }`}
-                >
-                  <ShoppingBag size={15} strokeWidth={2.7} />
-                  POSレジ
-                </span>
-              </button>
+                    <span
+                      className={`flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-xs font-black transition-all duration-200 ${
+                        registerMode === 'pos'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                          : 'text-gray-500 group-hover:text-blue-700'
+                      }`}
+                    >
+                      <ShoppingBag size={15} strokeWidth={2.7} />
+                      POSレジ
+                    </span>
+                  </button>
+                )}
+
+                {showSelectedRegisterReturnButton && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentMode = registerMode === 'pos' ? 'pos' : 'order';
+                      lastRegisterModeRef.current = currentMode;
+                      saveStoredRegisterMode(currentMode);
+                      setRegisterMode(currentMode);
+                      setActiveTab('pos');
+                    }}
+                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-black shadow-sm transition-all duration-200 active:scale-95 ${
+                      registerMode === 'pos'
+                        ? 'bg-blue-600 text-white shadow-blue-500/25 hover:bg-blue-700'
+                        : 'bg-orange-500 text-white shadow-orange-500/20 hover:bg-orange-600'
+                    }`}
+                    aria-label={`${registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}へ戻る`}
+                    title={`${registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}へ戻る`}
+                  >
+                    <ChevronLeft size={17} strokeWidth={3} />
+                    {registerMode === 'pos' ? 'POSレジへ戻る' : 'ORDERレジへ戻る'}
+                  </button>
+                )}
+              </div>
 
               {canViewAnalytics && (
                 <>
@@ -339,14 +406,24 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     active={activeAdminTab === 'dailyClosing'}
                     icon={CalendarCheck}
                     label="日計"
-                    onClick={() => setActiveTab('dailyClosing')}
+                    onClick={() => {
+                      const currentMode = registerMode === 'pos' ? 'pos' : 'order';
+                      lastRegisterModeRef.current = currentMode;
+                      saveStoredRegisterMode(currentMode);
+                      setActiveTab('dailyClosing');
+                    }}
                   />
 
                   <OperationTabButton
                     active={activeAdminTab === 'analytics'}
                     icon={BarChart3}
                     label="分析"
-                    onClick={() => setActiveTab('analytics')}
+                    onClick={() => {
+                      const currentMode = registerMode === 'pos' ? 'pos' : 'order';
+                      lastRegisterModeRef.current = currentMode;
+                      saveStoredRegisterMode(currentMode);
+                      setActiveTab('analytics');
+                    }}
                   />
                 </>
               )}
@@ -354,7 +431,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('pos')}
+              onClick={() => {
+                const currentMode = registerMode === 'pos' ? 'pos' : 'order';
+                lastRegisterModeRef.current = currentMode;
+                saveStoredRegisterMode(currentMode);
+                setRegisterMode(currentMode);
+                setActiveTab('pos');
+              }}
               className="flex min-w-0 flex-col items-center justify-center rounded-2xl px-5 py-2 transition-all hover:bg-gray-50 active:scale-95"
             >
               {storeSettings?.customerLogoUrl ? (
