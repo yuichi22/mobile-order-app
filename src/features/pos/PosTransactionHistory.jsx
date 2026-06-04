@@ -1085,6 +1085,178 @@ export const PosTransactionHistory = ({ storeId }) => {
   }, [filter, groupedTickets, paidSessionTickets, selectedPaidDate]);
 
 
+
+  const displayTickets = useMemo(() => {
+    if (filter !== 'paid') return filteredTickets;
+
+    const grouped = new Map();
+
+    const isTakeoutTicket = (ticket = {}) => (
+      ticket.isTakeout === true ||
+      String(ticket.tableId || '').toLowerCase() === 'takeout' ||
+      String(ticket.sessionId || ticket.sourceSessionId || '').startsWith('takeout-')
+    );
+
+    const getTicketAmount = (ticket = {}) => (
+      Number(ticket.totalPrice ?? ticket.totalAmount ?? ticket.amount ?? 0) || 0
+    );
+
+    const getTicketPaymentMethod = (ticket = {}) => (
+      getPaymentMethodKey(ticket.paymentMethodGroup || ticket.paymentMethod)
+    );
+
+    const addPaymentBreakdown = (target, method, amount) => {
+      const normalizedMethod = getPaymentMethodKey(method);
+      const normalizedAmount = Number(amount || 0) || 0;
+
+      const existing = target.paymentBreakdown.find((entry) => entry.method === normalizedMethod);
+      if (existing) {
+        existing.count += 1;
+        existing.total += normalizedAmount;
+        return;
+      }
+
+      target.paymentBreakdown.push({
+        method: normalizedMethod,
+        label: formatPaymentMethod(normalizedMethod),
+        count: 1,
+        total: normalizedAmount
+      });
+    };
+
+    filteredTickets.forEach((ticket) => {
+      const sessionKey = String(ticket.sourceSessionId || ticket.sessionId || '').trim();
+      const orderKey = Array.isArray(ticket.orderIds) && ticket.orderIds.length > 0
+        ? `orders-${ticket.orderIds.map((orderId) => String(orderId || '').trim()).filter(Boolean).sort().join('|')}`
+        : '';
+
+      const groupKey = (
+        sessionKey &&
+        !isTakeoutTicket(ticket)
+      )
+        ? `session-${sessionKey}`
+        : orderKey || `ticket-${ticket.id}`;
+
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, {
+          ...ticket,
+          id: `display-${groupKey}`,
+          sourceDisplayTicketIds: [],
+          sourceTransactionIds: [],
+          orderIds: [],
+          items: [],
+          paidOrders: [],
+          excludedOrders: [],
+          totalPrice: 0,
+          subtotal: 0,
+          taxAmountReduced: 0,
+          taxAmountStandard: 0,
+          discountAmount: 0,
+          paymentBreakdown: [],
+          paymentMethod: '',
+          hasCancelledLinkedOrder: false
+        });
+      }
+
+      const groupedTicket = grouped.get(groupKey);
+      const ticketAmount = getTicketAmount(ticket);
+      const ticketPaymentMethod = getTicketPaymentMethod(ticket);
+
+      groupedTicket.sourceDisplayTicketIds = [
+        ...new Set([
+          ...(Array.isArray(groupedTicket.sourceDisplayTicketIds) ? groupedTicket.sourceDisplayTicketIds : []),
+          ticket.id
+        ].filter(Boolean))
+      ];
+
+      groupedTicket.sourceTransactionIds = [
+        ...new Set([
+          ...(Array.isArray(groupedTicket.sourceTransactionIds) ? groupedTicket.sourceTransactionIds : []),
+          ...(Array.isArray(ticket.sourceTransactionIds) ? ticket.sourceTransactionIds : []),
+          ticket.sourceTransactionId
+        ].filter(Boolean))
+      ];
+
+      groupedTicket.orderIds = [
+        ...new Set([
+          ...(Array.isArray(groupedTicket.orderIds) ? groupedTicket.orderIds : []),
+          ...(Array.isArray(ticket.orderIds) ? ticket.orderIds : [])
+        ].filter(Boolean))
+      ];
+
+      groupedTicket.items = [
+        ...(Array.isArray(groupedTicket.items) ? groupedTicket.items : []),
+        ...(Array.isArray(ticket.items) ? ticket.items : [])
+      ];
+
+      groupedTicket.paidOrders = [
+        ...(Array.isArray(groupedTicket.paidOrders) ? groupedTicket.paidOrders : []),
+        ...(Array.isArray(ticket.paidOrders) ? ticket.paidOrders : [])
+      ];
+
+      groupedTicket.excludedOrders = [
+        ...(Array.isArray(groupedTicket.excludedOrders) ? groupedTicket.excludedOrders : []),
+        ...(Array.isArray(ticket.excludedOrders) ? ticket.excludedOrders : [])
+      ];
+
+      groupedTicket.totalPrice += ticketAmount;
+      groupedTicket.subtotal += Number(ticket.subtotal || ticket.subTotal || ticketAmount || 0) || 0;
+      groupedTicket.taxAmountReduced += Number(ticket.taxAmountReduced || 0);
+      groupedTicket.taxAmountStandard += Number(ticket.taxAmountStandard || 0);
+      groupedTicket.discountAmount += Number(ticket.discountAmount || 0);
+
+      groupedTicket.guestCount = Math.max(
+        Number(groupedTicket.guestCount || 0),
+        Number(ticket.guestCount || 0)
+      );
+
+      if (ticket.hasCancelledLinkedOrder) {
+        groupedTicket.hasCancelledLinkedOrder = true;
+      }
+
+      if (ticket.timestamp && (!groupedTicket.timestamp || ticket.timestamp < groupedTicket.timestamp)) {
+        groupedTicket.timestamp = ticket.timestamp;
+      }
+
+      if (ticket.paidAt && (!groupedTicket.paidAt || ticket.paidAt > groupedTicket.paidAt)) {
+        groupedTicket.paidAt = ticket.paidAt;
+      }
+
+      const breakdown = Array.isArray(ticket.paymentBreakdown) && ticket.paymentBreakdown.length > 0
+        ? ticket.paymentBreakdown
+        : [{ method: ticketPaymentMethod, total: ticketAmount }];
+
+      breakdown.forEach((entry) => {
+        addPaymentBreakdown(groupedTicket, entry.method, Number(entry.total || 0));
+      });
+
+      groupedTicket.paymentMethod = groupedTicket.paymentBreakdown.length === 1
+        ? groupedTicket.paymentBreakdown[0].method
+        : 'mixed';
+    });
+
+    return Array.from(grouped.values())
+      .map((ticket) => {
+        const items = consolidateTicketItems(ticket.items);
+
+        return {
+          ...ticket,
+          items,
+          taxRates: resolveTicketTaxRates(items, settings),
+          paymentBreakdown: ticket.paymentBreakdown.sort((left, right) => {
+            const order = { cash: 1, card: 2, qr: 3, other: 4, mixed: 5 };
+            return (order[left.method] || 99) - (order[right.method] || 99);
+          })
+        };
+      })
+      .sort((left, right) => {
+        const leftTime = left.paidAt?.getTime?.() || left.timestamp?.getTime?.() || 0;
+        const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
+        return rightTime - leftTime;
+      });
+  }, [filter, filteredTickets, settings]);
+
+
   const paidPaymentSummary = useMemo(() => {
     const base = {
       cash: { method: 'cash', label: '現金', count: 0, total: 0 },
@@ -1203,7 +1375,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           <Receipt size={18} className="shrink-0 text-gray-500" />
           <span className="shrink-0">会計履歴</span>
           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
-            {filteredTickets.length}件
+            {displayTickets.length}件
           </span>
         </div>
 
@@ -1343,7 +1515,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           </div>
         )}
 
-        {!loading && filteredTickets.length === 0 && (
+        {!loading && displayTickets.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
               filter === 'paid' && paidPaymentFilter === 'cash'
@@ -1380,14 +1552,14 @@ export const PosTransactionHistory = ({ storeId }) => {
           </div>
         )}
 
-        {!loading && filteredTickets.map((ticket, index) => {
+        {!loading && displayTickets.map((ticket, index) => {
           const isExpanded = expandedTicketId === ticket.id;
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
           const ticketCardDomId = `pos-ticket-card-${String(ticket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-          const previousTicket = filteredTickets[index - 1] || null;
+          const previousTicket = displayTickets[index - 1] || null;
           const previousTicketCardDomId = previousTicket
             ? `pos-ticket-card-${String(previousTicket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
             : '';
