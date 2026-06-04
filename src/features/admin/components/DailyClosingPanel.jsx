@@ -60,6 +60,17 @@ const toDateInputValue = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+const getJstDateInputValue = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return formatter.format(date);
+};
+
 const createDateFromInputValue = (value) => {
   if (!value) return new Date();
 
@@ -156,6 +167,22 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 
 
   const dateKey = useMemo(() => formatDailyClosingDateKey(targetDate), [targetDate]);
+  const todayDateValue = useMemo(() => getJstDateInputValue(), []);
+  const targetDateValue = useMemo(() => toDateInputValue(targetDate), [targetDate]);
+  const isTargetDateToday = targetDateValue === todayDateValue;
+
+  const shiftDailyClosingDate = (days) => {
+    const baseValue = targetDateValue || todayDateValue;
+    const baseDate = new Date(`${baseValue}T00:00:00+09:00`);
+    if (Number.isNaN(baseDate.getTime())) return;
+
+    baseDate.setDate(baseDate.getDate() + days);
+    const nextValue = getJstDateInputValue(baseDate);
+    if (nextValue > todayDateValue) return;
+
+    setTargetDate(new Date(`${nextValue}T00:00:00+09:00`));
+    setClosingStatus(null);
+  };
 
   const summary = useMemo(
     () => buildDailyClosingSummary(filteredTransactions, periods),
@@ -280,17 +307,6 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     : [];
 
   const isClosed = closingStatus === 'closed' || closedDailyData?.status === 'closed';
-
-  const shiftDailyDate = (delta) => {
-    if (!setTargetDate) return;
-
-    const nextDate = new Date(targetDate || new Date());
-    nextDate.setDate(nextDate.getDate() + delta);
-    nextDate.setHours(0, 0, 0, 0);
-
-    setTargetDate(nextDate);
-    setClosingStatus(null);
-  };
 
   const handleDateInputChange = (event) => {
     if (!setTargetDate) return;
@@ -471,7 +487,7 @@ const handleCloseDay = async (closingCheck = {}) => {
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => shiftDailyDate(-1)}
+              onClick={() => shiftDailyClosingDate(-1)}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600"
               aria-label="前の日"
             >
@@ -488,8 +504,9 @@ const handleCloseDay = async (closingCheck = {}) => {
 
             <button
               type="button"
-              onClick={() => shiftDailyDate(1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600"
+              onClick={() => shiftDailyClosingDate(1)}
+              disabled={isTargetDateToday}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="次の日"
             >
               <ChevronRight size={18} />
@@ -498,6 +515,7 @@ const handleCloseDay = async (closingCheck = {}) => {
             <input
               ref={dateInputRef}
               type="date"
+              max={todayDateValue}
               value={toDateInputValue(targetDate)}
               onChange={handleDateInputChange}
               className="sr-only"

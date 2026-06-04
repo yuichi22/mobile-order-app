@@ -24,6 +24,17 @@ import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 
+const getJstBusinessDate = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return formatter.format(date);
+};
+
 const isCancelledPosItem = (item) => (
   item?.status === 'cancelled' || item?.kitchenStatus === 'cancelled'
 );
@@ -1792,7 +1803,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
         timestamp: serverTimestamp(),
         paidAt: serverTimestamp(),
-        businessDate: new Date().toISOString().slice(0, 10),
+        businessDate: getJstBusinessDate(),
 
         isPaid: true
       });
@@ -1855,60 +1866,35 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       setOrderRetailKeyword('');
       setOrderRetailMessage(null);
 
-      if (isSessionComplete) {
-        onComplete({
-          totalAmount: Number(totalAmount),
-          changeAmount: Number(changeAmount),
-          subTotal: Number(subTotal),
-          taxAmount: Number(taxAmount),
-          taxAmountReduced: Number(taxAmountReduced),
-          taxAmountStandard: Number(taxAmountStandard),
-          taxRateReduced: Number(taxRateReduced),
-          taxRateStandard: Number(taxRateStandard),
-          discountAmount: Number(discountAmount),
-          promoExpenseAmount: Number(promoExpenseAmount),
-          voucherAmount: Number(voucherAmount),
-          settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
-          salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments),
-          promoExpenseItems,
-          vouchers: voucherItems,
-          accountingAdjustments: selectedAccountingAdjustmentItems,
-          customerIds,
-          customerSummaries,
-          lineItems: consolidatedItems,
-          paymentMethod: resolvedPaymentMethod,
-          issueReceipt: false,
-          recipientName: '',
-          sessionId,
-          transactionId: transactionRef.id,
-          receiptId: issuedReceipt?.receiptId || '',
-          receiptNo: issuedReceipt?.receiptNo || '',
-          isSessionComplete: true
-        });
-      } else {
-        setLastTransaction({
-          total: Number(totalAmount),
-          change: Number(changeAmount),
-          method: resolvedPaymentMethod,
-          receiptId: issuedReceipt?.receiptId || '',
-          receiptNo: issuedReceipt?.receiptNo || '',
-          transactionId: transactionRef.id,
-          promoExpenseAmount: Number(promoExpenseAmount),
-          voucherAmount: Number(voucherAmount),
-          settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
-          salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments)
-        });
+      setLastTransaction({
+        total: Number(totalAmount),
+        change: Number(changeAmount),
+        method: resolvedPaymentMethod,
+        receiptId: issuedReceipt?.receiptId || '',
+        receiptNo: issuedReceipt?.receiptNo || '',
+        transactionId: transactionRef.id,
+        promoExpenseAmount: Number(promoExpenseAmount),
+        voucherAmount: Number(voucherAmount),
+        settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
+        salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments)
+      });
 
-        setPaidItemKeys(new Set([...paidItemKeys, ...newlyPaidKeys]));
-        setShowSuccessModal(true);
-        setPaymentAmount('');
-        setSelectedItemKeys(new Set());
-        setCheckoutSelectionMode('all');
-        setDiscountType('none');
-        setDiscountValue(0);
-        setSelectedDiscount(null);
-        setDiscountQuantities({});
+      setPaidItemKeys(new Set([...paidItemKeys, ...newlyPaidKeys]));
+      setPaymentAmount('');
+      setSelectedItemKeys(new Set());
+      setCheckoutSelectionMode('all');
+      setDiscountType('none');
+      setDiscountValue(0);
+      setDiscountQuantities({});
+      setSelectedDiscount(null);
+      setIsPaymentFlowLocked(false);
+
+      // 会計完了後の確認画面は出さない。
+      // 個別会計・部分会計はこの画面に残り、最終会計だけ前画面へ戻す。
+      if (isSessionComplete) {
+        onBack?.();
       }
+      return;
     } catch (error) {
       console.error(error);
       alert('会計に失敗しました');

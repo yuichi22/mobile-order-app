@@ -11,6 +11,18 @@ import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { useStoreSettings } from '../store/hooks';
 
+const getJstDateInputValue = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return formatter.format(date);
+};
+
+
 const toDateValue = (value) => {
   if (!value) return null;
   if (typeof value?.toDate === 'function') return value.toDate();
@@ -434,10 +446,23 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
-  const [selectedPaidDate, setSelectedPaidDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedPaidDate, setSelectedPaidDate] = useState(() => getJstDateInputValue());
   const selectedPaidDateRange = useMemo(() => buildDateRangeFromInput(selectedPaidDate), [selectedPaidDate]);
   const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
-  const todayDateValue = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayDateValue = useMemo(() => getJstDateInputValue(), []);
+  const isSelectedPaidDateToday = Boolean(selectedPaidDate) && selectedPaidDate === todayDateValue;
+
+  const shiftSelectedPaidDate = (days) => {
+    const baseValue = selectedPaidDate || todayDateValue;
+    const baseDate = new Date(`${baseValue}T00:00:00+09:00`);
+    if (Number.isNaN(baseDate.getTime())) return;
+
+    baseDate.setDate(baseDate.getDate() + days);
+    const nextValue = getJstDateInputValue(baseDate);
+
+    if (nextValue > todayDateValue) return;
+    setSelectedPaidDate(nextValue);
+  };
   const [closeTicketTarget, setCloseTicketTarget] = useState(null);
   const [isClosingTicket, setIsClosingTicket] = useState(false);
   const closeTicketTimerRef = useRef(null);
@@ -1383,7 +1408,7 @@ export const PosTransactionHistory = ({ storeId }) => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-gray-50 p-4 font-black text-gray-700">
+      <div className="flex min-h-[96px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 p-4 font-black text-gray-700">
         <div className="flex min-w-0 items-center gap-2">
           <Receipt size={18} className="shrink-0 text-gray-500" />
           <span className="shrink-0">会計履歴</span>
@@ -1393,37 +1418,74 @@ export const PosTransactionHistory = ({ storeId }) => {
         </div>
 
         {(filter === 'paid' || filter === 'cancelled') && (
-          <div className="flex shrink-0 items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setSelectedPaidDate(todayDateValue)}
-              className={`h-8 rounded-xl px-3 text-xs font-black transition-colors ${
-                selectedPaidDate === todayDateValue
-                  ? 'bg-green-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
-              }`}
-            >
-              今日
-            </button>
+          <div className="flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedPaidDate(todayDateValue)}
+                className={`h-10 min-w-[64px] rounded-full px-3 text-xs font-black transition-colors ${
+                  selectedPaidDate === todayDateValue
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                今日
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setSelectedPaidDate('')}
-              className={`h-8 rounded-xl px-3 text-xs font-black transition-colors ${
-                !selectedPaidDate
-                  ? 'bg-green-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
-              }`}
-            >
-              すべて
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPaidDate('')}
+                className={`h-10 min-w-[64px] rounded-full px-3 text-xs font-black transition-colors ${
+                  !selectedPaidDate
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                すべて
+              </button>
+            </div>
 
-            <input
-              type="date"
-              value={selectedPaidDate || ''}
-              onChange={(event) => setSelectedPaidDate(event.target.value)}
-              className="h-8 rounded-xl border border-gray-200 bg-gray-50 px-2 text-xs font-black text-gray-700 outline-none focus:border-green-400"
-            />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => shiftSelectedPaidDate(-1)}
+                disabled={!selectedPaidDate}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-50"
+                aria-label="前日"
+              >
+                ＜
+              </button>
+
+              <input
+                type="date"
+                value={selectedPaidDate || ''}
+                max={todayDateValue}
+                onChange={(event) => setSelectedPaidDate(event.target.value)}
+                className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-800 outline-none transition-colors focus:border-blue-400"
+              />
+
+              <button
+                type="button"
+                onClick={() => shiftSelectedPaidDate(1)}
+                disabled={!selectedPaidDate || isSelectedPaidDateToday}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-50"
+                aria-label="翌日"
+              >
+                ＞
+              </button>
+            </div>
+          </div>
+        )}
+        {filter === 'unpaid' && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none invisible flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border border-transparent bg-transparent p-1"
+          >
+            <span className="h-10 min-w-[64px] rounded-full px-3 text-xs font-black">今日</span>
+            <span className="h-10 min-w-[64px] rounded-full px-3 text-xs font-black">すべて</span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full">＜</span>
+            <span className="h-10 w-[136px] rounded-xl px-3 text-xs font-bold" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-full">＞</span>
           </div>
         )}
       </div>
