@@ -275,6 +275,10 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     ? summary.categoryList
     : [];
 
+  const departmentList = Array.isArray(summary?.departmentList)
+    ? summary.departmentList
+    : [];
+
   const isClosed = closingStatus === 'closed' || closedDailyData?.status === 'closed';
 
   const shiftDailyDate = (delta) => {
@@ -318,6 +322,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
       voucherList,
       timeSlotList,
       categoryList,
+      departmentList,
       closedDailyData,
       settings
     });
@@ -383,6 +388,7 @@ const handleCloseDay = async (closingCheck = {}) => {
       settlementAdjustmentTotal: Number(summary?.settlementAdjustmentTotal || 0),
 
       paymentMethods: paymentMethodList,
+      departments: departmentList,
       taxBreakdown: taxBreakdownList,
       discounts: discountList,
       promoExpenses: promoExpenseList,
@@ -941,6 +947,39 @@ const handleCloseDay = async (closingCheck = {}) => {
                   ))
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-gray-100 p-4">
+            <div className="mb-3 text-sm font-black text-gray-800">
+              部門別売上
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              {departmentList.length === 0 ? (
+                <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400 md:col-span-2">
+                  部門別データがありません
+                </div>
+              ) : (
+                departmentList.map((department) => (
+                  <div
+                    key={department.id || department.departmentId || department.name}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-gray-800">
+                        {department.name || department.departmentName || '部門未設定'}
+                      </div>
+                      <div className="text-[11px] font-bold text-gray-400">
+                        {Number(department.count || 0)}件
+                      </div>
+                    </div>
+                    <div className="ml-3 shrink-0 text-sm font-black text-gray-900">
+                      {formatCurrency(department.total)}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

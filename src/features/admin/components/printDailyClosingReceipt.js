@@ -114,6 +114,18 @@ const buildCategoryRows = (categoryList = []) => {
   )).join('');
 };
 
+
+const buildDepartmentRows = (departmentList = []) => {
+  if (!departmentList.length) {
+    return '<div class="empty">データなし</div>';
+  }
+
+  return departmentList.map((department) => row(
+    `${department.name || department.departmentName || '部門未設定'} ${Number(department.count || 0)}件`,
+    formatCurrency(department.total)
+  )).join('');
+};
+
 const buildCashCheckRows = (cashCheck) => {
   if (!cashCheck) {
     return '<div class="empty">未確認</div>';
@@ -157,6 +169,7 @@ export const printDailyClosingReceipt = ({
   discountList = [],
   timeSlotList = [],
   categoryList = [],
+  departmentList = [],
   closedDailyData = null,
   settings = {}
 }) => {
@@ -349,6 +362,11 @@ export const printDailyClosingReceipt = ({
           ${section(`
             ${sectionTitle('時間帯別売上')}
             ${buildTimeSlotRows(timeSlotList)}
+          `)}
+
+          ${section(`
+            ${sectionTitle('部門別売上')}
+            ${buildDepartmentRows(departmentList)}
           `)}
 
           ${section(`

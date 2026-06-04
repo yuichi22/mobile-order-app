@@ -150,6 +150,29 @@ const addCustomers = (summary, transaction) => {
   }
 };
 
+const addDepartmentAmount = (summary, transaction = {}) => {
+  const departmentId = String(transaction.departmentId || 'unassigned').trim() || 'unassigned';
+  const departmentName = String(
+    transaction.departmentName ||
+    (departmentId === 'unassigned' ? '部門未設定' : departmentId)
+  ).trim() || '部門未設定';
+
+  if (!summary.departments[departmentId]) {
+    summary.departments[departmentId] = {
+      id: departmentId,
+      departmentId,
+      name: departmentName,
+      departmentName,
+      count: 0,
+      total: 0
+    };
+  }
+
+  const amount = Number(transaction.totalAmount || 0);
+  summary.departments[departmentId].count += 1;
+  summary.departments[departmentId].total += amount;
+};
+
 const addPaymentMethod = (summary, rawMethod, amount) => {
   const method = getPaymentMethodGroup(rawMethod);
 
@@ -731,6 +754,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     costMissingSalesTaxExcluded: 0,
 
     paymentMethods: {},
+    departments: {},
     taxBreakdown: {},
     discounts: {},
     promoExpenses: {},
@@ -758,6 +782,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     addCustomers(summary, transaction);
 
     addPaymentMethod(summary, transaction.paymentMethodGroup || transaction.paymentMethod, totalAmount);
+    addDepartmentAmount(summary, transaction);
     addDiscounts(summary, transaction);
     addSettlementAdjustments(summary, transaction);
     addTaxSummary(summary, transaction);
@@ -826,6 +851,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
       .sort((left, right) => right.amount - left.amount),
 
     itemList: Object.values(summary.items)
+      .sort((left, right) => right.total - left.total),
+
+    departmentList: Object.values(summary.departments)
       .sort((left, right) => right.total - left.total),
 
     categoryList: Object.values(summary.categories)
