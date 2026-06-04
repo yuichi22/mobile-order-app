@@ -29,7 +29,14 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
-import { getActiveRegisterContext, getAvailableRegisters, setActiveRegisterContext } from '../../../pos/utils/registerContext';
+import {
+  REGISTER_MODE_OPTIONS,
+  getActiveRegisterContext,
+  getAvailableDepartments,
+  getAvailableRegisters,
+  getDepartmentById,
+  setActiveRegisterContext
+} from '../../../pos/utils/registerContext';
 
 const SettingSection = ({ title, desc, icon, children }) => {
   const SectionIcon = icon;
@@ -89,40 +96,137 @@ const BasicSettings = ({
 }) => {
   const formRef = useRef(null);
   const [activeRegisterContext, setActiveRegisterContextState] = useState(() => (
-    getActiveRegisterContext(storeId, settings?.registers)
+    getActiveRegisterContext(storeId, settings?.registers, settings?.departments)
   ));
 
   useEffect(() => {
-    setActiveRegisterContextState(getActiveRegisterContext(storeId, settings?.registers));
-  }, [storeId, settings?.registers]);
+    setActiveRegisterContextState(getActiveRegisterContext(storeId, settings?.registers, settings?.departments));
+  }, [storeId, settings?.registers, settings?.departments]);
 
-  const registerOptions = useMemo(
-    () => getAvailableRegisters(settings?.registers),
-    [settings?.registers]
+  const departmentOptions = useMemo(
+    () => getAvailableDepartments(settings?.departments),
+    [settings?.departments]
   );
 
+  const registerOptions = useMemo(
+    () => getAvailableRegisters(settings?.registers, departmentOptions).map((register) => {
+      const department = getDepartmentById(register.departmentId, departmentOptions);
+      return {
+        ...register,
+        departmentId: department.id,
+        departmentName: department.name
+      };
+    }),
+    [settings?.registers, departmentOptions]
+  );
+
+  const [departmentDrafts, setDepartmentDrafts] = useState(() => departmentOptions);
   const [registerDrafts, setRegisterDrafts] = useState(() => registerOptions);
+
+  useEffect(() => {
+    setDepartmentDrafts(departmentOptions);
+  }, [departmentOptions]);
 
   useEffect(() => {
     setRegisterDrafts(registerOptions);
   }, [registerOptions]);
 
-  const saveRegisterDrafts = async (nextRegisters = registerDrafts) => {
-    const normalizedRegisters = getAvailableRegisters(nextRegisters);
+  const saveRegisterDrafts = async (nextRegisters = registerDrafts, nextDepartments = departmentDrafts) => {
+    const normalizedDepartments = getAvailableDepartments(nextDepartments);
+    const normalizedRegisters = getAvailableRegisters(nextRegisters, normalizedDepartments).map((register) => {
+      const department = getDepartmentById(register.departmentId, normalizedDepartments);
+      return {
+        ...register,
+        departmentId: department.id,
+        departmentName: department.name
+      };
+    });
 
     await onSave({
       ...settings,
+      departments: normalizedDepartments,
       registers: normalizedRegisters
     });
 
     return normalizedRegisters;
   };
 
+  const updateDepartmentNameDraft = (departmentId, name) => {
+    setDepartmentDrafts((current) => (
+      getAvailableDepartments(current).map((department) => (
+        department.id === departmentId
+          ? { ...department, name, label: name }
+          : department
+      ))
+    ));
+  };
+
+  const updateDepartmentRegisterModeDraft = (departmentId, registerMode) => {
+    const normalizedRegisterMode = registerMode === 'order' ? 'order' : 'pos';
+
+    setDepartmentDrafts((current) => (
+      getAvailableDepartments(current).map((department) => (
+        department.id === departmentId
+          ? { ...department, registerMode: normalizedRegisterMode }
+          : department
+      ))
+    ));
+
+    setRegisterDrafts((current) => (
+      getAvailableRegisters(current, departmentDrafts).map((register) => (
+        register.departmentId === departmentId
+          ? { ...register, registerMode: normalizedRegisterMode }
+          : register
+      ))
+    ));
+  };
+
+  const addDepartmentDraft = () => {
+    setDepartmentDrafts((current) => {
+      const normalized = getAvailableDepartments(current);
+      const nextNumber = normalized.length + 1;
+      const nextId = `department_${Date.now()}`;
+
+      return [
+        ...normalized,
+        {
+          id: nextId,
+          name: `部門${nextNumber}`,
+          label: `部門${nextNumber}`,
+          registerMode: 'pos',
+          isActive: true,
+          sortOrder: nextNumber * 10
+        }
+      ];
+    });
+  };
+
+  const commitDepartmentDrafts = async () => {
+    await saveRegisterDrafts(registerDrafts, departmentDrafts);
+  };
+
   const updateRegisterNameDraft = (registerId, name) => {
     setRegisterDrafts((current) => (
-      getAvailableRegisters(current).map((register) => (
+      getAvailableRegisters(current, departmentDrafts).map((register) => (
         register.id === registerId
           ? { ...register, name, label: name }
+          : register
+      ))
+    ));
+  };
+
+  const updateRegisterDepartmentDraft = (registerId, departmentId) => {
+    const department = getDepartmentById(departmentId, departmentDrafts);
+
+    setRegisterDrafts((current) => (
+      getAvailableRegisters(current, departmentDrafts).map((register) => (
+        register.id === registerId
+          ? {
+              ...register,
+              departmentId: department.id,
+              departmentName: department.name,
+              registerMode: department.registerMode
+            }
           : register
       ))
     ));
@@ -522,6 +626,69 @@ const handleTestPrinter = async () => {
           </p>
         </div>
 
+        <div className="mb-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Departments
+              </p>
+              <h3 className="mt-1 text-lg font-black text-slate-900">
+                部門設定
+              </h3>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+                部門名とレジタイプを設定します。レジは下の「紐付け部門」から部門を選ぶだけで、ORDER/POSの区分も自動で決まります。
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={addDepartmentDraft}
+              className="h-11 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white transition active:scale-95"
+            >
+              部門を追加
+            </button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {departmentDrafts.map((department) => (
+              <div key={department.id} className="rounded-2xl bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-[11px] font-black uppercase text-gray-400">
+                    {department.id}
+                  </label>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">
+                    {department.registerMode === 'order' ? 'ORDERレジ' : 'POSレジ'}
+                  </span>
+                </div>
+
+                <input
+                  value={department.name || ''}
+                  onChange={(event) => updateDepartmentNameDraft(department.id, event.target.value)}
+                  onBlur={commitDepartmentDrafts}
+                  className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  placeholder="例：物販"
+                />
+
+                <label className="mb-2 mt-3 block text-[11px] font-black uppercase text-gray-400">
+                  レジタイプ
+                </label>
+                <select
+                  value={department.registerMode || 'pos'}
+                  onChange={(event) => updateDepartmentRegisterModeDraft(department.id, event.target.value)}
+                  onBlur={commitDepartmentDrafts}
+                  className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                >
+                  {REGISTER_MODE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="grid gap-3 lg:grid-cols-3">
           {registerDrafts.map((register) => {
             const active = activeRegisterContext?.id === register.id;
@@ -554,6 +721,22 @@ const handleTestPrinter = async () => {
                   className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
                   placeholder="例：メインレジ"
                 />
+
+                <label className="mb-2 mt-3 block text-[11px] font-black uppercase text-gray-400">
+                  紐付け部門
+                </label>
+                <select
+                  value={register.departmentId || 'retail'}
+                  onChange={(event) => updateRegisterDepartmentDraft(register.id, event.target.value)}
+                  onBlur={commitRegisterNameDraft}
+                  className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                >
+                  {departmentDrafts.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name} / {department.registerMode === 'order' ? 'ORDERレジ' : 'POSレジ'}
+                    </option>
+                  ))}
+                </select>
 
                 <button
                   type="button"

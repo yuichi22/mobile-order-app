@@ -292,15 +292,15 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
   } = useCookingCategoryData(storeId);
 
   const [settingsMode, setSettingsMode] = useState(initialSettingsMode === 'pos' ? 'pos' : 'order');
-  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId, settings?.registers));
+  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId, settings?.registers, settings?.departments));
 
   useEffect(() => {
     setSettingsMode(initialSettingsMode === 'pos' ? 'pos' : 'order');
   }, [initialSettingsMode]);
 
   useEffect(() => {
-    setActiveRegisterContextState(syncActiveRegisterName(storeId, settings?.registers));
-  }, [storeId, settings?.registers]);
+    setActiveRegisterContextState(syncActiveRegisterName(storeId, settings?.registers, settings?.departments));
+  }, [storeId, settings?.registers, settings?.departments]);
 
   const [subTab, setSubTab] = useState(() => getDefaultSettingsSubTab(role) || 'menu');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);

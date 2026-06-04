@@ -15,6 +15,30 @@ import {
   Users
 } from 'lucide-react';
 
+const filterDailyTransactions = (transactions = [], selectedRegisterId = 'all', selectedRegisterMode = 'all') => {
+  return transactions.filter((transaction) => {
+    const registerId = transaction?.registerId || '';
+    const registerMode = transaction?.registerMode || '';
+
+    const matchesRegister =
+      selectedRegisterId === 'all'
+        ? true
+        : selectedRegisterId === 'unassigned'
+          ? !registerId
+          : registerId === selectedRegisterId;
+
+    const matchesMode =
+      selectedRegisterMode === 'all'
+        ? true
+        : selectedRegisterMode === 'unassigned'
+          ? !registerMode
+          : registerMode === selectedRegisterMode;
+
+    return matchesRegister && matchesMode;
+  });
+};
+
+
 import { db } from '../../../shared/api/firebase/client';
 import { useDailyTransactions } from '../Analytics/hooks/useDailyTransactions';
 import {
@@ -26,6 +50,7 @@ import {
 import DailyClosingCheckModal from './DailyClosingCheckModal';
 import { useStoreSettings, usePeriodData } from '../../store/hooks';
 import { printDailyClosingReceipt } from './printDailyClosingReceipt';
+import { getAvailableRegisters } from '../../pos/utils/registerContext';
 
 const toDateInputValue = (date) => {
   const target = new Date(date || new Date());
@@ -64,6 +89,8 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [isLoadingClosedDaily, setIsLoadingClosedDaily] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [amountDisplayMode, setAmountDisplayMode] = useState(getInitialAmountDisplayMode);
+  const [selectedRegisterId, setSelectedRegisterId] = useState('all');
+  const [selectedRegisterMode, setSelectedRegisterMode] = useState('all');
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
@@ -100,11 +127,39 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     targetDate
   });
 
+
+  const registerOptions = useMemo(() => {
+    return getAvailableRegisters(settings?.registers || []);
+  }, [settings?.registers]);
+
+  const registerFilterOptions = useMemo(() => {
+    return [
+      { id: 'all', name: 'すべて' },
+      ...registerOptions.map((register) => ({
+        id: register.id,
+        name: register.name || register.id
+      })),
+      { id: 'unassigned', name: '未設定' }
+    ];
+  }, [registerOptions]);
+
+  const registerModeFilterOptions = [
+    { id: 'all', name: 'すべて' },
+    { id: 'order', name: 'ORDERレジ' },
+    { id: 'pos', name: 'POSレジ' },
+    { id: 'unassigned', name: '未設定' }
+  ];
+
+  const filteredTransactions = useMemo(() => {
+    return filterDailyTransactions(transactions, selectedRegisterId, selectedRegisterMode);
+  }, [transactions, selectedRegisterId, selectedRegisterMode]);
+
+
   const dateKey = useMemo(() => formatDailyClosingDateKey(targetDate), [targetDate]);
 
   const summary = useMemo(
-    () => buildDailyClosingSummary(transactions, periods),
-    [transactions, periods]
+    () => buildDailyClosingSummary(filteredTransactions, periods),
+    [filteredTransactions, periods]
   );
 
   useEffect(() => {
@@ -360,6 +415,46 @@ const handleCloseDay = async (closingCheck = {}) => {
 
   return (
     <div className="mt-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+
+        <div className="mt-3 grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <div>
+            <label className="mb-1 block text-[11px] font-black text-slate-400">
+              使用レジ
+            </label>
+            <select
+              value={selectedRegisterId}
+              onChange={(event) => setSelectedRegisterId(event.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-400"
+            >
+              {registerFilterOptions.map((register) => (
+                <option key={register.id} value={register.id}>
+                  {register.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] font-black text-slate-400">
+              会計区分
+            </label>
+            <select
+              value={selectedRegisterMode}
+              onChange={(event) => setSelectedRegisterMode(event.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-400"
+            >
+              {registerModeFilterOptions.map((mode) => (
+                <option key={mode.id} value={mode.id}>
+                  {mode.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+            表示中: {filteredTransactions.length}件 / 全{transactions.length}件
+          </div>
+        </div>
       <div className="mb-5 flex flex-col gap-4 border-b border-gray-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-black text-orange-500">

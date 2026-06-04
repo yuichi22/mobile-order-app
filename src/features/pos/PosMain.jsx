@@ -608,7 +608,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         }
       };
 
-      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers);
+      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments);
       const hasManualSale = items.some((item) => item?.sourceType === 'manual');
       const hasBarcodeSale = items.some((item) => item?.sourceType === 'barcode');
       const hasRetailSale = items.some((item) => item?.sourceType === 'retail');
@@ -643,9 +643,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
           registerId: registerContext.id,
           registerName: registerContext.name,
-          registerMode: registerMode === 'pos' ? 'pos' : 'order',
-          salesChannel: registerMode === 'pos' ? 'pos_register' : 'order_register',
-          salesChannelLabel: registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
+          departmentId: registerContext.departmentId || 'retail',
+          departmentName: registerContext.departmentName || '物販',
+          registerMode: registerContext.registerMode || (registerMode === 'pos' ? 'pos' : 'order'),
+          salesChannel: (registerContext.registerMode || registerMode) === 'pos' ? 'pos_register' : 'order_register',
+          salesChannelLabel: (registerContext.registerMode || registerMode) === 'pos' ? 'POSレジ' : 'ORDERレジ',
           salesSubChannel,
           salesSubChannelLabel,
 
@@ -735,9 +737,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         tableName: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
         registerId: registerContext.id,
         registerName: registerContext.name,
-        registerMode: registerMode === 'pos' ? 'pos' : 'order',
-        salesChannel: registerMode === 'pos' ? 'pos_register' : 'order_register',
-        salesChannelLabel: registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
+        departmentId: registerContext.departmentId || 'retail',
+        departmentName: registerContext.departmentName || '物販',
+        registerMode: registerContext.registerMode || (registerMode === 'pos' ? 'pos' : 'order'),
+        salesChannel: (registerContext.registerMode || registerMode) === 'pos' ? 'pos_register' : 'order_register',
+        salesChannelLabel: (registerContext.registerMode || registerMode) === 'pos' ? 'POSレジ' : 'ORDERレジ',
         salesSubChannel,
         salesSubChannelLabel,
         isTakeout: true,

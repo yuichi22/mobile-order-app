@@ -1705,7 +1705,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       };
 
       const currentPeriodSnapshot = resolveCurrentPeriodSnapshot();
-      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers);
+      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments);
       const hasOrderRetailExtras = orderRetailCart.length > 0;
 
       const transactionItems = consolidatedItems.map((item) => {
@@ -1736,9 +1736,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
 
         registerId: registerContext.id,
         registerName: registerContext.name,
-        registerMode: 'order',
-        salesChannel: 'order_register',
-        salesChannelLabel: 'ORDERレジ',
+        departmentId: registerContext.departmentId || 'retail',
+        departmentName: registerContext.departmentName || '物販',
+        registerMode: registerContext.registerMode || 'order',
+        salesChannel: registerContext.registerMode === 'pos' ? 'pos_register' : 'order_register',
+        salesChannelLabel: registerContext.registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
         salesSubChannel: hasOrderRetailExtras ? 'order_table_with_retail' : 'order_table',
         salesSubChannelLabel: hasOrderRetailExtras ? '店内注文会計 + 物販' : '店内注文会計',
 
