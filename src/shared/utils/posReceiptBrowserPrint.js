@@ -45,10 +45,12 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
 
   const rows = buildItemRows(payload.items || []);
   const title = escapeReceiptHtml(payload.title || '領収書');
+  const receiptScopeLabel = escapeReceiptHtml(payload.receiptScopeLabel || '');
   const storeName = escapeReceiptHtml(payload.storeName || 'Akuto Order System');
   const issuedAtText = escapeReceiptHtml(payload.issuedAtText || new Date().toLocaleString('ja-JP'));
   const tableName = escapeReceiptHtml(payload.tableName || payload.tableDisplayName || '');
   const paymentMethod = escapeReceiptHtml(payload.paymentMethod || '');
+  const hideRecipientAndProviso = payload.hideRecipientAndProviso === true;
   const recipientLabel = escapeReceiptHtml(payload.recipientLabel || (payload.recipientName ? `${payload.recipientName} 様` : '様'));
   const provisoLabel = escapeReceiptHtml(payload.provisoLabel || (payload.proviso ? `${payload.proviso} として` : 'として'));
 
@@ -164,8 +166,9 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
             <div class="row"><span>発行日時</span><span>${issuedAtText}</span></div>
             ${tableName ? `<div class="row"><span>テーブル</span><span>${tableName}</span></div>` : ''}
             ${paymentMethod ? `<div class="row"><span>支払い方法</span><span>${paymentMethod}</span></div>` : ''}
-            <div class="handwrite"><span>宛名：</span><span>${recipientLabel}</span></div>
-            <div class="handwrite"><span>但し：</span><span>${provisoLabel}</span></div>
+            ${receiptScopeLabel ? `<div class="row"><span>区分</span><span>${receiptScopeLabel}</span></div>` : ''}
+            ${hideRecipientAndProviso ? '' : `<div class="handwrite"><span>宛名：</span><span>${recipientLabel}</span></div>`}
+            ${hideRecipientAndProviso ? '' : `<div class="handwrite"><span>但し：</span><span>${provisoLabel}</span></div>`}
           </div>
 
           <div class="items-section">

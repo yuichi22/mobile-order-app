@@ -69,6 +69,8 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
 
   return {
     title: data.title || '領収書',
+    receiptType: data.receiptType || '',
+    receiptScopeLabel: data.receiptScopeLabel || '',
     storeName: settings?.name || 'Akuto Order System',
     address: settings?.address || '',
     tel: settings?.tel || '',

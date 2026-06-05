@@ -667,13 +667,17 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       disabled={isPaymentResultReceiptPrinting}
                       className="mt-4 flex w-full items-center justify-center rounded-2xl bg-gray-900 py-4 text-sm font-black text-white shadow-lg transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isPaymentResultReceiptPrinting ? '印刷中...' : 'レシートを印刷'}
+                      {isPaymentResultReceiptPrinting
+                        ? '印刷中...'
+                        : paymentResultToast.receiptType === 'partial'
+                          ? 'この会計のレシートを印刷'
+                          : 'レシートを印刷'}
                     </button>
                   )}
 
                   {!paymentResultToast.canPrintReceipt && (
                     <p className="mt-3 text-center text-xs font-bold text-gray-400">
-                      個別会計中です。最終会計後にレシート印刷できます。
+                      この会計のレシートを準備できませんでした。
                     </p>
                   )}
                 </div>

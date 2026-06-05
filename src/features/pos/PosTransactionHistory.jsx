@@ -334,6 +334,118 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     openPosReceiptBrowserPrint(payload);
   };
 
+  const buildPaymentReceiptTicket = (payment = {}, parentTicket = {}) => ({
+    ...parentTicket,
+    ...payment,
+    id: payment.id || payment.sourceTransactionId || parentTicket.id,
+    sourceTransactionId: payment.sourceTransactionId || payment.id || parentTicket.sourceTransactionId,
+    sessionId: parentTicket.sessionId || payment.sessionId || parentTicket.sourceSessionId || '',
+    tableId: parentTicket.tableId || payment.tableId || '',
+    tableDisplayName:
+      parentTicket.tableDisplayName ||
+      parentTicket.tableName ||
+      payment.tableDisplayName ||
+      payment.tableName ||
+      '',
+    tableName:
+      parentTicket.tableName ||
+      parentTicket.tableDisplayName ||
+      payment.tableName ||
+      payment.tableDisplayName ||
+      '',
+    timestamp: payment.timestamp || payment.paidAt || parentTicket.timestamp || null,
+    paidAt: payment.paidAt || payment.timestamp || parentTicket.paidAt || null,
+    status: 'paid',
+    title: payment.title || '領収書',
+    receiptType: payment.receiptType || 'partial',
+    receiptScopeLabel: payment.receiptScopeLabel || '個別会計',
+    totalPrice: Number(payment.totalPrice ?? payment.totalAmount ?? payment.amount ?? 0) || 0,
+    totalAmount: Number(payment.totalPrice ?? payment.totalAmount ?? payment.amount ?? 0) || 0,
+    subtotal: Number(payment.subtotal ?? payment.subTotal ?? payment.totalPrice ?? payment.totalAmount ?? 0) || 0,
+    subTotal: Number(payment.subtotal ?? payment.subTotal ?? payment.totalPrice ?? payment.totalAmount ?? 0) || 0,
+    taxAmountReduced: Number(payment.taxAmountReduced || 0),
+    taxAmountStandard: Number(payment.taxAmountStandard || 0),
+    taxAmount: Number(payment.taxAmount || payment.tax || 0),
+    discountAmount: Number(payment.discountAmount || 0),
+    paymentMethod: payment.paymentMethod || parentTicket.paymentMethod,
+    paymentMethodGroup: payment.paymentMethod || parentTicket.paymentMethod,
+    items: Array.isArray(payment.items) ? payment.items : [],
+    lineItems: Array.isArray(payment.items) ? payment.items : []
+  });
+
+  const printPaymentReceipt = async (payment, parentTicket, settings) => {
+    await printReceipt(buildPaymentReceiptTicket(payment, parentTicket), settings);
+  };
+
+  const buildTicketStatementPayload = (ticket = {}, settings = {}) => {
+    const paymentRows = Array.isArray(ticket.paidOrders) && ticket.paidOrders.length > 0
+      ? ticket.paidOrders
+      : Array.isArray(ticket.paymentBreakdown)
+        ? ticket.paymentBreakdown.map((entry, index) => ({
+            id: `${ticket.id || 'payment'}-${entry.method || 'payment'}-${index}`,
+            sourceTransactionId: entry.sourceTransactionId || '',
+            paymentMethod: entry.method,
+            totalPrice: Number(entry.total || 0),
+            paidAt: ticket.paidAt || ticket.timestamp,
+            timestamp: ticket.timestamp
+          }))
+        : [];
+
+    const totalAmount = Number(ticket.totalPrice || ticket.totalAmount || 0);
+    const tableName = getTableDisplayName(ticket) || ticket.tableName || ticket.tableDisplayName || 'テイクアウト';
+
+    const statementItems = paymentRows.map((payment, index) => {
+      const method = payment.paymentMethod || payment.method || '';
+      const paidAtText = formatDateTimeShort(payment.paidAt || payment.timestamp) || formatTime(payment.paidAt || payment.timestamp) || '';
+      const sourceId = String(payment.sourceTransactionId || payment.id || '').slice(-8);
+
+      return {
+        id: payment.id || payment.sourceTransactionId || `${ticket.id || 'payment'}-${index}`,
+        name: `${index + 1}. ${formatPaymentMethod(method)} ${sourceId ? `/${sourceId}` : ''}`,
+        unitPrice: Number(payment.totalPrice ?? payment.totalAmount ?? payment.total ?? payment.amount ?? 0) || 0,
+        quantity: 1,
+        totalPrice: Number(payment.totalPrice ?? payment.totalAmount ?? payment.total ?? payment.amount ?? 0) || 0,
+        options: paidAtText ? [`会計 ${paidAtText}`] : []
+      };
+    });
+
+    return {
+      title: '会計明細',
+      receiptScopeLabel: '会計明細',
+      storeName: settings?.name || 'Akuto Order System',
+      address: settings?.address || '',
+      tel: settings?.tel || '',
+      tableName,
+      tableDisplayName: tableName,
+      issuedAtText: new Date().toLocaleString('ja-JP'),
+      paymentMethod: '複数',
+      items: statementItems,
+      lineItems: statementItems,
+      totalPrice: totalAmount,
+      totalAmount,
+      subtotal: totalAmount,
+      subTotal: totalAmount,
+      taxAmount: 0,
+      taxAmountReduced: 0,
+      taxAmountStandard: 0,
+      discountAmount: 0,
+      note: 'これは領収書ではなく、同一伝票内の支払い内訳を確認するための会計明細です。',
+      recipientLabel: '',
+      provisoLabel: '',
+      hideRecipientAndProviso: true
+    };
+  };
+
+  const openTicketStatementPrint = (ticket = {}, settings = {}) => {
+    try {
+      const payload = buildTicketStatementPayload(ticket, settings);
+      openPosReceiptBrowserPrint(payload);
+    } catch (error) {
+      console.error('[pos statement print error]', error, { ticket, settings });
+      alert('明細印刷を開けませんでした。会計履歴を更新してからもう一度お試しください。');
+    }
+  };
+
 export const PosTransactionHistory = ({ storeId }) => {
   const [orders, setOrders] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -758,8 +870,16 @@ export const PosTransactionHistory = ({ storeId }) => {
             primaryOrder?.paidAt ||
             null,
           status: 'paid',
+          receiptType: transaction.receiptType || (transaction.isSessionComplete ? 'final' : 'partial'),
+          receiptScopeLabel:
+            transaction.receiptScopeLabel ||
+            (transaction.receiptType === 'final' || transaction.isSessionComplete ? '最終会計' : '個別会計'),
+          title: transaction.title || '領収書',
           totalPrice: transactionTotal,
+          totalAmount: transactionTotal,
           subtotal: Number(transaction.subTotal || transaction.subtotal || transactionTotal || 0),
+          subTotal: Number(transaction.subTotal || transaction.subtotal || transactionTotal || 0),
+          taxAmount: Number(transaction.taxAmount || 0),
           taxAmountReduced: Number(transaction.taxAmountReduced || 0),
           taxAmountStandard: Number(transaction.taxAmountStandard || 0),
           discountAmount: Number(transaction.discountAmount || 0),
@@ -776,30 +896,35 @@ export const PosTransactionHistory = ({ storeId }) => {
             method: paymentMethod,
             label: formatPaymentMethod(paymentMethod),
             count: 1,
-            total: transactionTotal
+            total: transactionTotal,
+            sourceTransactionId: transaction.id
           }],
           orderIds,
           sourceTransactionIds: [transaction.id].filter(Boolean),
           items,
-          paidOrders: linkedOrders.length > 0
-            ? linkedOrders.map((order) => ({
-                id: order.id,
-                totalPrice: Number(order.totalPrice || 0),
-                paymentMethod,
-                timestamp: order.timestamp,
-                paidAt: order.paidAt || transaction.paidAt || transaction.timestamp,
-                status: order.status,
-                paymentStatus: order.paymentStatus,
-                items: Array.isArray(order.items) ? order.items : []
-              }))
-            : [{
-                id: transaction.id,
-                totalPrice: transactionTotal,
-                paymentMethod,
-                timestamp: transaction.timestamp,
-                paidAt: transaction.paidAt || transaction.timestamp,
-                items
-              }],
+          paidOrders: [{
+            id: transaction.id,
+            sourceTransactionId: transaction.id,
+            totalPrice: transactionTotal,
+            totalAmount: transactionTotal,
+            subtotal: Number(transaction.subTotal || transaction.subtotal || transactionTotal || 0),
+            subTotal: Number(transaction.subTotal || transaction.subtotal || transactionTotal || 0),
+            taxAmount: Number(transaction.taxAmount || 0),
+            taxAmountReduced: Number(transaction.taxAmountReduced || 0),
+            taxAmountStandard: Number(transaction.taxAmountStandard || 0),
+            discountAmount: Number(transaction.discountAmount || 0),
+            paymentMethod,
+            receiptType: transaction.receiptType || (transaction.isSessionComplete ? 'final' : 'partial'),
+            receiptScopeLabel:
+              transaction.receiptScopeLabel ||
+              (transaction.receiptType === 'final' || transaction.isSessionComplete ? '最終会計' : '個別会計'),
+            title: transaction.title || '領収書',
+            timestamp: transaction.timestamp,
+            paidAt: transaction.paidAt || transaction.timestamp,
+            status: 'paid',
+            paymentStatus: 'paid',
+            items
+          }],
           excludedOrders: [],
           hasCancelledLinkedOrder,
           isTakeout:
@@ -1048,10 +1173,10 @@ export const PosTransactionHistory = ({ storeId }) => {
         ? `orders-${ticket.orderIds.map((orderId) => String(orderId || '').trim()).filter(Boolean).sort().join('|')}`
         : '';
 
-      const groupKey = (
-        sessionKey &&
-        !isTakeoutTicket(ticket)
-      )
+      // 会計済み履歴は、同一伝票の支払い内訳を表示するため sessionId を最優先でまとめる。
+      // テイクアウトでも sessionId がある場合は同じ伝票としてまとめる。
+      // sessionId がない古いデータだけ orderIds / ticket.id にフォールバックする。
+      const groupKey = sessionKey
         ? `session-${sessionKey}`
         : orderKey || `ticket-${ticket.id}`;
 
@@ -1162,15 +1287,37 @@ export const PosTransactionHistory = ({ storeId }) => {
           return (order[left.method] || 99) - (order[right.method] || 99);
         });
 
-        const displayPaidOrders = paymentBreakdown.map((entry, index) => ({
-          id: `${ticket.id || 'payment'}-${entry.method || 'payment'}-${index}`,
-          paymentMethod: entry.method,
-          totalPrice: Number(entry.total || 0),
-          timestamp: ticket.timestamp,
-          paidAt: ticket.paidAt,
-          isDisplayPaymentBreakdown: true,
-          label: entry.label || formatPaymentMethod(entry.method)
-        }));
+        const displayPaidOrders = Array.isArray(ticket.paidOrders) && ticket.paidOrders.length > 0
+          ? ticket.paidOrders.map((payment, index) => ({
+              ...payment,
+              id: payment.id || payment.sourceTransactionId || `${ticket.id || 'payment'}-${index}`,
+              sourceTransactionId: payment.sourceTransactionId || payment.id || '',
+              paymentMethod: getPaymentMethodKey(payment.paymentMethod || payment.paymentMethodGroup),
+              totalPrice: Number(payment.totalPrice ?? payment.totalAmount ?? payment.amount ?? 0) || 0,
+              totalAmount: Number(payment.totalPrice ?? payment.totalAmount ?? payment.amount ?? 0) || 0,
+              subtotal: Number(payment.subtotal ?? payment.subTotal ?? payment.totalPrice ?? payment.totalAmount ?? 0) || 0,
+              subTotal: Number(payment.subtotal ?? payment.subTotal ?? payment.totalPrice ?? payment.totalAmount ?? 0) || 0,
+              taxAmount: Number(payment.taxAmount || 0),
+              taxAmountReduced: Number(payment.taxAmountReduced || 0),
+              taxAmountStandard: Number(payment.taxAmountStandard || 0),
+              discountAmount: Number(payment.discountAmount || 0),
+              receiptType: payment.receiptType || 'partial',
+              receiptScopeLabel: payment.receiptScopeLabel || '個別会計',
+              timestamp: payment.timestamp || ticket.timestamp,
+              paidAt: payment.paidAt || ticket.paidAt,
+              items: Array.isArray(payment.items) ? payment.items : []
+            }))
+          : paymentBreakdown.map((entry, index) => ({
+              id: `${ticket.id || 'payment'}-${entry.method || 'payment'}-${index}`,
+              paymentMethod: entry.method,
+              totalPrice: Number(entry.total || 0),
+              totalAmount: Number(entry.total || 0),
+              timestamp: ticket.timestamp,
+              paidAt: ticket.paidAt,
+              isDisplayPaymentBreakdown: true,
+              label: entry.label || formatPaymentMethod(entry.method),
+              items
+            }));
 
         return {
           ...ticket,
@@ -1526,6 +1673,12 @@ export const PosTransactionHistory = ({ storeId }) => {
           const isCancelled = ticket.status === 'cancelled';
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
+          const paymentRowsCount = Array.isArray(ticket.paidOrders) ? ticket.paidOrders.length : 0;
+          const breakdownRowsCount = Array.isArray(ticket.paymentBreakdown)
+            ? ticket.paymentBreakdown.reduce((sum, entry) => sum + Math.max(Number(entry?.count || 1), 1), 0)
+            : 0;
+          const sourceTransactionRowsCount = Array.isArray(ticket.sourceTransactionIds) ? ticket.sourceTransactionIds.length : 0;
+          const hasMultiplePayments = isPaid && Math.max(paymentRowsCount, breakdownRowsCount, sourceTransactionRowsCount) > 1;
           const ticketCardDomId = `pos-ticket-card-${String(ticket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
           const previousTicket = displayTickets[index - 1] || null;
           const previousTicketCardDomId = previousTicket
@@ -1620,12 +1773,29 @@ export const PosTransactionHistory = ({ storeId }) => {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
+
+                        if (hasMultiplePayments) {
+                          try {
+                            openTicketStatementPrint(ticket, settings);
+                          } catch (error) {
+                            console.error('[pos statement print click error]', error, { ticket });
+                            alert('会計明細の印刷処理に失敗しました。');
+                          }
+                          return;
+                        }
+
+                        const firstPayment = Array.isArray(ticket.paidOrders) ? ticket.paidOrders[0] : null;
+                        if (firstPayment) {
+                          printPaymentReceipt(firstPayment, ticket, settings);
+                          return;
+                        }
+
                         printReceipt(ticket, settings);
                       }}
-                      className="hidden h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 sm:flex"
+                      className="flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                     >
                       <Printer size={13} />
-                      レシート再印刷
+                      {hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
                     </button>
                   )}
 
@@ -1682,9 +1852,6 @@ export const PosTransactionHistory = ({ storeId }) => {
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className={`rounded-lg border px-2 py-0.5 text-[10px] font-black ${formatPaymentBadgeClass(order.paymentMethod)}`}>
-                                    {formatPaymentMethod(order.paymentMethod)}
-                                  </span>
                                   <span className="font-black tabular-nums text-gray-700">
                                     支払い {formatShortOrderId(order.id)}
                                   </span>
@@ -1698,6 +1865,18 @@ export const PosTransactionHistory = ({ storeId }) => {
                                 <span className="text-sm font-black tabular-nums text-gray-900">
                                   ¥{Number(order.totalPrice || 0).toLocaleString()}
                                 </span>
+                                {hasMultiplePayments && (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      printPaymentReceipt(order, ticket, settings);
+                                    }}
+                                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-black text-gray-500 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                                  >
+                                    レシート再印刷
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
