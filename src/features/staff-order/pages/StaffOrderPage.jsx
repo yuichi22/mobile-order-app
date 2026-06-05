@@ -1766,7 +1766,7 @@ const StaffOrderPage = ({ storeId }) => {
                       }}
                       className={`rounded-[1.5rem] border p-5 text-left shadow-sm transition-all active:scale-[0.98] ${
                         isReplaceMode
-                          ? 'border-blue-200 bg-blue-50'
+                          ? 'border-blue-200 bg-white ring-1 ring-blue-100'
                           : 'border-slate-200 bg-white'
                       }`}
                     >
@@ -1776,7 +1776,18 @@ const StaffOrderPage = ({ storeId }) => {
                             {item.name || '商品'}
                           </p>
 
-                          {shouldUseSetPriceAsMain ? (
+                          {isReplaceMode ? (
+                            <div className="mt-2 space-y-1">
+                              <p className="inline-flex rounded-full bg-blue-100 px-3 py-1.5 text-sm font-black text-blue-700">
+                                セット価格 {formatMoney(Number(item.crossSellPrice))}
+                              </p>
+                              {item.kitchenName && (
+                                <p className="text-[11px] font-bold text-slate-400">
+                                  {item.kitchenName}
+                                </p>
+                              )}
+                            </div>
+                          ) : shouldUseSetPriceAsMain ? (
                             <div className="mt-2 space-y-1">
                               <p className="text-sm font-black text-slate-400 line-through">
                                 通常価格 {formatMoney(normalPrice)}
