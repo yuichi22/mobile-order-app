@@ -744,6 +744,15 @@ const findSetPriceReplacementItems = ({
     : [];
 };
 
+
+const getReplacementCategoryIds = (replacementItems = []) => (
+  Array.from(new Set(
+    (Array.isArray(replacementItems) ? replacementItems : [])
+      .map((item) => getCategoryId(item))
+      .filter(Boolean)
+  ))
+);
+
 const StaffOrderPage = ({ storeId }) => {
   const { currentUser, role, profileName, loading: authLoading } = useAuth();
   const normalizedRole = normalizeUserRole(role);
@@ -923,12 +932,32 @@ const StaffOrderPage = ({ storeId }) => {
   );
 
 
+  const replacementCandidates = useMemo(() => (
+    findSetPriceReplacementItems({
+      targetItem: replaceSetPriceTarget,
+      menuItems: customerVisibleMenuItems,
+      referenceItems: setPriceReferenceItems.filter((item) => (
+        getCartLineKey(item) !== getCartLineKey(replaceSetPriceTarget || {})
+      )),
+      crossSellSettings: crossSellSettings || {}
+    })
+  ), [crossSellSettings, customerVisibleMenuItems, replaceSetPriceTarget, setPriceReferenceItems]);
+
+  const replacementCategoryIds = useMemo(
+    () => getReplacementCategoryIds(replacementCandidates),
+    [replacementCandidates]
+  );
+
+  const isReplaceMode = Boolean(replaceSetPriceTarget);
+
   const activeCategories = useMemo(() => {
     const menuCategoryIds = new Set(
       customerVisibleMenuItems
         .map((item) => getCategoryId(item))
         .filter(Boolean)
     );
+
+    const replacementCategoryIdSet = new Set(replacementCategoryIds);
 
     return Array.isArray(categories)
       ? categories
@@ -938,15 +967,21 @@ const StaffOrderPage = ({ storeId }) => {
           }))
           .filter((category) => category?.id)
           .filter((category) => menuCategoryIds.has(String(category.id)))
-          .filter((category) => shouldShowStaffCategoryTab({
-            category,
-            categoryId: String(category.id),
-            menuItems: customerVisibleMenuItems,
-            setPriceReferenceItems,
-            existingOrderItemsForSetPrice,
-            cart,
-            crossSellSettings: crossSellSettings || {}
-          }))
+          .filter((category) => {
+            if (isReplaceMode) {
+              return replacementCategoryIdSet.has(String(category.id));
+            }
+
+            return shouldShowStaffCategoryTab({
+              category,
+              categoryId: String(category.id),
+              menuItems: customerVisibleMenuItems,
+              setPriceReferenceItems,
+              existingOrderItemsForSetPrice,
+              cart,
+              crossSellSettings: crossSellSettings || {}
+            });
+          })
           .map((category) => ({
             id: String(category.id),
             name: category.name || 'カテゴリー',
@@ -964,6 +999,8 @@ const StaffOrderPage = ({ storeId }) => {
     crossSellSettings,
     customerVisibleMenuItems,
     existingOrderItemsForSetPrice,
+    isReplaceMode,
+    replacementCategoryIds,
     setPriceReferenceItems
   ]);
 
@@ -990,8 +1027,10 @@ const StaffOrderPage = ({ storeId }) => {
     }
   }, [activeCategories, selectedCategoryId]);
 
-  const availableMenuItems = useMemo(() => (
-    customerVisibleMenuItems
+  const availableMenuItems = useMemo(() => {
+    const sourceItems = isReplaceMode ? replacementCandidates : customerVisibleMenuItems;
+
+    return sourceItems
       .filter((item) => {
         const categoryId = getCategoryId(item);
         const category = categoryById.get(categoryId);
@@ -1007,8 +1046,14 @@ const StaffOrderPage = ({ storeId }) => {
         if (leftOrder !== rightOrder) return leftOrder - rightOrder;
 
         return String(left.name || '').localeCompare(String(right.name || ''), 'ja');
-      })
-  ), [categoryById, customerVisibleMenuItems, selectedCategoryId]);
+      });
+  }, [
+    categoryById,
+    customerVisibleMenuItems,
+    isReplaceMode,
+    replacementCandidates,
+    selectedCategoryId
+  ]);
 
   const cartTotal = useMemo(() => (
     cart.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0)
@@ -1054,22 +1099,26 @@ const StaffOrderPage = ({ storeId }) => {
   const openReplaceSetPriceModal = (cartItem) => {
     if (!cartItem || !isCrossSellCartItem(cartItem)) return;
     setReplaceSetPriceTarget(cartItem);
+
+    const categoryIds = getReplacementCategoryIds(findSetPriceReplacementItems({
+      targetItem: cartItem,
+      menuItems: customerVisibleMenuItems,
+      referenceItems: setPriceReferenceItems.filter((item) => (
+        getCartLineKey(item) !== getCartLineKey(cartItem)
+      )),
+      crossSellSettings: crossSellSettings || {}
+    }));
+
+    if (categoryIds[0]) {
+      setSelectedCategoryId(categoryIds[0]);
+    }
   };
 
   const closeReplaceSetPriceModal = () => {
     setReplaceSetPriceTarget(null);
+    hasInitializedCategorySelectionRef.current = false;
+    setSelectedCategoryId('');
   };
-
-  const replacementCandidates = useMemo(() => (
-    findSetPriceReplacementItems({
-      targetItem: replaceSetPriceTarget,
-      menuItems: customerVisibleMenuItems,
-      referenceItems: setPriceReferenceItems.filter((item) => (
-        getCartLineKey(item) !== getCartLineKey(replaceSetPriceTarget || {})
-      )),
-      crossSellSettings: crossSellSettings || {}
-    })
-  ), [crossSellSettings, customerVisibleMenuItems, replaceSetPriceTarget, setPriceReferenceItems]);
 
   const handleReplaceSetPriceItem = (replacementItem) => {
     if (!replaceSetPriceTarget || !replacementItem?.id) return;
@@ -1625,7 +1674,31 @@ const StaffOrderPage = ({ storeId }) => {
                 </p>
               </div>
 
-              <div className="sticky top-[76px] z-20 mb-3 overflow-x-auto rounded-[1.25rem] bg-white p-2 shadow-sm">
+              {isReplaceMode && (
+                <div className="sticky top-[76px] z-30 mb-3 rounded-[1.25rem] border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-blue-700">
+                        セット商品を変更中
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-blue-600">
+                        {replaceSetPriceTarget?.name || 'セット商品'} の差し替え先を選んでください。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeReplaceSetPriceModal}
+                      className="h-10 rounded-2xl bg-white px-4 text-xs font-black text-blue-700 shadow-sm"
+                    >
+                      変更をやめる
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className={`sticky z-20 mb-3 overflow-x-auto rounded-[1.25rem] bg-white p-2 shadow-sm ${
+                isReplaceMode ? 'top-[152px] ring-2 ring-blue-100' : 'top-[76px]'
+              }`}>
                 <div className="flex gap-2">
                   {activeCategories.map((category) => (
                     <button
@@ -1634,24 +1707,26 @@ const StaffOrderPage = ({ storeId }) => {
                       onClick={() => setSelectedCategoryId(category.id)}
                       className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
                         selectedCategoryId === category.id
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600'
+                          ? (isReplaceMode ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white')
+                          : (isReplaceMode ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : 'bg-slate-100 text-slate-600')
                       }`}
                     >
                       {category.name}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategoryId('all')}
-                    className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
-                      selectedCategoryId === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    すべて
-                  </button>
+                  {!isReplaceMode && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategoryId('all')}
+                      className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
+                        selectedCategoryId === 'all'
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      すべて
+                    </button>
+                  )}
 
                 </div>
               </div>
@@ -1681,8 +1756,19 @@ const StaffOrderPage = ({ storeId }) => {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => addToCart(item, activePriceMode)}
-                      className="rounded-[1.5rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-all active:scale-[0.98]"
+                      onClick={() => {
+                        if (isReplaceMode) {
+                          handleReplaceSetPriceItem(item);
+                          return;
+                        }
+
+                        addToCart(item, activePriceMode);
+                      }}
+                      className={`rounded-[1.5rem] border p-5 text-left shadow-sm transition-all active:scale-[0.98] ${
+                        isReplaceMode
+                          ? 'border-blue-200 bg-blue-50'
+                          : 'border-slate-200 bg-white'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -1753,20 +1839,36 @@ const StaffOrderPage = ({ storeId }) => {
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+
+                              if (isReplaceMode) {
+                                handleReplaceSetPriceItem(item);
+                                return;
+                              }
+
                               addToCart(item, activePriceMode);
                             }}
                             onKeyDown={(event) => {
                               if (event.key !== 'Enter' && event.key !== ' ') return;
                               event.preventDefault();
                               event.stopPropagation();
+
+                              if (isReplaceMode) {
+                                handleReplaceSetPriceItem(item);
+                                return;
+                              }
+
                               addToCart(item, activePriceMode);
                             }}
-                            className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-sm active:scale-95 ${
-                              shouldUseSetPriceAsMain ? 'bg-orange-500' : 'bg-blue-600'
+                            className={`flex h-11 items-center justify-center rounded-2xl text-white shadow-sm active:scale-95 ${
+                              isReplaceMode
+                                ? 'bg-blue-600 px-4 text-sm font-black'
+                                : shouldUseSetPriceAsMain
+                                  ? 'w-11 bg-orange-500'
+                                  : 'w-11 bg-blue-600'
                             }`}
-                            aria-label={shouldUseSetPriceAsMain ? 'セット価格で追加' : '通常価格で追加'}
+                            aria-label={isReplaceMode ? 'この商品に変更' : shouldUseSetPriceAsMain ? 'セット価格で追加' : '通常価格で追加'}
                           >
-                            <Plus size={22} />
+                            {isReplaceMode ? '変更' : <Plus size={22} />}
                           </div>
                         </div>
                       </div>
@@ -1966,59 +2068,6 @@ const StaffOrderPage = ({ storeId }) => {
         )}
       </main>
 
-      {replaceSetPriceTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[80vh] w-full max-w-md overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
-            <div className="border-b border-slate-100 p-5">
-              <h3 className="text-lg font-black text-slate-900">
-                セット商品を変更
-              </h3>
-              <p className="mt-2 text-sm font-bold text-slate-500">
-                同じセットグループ内の商品に差し替えます。
-              </p>
-            </div>
-
-            <div className="max-h-[52vh] space-y-2 overflow-y-auto p-4">
-              {replacementCandidates.map((replacementItem) => (
-                <button
-                  key={replacementItem.id}
-                  type="button"
-                  onClick={() => handleReplaceSetPriceItem(replacementItem)}
-                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-black text-slate-900">
-                      {replacementItem.name || '商品'}
-                    </span>
-                    <span className="mt-1 block text-xs font-bold text-orange-700">
-                      セット価格 {formatMoney(Number(replacementItem.crossSellPrice))}
-                    </span>
-                  </span>
-                  <span className="rounded-xl bg-blue-600 px-3 py-1 text-xs font-black text-white">
-                    選択
-                  </span>
-                </button>
-              ))}
-
-              {replacementCandidates.length === 0 && (
-                <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
-                  変更できる商品がありません。
-                </p>
-              )}
-            </div>
-
-            <div className="border-t border-slate-100 p-4">
-              <button
-                type="button"
-                onClick={closeReplaceSetPriceModal}
-                className="h-12 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-700"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
