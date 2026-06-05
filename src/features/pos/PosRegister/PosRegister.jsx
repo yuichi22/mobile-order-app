@@ -86,7 +86,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
     .map((entry) => entry.value);
 };
 
-export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
+export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, storeId }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1407,7 +1407,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     setAbortReason('manual_abort');
     setShowAbortModal(true);
   };
-
   const handlePayment = async () => {
     if (isPaymentSubmitting) return;
     if (consolidatedItems.length === 0) return;
@@ -1889,8 +1888,40 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       setSelectedDiscount(null);
       setIsPaymentFlowLocked(false);
 
+      onPaymentResult?.({
+        totalAmount: Number(totalAmount),
+        total: Number(totalAmount),
+        paymentAmount: Number(paymentAmount) || Number(totalAmount),
+        changeAmount: Number(changeAmount),
+        change: Number(changeAmount),
+        method: resolvedPaymentMethod,
+        paymentMethod: resolvedPaymentMethod,
+        receiptId: issuedReceipt?.receiptId || '',
+        receiptNo: issuedReceipt?.receiptNo || '',
+        transactionId: transactionRef.id,
+        sessionId,
+        isSessionComplete,
+        canPrintReceipt: Boolean(isSessionComplete),
+        subTotal: Number(subTotal),
+        taxAmount: Number(taxAmount),
+        taxAmountReduced: Number(taxAmountReduced),
+        taxAmountStandard: Number(taxAmountStandard),
+        discountAmount: Number(discountAmount),
+        promoExpenseAmount: Number(promoExpenseAmount),
+        voucherAmount: Number(voucherAmount),
+        settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
+        salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments),
+        promoExpenseItems,
+        vouchers: voucherItems,
+        accountingAdjustments: selectedAccountingAdjustmentItems,
+        customerIds,
+        customerSummaries,
+        lineItems: consolidatedItems,
+        issuedAt: new Date().toISOString()
+      });
+
       // 会計完了後の確認画面は出さない。
-      // 個別会計・部分会計はこの画面に残り、最終会計だけ前画面へ戻す。
+      // 個別会計・部分会計はこの画面に残し、最終会計だけ前画面へ戻す。
       if (isSessionComplete) {
         onBack?.();
       }
@@ -2000,19 +2031,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
     toggleItemKeyGroup(targetItemKeys);
   };
 
-  const isInitialLoading = loading && !processingAction && !isPaymentSubmitting;
-  const showProcessingOverlay = isInitialLoading || Boolean(processingAction) || isPaymentSubmitting;
-  const processingTitle = isPaymentSubmitting
-    ? '会計処理中です'
-    : processingAction === 'exit'
-      ? '退店処理中です'
-      : processingAction === 'cancel'
-        ? '取消・復旧処理中です'
-        : '読み込み中です';
-  const processingMessage = isPaymentSubmitting
-    ? '会計を確定しています。画面を閉じずにお待ちください。'
-    : processingAction === 'exit'
-      ? '注文と席情報を整理しています。画面を閉じずにお待ちください。'
+  const isInitialLoading = loading && !processingAction;
+  const showProcessingOverlay = isInitialLoading || Boolean(processingAction);
+  const processingTitle = processingAction === 'exit'
+    ? '退店処理中です'
+    : processingAction === 'cancel'
+      ? '取消・復旧処理中です'
+      : '読み込み中です';
+  const processingMessage = processingAction === 'exit'
+    ? '注文と席情報を整理しています。画面を閉じずにお待ちください。'
+    : processingAction === 'cancel'
+      ? '取消・復旧処理中です。画面を閉じずにお待ちください。'
       : 'レジ情報を読み込んでいます。';
 
   return (
@@ -2135,7 +2164,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
       )}
 
       <PosModals
-        showSuccessModal={showSuccessModal}
+        showSuccessModal={false}
         setShowSuccessModal={setShowSuccessModal}
         lastTransaction={lastTransaction}
         setPaymentAmount={setPaymentAmount}
@@ -2207,7 +2236,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         paymentAmount={paymentAmount}
         setPaymentAmount={setPaymentAmount}
         paymentMethod={resolvedPaymentMethod}
-        setPaymentMethod={setPaymentMethod}
+        setPaymentMethod={(nextMethod) => {
+          onPaymentResult?.(null);
+          setPaymentMethod(nextMethod);
+        }}
         allowedPaymentMethods={availablePaymentMethods}
         changeAmount={changeAmount}
         isEverythingTakeout={isEverythingTakeout}
@@ -2224,7 +2256,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         takeoutItemKeys={activeTakeoutItemKeys}
         setShowDiscountModal={setShowDiscountModal}
         handleBulkTakeout={handleBulkTakeout}
-        showSuccessModal={showSuccessModal}
+        showSuccessModal={false}
         showAbortModal={showAbortModal}
         isPaymentSubmitting={isPaymentSubmitting}
         isPaymentFlowLocked={isPaymentFlowLocked}
@@ -2233,6 +2265,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, storeId }) => {
         tableId={tableId}
         tableDisplayName={tableDisplayName}
       />
+
       <style>{'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}'}</style>
     </div>
   );

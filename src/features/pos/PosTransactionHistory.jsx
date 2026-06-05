@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
+import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
   CheckCircle2, ChevronDown, CreditCard, Filter, Printer, QrCode, Receipt, Tag, XCircle, LogOut
@@ -10,6 +11,12 @@ import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, serverTime
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { useStoreSettings } from '../store/hooks';
+
+const formatInvoiceNumber = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.startsWith('T') ? normalized : `T${normalized}`;
+};
 
 const getJstDateInputValue = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -319,127 +326,13 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
         return;
       }
     }
+    const payload = buildPosReceiptPrintPayload({
+      ...ticket,
+      tableName: getTableDisplayName(ticket) || 'テイクアウト'
+    }, settings);
 
-    const receiptWindow = window.open('', '_blank', 'width=420,height=760');
-    if (!receiptWindow) return;
-
-    // ここから下は今のHTML印刷処理をそのまま残す
-
-  const issuedAt = new Date();
-  const rows = buildReceiptRows(ticket.items || []);
-
-  receiptWindow.document.write(`
-    <!doctype html>
-    <html lang="ja">
-      <head>
-        <meta charset="utf-8" />
-        <title>レシート再印刷</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 24px;
-            background: #f3f4f6;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          }
-          .paper {
-            width: 58mm;
-            margin: 0 auto;
-            background: #fff;
-            color: #111827;
-            padding: 0 0 8px;
-          }
-          .section {
-            margin: 0 8px;
-            padding: 10px 0;
-            border-bottom: 1px dashed #111827;
-          }
-          .title {
-            text-align: center;
-          }
-          .title h1 {
-            margin: 0 0 6px;
-            font-size: 18px;
-          }
-          .title p {
-            margin: 2px 0;
-            font-size: 10px;
-          }
-          .row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin: 2px 0;
-            font-size: 10px;
-          }
-          .item-row {
-            margin: 6px 0;
-          }
-          .item-info {
-            flex: 1;
-          }
-          .item-name {
-            font-weight: 700;
-          }
-          .item-sub {
-            margin-top: 2px;
-            color: #6b7280;
-            font-size: 9px;
-          }
-          .item-price {
-            white-space: nowrap;
-            font-weight: 700;
-          }
-          .total {
-            font-size: 14px;
-            font-weight: 700;
-          }
-          .footer {
-            margin-top: 10px;
-            text-align: center;
-            font-size: 9px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="paper">
-          <div class="section title">
-            <h1>${settings?.name || 'Akuto Order System'}</h1>
-            ${settings?.address ? `<p>${settings.address}</p>` : ''}
-            ${settings?.tel ? `<p>TEL: ${settings.tel}</p>` : ''}
-            ${settings?.invoiceNumber ? `<p>登録番号: ${settings.invoiceNumber}</p>` : ''}
-          </div>
-          <div class="section">
-            <div class="row"><span>発行日時</span><span>${issuedAt.toLocaleString('ja-JP')}</span></div>
-            <div class="row"><span>テーブル</span><span>${getTableDisplayName(ticket) || 'テイクアウト'}</span></div>
-            <div class="row"><span>支払い方法</span><span>${formatPaymentMethod(ticket.paymentMethod)}</span></div>
-          </div>
-          <div class="section">${rows}</div>
-          <div class="section">
-            <div class="row"><span>小計</span><span>¥${Number(ticket.subtotal || 0).toLocaleString()}</span></div>
-            ${Number(ticket.discountAmount || 0) > 0 ? `<div class="row"><span>値引き</span><span>-¥${Number(ticket.discountAmount).toLocaleString()}</span></div>` : ''}
-            ${Number(ticket.taxAmountReduced || 0) > 0 ? `<div class="row"><span>消費税 ${ticket.taxRates?.reducedRate ?? settings?.taxRateReduced ?? 8}% (軽減税率)</span><span>¥${Number(ticket.taxAmountReduced).toLocaleString()}</span></div>` : ''}
-            ${Number(ticket.taxAmountStandard || 0) > 0 ? `<div class="row"><span>消費税 ${ticket.taxRates?.standardRate ?? settings?.taxRate ?? 10}%</span><span>¥${Number(ticket.taxAmountStandard).toLocaleString()}</span></div>` : ''}
-          </div>
-          <div class="section">
-            <div class="row total"><span>合計</span><span>¥${Number(ticket.totalPrice || 0).toLocaleString()}</span></div>
-          </div>
-          <div class="footer">
-            <p>ご利用ありがとうございました。</p>
-            <p>またのご来店をお待ちしております。</p>
-          </div>
-        </div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.onafterprint = function() { window.close(); };
-          };
-        </script>
-      </body>
-    </html>
-  `);
-  receiptWindow.document.close();
-};
+    openPosReceiptBrowserPrint(payload);
+  };
 
 export const PosTransactionHistory = ({ storeId }) => {
   const [orders, setOrders] = useState([]);

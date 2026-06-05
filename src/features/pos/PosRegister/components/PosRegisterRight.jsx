@@ -428,7 +428,7 @@ export const PosRegisterRight = ({
 
               <button
                 onClick={handlePayment}
-                disabled={isPaymentDisabled}
+                disabled={isPaymentDisabled || isPaymentSubmitting}
                 className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
                   isPaymentDisabled
                     ? 'bg-gray-300 text-gray-500'
@@ -436,10 +436,16 @@ export const PosRegisterRight = ({
                 }`}
               >
                 <CheckCircle size={24} />
-                {hasNoCustomSelection
-                  ? '会計する商品を選択してください'
-                  : paymentActionLabel}
-                <ChevronRight size={24} className="opacity-50" />
+                {isPaymentSubmitting
+                  ? '会計処理中...'
+                  : hasNoCustomSelection
+                    ? '会計する商品を選択してください'
+                    : paymentActionLabel}
+                {isPaymentSubmitting ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <ChevronRight size={24} className="opacity-50" />
+                )}
               </button>
             </div>
           )}

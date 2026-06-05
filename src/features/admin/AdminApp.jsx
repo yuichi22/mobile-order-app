@@ -17,6 +17,9 @@ import { useAuth } from '../../app/providers/useAuth';
 import { auth, db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import NotificationToast from '../../shared/components/feedback/NotificationToast';
+import { printReceiptViaBridge } from '../../shared/api/printBridge';
+import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
+import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
 import {
   canAccessAdminTab,
@@ -105,6 +108,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const lastRegisterModeRef = useRef(registerMode);
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
   const [lastPaymentData, setLastPaymentData] = useState(null);
+  const [paymentResultToast, setPaymentResultToast] = useState(null);
+  const [isPaymentResultReceiptPrinting, setIsPaymentResultReceiptPrinting] = useState(false);
 
   const normalizedRole = normalizeUserRole(role);
   const canViewAnalytics = canAccessAnalytics(normalizedRole);
@@ -216,48 +221,54 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   }, [user, storeId, activeAdminTab]);
 
   const handlePosScan = (id) => {
+    setPaymentResultToast(null);
     setCurrentPosSessionId(id);
     setPosView('register');
   };
 
-  const handlePosComplete = async (data) => {
-    let nextData = data;
+  
+  const closePaymentResultToast = () => {
+    setPaymentResultToast(null);
+  };
+
+  const handlePaymentResultToast = (payload) => {
+    if (!payload) {
+      setPaymentResultToast(null);
+      return;
+    }
+    setPaymentResultToast(payload);
+  };
+  const handlePrintPaymentResultReceipt = async () => {
+    if (!paymentResultToast || isPaymentResultReceiptPrinting) return;
+
+    setIsPaymentResultReceiptPrinting(true);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-
-      if (idToken && storeId && data?.sessionId && data?.transactionId) {
-        const response = await fetch('/api/issuePostpayReceipt', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            storeId,
-            sessionId: data.sessionId,
-            transactionId: data.transactionId
-          })
-        });
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (response.ok && payload?.ok) {
-          nextData = {
-            ...data,
-            receiptId: payload.receiptId,
-            receiptNo: payload.receiptNo
-          };
-        } else {
-          console.warn('[issuePostpayReceipt] failed', payload);
-        }
-      }
+      const payload = buildPosReceiptPrintPayload(paymentResultToast, storeSettings);
+      await printReceiptViaBridge(payload, storeSettings);
+      return;
     } catch (error) {
-      console.warn('[issuePostpayReceipt] failed', error);
-    }
+      console.error('[admin pos payment result receipt print error]', error);
 
-    setLastPaymentData(nextData);
-    setPosView('receipt');
+      const shouldFallback = window.confirm(
+        'レシートプリンターへの印刷に失敗しました。ブラウザ印刷を開きますか？'
+      );
+
+      if (!shouldFallback) {
+        return;
+      }
+
+      const payload = buildPosReceiptPrintPayload(paymentResultToast, storeSettings);
+      openPosReceiptBrowserPrint(payload);
+    } finally {
+      setIsPaymentResultReceiptPrinting(false);
+    }
+  };
+
+
+  const handlePosComplete = () => {
+    // POS register completion is now handled by the non-blocking payment result toast.
+    // Keep this callback as a safe no-op so old receipt completion screen cannot flash.
   };
 
   const handlePosNext = () => {
@@ -514,6 +525,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   sessionId={currentPosSessionId}
                   onBack={() => setPosView('scan')}
                   onComplete={handlePosComplete}
+                  onPaymentResult={handlePaymentResultToast}
                   storeId={storeId}
                 />
               )}
@@ -526,6 +538,80 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 />
               )}
             </Suspense>
+
+            {paymentResultToast && (
+              <div className="pointer-events-none fixed bottom-6 right-6 z-[320] w-[360px] max-w-[calc(100vw-3rem)]">
+                <div className="pointer-events-auto rounded-3xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-green-600">会計完了</p>
+                      <h3 className="mt-1 text-xl font-black tracking-tight">
+                        {paymentResultToast.method === 'cash'
+                          ? '現金会計'
+                          : paymentResultToast.method === 'card'
+                            ? 'カード会計'
+                            : paymentResultToast.method === 'qr'
+                              ? 'QR決済'
+                              : '会計'}
+                      </h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closePaymentResultToast}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                      aria-label="閉じる"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 rounded-2xl bg-gray-50 p-4">
+                    <div className="flex items-center justify-between text-sm font-bold text-gray-600">
+                      <span>代金</span>
+                      <span className="font-mono text-xl font-black text-gray-900">
+                        ¥{Number(paymentResultToast.totalAmount || paymentResultToast.total || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {paymentResultToast.method === 'cash' && (
+                      <>
+                        <div className="flex items-center justify-between text-sm font-bold text-gray-600">
+                          <span>預かり金</span>
+                          <span className="font-mono text-xl font-black text-gray-900">
+                            ¥{Number(paymentResultToast.paymentAmount || 0).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-blue-700">
+                          <span className="text-sm font-black">お釣り</span>
+                          <span className="font-mono text-3xl font-black">
+                            ¥{Number(paymentResultToast.changeAmount || paymentResultToast.change || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {paymentResultToast.canPrintReceipt && (
+                    <button
+                      type="button"
+                      onClick={handlePrintPaymentResultReceipt}
+                      disabled={isPaymentResultReceiptPrinting}
+                      className="mt-4 flex w-full items-center justify-center rounded-2xl bg-gray-900 py-4 text-sm font-black text-white shadow-lg transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isPaymentResultReceiptPrinting ? '印刷中...' : 'レシートを印刷'}
+                    </button>
+                  )}
+
+                  {!paymentResultToast.canPrintReceipt && (
+                    <p className="mt-3 text-center text-xs font-bold text-gray-400">
+                      個別会計中です。最終会計後にレシート印刷できます。
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

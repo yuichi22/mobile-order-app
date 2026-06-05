@@ -1,3 +1,9 @@
+const formatInvoiceNumber = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.startsWith('T') ? normalized : `T${normalized}`;
+};
+
 const formatPaymentMethod = (method) => {
   if (method === 'cash') return '現金';
   if (method === 'card' || method === 'credit') return 'カード';
@@ -62,10 +68,11 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     0;
 
   return {
+    title: data.title || '領収書',
     storeName: settings?.name || 'Akuto Order System',
     address: settings?.address || '',
     tel: settings?.tel || '',
-    invoiceNumber: settings?.invoiceNumber || '',
+    invoiceNumber: formatInvoiceNumber(settings?.invoiceNumber),
     tableName:
       data.tableDisplayName ||
       data.tableName ||
@@ -76,6 +83,9 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
       (data.sessionId ? data.sessionId.slice(0, 8) : ''),
     issuedAtText: issuedAt.toLocaleString('ja-JP'),
     recipientName: data.recipientName || '',
+    recipientLabel: data.recipientName ? `${data.recipientName} 様` : '様',
+    proviso: data.proviso || '',
+    provisoLabel: data.proviso ? `${data.proviso} として` : 'として',
     items,
     subtotal,
     discount: data.discountAmount || data.totals?.discount || 0,
