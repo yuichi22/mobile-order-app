@@ -537,13 +537,22 @@ const buildStaffSetPriceDebugRows = (cartItems = [], crossSellSettings = {}) => 
   });
 };
 
-const normalizeCartSetPriceBalance = (items = []) => {
+const normalizeCartSetPriceBalance = (items = [], existingItems = []) => {
   const normalizedItems = Array.isArray(items) ? items : [];
-  const normalQuantity = normalizedItems
+  const referenceItems = [
+    ...(Array.isArray(existingItems) ? existingItems : []),
+    ...normalizedItems
+  ];
+
+  const normalQuantity = referenceItems
     .filter((item) => !isCrossSellCartItem(item))
     .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
-  let usedCrossSellQuantity = 0;
+  const existingCrossSellQuantity = (Array.isArray(existingItems) ? existingItems : [])
+    .filter(isCrossSellCartItem)
+    .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+  let usedCrossSellQuantity = existingCrossSellQuantity;
 
   return normalizedItems.map((item) => {
     if (!isCrossSellCartItem(item)) return item;
@@ -568,6 +577,41 @@ const normalizeCartSetPriceBalance = (items = []) => {
       crossSellSourceCategoryIds: []
     };
   });
+};
+
+const reduceCartLineByOne = (cartItems = [], cartLineKey = '') => (
+  cartItems
+    .map((cartItem) => {
+      if (getCartLineKey(cartItem) !== String(cartLineKey)) return cartItem;
+
+      const nextQuantity = Number(cartItem.quantity || 0) - 1;
+      if (nextQuantity <= 0) return null;
+
+      return {
+        ...cartItem,
+        quantity: nextQuantity
+      };
+    })
+    .filter(Boolean)
+);
+
+const removeOneExcessSetPriceLine = (cartItems = [], existingItems = []) => {
+  const normalizedCart = normalizeCartSetPriceBalance(cartItems, existingItems);
+
+  for (let index = cartItems.length - 1; index >= 0; index -= 1) {
+    const cartItem = cartItems[index];
+    if (!isCrossSellCartItem(cartItem)) continue;
+
+    const normalizedItem = normalizedCart.find((candidate) => (
+      getCartLineKey(candidate) === getCartLineKey(cartItem)
+    ));
+
+    if (!normalizedItem || normalizedItem.appliedPriceMode !== 'crossSell') {
+      return reduceCartLineByOne(cartItems, getCartLineKey(cartItem));
+    }
+  }
+
+  return cartItems;
 };
 
 const getCategoryId = (item) => String(item.categoryId || item.category || '').trim();
@@ -608,6 +652,44 @@ const isCategoryCustomerVisible = (category) => {
 const getCategoryVisibility = (category) => (
   category?.customerTabVisibility || 'always'
 );
+
+const hasCrossSellLineInCategory = (items = [], categoryId = '') => (
+  Array.isArray(items)
+    ? items.some((item) => (
+        isCrossSellCartItem(item)
+        && getCategoryId(item) === String(categoryId)
+      ))
+    : false
+);
+
+const hasSetPriceOfferInCategory = (menuItems = [], categoryId = '', referenceItems = [], crossSellSettings = {}) => (
+  Array.isArray(menuItems)
+    ? menuItems
+        .filter((item) => getCategoryId(item) === String(categoryId))
+        .some((item) => Boolean(resolveSetPriceOfferForItem(item, referenceItems, crossSellSettings)))
+    : false
+);
+
+const shouldShowStaffCategoryTab = ({
+  category,
+  categoryId,
+  menuItems,
+  setPriceReferenceItems,
+  existingOrderItemsForSetPrice,
+  cart,
+  crossSellSettings
+}) => {
+  const visibility = getCategoryVisibility(category);
+
+  if (visibility === 'hidden') return false;
+  if (visibility !== 'crossSellOnly') return true;
+
+  return (
+    hasSetPriceOfferInCategory(menuItems, categoryId, setPriceReferenceItems, crossSellSettings)
+    || hasCrossSellLineInCategory(cart, categoryId)
+    || hasCrossSellLineInCategory(existingOrderItemsForSetPrice, categoryId)
+  );
+};
 
 const buildCategoryById = (categories = []) => {
   const map = new Map();
@@ -789,6 +871,17 @@ const StaffOrderPage = ({ storeId }) => {
       : []
   ), [currentPeriod, menuItems, todayKey]);
 
+  const existingOrderItemsForSetPrice = useMemo(
+    () => normalizeSessionOrderItemsForSetPrice(sessionOrders),
+    [sessionOrders]
+  );
+
+  const setPriceReferenceItems = useMemo(
+    () => [...existingOrderItemsForSetPrice, ...cart],
+    [cart, existingOrderItemsForSetPrice]
+  );
+
+
   const activeCategories = useMemo(() => {
     const menuCategoryIds = new Set(
       customerVisibleMenuItems
@@ -804,7 +897,15 @@ const StaffOrderPage = ({ storeId }) => {
           }))
           .filter((category) => category?.id)
           .filter((category) => menuCategoryIds.has(String(category.id)))
-          .filter(isCategoryCustomerVisible)
+          .filter((category) => shouldShowStaffCategoryTab({
+            category,
+            categoryId: String(category.id),
+            menuItems: customerVisibleMenuItems,
+            setPriceReferenceItems,
+            existingOrderItemsForSetPrice,
+            cart,
+            crossSellSettings: crossSellSettings || {}
+          }))
           .map((category) => ({
             id: String(category.id),
             name: category.name || 'カテゴリー',
@@ -816,7 +917,14 @@ const StaffOrderPage = ({ storeId }) => {
             return left.__index - right.__index;
           })
       : [];
-  }, [categories, customerVisibleMenuItems]);
+  }, [
+    cart,
+    categories,
+    crossSellSettings,
+    customerVisibleMenuItems,
+    existingOrderItemsForSetPrice,
+    setPriceReferenceItems
+  ]);
 
   // selected category validity guard
   useEffect(() => {
@@ -868,16 +976,6 @@ const StaffOrderPage = ({ storeId }) => {
   const cartCount = useMemo(() => (
     cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
   ), [cart]);
-
-  const existingOrderItemsForSetPrice = useMemo(
-    () => normalizeSessionOrderItemsForSetPrice(sessionOrders),
-    [sessionOrders]
-  );
-
-  const setPriceReferenceItems = useMemo(
-    () => [...existingOrderItemsForSetPrice, ...cart],
-    [cart, existingOrderItemsForSetPrice]
-  );
 
   const crossSellSummary = useMemo(() => {
     const normalQuantity = setPriceReferenceItems
@@ -975,8 +1073,7 @@ const StaffOrderPage = ({ storeId }) => {
 
     const normalizedCart = normalizeCartSetPriceBalance(
       nextCart,
-      existingOrderItemsForSetPrice,
-      crossSellSettings || {}
+      existingOrderItemsForSetPrice
     );
 
     const normalizedTarget = normalizedCart.find((cartItem) => getCartLineKey(cartItem) === targetKey);
@@ -1074,15 +1171,43 @@ const StaffOrderPage = ({ storeId }) => {
   };
 
   const changeQuantity = (cartLineKey, delta) => {
-    setCart((current) => normalizeCartSetPriceBalance(
-      current
+    setCart((current) => {
+      const currentCart = Array.isArray(current) ? current : [];
+      const targetItem = currentCart.find((item) => getCartLineKey(item) === String(cartLineKey));
+
+      const changedCart = currentCart
         .map((item) => (
-          getCartLineKey(item) === cartLineKey
-            ? { ...item, quantity: Math.max(Number(item.quantity || 0) + delta, 0) }
+          getCartLineKey(item) === String(cartLineKey)
+            ? { ...item, quantity: Math.max(Number(item.quantity || 0) + Number(delta || 0), 0) }
             : item
         ))
-        .filter((item) => Number(item.quantity || 0) > 0)
-    ));
+        .filter((item) => Number(item.quantity || 0) > 0);
+
+      if (Number(delta || 0) < 0 && targetItem && !isCrossSellCartItem(targetItem)) {
+        const balancedCart = normalizeCartSetPriceBalance(
+          changedCart,
+          existingOrderItemsForSetPrice
+        );
+
+        const hasExcessSetPrice = balancedCart.some((item) => (
+          isCrossSellCartItem(
+            changedCart.find((cartItem) => getCartLineKey(cartItem) === getCartLineKey(item)) || {}
+          ) && item.appliedPriceMode !== 'crossSell'
+        ));
+
+        if (hasExcessSetPrice) {
+          showTemporaryToast('セット価格商品をセット権利に合わせて1点取り消しました。');
+          return removeOneExcessSetPriceLine(changedCart, existingOrderItemsForSetPrice);
+        }
+
+        return changedCart;
+      }
+
+      return normalizeCartSetPriceBalance(
+        changedCart,
+        existingOrderItemsForSetPrice
+      );
+    });
   };
 
   const clearTableSelection = () => {
