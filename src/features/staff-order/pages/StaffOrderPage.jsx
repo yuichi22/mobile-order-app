@@ -771,6 +771,7 @@ const StaffOrderPage = ({ storeId }) => {
   const hasInitializedCategorySelectionRef = useRef(false);
   const [cart, setCart] = useState([]);
   const [sessionOrders, setSessionOrders] = useState([]);
+  const [activeSessions, setActiveSessions] = useState([]);
   const [message, setMessage] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [error, setError] = useState('');
@@ -841,6 +842,34 @@ const StaffOrderPage = ({ storeId }) => {
   }, [storeId]);
 
   useEffect(() => {
+    if (!storeId) {
+      setActiveSessions([]);
+      return undefined;
+    }
+
+    const sessionsQuery = query(
+      collection(db, 'stores', storeId, 'sessions'),
+      where('status', '==', 'active')
+    );
+
+    return onSnapshot(
+      sessionsQuery,
+      (snapshot) => {
+        const nextSessions = snapshot.docs.map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data()
+        }));
+
+        setActiveSessions(nextSessions);
+      },
+      (snapshotError) => {
+        console.error('[StaffOrderPage] failed to subscribe active sessions', snapshotError);
+        setActiveSessions([]);
+      }
+    );
+  }, [storeId]);
+
+  useEffect(() => {
     if (!storeId || !sessionInfo?.sessionId) {
       setSessionOrders([]);
       return undefined;
@@ -869,6 +898,43 @@ const StaffOrderPage = ({ storeId }) => {
   }, [sessionInfo?.sessionId, storeId]);
 
   const tableItems = useMemo(() => normalizeTableItems(layoutItems), [layoutItems]);
+
+  const activeSessionByTableId = useMemo(() => {
+    const map = new Map();
+
+    activeSessions.forEach((session) => {
+      const tableId = String(session.tableId || session.table || '').trim();
+      if (!tableId) return;
+      map.set(tableId, session);
+    });
+
+    return map;
+  }, [activeSessions]);
+
+  const getActiveSessionForTable = (tableId) => (
+    activeSessionByTableId.get(String(tableId || '').trim()) || null
+  );
+
+  useEffect(() => {
+    if (!selectedTable?.tableId || !sessionInfo?.sessionId) return;
+
+    const selectedSessionStillActive = activeSessions.some((session) => (
+      String(session.id || '') === String(sessionInfo.sessionId)
+    ));
+
+    if (selectedSessionStillActive) return;
+
+    hasInitializedCategorySelectionRef.current = false;
+    setSelectedCategoryId('');
+    setSelectedTable(null);
+    setSessionInfo(null);
+    setSessionOrders([]);
+    setCart([]);
+    setError('');
+    setCompletedOrderId('');
+    setMessage('このテーブルの会計が完了したため、テーブルを選び直してください。');
+  }, [activeSessions, selectedTable?.tableId, sessionInfo?.sessionId]);
+
   const currentPeriod = useCustomerCurrentPeriod(periods);
   const todayKey = useMemo(() => getTodayKey(), []);
 
@@ -1579,7 +1645,7 @@ const StaffOrderPage = ({ storeId }) => {
                               key={`staff-scroll-map-${layoutItems.length}-${floorMapBounds.width}-${floorMapBounds.height}-${floorMapScale}`}
                               mode="view"
                               items={layoutItems}
-                              sessions={[]}
+                              sessions={activeSessions}
                               orders={[]}
                               calls={[]}
                               checks={[]}
@@ -1606,6 +1672,8 @@ const StaffOrderPage = ({ storeId }) => {
                 <div className="grid grid-cols-3 gap-2 sm:gap-3 md:hidden">
                   {tableItems.map((table) => {
                     const isBootstrapping = bootstrappingTableId === table.tableId;
+                    const activeSession = getActiveSessionForTable(table.tableId);
+                    const isActiveTable = Boolean(activeSession);
 
                     return (
                       <button
@@ -1613,14 +1681,27 @@ const StaffOrderPage = ({ storeId }) => {
                         type="button"
                         onClick={() => handleSelectTable(table)}
                         disabled={Boolean(bootstrappingTableId)}
-                        className="flex min-h-[92px] items-center justify-center rounded-[1.35rem] border border-slate-200 bg-white px-2 py-4 text-center shadow-sm transition-all active:scale-[0.98] disabled:opacity-60"
+                        className={`flex min-h-[92px] flex-col items-center justify-center rounded-[1.35rem] border px-2 py-4 text-center shadow-sm transition-all active:scale-[0.98] disabled:opacity-60 ${
+                          isActiveTable
+                            ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white'
+                        }`}
                       >
                         {isBootstrapping ? (
                           <Loader2 className="animate-spin text-blue-600" size={24} />
                         ) : (
-                          <span className="line-clamp-2 text-xl font-black leading-tight text-slate-900 sm:text-2xl">
-                            {table.tableName || getTableDisplayName(table)}
-                          </span>
+                          <>
+                            <span className={`line-clamp-2 text-xl font-black leading-tight sm:text-2xl ${
+                              isActiveTable ? 'text-blue-900' : 'text-slate-900'
+                            }`}>
+                              {table.tableName || getTableDisplayName(table)}
+                            </span>
+                            {isActiveTable && (
+                              <span className="mt-2 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-black text-white">
+                                利用中
+                              </span>
+                            )}
+                          </>
                         )}
                       </button>
                     );
