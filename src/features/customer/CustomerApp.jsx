@@ -1978,14 +1978,37 @@ if (shouldWaitForSessionBeforeWelcome) {
           </p>
         </div>
 
-        {latestReceipt && (
-          <button
-            type="button"
-            onClick={() => openReceiptSafely(latestReceipt)}
-            className="mt-8 rounded-2xl bg-blue-600 px-7 py-4 text-base font-black text-white shadow-lg shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
-          >
-            領収書を見る
-          </button>
+        {Array.isArray(customerReceipts) && customerReceipts.length > 0 && (
+          <div className="mt-8 w-full max-w-sm space-y-2">
+            {customerReceipts.length === 1 ? (
+              <button
+                type="button"
+                onClick={() => openReceiptSafely(customerReceipts[0])}
+                className="w-full rounded-2xl bg-blue-600 px-7 py-4 text-base font-black text-white shadow-lg shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
+              >
+                領収書を見る
+              </button>
+            ) : (
+              <>
+                <p className="text-xs font-bold text-gray-400">発行済み領収書</p>
+                {customerReceipts.map((receipt, receiptIndex) => (
+                  <button
+                    key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
+                    type="button"
+                    onClick={() => openReceiptSafely(receipt)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm font-black text-blue-700 transition-transform active:scale-95"
+                  >
+                    <span>
+                      領収書 {customerReceipts.length - receiptIndex}
+                    </span>
+                    <span className="font-mono">
+                      ¥{Number(receipt?.totals?.total || 0).toLocaleString()}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
         )}
 
         {receiptModal}
@@ -2090,14 +2113,37 @@ if (shouldWaitForSessionBeforeWelcome) {
                 <p className="text-xl font-bold text-gray-600">¥{Number(grandTotal || 0).toLocaleString()}</p>
               </div>
             )}
-            {latestReceipt && (
-            <button
-              type="button"
-              onClick={() => openReceiptSafely(latestReceipt)}
-              className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-sm shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
-            >
-              領収書を見る
-            </button>
+            {Array.isArray(customerReceipts) && customerReceipts.length > 0 && (
+              <div className="mt-5 space-y-2">
+                {customerReceipts.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => openReceiptSafely(customerReceipts[0])}
+                    className="flex h-14 w-full items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-sm shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
+                  >
+                    領収書を見る
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-gray-400">発行済み領収書</p>
+                    {customerReceipts.map((receipt, receiptIndex) => (
+                      <button
+                        key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
+                        type="button"
+                        onClick={() => openReceiptSafely(receipt)}
+                        className="flex w-full items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm font-black text-blue-700 transition-transform active:scale-95"
+                      >
+                        <span>
+                          領収書 {customerReceipts.length - receiptIndex}
+                        </span>
+                        <span className="font-mono">
+                          ¥{Number(receipt?.totals?.total || 0).toLocaleString()}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
             )}
 
             <div className="mt-6 border-t border-dashed border-gray-200 pt-6">

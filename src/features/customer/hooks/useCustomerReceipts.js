@@ -62,7 +62,7 @@ export const useCustomerReceipts = ({
     const normalizedParticipantId = normalizeId(participantId);
     const normalizedUserId = normalizeId(userId);
 
-    if (!normalizedSessionId || !normalizedStoreId) {
+    if (!normalizedSessionId || !normalizedStoreId || !normalizedUserId) {
       setReceipts([]);
       setReceiptsLoading(false);
       return undefined;
@@ -70,9 +70,19 @@ export const useCustomerReceipts = ({
 
     setReceiptsLoading(true);
 
+    const receiptConstraints = [
+      where('sessionId', '==', normalizedSessionId)
+    ];
+
+    if (normalizedParticipantId) {
+      receiptConstraints.push(where('customerIds', 'array-contains', normalizedParticipantId));
+    } else if (normalizedUserId) {
+      receiptConstraints.push(where('customerIds', 'array-contains', normalizedUserId));
+    }
+
     const receiptsQuery = query(
       collection(db, 'stores', normalizedStoreId, 'receipts'),
-      where('sessionId', '==', normalizedSessionId)
+      ...receiptConstraints
     );
 
     return onSnapshot(

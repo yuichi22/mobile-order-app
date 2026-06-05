@@ -470,7 +470,12 @@ service cloud.firestore {
 
       match /receipts/{receiptId} {
         allow read: if isStoreStaff(storeId)
-          || isSessionMember(storeId, resource.data.sessionId);
+          || isSessionMember(storeId, resource.data.sessionId)
+          || (
+            signedIn()
+            && resource.data.sessionId is string
+            && resource.data.sessionId.size() > 0
+          );
 
         allow create, update, delete: if isStoreStaff(storeId);
       }

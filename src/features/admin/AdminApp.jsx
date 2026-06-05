@@ -1,4 +1,4 @@
-﻿import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -11,6 +11,7 @@ import {
   Utensils
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { getIdToken } from 'firebase/auth';
 import { useStoreSettings } from '../store/hooks';
 
 import { useAuth } from '../../app/providers/useAuth';
@@ -236,15 +237,81 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       setPaymentResultToast(null);
       return;
     }
+
     setPaymentResultToast(payload);
+
+    if (payload.transactionId && payload.sessionId) {
+      ensurePaymentResultMobileReceipt(payload).catch((error) => {
+        console.error('[admin pos mobile receipt issue error]', error);
+      });
+    }
   };
+
+  const ensurePaymentResultMobileReceipt = async (baseToast = paymentResultToast) => {
+    if (!baseToast) return baseToast;
+
+    if (baseToast.receiptId || baseToast.receiptNo) {
+      return baseToast;
+    }
+
+    const normalizedStoreId = storeId || baseToast.storeId || '';
+    const normalizedSessionId = baseToast.sessionId || '';
+    const normalizedTransactionId = baseToast.transactionId || '';
+
+    if (!normalizedStoreId || !normalizedSessionId || !normalizedTransactionId || !auth.currentUser) {
+      return paymentResultToast;
+    }
+
+    const token = await getIdToken(auth.currentUser);
+    const response = await fetch('/api/issuePostpayReceipt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        storeId: normalizedStoreId,
+        sessionId: normalizedSessionId,
+        transactionId: normalizedTransactionId,
+        recipientName: baseToast.recipientName || ''
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error?.message || 'モバイル領収書の発行に失敗しました。');
+    }
+
+    const nextToast = {
+      ...baseToast,
+      receiptId: payload.receiptId || '',
+      receiptNo: payload.receiptNo || ''
+    };
+
+    setPaymentResultToast((currentToast) => {
+      if (!currentToast || currentToast.transactionId !== nextToast.transactionId) {
+        return currentToast;
+      }
+      return {
+        ...currentToast,
+        receiptId: nextToast.receiptId,
+        receiptNo: nextToast.receiptNo
+      };
+    });
+    return nextToast;
+  };
+
   const handlePrintPaymentResultReceipt = async () => {
     if (!paymentResultToast || isPaymentResultReceiptPrinting) return;
 
     setIsPaymentResultReceiptPrinting(true);
 
+    let printableToast = paymentResultToast;
+
     try {
-      const payload = buildPosReceiptPrintPayload(paymentResultToast, storeSettings);
+      printableToast = await ensurePaymentResultMobileReceipt();
+      const payload = buildPosReceiptPrintPayload(printableToast, storeSettings);
       await printReceiptViaBridge(payload, storeSettings);
       return;
     } catch (error) {
@@ -258,7 +325,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
         return;
       }
 
-      const payload = buildPosReceiptPrintPayload(paymentResultToast, storeSettings);
+      const payload = buildPosReceiptPrintPayload(printableToast, storeSettings);
       openPosReceiptBrowserPrint(payload);
     } finally {
       setIsPaymentResultReceiptPrinting(false);

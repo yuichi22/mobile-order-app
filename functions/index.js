@@ -3279,10 +3279,18 @@ export const issuePostpayReceipt = onRequest(
           ref: docSnap.ref,
           data: docSnap.data() || {}
         }))
-        .filter((order) => (
-          order.data.sessionId === normalizedSessionId
-          && order.data.paymentStatus === 'paid'
-        ));
+        .filter((order) => {
+          const paymentStatus = String(order.data.paymentStatus || '');
+          return (
+            order.data.sessionId === normalizedSessionId
+            && order.data.status !== 'cancelled'
+            && paymentStatus !== 'cancelled'
+            && (
+              paymentStatus === 'paid'
+              || paymentStatus === 'partial_paid'
+            )
+          );
+        });
 
       if (paidOrders.length === 0) {
         return sendAppError(res, 400, 'app/invite-invalid', '領収書の対象注文が見つかりませんでした。');
