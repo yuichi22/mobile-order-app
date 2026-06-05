@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, increment, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent } from 'lucide-react';
 
 import { getActiveRegisterContext } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
@@ -18,7 +18,8 @@ import {
   useMenuData,
   usePeriodData,
   useProductMasterData,
-  useStoreSettings
+  useStoreSettings,
+  useDiscountData
 } from '../store/hooks';
 import {
   normalizeTaxRounding,
@@ -27,6 +28,7 @@ import {
 import { useKitchenBoard } from '../kitchen/hooks/useKitchenBoard';
 import { useTableMenuOverrides } from './hooks/useTableMenuOverrides';
 import PosTransactionHistoryPage from './pages/PosTransactionHistoryPage';
+import { PosModals } from './PosRegister/components/PosModals';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
@@ -125,6 +127,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     productCategories: productMasterCategories = [],
     loading: productMasterLoading
   } = useProductMasterData(storeId);
+  const { discounts } = useDiscountData(storeId) || { discounts: [] };
   const [isTakeoutMode, setIsTakeoutMode] = useState(registerMode === 'pos');
   const [posProductKeyword, setPosProductKeyword] = useState('');
   const [posProductCategoryId, setPosProductCategoryId] = useState('');
@@ -136,6 +139,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [takeoutCart, setTakeoutCart] = useState([]);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
+  const [takeoutDiscountType, setTakeoutDiscountType] = useState('none');
+  const [takeoutDiscountValue, setTakeoutDiscountValue] = useState(0);
+  const [takeoutSelectedDiscount, setTakeoutSelectedDiscount] = useState(null);
+  const [takeoutDiscountQuantities, setTakeoutDiscountQuantities] = useState({});
+  const [showTakeoutDiscountModal, setShowTakeoutDiscountModal] = useState(false);
   const [isTakeoutSubmitting, setIsTakeoutSubmitting] = useState(false);
   const [showTakeoutSuccessModal, setShowTakeoutSuccessModal] = useState(false);
   const [lastTakeoutTransaction, setLastTakeoutTransaction] = useState(null);
@@ -223,6 +231,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   const setPosMessage = (message, type = 'info') => {
     setPosProductMessage({ message, type, key: Date.now() });
+  };
+
+  const clearTakeoutDiscount = () => {
+    setTakeoutDiscountType('none');
+    setTakeoutDiscountValue(0);
+    setTakeoutSelectedDiscount(null);
+    setTakeoutDiscountQuantities({});
   };
 
   const addPosCartItem = (payload) => {
@@ -377,11 +392,53 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       : []
   ), [categoryNameMap, menuItems]);
 
-  const takeoutCartTotal = useMemo(() => (
+  const takeoutCartRawTotal = useMemo(() => (
     takeoutCart.reduce((sum, item) => (
-      sum + (Number(item.takeoutPrice || 0) * Number(item.quantity || 0))
+      sum + (Number(item.takeoutPrice || item.unitPrice || item.priceTaxIncluded || 0) * Number(item.quantity || 0))
     ), 0)
   ), [takeoutCart]);
+
+  const takeoutDiscountAmount = useMemo(() => {
+    const rawTotal = Number(takeoutCartRawTotal || 0);
+    if (rawTotal <= 0) return 0;
+
+    if (takeoutDiscountType === 'percent') {
+      return Math.min(
+        rawTotal,
+        Math.floor(rawTotal * ((Number(takeoutDiscountValue) || 0) / 100))
+      );
+    }
+
+    if (takeoutDiscountType === 'amount') {
+      return Math.min(rawTotal, Number(takeoutDiscountValue || 0));
+    }
+
+    return 0;
+  }, [takeoutCartRawTotal, takeoutDiscountType, takeoutDiscountValue]);
+
+  const takeoutCartTotal = useMemo(() => (
+    Math.max(Number(takeoutCartRawTotal || 0) - Number(takeoutDiscountAmount || 0), 0)
+  ), [takeoutCartRawTotal, takeoutDiscountAmount]);
+
+  const takeoutDiscountLabel = useMemo(() => {
+    if (takeoutDiscountType === 'none' || takeoutDiscountAmount <= 0) return '未設定';
+
+    if (takeoutSelectedDiscount?.label) return takeoutSelectedDiscount.label;
+
+    if (takeoutSelectedDiscount?.name) {
+      if (takeoutSelectedDiscount.type === 'amount') {
+        return `${takeoutSelectedDiscount.name} × ${Number(takeoutSelectedDiscount.quantity || takeoutSelectedDiscount.count || 1)}枚`;
+      }
+
+      return takeoutSelectedDiscount.name;
+    }
+
+    if (takeoutDiscountType === 'percent') {
+      return `${Number(takeoutDiscountValue) || 0}%割引`;
+    }
+
+    return `¥${Number(takeoutDiscountValue || 0).toLocaleString()} 値引き`;
+  }, [takeoutDiscountAmount, takeoutDiscountType, takeoutDiscountValue, takeoutSelectedDiscount]);
 
   const takeoutChangeAmount = useMemo(() => (
     Math.max((Number(takeoutPaymentAmount) || 0) - Number(takeoutCartTotal || 0), 0)
@@ -582,6 +639,43 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         paidAtClient: nowIso
       }));
 
+      const selectedAccountingAdjustmentItems = Array.isArray(takeoutSelectedDiscount?.items) && takeoutSelectedDiscount.items.length > 0
+        ? takeoutSelectedDiscount.items
+        : takeoutSelectedDiscount
+          ? [{
+              id: takeoutSelectedDiscount.id || null,
+              name: takeoutSelectedDiscount.name || '',
+              type: takeoutSelectedDiscount.type || takeoutDiscountType,
+              value: Number(takeoutSelectedDiscount.value ?? takeoutDiscountValue) || 0,
+              accountingCategory: takeoutSelectedDiscount.accountingCategory || 'sales_discount',
+              count: takeoutSelectedDiscount.type === 'amount'
+                ? Number(takeoutSelectedDiscount.quantity || takeoutSelectedDiscount.count || 1)
+                : 1,
+              quantity: takeoutSelectedDiscount.type === 'amount'
+                ? Number(takeoutSelectedDiscount.quantity || takeoutSelectedDiscount.count || 1)
+                : 1,
+              amount: Number(takeoutDiscountType === 'percent' ? takeoutDiscountAmount : takeoutDiscountValue || 0)
+            }]
+          : [];
+
+      const appliedDiscount = Number(takeoutDiscountAmount) > 0
+        ? {
+            id: takeoutSelectedDiscount?.id || null,
+            name: takeoutDiscountLabel,
+            type: takeoutSelectedDiscount?.type || takeoutDiscountType,
+            value: Number(takeoutSelectedDiscount?.value ?? takeoutDiscountValue) || 0,
+            count: takeoutSelectedDiscount?.type === 'amount'
+              ? Number(takeoutSelectedDiscount?.quantity || takeoutSelectedDiscount?.count || 1)
+              : 1,
+            quantity: takeoutSelectedDiscount?.type === 'amount'
+              ? Number(takeoutSelectedDiscount?.quantity || takeoutSelectedDiscount?.count || 1)
+              : 1,
+            amount: Number(takeoutDiscountAmount),
+            accountingCategory: takeoutSelectedDiscount?.accountingCategory || 'sales_discount',
+            items: selectedAccountingAdjustmentItems
+          }
+        : null;
+
       const taxSummary = {
         reducedTaxRate: Number(reducedTax),
         standardTaxRate: Number(standardTax),
@@ -672,7 +766,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
           subTotal: Number(reducedBreakdown.baseAmount),
           subtotal: Number(reducedBreakdown.baseAmount),
-          discountAmount: 0,
+          rawTotalAmount: Number(takeoutCartRawTotal),
+          discountAmount: Number(takeoutDiscountAmount),
           totalAmount: Number(takeoutCartTotal),
           totalPrice: Number(takeoutCartTotal),
 
@@ -688,12 +783,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           taxSummary,
           taxBreakdown,
 
-          discountType: 'none',
-          discountValue: 0,
-          discountName: '',
-          discountDetail: null,
-          appliedDiscount: null,
-          appliedDiscounts: [],
+          discountType: takeoutDiscountType || 'none',
+          discountValue: Number(takeoutDiscountValue) || 0,
+          discountName: Number(takeoutDiscountAmount) > 0 ? takeoutDiscountLabel : '',
+          discountDetail: appliedDiscount,
+          appliedDiscount,
+          appliedDiscounts: appliedDiscount ? [appliedDiscount] : [],
 
           paymentMethod: takeoutPaymentMethod,
           paymentMethodGroup: takeoutPaymentMethod,
@@ -751,6 +846,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         total: Number(takeoutCartTotal),
         totalAmount: Number(takeoutCartTotal),
         totalPrice: Number(takeoutCartTotal),
+        rawTotalAmount: Number(takeoutCartRawTotal),
+        discountAmount: Number(takeoutDiscountAmount),
+        discountType: takeoutDiscountType || 'none',
+        discountValue: Number(takeoutDiscountValue) || 0,
+        discountName: Number(takeoutDiscountAmount) > 0 ? takeoutDiscountLabel : '',
+        discountDetail: appliedDiscount,
+        appliedDiscount,
+        appliedDiscounts: appliedDiscount ? [appliedDiscount] : [],
         subTotal: Number(reducedBreakdown.baseAmount),
         subtotal: Number(reducedBreakdown.baseAmount),
         taxAmount: Number(reducedBreakdown.taxAmount),
@@ -774,6 +877,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
       setTakeoutPaymentMethod('');
+      clearTakeoutDiscount();
       setIsTakeoutMode(false);
       setShowTakeoutSuccessModal(true);
     } catch (error) {
@@ -1498,18 +1602,28 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
               <div className="flex min-h-0 flex-col bg-white">
                 <div className="shrink-0 border-b border-slate-100 p-4">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-widest text-slate-400">
-                        {registerMode === 'pos' ? 'POS仮伝票' : '仮伝票'}
-                      </div>
-                      <div className="mt-1 text-sm font-bold text-slate-500">
-                        {activePosHoldId
-                          ? `保留復帰中: ${posHolds.find((hold) => hold.id === activePosHoldId)?.title || activePosHoldId}`
-                          : 'テーブルは使用しません'}
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowTakeoutDiscountModal(true)}
+                      disabled={takeoutCart.length === 0}
+                      className={`flex h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+                        takeoutDiscountAmount > 0
+                          ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
+                          : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
+                      }`}
+                    >
+                      <Percent size={16} />
+                      割引/金券
+                    </button>
+
                     <div className="text-right">
+                      {takeoutDiscountAmount > 0 && (
+                        <div className="mb-1 flex items-center justify-end gap-2 text-xs font-black text-orange-600">
+                          <span className="max-w-[160px] truncate">{takeoutDiscountLabel}</span>
+                          <span className="font-mono">-¥{takeoutDiscountAmount.toLocaleString()}</span>
+                        </div>
+                      )}
                       <div className="text-xs font-black text-slate-400">税込合計</div>
                       <div className="font-mono text-3xl font-black text-slate-900">
                         ¥{takeoutCartTotal.toLocaleString()}
@@ -1805,6 +1919,33 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         )}
       </div>
     </div>
+
+    <PosModals
+      showSuccessModal={false}
+      setShowSuccessModal={() => {}}
+      lastTransaction={null}
+      setPaymentAmount={setTakeoutPaymentAmount}
+      showSplitModal={false}
+      setShowSplitModal={() => {}}
+      totalAmount={takeoutCartRawTotal}
+      splitCount={2}
+      setSplitCount={() => {}}
+      showDiscountModal={showTakeoutDiscountModal}
+      setShowDiscountModal={setShowTakeoutDiscountModal}
+      discounts={discounts}
+      setDiscountType={setTakeoutDiscountType}
+      setDiscountValue={setTakeoutDiscountValue}
+      setSelectedDiscount={setTakeoutSelectedDiscount}
+      discountQuantities={takeoutDiscountQuantities}
+      setDiscountQuantities={setTakeoutDiscountQuantities}
+      showAbortModal={false}
+      setShowAbortModal={() => {}}
+      abortReason="manual_abort"
+      setAbortReason={() => {}}
+      onConfirmAbort={() => {}}
+      tableId="takeout"
+      tableDisplayName="テイクアウト"
+    />
 
     {showTakeoutSuccessModal && lastTakeoutTransaction && (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
