@@ -7,6 +7,7 @@ import {
   Loader2,
   Minus,
   Plus,
+  Repeat2,
   RefreshCw,
   Send,
   ShoppingCart,
@@ -704,6 +705,45 @@ const buildCategoryById = (categories = []) => {
   return map;
 };
 
+const findSetPriceReplacementItems = ({
+  targetItem,
+  menuItems = [],
+  referenceItems = [],
+  crossSellSettings = {}
+}) => {
+  if (!targetItem || !isCrossSellCartItem(targetItem)) return [];
+
+  const sourceGroupKey = String(targetItem.crossSellSourceGroupKey || '');
+  const sourceCategoryIds = normalizeStringArray(targetItem.crossSellSourceCategoryIds);
+  const targetItemId = String(targetItem.id || '');
+
+  return Array.isArray(menuItems)
+    ? menuItems
+        .filter((menuItem) => String(menuItem.id || '') !== targetItemId)
+        .filter((menuItem) => {
+          const categoryId = getCategoryId(menuItem);
+
+          if (sourceCategoryIds.length > 0) {
+            return sourceCategoryIds.includes(categoryId);
+          }
+
+          if (!sourceGroupKey) return false;
+
+          const offer = resolveSetPriceOfferForItem(menuItem, referenceItems, crossSellSettings);
+          return String(offer?.offerGroupKey || '') === sourceGroupKey;
+        })
+        .filter(hasCrossSellPrice)
+        .sort((left, right) => {
+          const leftOrder = Number(left.sortOrder ?? left.order ?? 999999);
+          const rightOrder = Number(right.sortOrder ?? right.order ?? 999999);
+
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+
+          return String(left.name || '').localeCompare(String(right.name || ''), 'ja');
+        })
+    : [];
+};
+
 const StaffOrderPage = ({ storeId }) => {
   const { currentUser, role, profileName, loading: authLoading } = useAuth();
   const normalizedRole = normalizeUserRole(role);
@@ -727,6 +767,7 @@ const StaffOrderPage = ({ storeId }) => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [completedOrderId, setCompletedOrderId] = useState('');
+  const [replaceSetPriceTarget, setReplaceSetPriceTarget] = useState(null);
   const [crossSellSettings, setCrossSellSettings] = useState(null);
   const [isWideMapViewport, setIsWideMapViewport] = useState(false);
 
@@ -1008,6 +1049,59 @@ const StaffOrderPage = ({ storeId }) => {
         setToastMessage('');
       }, 1800);
     }
+  };
+
+  const openReplaceSetPriceModal = (cartItem) => {
+    if (!cartItem || !isCrossSellCartItem(cartItem)) return;
+    setReplaceSetPriceTarget(cartItem);
+  };
+
+  const closeReplaceSetPriceModal = () => {
+    setReplaceSetPriceTarget(null);
+  };
+
+  const replacementCandidates = useMemo(() => (
+    findSetPriceReplacementItems({
+      targetItem: replaceSetPriceTarget,
+      menuItems: customerVisibleMenuItems,
+      referenceItems: setPriceReferenceItems.filter((item) => (
+        getCartLineKey(item) !== getCartLineKey(replaceSetPriceTarget || {})
+      )),
+      crossSellSettings: crossSellSettings || {}
+    })
+  ), [crossSellSettings, customerVisibleMenuItems, replaceSetPriceTarget, setPriceReferenceItems]);
+
+  const handleReplaceSetPriceItem = (replacementItem) => {
+    if (!replaceSetPriceTarget || !replacementItem?.id) return;
+
+    setCart((current) => {
+      const currentCart = Array.isArray(current) ? current : [];
+      const targetKey = getCartLineKey(replaceSetPriceTarget);
+      const normalPrice = getMenuPrice(replacementItem);
+      const setPrice = Number(replacementItem.crossSellPrice);
+
+      return currentCart.map((cartItem) => {
+        if (getCartLineKey(cartItem) !== targetKey) return cartItem;
+
+        return {
+          ...cartItem,
+          id: String(replacementItem.id),
+          name: replacementItem.name || '商品',
+          unitPrice: setPrice,
+          price: setPrice,
+          originalPrice: normalPrice,
+          category: replacementItem.category || replacementItem.categoryId || '',
+          categoryId: replacementItem.categoryId || replacementItem.category || '',
+          kitchenName: replacementItem.kitchenName || '',
+          allowsTakeout: replacementItem.allowsTakeout !== false,
+          allergens: replacementItem.allergens || [],
+          priceLabelText: replacementItem.crossSellPriceLabelText || 'セット価格',
+          originalPriceLabelText: replacementItem.priceLabelText || ''
+        };
+      });
+    });
+
+    setReplaceSetPriceTarget(null);
   };
 
   const handleSelectTable = async (table) => {
@@ -1800,6 +1894,17 @@ const StaffOrderPage = ({ storeId }) => {
                           >
                             <Plus size={16} />
                           </button>
+
+                          {item.appliedPriceMode === 'crossSell' && (
+                            <button
+                              type="button"
+                              onClick={() => openReplaceSetPriceModal(item)}
+                              className="flex h-9 items-center gap-1 rounded-xl bg-blue-600 px-3 text-xs font-black text-white shadow-sm"
+                            >
+                              <Repeat2 size={15} />
+                              変更
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1860,6 +1965,60 @@ const StaffOrderPage = ({ storeId }) => {
           </section>
         )}
       </main>
+
+      {replaceSetPriceTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[80vh] w-full max-w-md overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
+            <div className="border-b border-slate-100 p-5">
+              <h3 className="text-lg font-black text-slate-900">
+                セット商品を変更
+              </h3>
+              <p className="mt-2 text-sm font-bold text-slate-500">
+                同じセットグループ内の商品に差し替えます。
+              </p>
+            </div>
+
+            <div className="max-h-[52vh] space-y-2 overflow-y-auto p-4">
+              {replacementCandidates.map((replacementItem) => (
+                <button
+                  key={replacementItem.id}
+                  type="button"
+                  onClick={() => handleReplaceSetPriceItem(replacementItem)}
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-black text-slate-900">
+                      {replacementItem.name || '商品'}
+                    </span>
+                    <span className="mt-1 block text-xs font-bold text-orange-700">
+                      セット価格 {formatMoney(Number(replacementItem.crossSellPrice))}
+                    </span>
+                  </span>
+                  <span className="rounded-xl bg-blue-600 px-3 py-1 text-xs font-black text-white">
+                    選択
+                  </span>
+                </button>
+              ))}
+
+              {replacementCandidates.length === 0 && (
+                <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                  変更できる商品がありません。
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 p-4">
+              <button
+                type="button"
+                onClick={closeReplaceSetPriceModal}
+                className="h-12 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-700"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
