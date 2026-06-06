@@ -62,20 +62,10 @@ export const canAccessSettingsSection = (role, sectionId) => {
     'products',
     'discount',
     'qrcode',
-    'inventoryList',
-    'stockReceiving',
-    'stockAdjustment',
-    'purchaseCandidates',
-    'purchaseOrders',
-    'supplierOrders',
-    'productCategories',
-    'productCategoryGroups',
-    'brands',
-    'suppliers',
-    'stockTaking',
-    'longTermStock',
+    'purchaseManagement',
+    'productManagement',
+    'inventoryManagement',
     'shopifyIntegration',
-    'legacyImport',
     'csvImportExport'
   ].includes(sectionId);
 };

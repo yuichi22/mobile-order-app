@@ -16,11 +16,7 @@ import {
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 
 const PRODUCT_TABS = [
-  { id: 'products', label: '商品', icon: Package },
-  { id: 'categories', label: 'カテゴリー', icon: Tag },
-  { id: 'groups', label: 'カテゴリーグループ', icon: FolderTree },
-  { id: 'brands', label: 'ブランド', icon: Building2 },
-  { id: 'suppliers', label: '仕入先', icon: Factory }
+  { id: 'products', label: '商品', icon: Package }
 ];
 
 const blankProduct = {
@@ -56,7 +52,7 @@ const blankProduct = {
   shopifyInventoryItemId: ''
 };
 
-const blankCategory = {
+export const blankCategory = {
   name: '',
   groupId: '',
   sortOrder: 0,
@@ -65,21 +61,21 @@ const blankCategory = {
   isActive: true
 };
 
-const blankGroup = {
+export const blankGroup = {
   name: '',
   sortOrder: 0,
   departmentId: 'retail',
   isActive: true
 };
 
-const blankBrand = {
+export const blankBrand = {
   name: '',
   kana: '',
   note: '',
   isActive: true
 };
 
-const blankSupplier = {
+export const blankSupplier = {
   name: '',
   kana: '',
   contactName: '',
@@ -489,7 +485,7 @@ const ProductMasterTable = ({
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
         <div>
-          <h3 className="text-lg font-black text-slate-900">商品一覧</h3>
+          <h3 className="text-lg font-black text-slate-900">商品マスター</h3>
           <p className="mt-1 text-xs font-bold text-slate-400">
             ブランドの下にカテゴリー、品番の下に商品名を配置し、横スクロールを抑えた直接入力型です。
           </p>
@@ -558,7 +554,7 @@ const SimpleToggle = ({ label, checked, onChange }) => (
   </button>
 );
 
-const SimpleMasterPanel = ({
+export const SimpleMasterPanel = ({
   label,
   blank,
   items,
@@ -711,10 +707,14 @@ const ProductMasterSettings = ({
   onDeleteBrand,
   onSaveSupplier,
   onDeleteSupplier,
-  onSaved
+  onSaved,
+  externalKeyword,
+  onExternalKeywordChange
 }) => {
   const [activeTab, setActiveTab] = useState('products');
-  const [keyword, setKeyword] = useState('');
+  const [internalKeyword, setInternalKeyword] = useState('');
+  const keyword = typeof externalKeyword === 'string' ? externalKeyword : internalKeyword;
+  const setKeyword = typeof onExternalKeywordChange === 'function' ? onExternalKeywordChange : setInternalKeyword;
 
   const filterItems = (items) => {
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -729,72 +729,8 @@ const ProductMasterSettings = ({
   const filteredBrands = useMemo(() => filterItems(brands), [keyword, brands]);
   const filteredSuppliers = useMemo(() => filterItems(suppliers), [keyword, suppliers]);
 
-  const activeMeta = PRODUCT_TABS.find((tab) => tab.id === activeTab) || PRODUCT_TABS[0];
-
   return (
-    <div className="space-y-6">
-      <div className="rounded-[2rem] bg-gradient-to-br from-slate-900 to-slate-800 p-7 text-white shadow-xl">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black tracking-widest text-orange-200">
-              AKUTO INVENTORY
-            </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight">商品マスター</h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-slate-300">
-              物販POS / 入庫 / 棚卸し / 自動発注 / Shopify在庫連携の土台です。
-              既存アプリのように、一覧上で主要項目を直接入力できます。ブランド・カテゴリーはマスターと連動します。
-            </p>
-          </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white">
-            <Check size={17} />
-            Phase 1.5
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        {PRODUCT_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={classNames(
-                'flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition',
-                active
-                  ? 'border-orange-200 bg-orange-50 text-orange-600'
-                  : 'border-slate-100 bg-white text-slate-500 hover:bg-slate-50'
-              )}
-            >
-              <Icon size={17} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-xl font-black text-slate-900">{activeMeta.label}</div>
-          <p className="mt-1 text-sm font-bold text-slate-400">
-            入庫・ラベル印刷・Shopify同期は次フェーズ以降で接続します。
-          </p>
-        </div>
-
-        <div className="relative w-full max-w-sm">
-          <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-          <input
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="検索"
-            className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white pl-11 pr-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
-          />
-        </div>
-      </div>
-
+    <div className="space-y-5">
       {loading ? (
         <div className="flex h-32 items-center justify-center">
           <LoadingSpinner />
@@ -814,7 +750,7 @@ const ProductMasterSettings = ({
             />
           )}
 
-          {activeTab === 'categories' && (
+          {false && activeTab === 'categories' && (
             <SimpleMasterPanel
               label="カテゴリー"
               blank={blankCategory}
@@ -831,7 +767,7 @@ const ProductMasterSettings = ({
             />
           )}
 
-          {activeTab === 'groups' && (
+          {false && activeTab === 'groups' && (
             <SimpleMasterPanel
               label="カテゴリーグループ"
               blank={blankGroup}
@@ -846,7 +782,7 @@ const ProductMasterSettings = ({
             />
           )}
 
-          {activeTab === 'brands' && (
+          {false && activeTab === 'brands' && (
             <SimpleMasterPanel
               label="ブランド"
               blank={blankBrand}
@@ -862,7 +798,7 @@ const ProductMasterSettings = ({
             />
           )}
 
-          {activeTab === 'suppliers' && (
+          {false && activeTab === 'suppliers' && (
             <SimpleMasterPanel
               label="仕入先"
               blank={blankSupplier}

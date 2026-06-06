@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Search,
   ShoppingBag,
   Utensils
 } from 'lucide-react';
@@ -109,6 +110,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const lastRegisterModeRef = useRef(registerMode);
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
   const [lastPaymentData, setLastPaymentData] = useState(null);
+  const [posSettingsSubTab, setPosSettingsSubTab] = useState(null);
+  const [posSettingsProductKeyword, setPosSettingsProductKeyword] = useState('');
   const [paymentResultToast, setPaymentResultToast] = useState(null);
   const [isPaymentResultReceiptPrinting, setIsPaymentResultReceiptPrinting] = useState(false);
 
@@ -536,36 +539,50 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
-              {!(activeAdminTab === 'pos' && registerMode === 'pos') && (
-                <button
-                  type="button"
-                  onClick={
-                    activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
-                      ? switchFromSettingsToRegister
-                      : (onSwitchToKitchen || onBack)
-                  }
-                  className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
-                >
-                  {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
-                    <CreditCard size={18} strokeWidth={2.8} />
-                  ) : (
-                    <ChefHat size={18} strokeWidth={2.8} />
+              {activeAdminTab === 'settings' && registerMode === 'pos' && posSettingsSubTab === 'products' ? (
+                <div className="relative w-full max-w-sm">
+                  <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
+                  <input
+                    value={posSettingsProductKeyword}
+                    onChange={(event) => setPosSettingsProductKeyword(event.target.value)}
+                    placeholder="商品検索"
+                    className="h-11 w-full rounded-2xl border-2 border-gray-100 bg-white pl-11 pr-4 text-sm font-bold text-gray-700 outline-none transition focus:border-blue-400"
+                  />
+                </div>
+              ) : (
+                <>
+                  {!(activeAdminTab === 'pos' && registerMode === 'pos') && (
+                    <button
+                      type="button"
+                      onClick={
+                        activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                          ? switchFromSettingsToRegister
+                          : (onSwitchToKitchen || onBack)
+                      }
+                      className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
+                    >
+                      {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
+                        <CreditCard size={18} strokeWidth={2.8} />
+                      ) : (
+                        <ChefHat size={18} strokeWidth={2.8} />
+                      )}
+                      {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                        ? 'レジモードへ'
+                        : 'キッチンモードへ'}
+                    </button>
                   )}
-                  {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
-                    ? 'レジモードへ'
-                    : 'キッチンモードへ'}
-                </button>
-              )}
 
-              {typeof onSwitchToServe === 'function' && (
-                <button
-                  type="button"
-                  onClick={onSwitchToServe}
-                  className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95"
-                >
-                  <Utensils size={18} strokeWidth={2.8} />
-                  提供モードへ
-                </button>
+                  {typeof onSwitchToServe === 'function' && (
+                    <button
+                      type="button"
+                      onClick={onSwitchToServe}
+                      className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95"
+                    >
+                      <Utensils size={18} strokeWidth={2.8} />
+                      提供モードへ
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -704,6 +721,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
               user={user}
               storeId={storeId}
               initialSettingsMode={registerMode === 'pos' ? 'pos' : 'order'}
+              posProductKeyword={posSettingsProductKeyword}
+              onPosProductKeywordChange={setPosSettingsProductKeyword}
+              onPosSettingsSubTabChange={setPosSettingsSubTab}
             />
           </Suspense>
         )}

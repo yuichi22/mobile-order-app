@@ -62,7 +62,13 @@ import PeriodSettings from './components/PeriodSettings';
 import QRGenerator from './components/QRGenerator';
 import StaffInviteSettings from './components/StaffInviteSettings';
 import CrossSellSettings from './components/CrossSellSettings';
-import ProductMasterSettings from '../../products/components/ProductMasterSettings';
+import ProductMasterSettings, {
+  SimpleMasterPanel,
+  blankBrand,
+  blankCategory,
+  blankGroup,
+  blankSupplier
+} from '../../products/components/ProductMasterSettings';
 
 const SETTINGS_MODE_ITEMS = [
   {
@@ -97,26 +103,12 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'layout', mode: 'order', group: '店舗運用', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
   { id: 'discount', mode: 'order', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
 
-  { id: 'products', mode: 'pos', group: '商品マスター', label: '商品マスター', icon: Package, desc: 'POS管理画面の入口。商品・補助マスターを集約管理します' },
-  { id: 'inventoryList', mode: 'pos', group: '商品マスター', label: '在庫一覧', icon: Archive, desc: '商品ごとの現在庫を確認します' },
-  { id: 'stockReceiving', mode: 'pos', group: '商品マスター', label: '入庫登録', icon: PackageCheck, desc: '仕入・入庫を登録します' },
-  { id: 'stockAdjustment', mode: 'pos', group: '商品マスター', label: '在庫調整', icon: Settings, desc: '破損・差異などの在庫調整を行います' },
-
-  { id: 'purchaseCandidates', mode: 'pos', group: '発注管理', label: '発注候補', icon: ShoppingCart, desc: '在庫状況から発注候補を確認します' },
-  { id: 'purchaseOrders', mode: 'pos', group: '発注管理', label: '発注書', icon: FileSpreadsheet, desc: '発注書を作成・管理します' },
-  { id: 'supplierOrders', mode: 'pos', group: '発注管理', label: '仕入先別発注', icon: Truck, desc: '仕入先ごとに発注を整理します' },
-
-  { id: 'productCategories', mode: 'pos', group: '商品管理', label: 'カテゴリー', icon: Tag, desc: '商品カテゴリーを管理します' },
-  { id: 'productCategoryGroups', mode: 'pos', group: '商品管理', label: 'カテゴリーグループ', icon: Boxes, desc: 'カテゴリーを束ねる分類を管理します' },
-  { id: 'brands', mode: 'pos', group: '商品管理', label: 'ブランド', icon: Sparkles, desc: 'ブランドマスターを管理します' },
-  { id: 'suppliers', mode: 'pos', group: '商品管理', label: '仕入先', icon: Building2, desc: '仕入先マスターを管理します' },
-
-  { id: 'stockTaking', mode: 'pos', group: '在庫管理', label: '棚卸', icon: CheckSquare, desc: '棚卸作業と差異確認を行います' },
-  { id: 'longTermStock', mode: 'pos', group: '在庫管理', label: '長期在庫', icon: Clock, desc: '動きの少ない在庫を確認します' },
-
-  { id: 'shopifyIntegration', mode: 'pos', group: '連携', label: 'Shopify連携', icon: Link, desc: 'Shopify商品・在庫との連携を設定します' },
-  { id: 'legacyImport', mode: 'pos', group: '連携', label: '旧データ取込', icon: Database, desc: 'スマレジ・旧POS・FileMaker等のデータを取り込みます' },
-  { id: 'csvImportExport', mode: 'pos', group: '連携', label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで一括登録・出力します' },
+  { id: 'products', mode: 'pos', group: null, label: '商品マスター', icon: Package, desc: '在庫数確認・在庫調整・入庫登録を1画面で行います' },
+  { id: 'purchaseManagement', mode: 'pos', group: null, label: '発注管理', icon: ShoppingCart, desc: '仕入先別発注確認と発注履歴を管理します' },
+  { id: 'productManagement', mode: 'pos', group: null, label: '商品管理', icon: Boxes, desc: 'カテゴリー・カテゴリーグループ・ブランド・仕入先を管理します' },
+  { id: 'inventoryManagement', mode: 'pos', group: null, label: '在庫管理', icon: Archive, desc: '在高確認・長期在庫・棚卸を管理します' },
+  { id: 'shopifyIntegration', mode: 'pos', group: null, label: 'Shopify連携', icon: Link, desc: 'Shopify商品・在庫との連携を設定します' },
+  { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
   { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
@@ -233,123 +225,226 @@ const groupSettingsMenuItems = (items) => {
   return groups;
 };
 
-const POS_PLACEHOLDER_COPY = {
-  inventoryList: {
-    title: '在庫一覧',
-    eyebrow: 'Inventory List',
-    description: '商品ごとの現在庫、販売数、入庫数、在庫金額を確認する画面です。商品マスターを起点に在庫管理へ広げます。'
+const POS_DUMMY_PAGES = {
+  purchaseManagement: {
+    title: '発注管理',
+    eyebrow: 'Purchase Management',
+    description: '仕入先別の発注確認と発注履歴を管理する画面です。',
+    tabs: [
+      { id: 'supplierPurchaseCheck', label: '仕入先別発注確認', description: '仕入先ごとに必要な発注候補を確認します。' },
+      { id: 'purchaseHistory', label: '発注履歴', description: '過去の発注内容、ステータス、入庫状況を確認します。' }
+    ]
   },
-  stockReceiving: {
-    title: '入庫登録',
-    eyebrow: 'Stock Receiving',
-    description: '仕入・入庫を登録し、商品マスターの在庫へ反映する画面です。'
+  productManagement: {
+    title: '商品管理',
+    eyebrow: 'Product Management',
+    description: '商品マスターから分離した補助マスターを管理する画面です。',
+    tabs: [
+      { id: 'categories', label: 'カテゴリー', description: '商品マスターで使う商品カテゴリーをここで管理します。' },
+      { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。' },
+      { id: 'brands', label: 'ブランド', description: '商品に紐づくブランド情報をここで管理します。' },
+      { id: 'suppliers', label: '仕入先', description: '発注や入庫で使う仕入先情報をここで管理します。' }
+    ]
   },
-  stockAdjustment: {
-    title: '在庫調整',
-    eyebrow: 'Stock Adjustment',
-    description: '破損、紛失、実在庫差異などを調整する画面です。'
-  },
-  purchaseCandidates: {
-    title: '発注候補',
-    eyebrow: 'Purchase Candidates',
-    description: '販売数、現在庫、発注点から発注候補を確認する画面です。'
-  },
-  purchaseOrders: {
-    title: '発注書',
-    eyebrow: 'Purchase Orders',
-    description: '発注書の作成、印刷、仕入先送付、入庫消込につなげる画面です。'
-  },
-  supplierOrders: {
-    title: '仕入先別発注',
-    eyebrow: 'Supplier Orders',
-    description: '仕入先ごとに発注候補をまとめ、発注作業を効率化する画面です。'
-  },
-  productCategories: {
-    title: 'カテゴリー',
-    eyebrow: 'Product Categories',
-    description: '現在は「商品マスター」内のタブで管理できます。次のフェーズでサイドバーから直接開けるようにします。'
-  },
-  productCategoryGroups: {
-    title: 'カテゴリーグループ',
-    eyebrow: 'Category Groups',
-    description: '現在は「商品マスター」内のタブで管理できます。生活雑貨、アパレル、食品などの大分類を扱います。'
-  },
-  brands: {
-    title: 'ブランド',
-    eyebrow: 'Brands',
-    description: '現在は「商品マスター」内のタブで管理できます。ブランド別分析やShopify連携に使う予定です。'
-  },
-  suppliers: {
-    title: '仕入先',
-    eyebrow: 'Suppliers',
-    description: '現在は「商品マスター」内のタブで管理できます。発注管理と連携していく予定です。'
-  },
-  stockTaking: {
-    title: '棚卸',
-    eyebrow: 'Stock Taking',
-    description: '棚卸入力、理論在庫との差異確認、調整反映を行う画面です。'
-  },
-  longTermStock: {
-    title: '長期在庫',
-    eyebrow: 'Long Term Stock',
-    description: '一定期間動きのない商品を抽出し、値下げ・販促・発注停止判断に使う画面です。'
+  inventoryManagement: {
+    title: '在庫管理',
+    eyebrow: 'Inventory Management',
+    description: '在庫状況、長期在庫、棚卸を確認・管理する画面です。',
+    tabs: [
+      { id: 'stockValue', label: '在高確認', description: '現在庫数と在庫金額を確認します。' },
+      { id: 'longTermStock', label: '長期在庫', description: '一定期間動きのない商品を確認します。' },
+      { id: 'stockTaking', label: '棚卸', description: '棚卸入力と差異確認を行います。' }
+    ]
   },
   shopifyIntegration: {
     title: 'Shopify連携',
     eyebrow: 'Shopify Integration',
-    description: '商品情報、在庫、販売情報をShopifyと連携するための設定画面です。'
-  },
-  legacyImport: {
-    title: '旧データ取込',
-    eyebrow: 'Legacy Import',
-    description: 'スマレジ、FileMaker、CSVなど旧システムのデータを取り込む画面です。'
+    description: 'Shopifyの商品・在庫情報との連携を設定する画面です。',
+    tabs: [
+      { id: 'syncSettings', label: '連携設定', description: 'Shopifyとの接続設定を管理します。' },
+      { id: 'productSync', label: '商品同期', description: '商品情報の同期状況を確認します。' },
+      { id: 'inventorySync', label: '在庫同期', description: '在庫同期の対象と履歴を確認します。' }
+    ]
   },
   csvImportExport: {
     title: 'CSV入出力',
     eyebrow: 'CSV Import / Export',
-    description: '商品、在庫、仕入先などをCSVで一括登録・出力する画面です。'
+    description: '商品・在庫・仕入先などをCSVで一括登録・出力する画面です。',
+    tabs: [
+      { id: 'csvImport', label: 'CSV取込', description: 'CSVファイルからデータを一括登録します。' },
+      { id: 'csvExport', label: 'CSV出力', description: '登録済みデータをCSVで出力します。' },
+      { id: 'templates', label: 'テンプレート', description: '取込用CSVテンプレートを確認します。' }
+    ]
   }
 };
 
-const PosSettingsPlaceholder = ({ item }) => {
-  const copy = POS_PLACEHOLDER_COPY[item?.id] || {
+const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
+  const page = POS_DUMMY_PAGES[item?.id] || {
     title: item?.label || '準備中',
     eyebrow: 'Coming Soon',
-    description: item?.desc || 'この管理画面は準備中です。'
+    description: item?.desc || 'この管理画面は準備中です。',
+    tabs: [
+      { id: 'overview', label: '概要', description: 'この画面は準備中です。' }
+    ]
   };
   const Icon = item?.icon || Package;
+  const [activeDummyTab, setActiveDummyTab] = useState(page.tabs[0]?.id || 'overview');
+  const activeTab = page.tabs.find((tab) => tab.id === activeDummyTab) || page.tabs[0];
+
+  const renderProductManagementPanel = () => {
+    if (item?.id !== 'productManagement') return null;
+
+    if (activeDummyTab === 'categories') {
+      return (
+        <SimpleMasterPanel
+          label="カテゴリー"
+          blank={blankCategory}
+          items={productMaster?.productCategories || []}
+          fields={[
+            { id: 'name', label: 'カテゴリー名' },
+            { id: 'groupId', label: 'グループID' },
+            { id: 'sortOrder', label: '並び順', type: 'number' },
+            { id: 'color', label: 'カラー' }
+          ]}
+          onSave={productMaster?.saveCategory}
+          onDelete={productMaster?.deleteCategory}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    if (activeDummyTab === 'categoryGroups') {
+      return (
+        <SimpleMasterPanel
+          label="カテゴリーグループ"
+          blank={blankGroup}
+          items={productMaster?.productCategoryGroups || []}
+          fields={[
+            { id: 'name', label: 'グループ名' },
+            { id: 'sortOrder', label: '並び順', type: 'number' }
+          ]}
+          onSave={productMaster?.saveCategoryGroup}
+          onDelete={productMaster?.deleteCategoryGroup}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    if (activeDummyTab === 'brands') {
+      return (
+        <SimpleMasterPanel
+          label="ブランド"
+          blank={blankBrand}
+          items={productMaster?.brands || []}
+          fields={[
+            { id: 'name', label: 'ブランド名' },
+            { id: 'kana', label: 'かな' },
+            { id: 'note', label: 'メモ' }
+          ]}
+          onSave={productMaster?.saveBrand}
+          onDelete={productMaster?.deleteBrand}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    if (activeDummyTab === 'suppliers') {
+      return (
+        <SimpleMasterPanel
+          label="仕入先"
+          blank={blankSupplier}
+          items={productMaster?.suppliers || []}
+          fields={[
+            { id: 'name', label: '仕入先名' },
+            { id: 'kana', label: 'かな' },
+            { id: 'contactName', label: '担当者' },
+            { id: 'tel', label: '電話' },
+            { id: 'email', label: 'メール' },
+            { id: 'address', label: '住所' },
+            { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
+            { id: 'paymentTerms', label: '支払条件' },
+            { id: 'note', label: 'メモ' }
+          ]}
+          onSave={productMaster?.saveSupplier}
+          onDelete={productMaster?.deleteSupplier}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const productManagementPanel = renderProductManagementPanel();
+
+  useEffect(() => {
+    setActiveDummyTab(page.tabs[0]?.id || 'overview');
+  }, [item?.id]);
 
   return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-      <div className="flex items-start gap-5">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-blue-50 text-blue-600">
-          <Icon size={30} strokeWidth={2.5} />
-        </div>
+    <div className="space-y-6">
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-start gap-5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-blue-50 text-blue-600">
+            <Icon size={30} strokeWidth={2.5} />
+          </div>
 
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
-            {copy.eyebrow}
-          </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            {copy.title}
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
-            {copy.description}
-          </p>
-        </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
+              {page.eyebrow}
+            </p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+              {page.title}
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+              {page.description}
+            </p>
+          </div>
 
-        <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
-          準備中
-        </span>
+          <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+            ダミー
+          </span>
+        </div>
       </div>
 
-      <div className="mt-8 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6">
-        <div className="text-sm font-black text-slate-700">
-          商品マスター中心に段階実装
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1.5">
+          {page.tabs.map((tab) => {
+            const isActive = activeTab?.id === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveDummyTab(tab.id)}
+                className={`rounded-xl px-4 py-3 text-sm font-black transition-all ${
+                  isActive
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
-        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-400">
-          まずはサイドバー構造と選択状態を整えています。既存のレジ会計、日計、分析、基本設定には影響しないよう、未実装画面はプレースホルダーで表示しています。
-        </p>
+
+        {productManagementPanel || (
+          <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-7">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+              {activeTab?.label}
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+              {activeTab?.label}
+            </h2>
+            <p className="mt-3 text-sm font-bold leading-relaxed text-slate-500">
+              {activeTab?.description}
+            </p>
+            <p className="mt-5 text-xs font-bold text-slate-400">
+              ここは次フェーズで実データに接続します。現時点ではタブ切り替え確認用のダミー画面です。
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -440,7 +535,13 @@ const TimeSettings = ({
   );
 };
 
-export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
+export const StoreSettings = ({
+  storeId,
+  initialSettingsMode = 'order',
+  posProductKeyword = '',
+  onPosProductKeywordChange,
+  onPosSettingsSubTabChange
+}) => {
   const { logout, role, currentUser, profileName } = useAuth();
   const { settings, updateSettings, loading: settingsLoading } = useStoreSettings(storeId);
   const {
@@ -547,6 +648,11 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
     ? subTab
     : availableMenuItems[0]?.id;
 
+  useEffect(() => {
+    if (typeof onPosSettingsSubTabChange !== 'function') return;
+    onPosSettingsSubTabChange(settingsMode === 'pos' ? activeSubTab : null);
+  }, [activeSubTab, onPosSettingsSubTabChange, settingsMode]);
+
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
   const activeMenuItem = availableMenuItems.find((item) => item.id === activeSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
@@ -619,7 +725,7 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
         />
       )}
 
-      <aside className="flex h-full w-72 flex-shrink-0 flex-col bg-slate-900 text-white shadow-2xl">
+      <aside className="flex h-full w-56 flex-shrink-0 flex-col bg-slate-900 text-white shadow-2xl">
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
@@ -633,7 +739,7 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
             </div>
           </div>
 
-          {settingsMode === 'pos' && (
+          {false && settingsMode === 'pos' && (
             <div className="mb-3 px-2">
               <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
               <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
@@ -661,33 +767,25 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
               );
             })
           ) : (
-            groupedMenuItems.map((group) => (
-              <div key={group.name} className="space-y-1">
-                <div className="px-2 pt-3 pb-1 text-[10px] font-black tracking-[0.18em] text-slate-600">
-                  {group.name}
-                </div>
+            availableMenuItems.map((item) => {
+              const isActive = activeSubTab === item.id;
 
-                {group.items.map((item) => {
-                  const isActive = activeSubTab === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSubTab(item.id)}
-                      className={`group relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 transition-all duration-300 ${
-                        isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                      title={item.desc}
-                    >
-                      <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className="flex-1 truncate text-left text-sm font-bold">{item.label}</span>
-                      {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ))
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSubTab(item.id)}
+                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
+                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title={item.desc}
+                >
+                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
+                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+                </button>
+              );
+            })
           )}
         </nav>
 
@@ -781,6 +879,8 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
               onSaveSupplier={productMaster.saveSupplier}
               onDeleteSupplier={productMaster.deleteSupplier}
               onSaved={showSaveComplete}
+              externalKeyword={posProductKeyword}
+              onExternalKeywordChange={onPosProductKeywordChange}
             />
           )}
 
@@ -789,7 +889,11 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
             && activeMenuItem
             && activeMenuItem.mode === 'pos'
             && canAccessSettingsSection(normalizedRole, activeMenuItem.id) && (
-              <PosSettingsPlaceholder item={activeMenuItem} />
+              <PosDummyTabbedPage
+                item={activeMenuItem}
+                productMaster={productMaster}
+                onSaved={showSaveComplete}
+              />
             )}
 
 
