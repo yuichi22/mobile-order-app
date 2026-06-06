@@ -33,6 +33,7 @@ import {
   useStoreSettings
 } from '../../store/hooks';
 import { useCustomerCurrentPeriod } from '../../customer/hooks/useCustomerCurrentPeriod';
+import { useTableMenuOverride } from '../../customer/hooks/useTableMenuOverride';
 import {
   decorateMenuItemAvailability,
   getTodayKey
@@ -70,6 +71,50 @@ const normalizeTableItems = (layoutItems = []) => (
 );
 
 const getMenuPrice = (item) => Number(item.price ?? item.unitPrice ?? 0);
+
+const isStaffOrderMenuItemCustomerVisible = (item, todayKey = getTodayKey()) => {
+  const visibility = item?.customerVisibility || 'visible';
+
+  if (visibility === 'hidden') {
+    return false;
+  }
+
+  if (visibility !== 'scheduled') {
+    return true;
+  }
+
+  const fromDate = String(item?.visibleFromDate || '').trim();
+  const toDate = String(item?.visibleToDate || '').trim();
+
+  if (fromDate && todayKey < fromDate) {
+    return false;
+  }
+
+  if (toDate && todayKey > toDate) {
+    return false;
+  }
+
+  return true;
+};
+
+const isStaffOrderMenuItemTimeAllowed = (item, currentPeriod) => {
+  const itemPeriods = Array.isArray(item?.periods)
+    ? item.periods.map((periodId) => String(periodId))
+    : item?.periods
+      ? [String(item.periods)]
+      : [];
+
+  if (itemPeriods.length === 0) {
+    return true;
+  }
+
+  if (!currentPeriod?.id) {
+    return false;
+  }
+
+  return itemPeriods.includes(String(currentPeriod.id));
+};
+
 
 const hasCrossSellPrice = (item) => (
   item?.crossSellPrice !== null
@@ -760,7 +805,7 @@ const StaffOrderPage = ({ storeId }) => {
 
   const { settings } = useStoreSettings(storeId);
   const { layoutItems, loading: layoutLoading } = useFloorLayout(storeId);
-  const { menuItems = [], loading: menuLoading } = useMenuData(storeId);
+  const { menuItems: rawMenuItems = [], loading: menuLoading } = useMenuData(storeId);
   const { categories = [], loading: categoryLoading } = useCategoryData(storeId);
   const { periods = [], loading: periodsLoading } = usePeriodData(storeId);
 
@@ -936,6 +981,21 @@ const StaffOrderPage = ({ storeId }) => {
   }, [activeSessions, selectedTable?.tableId, sessionInfo?.sessionId]);
 
   const currentPeriod = useCustomerCurrentPeriod(periods);
+  const tableMenuOverride = useTableMenuOverride({
+    storeId,
+    tableId: selectedTable?.tableId,
+    periods
+  });
+  const effectiveCurrentPeriod = tableMenuOverride?.period || currentPeriod;
+
+  const menuItems = useMemo(() => {
+    const todayKey = getTodayKey();
+
+    return (Array.isArray(rawMenuItems) ? rawMenuItems : [])
+      .filter((item) => isStaffOrderMenuItemCustomerVisible(item, todayKey))
+      .filter((item) => isStaffOrderMenuItemTimeAllowed(item, effectiveCurrentPeriod));
+  }, [rawMenuItems, effectiveCurrentPeriod]);
+
   const todayKey = useMemo(() => getTodayKey(), []);
 
   const categoryById = useMemo(() => buildCategoryById(categories), [categories]);
@@ -980,12 +1040,12 @@ const StaffOrderPage = ({ storeId }) => {
             const itemPeriods = Array.isArray(item.periods) ? item.periods.map(String) : [];
 
             if (itemPeriods.length === 0) return true;
-            if (!currentPeriod?.id) return false;
+            if (!effectiveCurrentPeriod?.id) return false;
 
-            return itemPeriods.includes(String(currentPeriod.id));
+            return itemPeriods.includes(String(effectiveCurrentPeriod.id));
           })
       : []
-  ), [currentPeriod, menuItems, todayKey]);
+  ), [effectiveCurrentPeriod, menuItems, todayKey]);
 
   const existingOrderItemsForSetPrice = useMemo(
     () => normalizeSessionOrderItemsForSetPrice(sessionOrders),
