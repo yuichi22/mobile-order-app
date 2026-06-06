@@ -177,13 +177,17 @@ export const useCustomerLogic = (
     isCurrentUserSessionMember
   } = useCustomerSessionState({ sessionId, storeId });
 
-  const preferredParticipantIdentity = useMemo(() => (
+  const [sessionParticipantIdentity, setSessionParticipantIdentity] = useState(null);
+
+  const storedParticipantIdentity = useMemo(() => (
     safeGetPreferredParticipantIdentity({
       sessionId,
       storeId,
       tableId: entryTableId || tableNumber || null
     })
   ), [entryTableId, sessionId, storeId, tableNumber]);
+
+  const preferredParticipantIdentity = sessionParticipantIdentity || storedParticipantIdentity;
 
   const { menuItems = [], loading: menuLoading } = useMenuData(storeId);
   const { categories = [], loading: categoryLoading } = useCategoryData(storeId);
@@ -364,6 +368,7 @@ export const useCustomerLogic = (
               { storeId, tableId: entryTableId },
               identity
             );
+            setSessionParticipantIdentity(identity);
           }
 
           safeClearStoredTableEntryGuard(entryTableContext);
@@ -493,11 +498,20 @@ const {
   }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionParticipantIdentity?.sessionId || !sessionId) return;
+
+    if (String(sessionParticipantIdentity.sessionId) !== String(sessionId)) {
+      setSessionParticipantIdentity(null);
+    }
+  }, [sessionId, sessionParticipantIdentity?.sessionId]);
+
+  useEffect(() => {
     if (!sessionId) return;
 
     if (sessionStatus !== 'active' || isSessionEnded) {
       safeRemoveStoredInviteToken(sessionId);
       setInviteToken('');
+      setSessionParticipantIdentity(null);
 
       if (isSessionEnded) {
         safeClearStoredParticipantIdentitiesForSession(sessionId);
@@ -572,6 +586,8 @@ const {
               identity
             );
           }
+
+          setSessionParticipantIdentity(identity);
         }
       } catch (error) {
         console.error('Customer session membership restore error:', error);
