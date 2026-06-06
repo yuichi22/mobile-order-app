@@ -53,5 +53,29 @@ export const canAccessSettingsSection = (role, sectionId) => {
   if (normalizedRole === USER_ROLES.SUPER_ADMIN || normalizedRole === USER_ROLES.OWNER) return true;
   if (normalizedRole !== USER_ROLES.MANAGER) return false;
 
-  return ['business', 'category', 'crossSell', 'period', 'menu', 'products', 'discount', 'qrcode'].includes(sectionId);
+  return [
+    'business',
+    'category',
+    'crossSell',
+    'period',
+    'menu',
+    'products',
+    'discount',
+    'qrcode',
+    'inventoryList',
+    'stockReceiving',
+    'stockAdjustment',
+    'purchaseCandidates',
+    'purchaseOrders',
+    'supplierOrders',
+    'productCategories',
+    'productCategoryGroups',
+    'brands',
+    'suppliers',
+    'stockTaking',
+    'longTermStock',
+    'shopifyIntegration',
+    'legacyImport',
+    'csvImportExport'
+  ].includes(sectionId);
 };

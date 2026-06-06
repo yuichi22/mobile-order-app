@@ -1,16 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AlertCircle,
+  Archive,
+  Boxes,
+  Building2,
   CheckSquare,
   ChevronRight,
   Clock,
+  Database,
+  FileSpreadsheet,
   Layout,
+  Link,
   LogOut,
+  PackageCheck,
   Percent,
   QrCode,
   ScanLine,
+  Settings,
+  ShoppingCart,
   Store,
   Tag,
+  Truck,
   Users,
   Sparkles,
   Utensils,
@@ -73,24 +82,44 @@ const SETTINGS_MODE_ITEMS = [
 ];
 
 const SETTINGS_MENU_ITEMS = [
-  { id: 'menu', mode: 'order', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
-  { id: 'category', mode: 'order', label: 'カテゴリー設定', icon: Tag, desc: 'メニューカテゴリの追加と並び順' },
+  { id: 'menu', mode: 'order', group: 'メニュー管理', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
+  { id: 'category', mode: 'order', group: 'メニュー管理', label: 'カテゴリー設定', icon: Tag, desc: 'メニューカテゴリの追加と並び順' },
   {
     id: 'crossSell',
     mode: 'order',
+    group: '販売促進',
     label: 'クロスセル設定',
     icon: Sparkles,
     desc: 'セットドリンクやデザートの提案導線を設定します'
   },
-  { id: 'qrcode', mode: 'order', label: 'QRコード発行', icon: QrCode, desc: 'テーブルに貼るQRコードを発行' },
-  { id: 'time', mode: 'order', label: '時間帯設定', icon: Clock, desc: '提供時間帯と営業時間の設定' },
-  { id: 'layout', mode: 'order', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
-  { id: 'discount', mode: 'order', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
+  { id: 'qrcode', mode: 'order', group: '店舗運用', label: 'QRコード発行', icon: QrCode, desc: 'テーブルに貼るQRコードを発行' },
+  { id: 'time', mode: 'order', group: '店舗運用', label: '時間帯設定', icon: Clock, desc: '提供時間帯と営業時間の設定' },
+  { id: 'layout', mode: 'order', group: '店舗運用', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
+  { id: 'discount', mode: 'order', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
 
-  { id: 'products', mode: 'pos', label: '商品マスター', icon: Package, desc: '物販商品・カテゴリー・ブランド・仕入先' },
+  { id: 'products', mode: 'pos', group: '商品マスター', label: '商品マスター', icon: Package, desc: 'POS管理画面の入口。商品・補助マスターを集約管理します' },
+  { id: 'inventoryList', mode: 'pos', group: '商品マスター', label: '在庫一覧', icon: Archive, desc: '商品ごとの現在庫を確認します' },
+  { id: 'stockReceiving', mode: 'pos', group: '商品マスター', label: '入庫登録', icon: PackageCheck, desc: '仕入・入庫を登録します' },
+  { id: 'stockAdjustment', mode: 'pos', group: '商品マスター', label: '在庫調整', icon: Settings, desc: '破損・差異などの在庫調整を行います' },
 
-  { id: 'staff', mode: 'shared', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
-  { id: 'basic', mode: 'shared', label: '基本設定', icon: Store, desc: '店舗名や連絡先などの基本情報' }
+  { id: 'purchaseCandidates', mode: 'pos', group: '発注管理', label: '発注候補', icon: ShoppingCart, desc: '在庫状況から発注候補を確認します' },
+  { id: 'purchaseOrders', mode: 'pos', group: '発注管理', label: '発注書', icon: FileSpreadsheet, desc: '発注書を作成・管理します' },
+  { id: 'supplierOrders', mode: 'pos', group: '発注管理', label: '仕入先別発注', icon: Truck, desc: '仕入先ごとに発注を整理します' },
+
+  { id: 'productCategories', mode: 'pos', group: '商品管理', label: 'カテゴリー', icon: Tag, desc: '商品カテゴリーを管理します' },
+  { id: 'productCategoryGroups', mode: 'pos', group: '商品管理', label: 'カテゴリーグループ', icon: Boxes, desc: 'カテゴリーを束ねる分類を管理します' },
+  { id: 'brands', mode: 'pos', group: '商品管理', label: 'ブランド', icon: Sparkles, desc: 'ブランドマスターを管理します' },
+  { id: 'suppliers', mode: 'pos', group: '商品管理', label: '仕入先', icon: Building2, desc: '仕入先マスターを管理します' },
+
+  { id: 'stockTaking', mode: 'pos', group: '在庫管理', label: '棚卸', icon: CheckSquare, desc: '棚卸作業と差異確認を行います' },
+  { id: 'longTermStock', mode: 'pos', group: '在庫管理', label: '長期在庫', icon: Clock, desc: '動きの少ない在庫を確認します' },
+
+  { id: 'shopifyIntegration', mode: 'pos', group: '連携', label: 'Shopify連携', icon: Link, desc: 'Shopify商品・在庫との連携を設定します' },
+  { id: 'legacyImport', mode: 'pos', group: '連携', label: '旧データ取込', icon: Database, desc: 'スマレジ・旧POS・FileMaker等のデータを取り込みます' },
+  { id: 'csvImportExport', mode: 'pos', group: '連携', label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで一括登録・出力します' },
+
+  { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
+  { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
 ];
 
 const getDefaultSettingsSubTab = (role) => {
@@ -185,6 +214,146 @@ const buildOwnerSetupSteps = ({
     icon: Users
   }
 ];
+
+const groupSettingsMenuItems = (items) => {
+  const groups = [];
+
+  items.forEach((item) => {
+    const groupName = item.group || 'その他';
+    let group = groups.find((current) => current.name === groupName);
+
+    if (!group) {
+      group = { name: groupName, items: [] };
+      groups.push(group);
+    }
+
+    group.items.push(item);
+  });
+
+  return groups;
+};
+
+const POS_PLACEHOLDER_COPY = {
+  inventoryList: {
+    title: '在庫一覧',
+    eyebrow: 'Inventory List',
+    description: '商品ごとの現在庫、販売数、入庫数、在庫金額を確認する画面です。商品マスターを起点に在庫管理へ広げます。'
+  },
+  stockReceiving: {
+    title: '入庫登録',
+    eyebrow: 'Stock Receiving',
+    description: '仕入・入庫を登録し、商品マスターの在庫へ反映する画面です。'
+  },
+  stockAdjustment: {
+    title: '在庫調整',
+    eyebrow: 'Stock Adjustment',
+    description: '破損、紛失、実在庫差異などを調整する画面です。'
+  },
+  purchaseCandidates: {
+    title: '発注候補',
+    eyebrow: 'Purchase Candidates',
+    description: '販売数、現在庫、発注点から発注候補を確認する画面です。'
+  },
+  purchaseOrders: {
+    title: '発注書',
+    eyebrow: 'Purchase Orders',
+    description: '発注書の作成、印刷、仕入先送付、入庫消込につなげる画面です。'
+  },
+  supplierOrders: {
+    title: '仕入先別発注',
+    eyebrow: 'Supplier Orders',
+    description: '仕入先ごとに発注候補をまとめ、発注作業を効率化する画面です。'
+  },
+  productCategories: {
+    title: 'カテゴリー',
+    eyebrow: 'Product Categories',
+    description: '現在は「商品マスター」内のタブで管理できます。次のフェーズでサイドバーから直接開けるようにします。'
+  },
+  productCategoryGroups: {
+    title: 'カテゴリーグループ',
+    eyebrow: 'Category Groups',
+    description: '現在は「商品マスター」内のタブで管理できます。生活雑貨、アパレル、食品などの大分類を扱います。'
+  },
+  brands: {
+    title: 'ブランド',
+    eyebrow: 'Brands',
+    description: '現在は「商品マスター」内のタブで管理できます。ブランド別分析やShopify連携に使う予定です。'
+  },
+  suppliers: {
+    title: '仕入先',
+    eyebrow: 'Suppliers',
+    description: '現在は「商品マスター」内のタブで管理できます。発注管理と連携していく予定です。'
+  },
+  stockTaking: {
+    title: '棚卸',
+    eyebrow: 'Stock Taking',
+    description: '棚卸入力、理論在庫との差異確認、調整反映を行う画面です。'
+  },
+  longTermStock: {
+    title: '長期在庫',
+    eyebrow: 'Long Term Stock',
+    description: '一定期間動きのない商品を抽出し、値下げ・販促・発注停止判断に使う画面です。'
+  },
+  shopifyIntegration: {
+    title: 'Shopify連携',
+    eyebrow: 'Shopify Integration',
+    description: '商品情報、在庫、販売情報をShopifyと連携するための設定画面です。'
+  },
+  legacyImport: {
+    title: '旧データ取込',
+    eyebrow: 'Legacy Import',
+    description: 'スマレジ、FileMaker、CSVなど旧システムのデータを取り込む画面です。'
+  },
+  csvImportExport: {
+    title: 'CSV入出力',
+    eyebrow: 'CSV Import / Export',
+    description: '商品、在庫、仕入先などをCSVで一括登録・出力する画面です。'
+  }
+};
+
+const PosSettingsPlaceholder = ({ item }) => {
+  const copy = POS_PLACEHOLDER_COPY[item?.id] || {
+    title: item?.label || '準備中',
+    eyebrow: 'Coming Soon',
+    description: item?.desc || 'この管理画面は準備中です。'
+  };
+  const Icon = item?.icon || Package;
+
+  return (
+    <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="flex items-start gap-5">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-blue-50 text-blue-600">
+          <Icon size={30} strokeWidth={2.5} />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
+            {copy.eyebrow}
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+            {copy.title}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+            {copy.description}
+          </p>
+        </div>
+
+        <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+          準備中
+        </span>
+      </div>
+
+      <div className="mt-8 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6">
+        <div className="text-sm font-black text-slate-700">
+          商品マスター中心に段階実装
+        </div>
+        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-400">
+          まずはサイドバー構造と選択状態を整えています。既存のレジ会計、日計、分析、基本設定には影響しないよう、未実装画面はプレースホルダーで表示しています。
+        </p>
+      </div>
+    </div>
+  );
+};
 
 const TimeSettings = ({
   periods,
@@ -369,11 +538,17 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
     [normalizedRole, settingsMode]
   );
 
+  const groupedMenuItems = useMemo(
+    () => groupSettingsMenuItems(availableMenuItems),
+    [availableMenuItems]
+  );
+
   const activeSubTab = availableMenuItems.some((item) => item.id === subTab)
     ? subTab
     : availableMenuItems[0]?.id;
 
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
+  const activeMenuItem = availableMenuItems.find((item) => item.id === activeSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
     : 'bg-orange-500 text-white shadow-lg shadow-orange-500/20';
@@ -458,29 +633,62 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
             </div>
           </div>
 
-          <div className="mb-3 px-2">
-            <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
-            <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
-          </div>
+          {settingsMode === 'pos' && (
+            <div className="mb-3 px-2">
+              <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
+              <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
+            </div>
+          )}
 
-          {availableMenuItems.map((item) => {
-            const isActive = activeSubTab === item.id;
+          {settingsMode === 'order' ? (
+            availableMenuItems.map((item) => {
+              const isActive = activeSubTab === item.id;
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSubTab(item.id)}
-                className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
-                  isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
-                {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSubTab(item.id)}
+                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
+                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title={item.desc}
+                >
+                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
+                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+                </button>
+              );
+            })
+          ) : (
+            groupedMenuItems.map((group) => (
+              <div key={group.name} className="space-y-1">
+                <div className="px-2 pt-3 pb-1 text-[10px] font-black tracking-[0.18em] text-slate-600">
+                  {group.name}
+                </div>
+
+                {group.items.map((item) => {
+                  const isActive = activeSubTab === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSubTab(item.id)}
+                      className={`group relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 transition-all duration-300 ${
+                        isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                      title={item.desc}
+                    >
+                      <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                      <span className="flex-1 truncate text-left text-sm font-bold">{item.label}</span>
+                      {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
         </nav>
 
         <div className="mt-auto flex-shrink-0 border-t border-slate-800/50 bg-slate-900 p-4">
@@ -575,6 +783,14 @@ export const StoreSettings = ({ storeId, initialSettingsMode = 'order' }) => {
               onSaved={showSaveComplete}
             />
           )}
+
+          {settingsMode === 'pos'
+            && activeSubTab !== 'products'
+            && activeMenuItem
+            && activeMenuItem.mode === 'pos'
+            && canAccessSettingsSection(normalizedRole, activeMenuItem.id) && (
+              <PosSettingsPlaceholder item={activeMenuItem} />
+            )}
 
 
 
