@@ -436,14 +436,17 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     };
   };
 
-  const openTicketStatementPrint = (ticket = {}, settings = {}) => {
+  const printTicketStatement = async (ticket = {}, settings = {}) => {
+    const payload = buildTicketStatementPayload(ticket, settings);
+
     try {
-      const payload = buildTicketStatementPayload(ticket, settings);
-      openPosReceiptBrowserPrint(payload);
+      await printReceiptViaBridge(payload, settings);
+      return;
     } catch (error) {
-      console.error('[pos statement print error]', error, { ticket, settings });
-      alert('明細印刷を開けませんでした。会計履歴を更新してからもう一度お試しください。');
+      console.error('[pos statement bridge print error]', error, { ticket, payload });
     }
+
+    openPosReceiptBrowserPrint(payload);
   };
 
 export const PosTransactionHistory = ({ storeId }) => {
@@ -1776,7 +1779,7 @@ export const PosTransactionHistory = ({ storeId }) => {
 
                         if (hasMultiplePayments) {
                           try {
-                            openTicketStatementPrint(ticket, settings);
+                            void printTicketStatement(ticket, settings);
                           } catch (error) {
                             console.error('[pos statement print click error]', error, { ticket });
                             alert('会計明細の印刷処理に失敗しました。');
