@@ -543,7 +543,9 @@ const ProductMasterTable = ({
       return;
     }
 
-    if (getGroupShopifyProductId(group)) {
+    const hadExistingShopifyProductId = Boolean(getGroupShopifyProductId(group));
+
+    if (hadExistingShopifyProductId) {
       const ok = window.confirm('この商品グループはすでにShopify商品IDがあります。重複作成せず同期済み確認だけ行いますか？');
       if (!ok) return;
     }
@@ -567,7 +569,8 @@ const ProductMasterTable = ({
       ).trim();
 
       const alreadySynced = (
-        status === 'already_synced'
+        hadExistingShopifyProductId
+        || status === 'already_synced'
         || status === 'skipped_already_synced'
         || status === 'skipped'
         || action === 'skipped_already_synced'
