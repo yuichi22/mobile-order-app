@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getAuth } from 'firebase/auth';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
@@ -552,7 +551,11 @@ const ProductMasterTable = ({
 
     setShopifySyncingGroupId(productGroupId);
     try {
-      const result = await onCreateShopifyDraftProduct?.(productGroupId);
+      if (typeof onCreateShopifyDraftProduct !== 'function') {
+        throw new Error('Shopify同期処理が画面に接続されていません。画面を再読み込みしてから再度お試しください。');
+      }
+
+      const result = await onCreateShopifyDraftProduct(productGroupId);
       const status = String(
         result?.status
         || result?.result?.status
@@ -2227,6 +2230,7 @@ const ProductMasterSettings = ({
               suppliers={suppliers}
               onSaveProduct={onSaveProduct}
               onDeleteProduct={onDeleteProduct}
+              onCreateShopifyDraftProduct={onCreateShopifyDraftProduct}
               onSaved={onSaved}
             />
           )}
