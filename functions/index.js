@@ -3092,6 +3092,468 @@ const markSessionHasOrders = (transaction, sessionRef) => {
   }, { merge: true });
 };
 
+
+
+const SHOPIFY_ADMIN_API_VERSION = '2026-01';
+
+const normalizeShopifyDomain = (value = '') => {
+  const domain = String(value || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
+
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain)) {
+    throw new Error('Shopifyストアドメインを確認してください。');
+  }
+
+  return domain;
+};
+
+const normalizeShopifyMoney = (value) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount < 0) return '0';
+  return String(Math.round(amount));
+};
+
+const normalizeShopifyText = (value, fallback = '') => {
+  const text = String(value || '').trim();
+  return text || fallback;
+};
+
+const getShopifyAccessTokenFromSettings = async (settings = {}) => {
+  const shopDomain = normalizeShopifyDomain(settings.shopDomain);
+  const clientId = String(settings.clientId || '').trim();
+  const clientSecret = String(settings.clientSecret || '').trim();
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Shopify Dev DashboardのクライアントID/シークレットが未設定です。');
+  }
+
+  const tokenResponse = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret
+    })
+  });
+
+  const tokenBody = await tokenResponse.json().catch(() => ({}));
+
+  if (!tokenResponse.ok || !tokenBody.access_token) {
+    console.error('[shopify] token request failed', {
+      status: tokenResponse.status,
+      body: tokenBody
+    });
+    throw new Error(tokenBody.error_description || tokenBody.error || 'Shopifyアクセストークンの取得に失敗しました。');
+  }
+
+  return {
+    shopDomain,
+    accessToken: tokenBody.access_token,
+    expiresIn: tokenBody.expires_in || null,
+    scope: tokenBody.scope || ''
+  };
+};
+
+const callShopifyGraphql = async ({ shopDomain, accessToken, query, variables }) => {
+  const graphqlResponse = await fetch(`https://${shopDomain}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken
+    },
+    body: JSON.stringify({ query, variables })
+  });
+
+  const graphqlBody = await graphqlResponse.json().catch(() => ({}));
+
+  if (!graphqlResponse.ok || graphqlBody.errors) {
+    console.error('[shopify] graphql request failed', {
+      status: graphqlResponse.status,
+      body: graphqlBody
+    });
+    throw new Error(graphqlBody.errors?.[0]?.message || 'Shopify GraphQL APIの呼び出しに失敗しました。');
+  }
+
+  return graphqlBody.data || {};
+};
+
+const resolveShopifyOptionName = (products = []) => {
+  const sizes = new Set(products.map((product) => String(product.size || '').trim()).filter(Boolean));
+  const colors = new Set(products.map((product) => String(product.colorName || '').trim()).filter(Boolean));
+
+  if (sizes.size > 1 && colors.size <= 1) return 'サイズ';
+  if (colors.size > 1 && sizes.size <= 1) return 'カラー';
+  return 'バリエーション';
+};
+
+const resolveShopifyOptionValue = (product = {}, optionName = 'バリエーション') => {
+  const size = String(product.size || '').trim();
+  const color = String(product.colorName || '').trim();
+
+  if (optionName === 'サイズ' && size) return size;
+  if (optionName === 'カラー' && color) return color;
+  if (size && color) return `${size} / ${color}`;
+  if (size) return size;
+  if (color) return color;
+  return String(product.sku || product.productCode || product.id || 'Default').trim();
+};
+
+const buildShopifyProductSetInput = ({ group, products, locationId }) => {
+  const optionName = resolveShopifyOptionName(products);
+  const usedOptionValues = new Set();
+
+  const variants = products.map((product, index) => {
+    const baseOptionValue = resolveShopifyOptionValue(product, optionName);
+    const optionValue = usedOptionValues.has(baseOptionValue)
+      ? `${baseOptionValue} ${index + 1}`
+      : baseOptionValue;
+    usedOptionValues.add(optionValue);
+
+    return {
+      optionValues: [
+        {
+          optionName,
+          name: optionValue
+        }
+      ],
+      sku: String(product.sku || product.productCode || '').trim(),
+      barcode: String(product.barcode || '').trim(),
+      price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0),
+      taxable: true,
+      inventoryItem: {
+        tracked: true
+      },
+      inventoryQuantities: [
+        {
+          locationId,
+          name: 'available',
+          quantity: Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0)
+        }
+      ],
+      metafields: [
+        {
+          namespace: 'akuto',
+          key: 'product_id',
+          type: 'single_line_text_field',
+          value: String(product.id || '')
+        },
+        {
+          namespace: 'akuto',
+          key: 'product_group_id',
+          type: 'single_line_text_field',
+          value: String(group.id || '')
+        }
+      ]
+    };
+  });
+
+  const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
+
+  return {
+    title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
+    vendor: normalizeShopifyText(group.brandName, 'AKUTO'),
+    productType: normalizeShopifyText(group.categoryName, ''),
+    tags: [
+      group.categoryName,
+      group.groupCode,
+      'akuto-sync'
+    ].map((value) => String(value || '').trim()).filter(Boolean),
+    status: 'DRAFT',
+    productOptions: [
+      {
+        name: optionName,
+        values: optionValues
+      }
+    ],
+    variants,
+    metafields: [
+      {
+        namespace: 'akuto',
+        key: 'product_group_id',
+        type: 'single_line_text_field',
+        value: String(group.id || '')
+      },
+      {
+        namespace: 'akuto',
+        key: 'group_code',
+        type: 'single_line_text_field',
+        value: String(group.groupCode || '')
+      }
+    ].filter((metafield) => metafield.value)
+  };
+};
+
+const productSetCreateDraftMutation = `
+  mutation ProductSetCreateDraft($input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(input: $input, synchronous: $synchronous) {
+      product {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+        variants(first: 100) {
+          nodes {
+            id
+            title
+            sku
+            barcode
+            price
+            inventoryItem {
+              id
+              tracked
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const extractShopifyProductSetResult = (data = {}) => {
+  const payload = data.productSet || {};
+  const userErrors = Array.isArray(payload.userErrors) ? payload.userErrors : [];
+
+  if (userErrors.length > 0) {
+    throw new Error(userErrors.map((error) => error.message).filter(Boolean).join(' / ') || 'Shopify商品作成でエラーが発生しました。');
+  }
+
+  if (!payload.product?.id) {
+    throw new Error('Shopify商品IDを取得できませんでした。');
+  }
+
+  return payload.product;
+};
+
+const fetchStoreMemberForRequest = async ({ storeId, uid }) => {
+  const userSnapshot = await db.collection('users').doc(uid).get();
+  const userData = userSnapshot.exists ? userSnapshot.data() || {} : {};
+  const userStoreId = String(userData.storeId || '').trim();
+  const role = normalizeUserRole(userData.role);
+
+  if (userStoreId && userStoreId !== storeId && role !== USER_ROLES.SUPER_ADMIN) {
+    throw new Error('この店舗を操作する権限がありません。');
+  }
+
+  if (![USER_ROLES.SUPER_ADMIN, USER_ROLES.OWNER, USER_ROLES.MANAGER].includes(role)) {
+    throw new Error('Shopify連携を実行する権限がありません。');
+  }
+
+  return { uid, role };
+};
+
+export const createShopifyDraftProduct = onRequest(
+  { region: REGION, cors: true },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+
+      const authUser = await verifyRequestUser(req);
+      const { storeId, productGroupId, force = false } = parseJsonBody(req);
+
+      const normalizedStoreId = String(storeId || '').trim();
+      const normalizedProductGroupId = String(productGroupId || '').trim();
+
+      if (!normalizedStoreId || !normalizedProductGroupId) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: { message: 'storeId / productGroupId が不足しています。' }
+        });
+      }
+
+      await fetchStoreMemberForRequest({
+        storeId: normalizedStoreId,
+        uid: authUser.uid
+      });
+
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+      const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
+      const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+
+      if (!shopifySettings.syncEnabled) {
+        throw new Error('Shopify連携がOFFです。EC連携設定を確認してください。');
+      }
+
+      const locationId = String(shopifySettings.locationId || '').trim();
+      if (!locationId) {
+        throw new Error('Shopify locationId が未設定です。');
+      }
+
+      const groupRef = storeRef.collection('productGroups').doc(normalizedProductGroupId);
+      const groupSnapshot = await groupRef.get();
+
+      if (!groupSnapshot.exists) {
+        throw new Error('商品グループが見つかりません。');
+      }
+
+      const group = {
+        id: groupSnapshot.id,
+        ...groupSnapshot.data()
+      };
+
+      if (!group.shopifyEnabled) {
+        throw new Error('この商品グループはShopify連携がOFFです。');
+      }
+
+      if (group.shopifyProductId && !force) {
+        await storeRef.collection('shopifySyncLogs').add({
+          action: 'createShopifyDraftProduct',
+          status: 'skipped_already_synced',
+          productGroupId: normalizedProductGroupId,
+          shopifyProductId: group.shopifyProductId,
+          createdBy: authUser.uid,
+          createdAt: FieldValue.serverTimestamp()
+        });
+
+        return sendJson(res, 200, {
+          ok: true,
+          status: 'already_synced',
+          productGroupId: normalizedProductGroupId,
+          shopifyProductId: group.shopifyProductId,
+          message: 'この商品グループは既にShopify商品IDを持っています。重複作成はしていません。'
+        });
+      }
+
+      const productsSnapshot = await storeRef
+        .collection('products')
+        .where('productGroupId', '==', normalizedProductGroupId)
+        .get();
+
+      const products = productsSnapshot.docs
+        .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
+        .filter((product) => product.shopifyCreateEnabled !== false)
+        .sort((a, b) => {
+          const aRole = a.productGroupRole === 'primary' ? 0 : 1;
+          const bRole = b.productGroupRole === 'primary' ? 0 : 1;
+          if (aRole !== bRole) return aRole - bRole;
+          return String(a.sku || a.productCode || '').localeCompare(String(b.sku || b.productCode || ''));
+        });
+
+      if (products.length === 0) {
+        throw new Error('Shopify作成対象のSKUがありません。');
+      }
+
+      const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
+      if (invalidSku) {
+        throw new Error('SKU未入力の商品があります。');
+      }
+
+      const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
+      const input = buildShopifyProductSetInput({
+        group,
+        products,
+        locationId
+      });
+
+      const graphqlData = await callShopifyGraphql({
+        shopDomain,
+        accessToken,
+        query: productSetCreateDraftMutation,
+        variables: {
+          input,
+          synchronous: true
+        }
+      });
+
+      const shopifyProduct = extractShopifyProductSetResult(graphqlData);
+      const shopifyVariants = Array.isArray(shopifyProduct.variants?.nodes)
+        ? shopifyProduct.variants.nodes
+        : [];
+
+      const variantsBySku = new Map(
+        shopifyVariants.map((variant) => [String(variant.sku || '').trim(), variant])
+      );
+
+      const syncedAt = FieldValue.serverTimestamp();
+      const savedVariants = [];
+
+      await db.runTransaction(async (transaction) => {
+        transaction.set(groupRef, {
+          shopifyProductId: shopifyProduct.id,
+          shopifyProductHandle: shopifyProduct.handle || '',
+          shopifySyncStatus: 'created',
+          shopifyLastSyncedAt: syncedAt,
+          updatedAt: syncedAt
+        }, { merge: true });
+
+        for (const product of products) {
+          const sku = String(product.sku || product.productCode || '').trim();
+          const variant = variantsBySku.get(sku);
+
+          if (!variant?.id) {
+            throw new Error(`Shopify variant ID を取得できませんでした: ${sku}`);
+          }
+
+          const productRef = storeRef.collection('products').doc(product.id);
+          const inventoryItemId = variant.inventoryItem?.id || '';
+
+          transaction.set(productRef, {
+            shopifyProductId: shopifyProduct.id,
+            shopifyVariantId: variant.id,
+            shopifyInventoryItemId: inventoryItemId,
+            shopifySyncStatus: 'created',
+            shopifyLastSyncedAt: syncedAt,
+            updatedAt: syncedAt
+          }, { merge: true });
+
+          savedVariants.push({
+            productId: product.id,
+            sku,
+            shopifyVariantId: variant.id,
+            shopifyInventoryItemId: inventoryItemId
+          });
+        }
+
+        const logRef = storeRef.collection('shopifySyncLogs').doc();
+        transaction.set(logRef, {
+          action: products.length > 1 ? 'createShopifyDraftProductMultiSku' : 'createShopifyDraftProduct',
+          status: 'success',
+          productGroupId: normalizedProductGroupId,
+          productIds: products.map((product) => product.id),
+          shopifyProductId: shopifyProduct.id,
+          shopifyProductHandle: shopifyProduct.handle || '',
+          title: shopifyProduct.title || input.title,
+          skuCount: products.length,
+          variants: savedVariants,
+          createdBy: authUser.uid,
+          createdAt: syncedAt
+        });
+      });
+
+      return sendJson(res, 200, {
+        ok: true,
+        status: 'created',
+        productGroupId: normalizedProductGroupId,
+        shopifyProductId: shopifyProduct.id,
+        shopifyProductHandle: shopifyProduct.handle || '',
+        title: shopifyProduct.title || input.title,
+        skuCount: products.length,
+        variants: savedVariants
+      });
+    } catch (error) {
+      console.error('[createShopifyDraftProduct] failed', error);
+      return sendJson(res, 400, {
+        ok: false,
+        error: {
+          message: error.message || 'Shopify DRAFT商品の作成に失敗しました。'
+        }
+      });
+    }
+  }
+);
+
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);
