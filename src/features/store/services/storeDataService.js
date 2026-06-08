@@ -375,3 +375,40 @@ export const deleteProductMasterDoc = async (storeId, collectionName, itemId) =>
   await deleteDoc(doc(db, 'stores', storeId, collectionName, itemId));
 };
 
+export const createShopifyDraftProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const normalizedProductGroupId = String(productGroupId || '').trim();
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId || !normalizedProductGroupId) {
+    throw new Error('Shopify同期に必要な商品グループ情報が不足しています。');
+  }
+
+  if (!token) {
+    throw new Error('ログイン状態を確認してください。');
+  }
+
+  const endpoint = 'https://asia-northeast1-mobile-order-dev-5f7fd.cloudfunctions.net/createShopifyDraftProduct';
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      storeId: normalizedStoreId,
+      productGroupId: normalizedProductGroupId
+    })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    const message = body?.error?.message || body?.message || 'Shopify下書き商品の作成に失敗しました。';
+    throw new Error(message);
+  }
+
+  return body;
+};
+

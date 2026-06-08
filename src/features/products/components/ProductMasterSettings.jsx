@@ -912,7 +912,7 @@ const ProductMasterTable = ({
                           )}
                           title={getGroupShopifyProductId(group) ? 'Shopify連携済み確認' : 'Shopifyへ下書き作成'}
                         >
-                          {shopifySyncingGroupId === group.id
+                          {shopifySyncingGroupId === getGroupProductGroupId(group)
                             ? <LoadingSpinner size={12} />
                             : getGroupShopifyProductId(group) ? '同期済み' : '下書き作成'}
                         </button>

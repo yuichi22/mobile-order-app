@@ -1119,6 +1119,7 @@ export const StoreSettings = ({
               loading={productMaster.loading}
               onSaveProduct={productMaster.saveProduct}
               onDeleteProduct={productMaster.deleteProduct}
+              onCreateShopifyDraftProduct={productMaster.createShopifyDraftProduct}
               onSaveCategory={productMaster.saveCategory}
               onDeleteCategory={productMaster.deleteCategory}
               onSaveCategoryGroup={productMaster.saveCategoryGroup}
