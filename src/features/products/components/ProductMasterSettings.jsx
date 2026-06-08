@@ -486,8 +486,8 @@ const ProductMasterTable = ({
           ...draft,
           ...headerPatch,
           id: product.id,
-          productGroupId: product.productGroupId,
-          productGroupRole: product.productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant')
+          productGroupId: product.productGroupId || getDraft(product).productGroupId,
+          productGroupRole: product.productGroupRole || getDraft(product).productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant')
         }));
       }
 
@@ -707,28 +707,28 @@ const ProductMasterTable = ({
           </div>
 
           <div>
-            <FieldLabel>操作</FieldLabel>
-            <div className="flex h-8 gap-1">
+            <FieldLabel>{isNew ? '操作' : '削除'}</FieldLabel>
+            {isNew ? (
               <button
                 type="button"
-                onClick={isNew ? saveNew : () => saveExisting(row)}
+                onClick={saveNew}
                 disabled={isSaving}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
+                className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
               >
                 {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
                 保存
               </button>
-              {!isNew && (
-                <button
-                  type="button"
-                  onClick={() => deleteProduct(row)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-rose-50 text-rose-500"
-                  title="削除"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => deleteProduct(row)}
+                className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-rose-50 px-2 text-xs font-black text-rose-500 transition hover:bg-rose-100"
+                title="削除"
+              >
+                <Trash2 size={13} />
+                削除
+              </button>
+            )}
           </div>
         </div>
 
