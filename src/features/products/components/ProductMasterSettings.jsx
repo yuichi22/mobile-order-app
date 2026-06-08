@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { getAuth } from 'firebase/auth';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
@@ -259,13 +260,33 @@ const ProductMasterTable = ({
   suppliers,
   onSaveProduct,
   onDeleteProduct,
+  onCreateShopifyDraftProduct,
   onSaved
 }) => {
   const [draftRows, setDraftRows] = useState({});
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [savingKey, setSavingKey] = useState('');
+  const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
 
   const getDraft = (product) => draftRows[product.id] || product;
+
+  const getGroupProductGroupId = (group) => (
+    String(
+      group?.id
+      || group?.productGroupId
+      || group?.products?.find((product) => product?.productGroupId)?.productGroupId
+      || group?.products?.[0]?.productGroupId
+      || ''
+    ).trim()
+  );
+
+  const getGroupShopifyProductId = (group) => (
+    String(
+      group?.shopifyProductId
+      || group?.products?.find((product) => product?.shopifyProductId)?.shopifyProductId
+      || ''
+    ).trim()
+  );
 
   const getProductGroupSortKey = (product) => (
     product.productGroupId
@@ -506,6 +527,44 @@ const ProductMasterTable = ({
       alert(`商品グループの保存に失敗しました: ${error?.message || error}`);
     } finally {
       setSavingKey('');
+    }
+  };
+
+  const createShopifyDraftForGroup = async (group) => {
+    const productGroupId = getGroupProductGroupId(group);
+
+    if (!productGroupId) {
+      alert('商品グループIDが見つかりません。商品グループを保存してから再度お試しください。');
+      return;
+    }
+
+    if (!group.products?.some((product) => product.shopifyCreateEnabled)) {
+      alert('先にShopify連携をONにしてください。');
+      return;
+    }
+
+    if (getGroupShopifyProductId(group)) {
+      const ok = window.confirm('この商品グループはすでにShopify商品IDがあります。重複作成せず同期済み確認だけ行いますか？');
+      if (!ok) return;
+    }
+
+    setShopifySyncingGroupId(productGroupId);
+    try {
+      const result = await onCreateShopifyDraftProduct?.(productGroupId);
+      const status = result?.status || result?.result?.status || '';
+
+      if (status === 'already_synced' || status === 'skipped_already_synced') {
+        alert('すでにShopify連携済みです。重複作成はしていません。');
+      } else {
+        alert('Shopifyに下書き商品を作成しました。');
+      }
+
+      onSaved?.();
+    } catch (error) {
+      console.error('failed to create shopify draft product', error);
+      alert(`Shopify下書き商品の作成に失敗しました: ${error?.message || error}`);
+    } finally {
+      setShopifySyncingGroupId(null);
     }
   };
 
@@ -840,6 +899,23 @@ const ProductMasterTable = ({
                           inactiveClassName="bg-slate-200 text-slate-500"
                           className="!h-8 !min-w-[86px] !px-3 text-[11px]"
                         />
+
+                        <button
+                          type="button"
+                          onClick={() => createShopifyDraftForGroup(group)}
+                          disabled={shopifySyncingGroupId === getGroupProductGroupId(group) || !group.products.some((product) => product.shopifyCreateEnabled)}
+                          className={classNames(
+                            'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-50',
+                            getGroupShopifyProductId(group)
+                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                          )}
+                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み確認' : 'Shopifyへ下書き作成'}
+                        >
+                          {shopifySyncingGroupId === group.id
+                            ? <LoadingSpinner size={12} />
+                            : getGroupShopifyProductId(group) ? '同期済み' : '下書き作成'}
+                        </button>
                       </div>
 
                       <div>
@@ -2075,6 +2151,7 @@ const ProductMasterSettings = ({
   loading,
   onSaveProduct,
   onDeleteProduct,
+  onCreateShopifyDraftProduct,
   onSaveCategory,
   onDeleteCategory,
   onSaveCategoryGroup,
