@@ -1127,8 +1127,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {settingsMode === 'pos'
-            && activeSubTab !== 'products'
+          {settingsMode === 'order'
             && activeMenuItem
             && activeMenuItem.mode === 'pos'
             && canAccessSettingsSection(normalizedRole, activeMenuItem.id) && (
