@@ -539,7 +539,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
-              {activeAdminTab === 'settings' && registerMode === 'pos' && posSettingsSubTab === 'products' ? (
+              {activeAdminTab === 'settings' && registerMode === 'pos' ? (
                 <div className="relative w-full max-w-sm">
                   <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
                   <input
