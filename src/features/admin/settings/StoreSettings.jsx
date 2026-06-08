@@ -69,6 +69,8 @@ import ProductMasterSettings, {
   blankGroup,
   blankSupplier
 } from '../../products/components/ProductMasterSettings';
+import ProductCsvImportPanel from '../../products/components/ProductCsvImportPanel';
+import MasterCsvImportPanel from '../../products/components/MasterCsvImportPanel';
 
 const SETTINGS_MODE_ITEMS = [
   {
@@ -278,6 +280,132 @@ const POS_DUMMY_PAGES = {
   }
 };
 
+
+const CsvImportStepCard = ({
+  number,
+  title,
+  description,
+  status = '準備中',
+  children
+}) => (
+  <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+      <div className="flex min-w-0 items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-500/20">
+          {number}
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-lg font-black tracking-tight text-slate-900">{title}</h3>
+          <p className="mt-1 text-sm font-bold leading-relaxed text-slate-500">{description}</p>
+        </div>
+      </div>
+      <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+        {status}
+      </span>
+    </div>
+    <div className="p-5">
+      {children || (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm font-bold leading-relaxed text-slate-400">
+          この取込ロジックは次フェーズで実装します。先に読み込むCSVの雛形を確認してから、ヘッダー対応・プレビュー・保存処理を追加します。
+        </div>
+      )}
+    </div>
+  </section>
+);
+
+const CsvImportWorkflowPanel = ({
+  productMaster,
+  onSaved
+}) => (
+  <div className="space-y-5">
+    <div className="rounded-[2rem] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Import Workflow</p>
+      <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">CSV取込の順番</h2>
+      <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+        商品CSVを正しく紐づけるために、先に補助マスターを登録します。推奨順は、仕入先 → ブランド → カテゴリーグループ/カテゴリー → 商品です。
+      </p>
+    </div>
+
+    <CsvImportStepCard
+      number="01"
+      title="仕入先CSV取込"
+      description="スマレジや既存台帳の仕入先情報を、Akuto POSの仕入先マスターへ取り込みます。"
+      status="実装済み"
+    >
+      <MasterCsvImportPanel
+        type="suppliers"
+        suppliers={productMaster?.suppliers || []}
+        brands={productMaster?.brands || []}
+        productCategories={productMaster?.productCategories || []}
+        productCategoryGroups={productMaster?.productCategoryGroups || []}
+        onSaveSupplier={productMaster?.saveSupplier}
+        onSaveBrand={productMaster?.saveBrand}
+        onSaveCategory={productMaster?.saveCategory}
+        onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaved={onSaved}
+      />
+    </CsvImportStepCard>
+
+    <CsvImportStepCard
+      number="02"
+      title="ブランドCSV取込"
+      description="ブランド情報をAkuto POSのブランドマスターへ取り込みます。仕入先ID/仕入先名があれば既存仕入先に紐づけます。"
+      status="実装済み"
+    >
+      <MasterCsvImportPanel
+        type="brands"
+        suppliers={productMaster?.suppliers || []}
+        brands={productMaster?.brands || []}
+        productCategories={productMaster?.productCategories || []}
+        productCategoryGroups={productMaster?.productCategoryGroups || []}
+        onSaveSupplier={productMaster?.saveSupplier}
+        onSaveBrand={productMaster?.saveBrand}
+        onSaveCategory={productMaster?.saveCategory}
+        onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaved={onSaved}
+      />
+    </CsvImportStepCard>
+
+    <CsvImportStepCard
+      number="03"
+      title="カテゴリー / カテゴリーグループCSV取込"
+      description="スマレジの部門・部門グループを、Akuto POSのカテゴリー・カテゴリーグループとして取り込みます。"
+      status="実装済み"
+    >
+      <MasterCsvImportPanel
+        type="categories"
+        suppliers={productMaster?.suppliers || []}
+        brands={productMaster?.brands || []}
+        productCategories={productMaster?.productCategories || []}
+        productCategoryGroups={productMaster?.productCategoryGroups || []}
+        onSaveSupplier={productMaster?.saveSupplier}
+        onSaveBrand={productMaster?.saveBrand}
+        onSaveCategory={productMaster?.saveCategory}
+        onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaved={onSaved}
+      />
+    </CsvImportStepCard>
+
+    <CsvImportStepCard
+      number="04"
+      title="商品CSV取込"
+      description="補助マスター登録後に商品を取り込みます。仕入先・ブランド・カテゴリーは名前一致でID紐づけします。"
+      status="実装済み"
+    >
+      <ProductCsvImportPanel
+        products={productMaster?.products || []}
+        productCategories={productMaster?.productCategories || []}
+        productCategoryGroups={productMaster?.productCategoryGroups || []}
+        brands={productMaster?.brands || []}
+        suppliers={productMaster?.suppliers || []}
+        onSaveProduct={productMaster?.saveProduct}
+        onSaved={onSaved}
+      />
+    </CsvImportStepCard>
+  </div>
+);
+
+
 const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
   const page = POS_DUMMY_PAGES[item?.id] || {
     title: item?.label || '準備中',
@@ -292,19 +420,35 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
   const activeTab = page.tabs.find((tab) => tab.id === activeDummyTab) || page.tabs[0];
 
   const renderProductManagementPanel = () => {
+    if (item?.id === 'csvImportExport') {
+      const activeCsvTab = activeDummyTab || 'csvImport';
+
+      if (activeCsvTab === 'csvImport') {
+        return (
+          <CsvImportWorkflowPanel
+            productMaster={productMaster}
+            onSaved={onSaved}
+          />
+        );
+      }
+
+      return null;
+    }
+
     if (item?.id !== 'productManagement') return null;
 
     if (activeDummyTab === 'categories') {
       return (
         <SimpleMasterPanel
+          key="product-categories-panel"
           label="カテゴリー"
           blank={blankCategory}
           items={productMaster?.productCategories || []}
+          productCategoryGroups={productMaster?.productCategoryGroups || []}
+          onSaveCategoryGroup={productMaster?.saveCategoryGroup}
           fields={[
             { id: 'name', label: 'カテゴリー名' },
-            { id: 'groupId', label: 'グループID' },
-            { id: 'sortOrder', label: '並び順', type: 'number' },
-            { id: 'color', label: 'カラー' }
+            { id: 'groupId', label: 'カテゴリーグループ', type: 'categoryGroupSelect' },
           ]}
           onSave={productMaster?.saveCategory}
           onDelete={productMaster?.deleteCategory}
@@ -316,12 +460,12 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
     if (activeDummyTab === 'categoryGroups') {
       return (
         <SimpleMasterPanel
+          key="product-category-groups-panel"
           label="カテゴリーグループ"
           blank={blankGroup}
           items={productMaster?.productCategoryGroups || []}
           fields={[
             { id: 'name', label: 'グループ名' },
-            { id: 'sortOrder', label: '並び順', type: 'number' }
           ]}
           onSave={productMaster?.saveCategoryGroup}
           onDelete={productMaster?.deleteCategoryGroup}
@@ -333,13 +477,29 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
     if (activeDummyTab === 'brands') {
       return (
         <SimpleMasterPanel
+          key="product-brands-panel"
           label="ブランド"
           blank={blankBrand}
           items={productMaster?.brands || []}
+          suppliers={productMaster?.suppliers || []}
+          onSaveSupplier={productMaster?.saveSupplier}
           fields={[
             { id: 'name', label: 'ブランド名' },
-            { id: 'kana', label: 'かな' },
-            { id: 'note', label: 'メモ' }
+            { id: 'supplierId', label: '仕入先', type: 'supplierSelect' },
+            {
+              id: 'effectiveCostRate',
+              label: '適用掛け率 %',
+              type: 'effectiveCostRateDisplay',
+              helpText: '固有掛け率が未設定の場合は、仕入先の標準掛け率を使用します。'
+            },
+            {
+              id: 'defaultCostRate',
+              label: '固有掛け率 %',
+              type: 'number',
+              helpText: '仕入先の標準掛け率と異なる場合だけ入力してください。未設定の場合は仕入先の標準掛け率を使用します。'
+            },
+            { id: 'stocktakingTypeCode', label: '棚卸区分コード' },
+            { id: 'note', label: 'ブランドプロフィール', type: 'textarea', rows: 8 }
           ]}
           onSave={productMaster?.saveBrand}
           onDelete={productMaster?.deleteBrand}
@@ -351,19 +511,32 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
     if (activeDummyTab === 'suppliers') {
       return (
         <SimpleMasterPanel
+          key="product-suppliers-panel"
           label="仕入先"
           blank={blankSupplier}
           items={productMaster?.suppliers || []}
           fields={[
             { id: 'name', label: '仕入先名' },
-            { id: 'kana', label: 'かな' },
             { id: 'contactName', label: '担当者' },
-            { id: 'tel', label: '電話' },
+            { id: 'tel', label: '電話番号' },
             { id: 'email', label: 'メール' },
             { id: 'address', label: '住所' },
-            { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
-            { id: 'paymentTerms', label: '支払条件' },
-            { id: 'note', label: 'メモ' }
+            {
+              id: 'defaultCostRate',
+              label: '標準掛け率 %',
+              type: 'number',
+              helpText: 'この仕入先でよく使う基本掛け率を入力してください。ブランド側に固有掛け率がある場合は、そちらを優先します。'
+            },
+            {
+              id: 'paymentTerms',
+              label: '支払いサイト',
+              type: 'select',
+              placeholder: '支払いサイトを選択',
+              options: [
+                { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
+                { value: 'COD', label: 'COD' }
+              ]
+            }
           ]}
           onSave={productMaster?.saveSupplier}
           onDelete={productMaster?.deleteSupplier}
@@ -383,7 +556,7 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="sticky top-0 z-30 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
         <div className="flex items-start gap-5">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-blue-50 text-blue-600">
             <Icon size={30} strokeWidth={2.5} />
@@ -401,13 +574,15 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
             </p>
           </div>
 
-          <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
-            ダミー
-          </span>
+          {item?.id !== 'csvImportExport' && (
+            <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+              ダミー
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="sticky top-[8.5rem] z-30 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/50">
         <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1.5">
           {page.tabs.map((tab) => {
             const isActive = activeTab?.id === tab.id;
@@ -695,13 +870,29 @@ export const StoreSettings = ({
     tableCount
   ]);
 
+  const shouldShowOwnerSetupGuide = settingsMode === 'order';
+
   const isOwnerGuideModalOpen = useMemo(() => {
-    if (!isOwner || !storeId || ownerGuideDismissed || ownerSetupSteps.length === 0 || ownerSetupDataLoading) {
+    if (
+      !shouldShowOwnerSetupGuide ||
+      !isOwner ||
+      !storeId ||
+      ownerGuideDismissed ||
+      ownerSetupSteps.length === 0 ||
+      ownerSetupDataLoading
+    ) {
       return false;
     }
 
     return ownerSetupSteps.some((step) => !step.isComplete);
-  }, [isOwner, ownerGuideDismissed, ownerSetupDataLoading, ownerSetupSteps, storeId]);
+  }, [
+    isOwner,
+    ownerGuideDismissed,
+    ownerSetupDataLoading,
+    ownerSetupSteps,
+    shouldShowOwnerSetupGuide,
+    storeId
+  ]);
 
   const handleOwnerGuideClose = () => {
     if (storeId) safeStorage.setItem(`owner-setup-guide-dismissed:${storeId}`, '1');
@@ -805,7 +996,7 @@ export const StoreSettings = ({
         <div className="h-[2cm] w-full flex-shrink-0" />
 
         <div className={`${activeSubTab === 'products' ? 'w-full max-w-none' : 'max-w-[1400px]'} p-8 pb-32 lg:p-12`}>
-          {isOwner && !ownerSetupDataLoading && ownerSetupSteps.some((step) => !step.isComplete) && (
+          {shouldShowOwnerSetupGuide && isOwner && !ownerSetupDataLoading && ownerSetupSteps.some((step) => !step.isComplete) && (
             <OwnerSetupGuide
               ownerName={profileName}
               steps={ownerSetupSteps}

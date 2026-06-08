@@ -185,7 +185,7 @@ const saveStoreCollectionDoc = async (storeId, collectionName, itemData) => {
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  return docRef.id;
+  return itemData.id || payload.id || docRef.id;
 };
 
 export const saveProductMasterItem = async (storeId, itemData) => {
@@ -213,7 +213,7 @@ export const subscribeToProductCategories = (storeId, onData, onError) => (
 );
 
 export const saveProductCategory = async (storeId, itemData) => {
-  await saveStoreCollectionDoc(storeId, 'productCategories', itemData);
+  return await saveStoreCollectionDoc(storeId, 'productCategories', itemData);
 };
 
 export const subscribeToProductCategoryGroups = (storeId, onData, onError) => (
@@ -221,7 +221,7 @@ export const subscribeToProductCategoryGroups = (storeId, onData, onError) => (
 );
 
 export const saveProductCategoryGroup = async (storeId, itemData) => {
-  await saveStoreCollectionDoc(storeId, 'productCategoryGroups', itemData);
+  return await saveStoreCollectionDoc(storeId, 'productCategoryGroups', itemData);
 };
 
 export const subscribeToProductBrands = (storeId, onData, onError) => (
@@ -229,7 +229,7 @@ export const subscribeToProductBrands = (storeId, onData, onError) => (
 );
 
 export const saveProductBrand = async (storeId, itemData) => {
-  await saveStoreCollectionDoc(storeId, 'brands', itemData);
+  return await saveStoreCollectionDoc(storeId, 'brands', itemData);
 };
 
 export const subscribeToSuppliers = (storeId, onData, onError) => (
@@ -237,7 +237,7 @@ export const subscribeToSuppliers = (storeId, onData, onError) => (
 );
 
 export const saveSupplier = async (storeId, itemData) => {
-  await saveStoreCollectionDoc(storeId, 'suppliers', itemData);
+  return await saveStoreCollectionDoc(storeId, 'suppliers', itemData);
 };
 
 export const deleteProductMasterDoc = async (storeId, collectionName, itemId) => {

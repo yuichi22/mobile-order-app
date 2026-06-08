@@ -68,8 +68,8 @@ export const useProductMasterData = (storeId) => {
   };
 
   const saveCategory = async (itemData) => {
-    if (!hasStoreId) return;
-    await saveProductCategory(storeId, itemData);
+    if (!hasStoreId) return undefined;
+    return await saveProductCategory(storeId, itemData);
   };
 
   const deleteCategory = async (categoryId) => {
@@ -78,8 +78,8 @@ export const useProductMasterData = (storeId) => {
   };
 
   const saveCategoryGroup = async (itemData) => {
-    if (!hasStoreId) return;
-    await saveProductCategoryGroup(storeId, itemData);
+    if (!hasStoreId) return undefined;
+    return await saveProductCategoryGroup(storeId, itemData);
   };
 
   const deleteCategoryGroup = async (groupId) => {
@@ -88,8 +88,8 @@ export const useProductMasterData = (storeId) => {
   };
 
   const saveBrand = async (itemData) => {
-    if (!hasStoreId) return;
-    await saveProductBrand(storeId, itemData);
+    if (!hasStoreId) return undefined;
+    return await saveProductBrand(storeId, itemData);
   };
 
   const deleteBrand = async (brandId) => {
@@ -98,8 +98,8 @@ export const useProductMasterData = (storeId) => {
   };
 
   const saveSupplierData = async (itemData) => {
-    if (!hasStoreId) return;
-    await saveSupplier(storeId, itemData);
+    if (!hasStoreId) return undefined;
+    return await saveSupplier(storeId, itemData);
   };
 
   const deleteSupplier = async (supplierId) => {

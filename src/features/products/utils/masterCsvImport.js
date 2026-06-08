@@ -1,0 +1,468 @@
+export const MASTER_CSV_FIELD_OPTIONS = {
+  suppliers: [
+    { id: '', label: '取り込まない' },
+    { id: 'smaregiSupplierId', label: '仕入先ID', required: false },
+    { id: 'name', label: '仕入先名', required: true },
+    { id: 'contactName', label: '担当者' },
+    { id: 'tel', label: '電話番号' },
+    { id: 'fax', label: 'FAX番号' },
+    { id: 'backorderValidDays', label: '受注残有効日数' },
+    { id: 'orderListPrice', label: '発注上代' },
+    { id: 'defaultCostRate', label: '掛率' },
+    { id: 'note', label: 'メモ' }
+  ],
+  brands: [
+    { id: '', label: '取り込まない' },
+    { id: 'smaregiBrandId', label: 'ブランドID', required: false },
+    { id: 'name', label: 'ブランド名', required: true },
+    { id: 'stocktakingTypeCode', label: '棚卸区分コード' },
+    { id: 'supplierSmaregiId', label: '仕入先ID' },
+    { id: 'supplierName', label: '仕入先名' },
+    { id: 'note', label: 'メモ' }
+  ],
+  categories: [
+    { id: '', label: '取り込まない' },
+    { id: 'smaregiCategoryGroupId', label: 'カテゴリーグループID' },
+    { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
+    { id: 'smaregiCategoryId', label: 'カテゴリーID' },
+    { id: 'categoryName', label: 'カテゴリー名', required: true },
+    { id: 'sortOrder', label: '並び順' },
+    { id: 'departmentId', label: '部門ID' },
+    { id: 'color', label: 'カラー' },
+    { id: 'note', label: 'メモ' }
+  ]
+};
+
+const MASTER_CSV_HEADER_ALIASES = {
+  suppliers: {
+    smaregiSupplierId: ['仕入先ID', 'supplierId', 'supplier_id', 'supplierCode', '仕入先コード'],
+    name: ['仕入先名', 'name', 'supplierName', 'supplier_name'],
+    contactName: ['担当者', '担当者名', 'contactName', 'contact'],
+    tel: ['電話番号', '電話', 'TEL', 'tel', 'phone'],
+    fax: ['FAX番号', 'FAX', 'fax'],
+    backorderValidDays: ['受注残有効日数', 'backorderValidDays'],
+    orderListPrice: ['発注上代', 'orderListPrice'],
+    defaultCostRate: ['掛率', '標準掛率', 'defaultCostRate', 'costRate'],
+    note: ['メモ', '備考', 'note']
+  },
+  brands: {
+    smaregiBrandId: ['ブランドID', 'brandId', 'brand_id', 'ブランドコード'],
+    name: ['ブランド名', 'name', 'brandName', 'brand_name'],
+    stocktakingTypeCode: ['棚卸区分コード', 'stocktakingTypeCode', '棚卸区分'],
+    supplierSmaregiId: ['仕入先ID', 'supplierId', 'supplier_id', '仕入先コード'],
+    supplierName: ['仕入先名', 'supplierName', 'supplier_name'],
+    note: ['メモ', '備考', 'note']
+  },
+  categories: {
+    smaregiCategoryGroupId: [
+      '部門グループID',
+      '部門グループコード',
+      '部門グループ',
+      'グループID',
+      'グループコード',
+      'カテゴリーグループID',
+      'カテゴリーグループコード',
+      'categoryGroupId',
+      'category_group_id',
+      'categoryGroupCode',
+      'groupId',
+      'group_id',
+      'groupCode'
+    ],
+    categoryGroupName: [
+      '部門グループ名',
+      'カテゴリーグループ名',
+      'カテゴリーグループ',
+      'グループ名',
+      'categoryGroupName',
+      'category_group_name',
+      'groupName',
+      'Product Category'
+    ],
+    smaregiCategoryId: [
+      '部門ID',
+      '部門コード',
+      'カテゴリーID',
+      'カテゴリーコード',
+      'categoryId',
+      'category_id',
+      'categoryCode',
+      'Type ID'
+    ],
+    categoryName: ['部門名', 'カテゴリー名', 'categoryName', 'category_name', 'Type', 'カテゴリ名'],
+    sortOrder: ['表示順', '並び順', 'sortOrder', 'order'],
+    departmentId: ['部門ID', 'departmentId'],
+    color: ['カラー', 'color'],
+    note: ['メモ', '備考', 'note']
+  }
+};
+
+export const normalizeMasterCsvHeader = (value) => (
+  String(value || '')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[,_-]/g, '')
+);
+
+export const parseMasterCsvText = (sourceText) => {
+  const csvText = String(sourceText || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const char = csvText[index];
+    const nextChar = csvText[index + 1];
+
+    if (char === '"') {
+      if (quoted && nextChar === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+
+    if (char === ',' && !quoted) {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+
+    if (char === '\n' && !quoted) {
+      row.push(cell);
+      if (row.some((value) => String(value || '').trim())) rows.push(row);
+      row = [];
+      cell = '';
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((value) => String(value || '').trim())) rows.push(row);
+
+  return rows;
+};
+
+export const resolveMasterCsvHeaderKey = (type, header) => {
+  const aliases = MASTER_CSV_HEADER_ALIASES[type] || {};
+  const normalized = normalizeMasterCsvHeader(header);
+
+  for (const [key, values] of Object.entries(aliases)) {
+    if (values.some((alias) => normalizeMasterCsvHeader(alias) === normalized)) {
+      return key;
+    }
+  }
+
+  return '';
+};
+
+export const buildMasterCsvMappingDraft = (type, headers = []) => {
+  const usedKeys = new Set();
+
+  return headers.map((header, index) => {
+    const guessedKey = resolveMasterCsvHeaderKey(type, header);
+    const fieldKey = guessedKey && !usedKeys.has(guessedKey) ? guessedKey : '';
+
+    if (fieldKey) usedKeys.add(fieldKey);
+
+    return {
+      columnIndex: index,
+      header,
+      fieldKey
+    };
+  });
+};
+
+export const buildMasterCsvRecordsFromMapping = (rows, mappingDraft = []) => (
+  rows.slice(1).map((row, rowIndex) => {
+    const record = { __rowNumber: rowIndex + 2 };
+
+    mappingDraft.forEach((mapping) => {
+      if (!mapping?.fieldKey) return;
+      record[mapping.fieldKey] = String(row[mapping.columnIndex] ?? '').trim();
+    });
+
+    return record;
+  })
+);
+
+const normalizeText = (value) => String(value ?? '').trim();
+
+const normalizeNumber = (value, fallback = null) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  const numberValue = Number(raw.replace(/[¥￥,%\s]/g, ''));
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+};
+
+const normalizeMasterName = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+);
+
+const findByName = (items, name) => {
+  const normalized = normalizeMasterName(name);
+  if (!normalized) return null;
+  return (items || []).find((item) => normalizeMasterName(item.name) === normalized) || null;
+};
+
+const findCategoryGroup = (groups, groupExternalId, groupName) => {
+  const normalizedId = normalizeText(groupExternalId);
+
+  if (normalizedId) {
+    const matchedById = (groups || []).find((group) => (
+      normalizeText(group.smaregiCategoryGroupId) === normalizedId ||
+      normalizeText(group.categoryGroupExternalId) === normalizedId ||
+      normalizeText(group.externalCategoryGroupId) === normalizedId ||
+      normalizeText(group.groupExternalId) === normalizedId
+    ));
+
+    if (matchedById) return matchedById;
+  }
+
+  return findByName(groups, groupName);
+};
+
+const findSupplier = (suppliers, supplierSmaregiId, supplierName) => {
+  const normalizedId = normalizeText(supplierSmaregiId);
+  if (normalizedId) {
+    const matchedById = (suppliers || []).find((supplier) => (
+      normalizeText(supplier.smaregiSupplierId) === normalizedId ||
+      normalizeText(supplier.supplierExternalId) === normalizedId ||
+      normalizeText(supplier.externalSupplierId) === normalizedId
+    ));
+    if (matchedById) return matchedById;
+  }
+
+  return findByName(suppliers, supplierName);
+};
+
+export const buildMasterCsvPreview = ({
+  type,
+  rows,
+  mappingDraft,
+  suppliers = [],
+  brands = [],
+  productCategories = [],
+  productCategoryGroups = []
+}) => {
+  const headers = rows[0]?.map((header) => String(header || '').replace(/^\uFEFF/, '').trim()) || [];
+  const effectiveMapping = Array.isArray(mappingDraft) ? mappingDraft : buildMasterCsvMappingDraft(type, headers);
+  const records = buildMasterCsvRecordsFromMapping(rows, effectiveMapping);
+  const mappedFieldKeys = new Set(effectiveMapping.map((mapping) => mapping.fieldKey).filter(Boolean));
+
+  const errors = [];
+  const warnings = [];
+  const importableItems = [];
+  const skippedItems = [];
+
+  if (!records.length) errors.push('取込可能なデータ行がありません。');
+
+  if (type === 'suppliers' && !mappedFieldKeys.has('name')) {
+    errors.push('仕入先名に紐づく列を選択してください。');
+  }
+
+  if (type === 'brands' && !mappedFieldKeys.has('name')) {
+    errors.push('ブランド名に紐づく列を選択してください。');
+  }
+
+  if (type === 'categories' && !mappedFieldKeys.has('categoryName')) {
+    errors.push('カテゴリー名に紐づく列を選択してください。');
+  }
+
+  const existingSupplierNames = new Set((suppliers || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
+  const existingSupplierIds = new Set((suppliers || []).map((item) => normalizeText(item.smaregiSupplierId || item.supplierExternalId || item.externalSupplierId)).filter(Boolean));
+  const existingBrandNames = new Set((brands || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
+  const existingBrandIds = new Set((brands || []).map((item) => normalizeText(item.smaregiBrandId || item.brandExternalId || item.externalBrandId)).filter(Boolean));
+  const existingCategoryNames = new Set((productCategories || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
+  const existingGroupNames = new Set((productCategoryGroups || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
+
+  records.forEach((record) => {
+    if (type === 'suppliers') {
+      const smaregiSupplierId = normalizeText(record.smaregiSupplierId);
+      const name = normalizeText(record.name);
+
+      if (!smaregiSupplierId && !name) {
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: '空行扱い' });
+        return;
+      }
+
+      if (!name) {
+        errors.push(`${record.__rowNumber}行目：仕入先名が空です。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: '仕入先名なし' });
+        return;
+      }
+
+      if (smaregiSupplierId && existingSupplierIds.has(smaregiSupplierId)) {
+        warnings.push(`${record.__rowNumber}行目：既存仕入先ID「${smaregiSupplierId}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: `仕入先ID重複: ${smaregiSupplierId}` });
+        return;
+      }
+
+      if (existingSupplierNames.has(normalizeMasterName(name))) {
+        warnings.push(`${record.__rowNumber}行目：既存仕入先名「${name}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: `仕入先名重複: ${name}` });
+        return;
+      }
+
+      importableItems.push({
+        __rowNumber: record.__rowNumber,
+        smaregiSupplierId,
+        supplierExternalId: smaregiSupplierId,
+        name,
+        contactName: normalizeText(record.contactName),
+        tel: normalizeText(record.tel),
+        fax: normalizeText(record.fax),
+        backorderValidDays: normalizeNumber(record.backorderValidDays, null),
+        orderListPrice: normalizeNumber(record.orderListPrice, null),
+        defaultCostRate: normalizeNumber(record.defaultCostRate, null),
+        note: normalizeText(record.note),
+        isActive: true
+      });
+
+      if (smaregiSupplierId) existingSupplierIds.add(smaregiSupplierId);
+      existingSupplierNames.add(normalizeMasterName(name));
+      return;
+    }
+
+    if (type === 'brands') {
+      const smaregiBrandId = normalizeText(record.smaregiBrandId);
+      const name = normalizeText(record.name);
+      const supplierSmaregiId = normalizeText(record.supplierSmaregiId);
+      const supplierName = normalizeText(record.supplierName);
+      const matchedSupplier = findSupplier(suppliers, supplierSmaregiId, supplierName);
+
+      if (!smaregiBrandId && !name) {
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: '空行扱い' });
+        return;
+      }
+
+      if (!name) {
+        errors.push(`${record.__rowNumber}行目：ブランド名が空です。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: 'ブランド名なし' });
+        return;
+      }
+
+      if (smaregiBrandId && existingBrandIds.has(smaregiBrandId)) {
+        warnings.push(`${record.__rowNumber}行目：既存ブランドID「${smaregiBrandId}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: `ブランドID重複: ${smaregiBrandId}` });
+        return;
+      }
+
+      if (existingBrandNames.has(normalizeMasterName(name))) {
+        warnings.push(`${record.__rowNumber}行目：既存ブランド名「${name}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: `ブランド名重複: ${name}` });
+        return;
+      }
+
+      if ((supplierSmaregiId || supplierName) && !matchedSupplier) {
+        warnings.push(`${record.__rowNumber}行目：仕入先「${supplierSmaregiId || supplierName}」は未登録です。name/idのみ保持します。`);
+      }
+
+      importableItems.push({
+        __rowNumber: record.__rowNumber,
+        smaregiBrandId,
+        brandExternalId: smaregiBrandId,
+        name,
+        stocktakingTypeCode: normalizeText(record.stocktakingTypeCode),
+        supplierId: matchedSupplier?.id || '',
+        supplierSmaregiId,
+        supplierName: matchedSupplier?.name || supplierName,
+        note: normalizeText(record.note),
+        isActive: true
+      });
+
+      if (smaregiBrandId) existingBrandIds.add(smaregiBrandId);
+      existingBrandNames.add(normalizeMasterName(name));
+      return;
+    }
+
+    if (type === 'categories') {
+      const smaregiCategoryGroupId = normalizeText(record.smaregiCategoryGroupId);
+      const categoryGroupName = normalizeText(record.categoryGroupName);
+      const smaregiCategoryId = normalizeText(record.smaregiCategoryId);
+      const categoryName = normalizeText(record.categoryName);
+
+      if (!categoryGroupName && !categoryName) {
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: '空行扱い' });
+        return;
+      }
+
+      if (!categoryName) {
+        errors.push(`${record.__rowNumber}行目：カテゴリー名が空です。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: 'カテゴリー名なし' });
+        return;
+      }
+
+      const groupNameKey = normalizeMasterName(categoryGroupName);
+      const categoryNameKey = normalizeMasterName(categoryName);
+
+      if (existingCategoryNames.has(categoryNameKey)) {
+        warnings.push(`${record.__rowNumber}行目：既存カテゴリー名「${categoryName}」と重複するため、カテゴリーはスキップ対象です。`);
+      }
+
+      const matchedGroup = findCategoryGroup(productCategoryGroups, smaregiCategoryGroupId, categoryGroupName);
+      const shouldCreateGroup = !!categoryGroupName && !matchedGroup && !existingGroupNames.has(groupNameKey);
+
+      importableItems.push({
+        __rowNumber: record.__rowNumber,
+        smaregiCategoryGroupId,
+        categoryGroupName,
+        matchedCategoryGroupId: matchedGroup?.id || '',
+        categoryGroupPayload: shouldCreateGroup
+          ? {
+            smaregiCategoryGroupId,
+            categoryGroupExternalId: smaregiCategoryGroupId,
+            externalCategoryGroupId: smaregiCategoryGroupId,
+            name: categoryGroupName,
+            sortOrder: normalizeNumber(record.sortOrder, 0) ?? 0,
+            departmentId: normalizeText(record.departmentId) || 'retail',
+            isActive: true
+          }
+          : null,
+        smaregiCategoryId,
+        categoryName,
+        categoryPayload: existingCategoryNames.has(categoryNameKey)
+          ? null
+          : {
+            smaregiCategoryId,
+            categoryExternalId: smaregiCategoryId,
+            externalCategoryId: smaregiCategoryId,
+            name: categoryName,
+            groupId: matchedGroup?.id || '',
+            groupName: matchedGroup?.name || categoryGroupName,
+            categoryGroupName: matchedGroup?.name || categoryGroupName,
+            smaregiCategoryGroupId,
+            categoryGroupExternalId: smaregiCategoryGroupId,
+            sortOrder: normalizeNumber(record.sortOrder, 0) ?? 0,
+            departmentId: normalizeText(record.departmentId) || 'retail',
+            color: normalizeText(record.color) || '#64748b',
+            note: normalizeText(record.note),
+            isActive: true
+          }
+      });
+
+      if (groupNameKey) existingGroupNames.add(groupNameKey);
+      if (categoryNameKey) existingCategoryNames.add(categoryNameKey);
+    }
+  });
+
+  return {
+    headers,
+    mappingDraft: effectiveMapping,
+    totalRows: records.length,
+    importableItems,
+    skippedItems,
+    warnings,
+    errors
+  };
+};
