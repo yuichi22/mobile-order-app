@@ -856,9 +856,17 @@ export const StoreSettings = ({
     };
   }, [isOwner, storeId]);
 
+  const isKitchenOnlySettingsItem = (item) => {
+    const id = String(item?.id || '').toLowerCase();
+    const label = String(item?.label || '');
+    const desc = String(item?.desc || '');
+    return id.includes('kitchen') || label.includes('キッチン') || desc.includes('キッチン');
+  };
+
   const availableMenuItems = useMemo(
     () => SETTINGS_MENU_ITEMS.filter((item) => (
       canAccessSettingsSection(normalizedRole, item.id)
+      && !(settingsMode === 'pos' && isKitchenOnlySettingsItem(item))
       && (item.mode === settingsMode || item.mode === 'shared')
     )),
     [normalizedRole, settingsMode]
@@ -1127,9 +1135,10 @@ export const StoreSettings = ({
             />
           )}
 
-          {settingsMode === 'order'
+          {settingsMode === 'pos'
             && activeMenuItem
             && activeMenuItem.mode === 'pos'
+            && !isKitchenOnlySettingsItem(activeMenuItem)
             && canAccessSettingsSection(normalizedRole, activeMenuItem.id) && (
               <PosDummyTabbedPage
                 item={activeMenuItem}
