@@ -3255,7 +3255,7 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
 
   return {
     title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
-    vendor: normalizeShopifyText(group.brandName, 'AKUTO'),
+    ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     productType: normalizeShopifyText(group.categoryName, ''),
     tags: [
       group.categoryName,
