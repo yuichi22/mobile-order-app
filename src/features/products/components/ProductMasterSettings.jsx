@@ -53,7 +53,11 @@ const blankProduct = {
   isArchived: false,
   shopifyProductId: '',
   shopifyVariantId: '',
-  shopifyInventoryItemId: ''
+  shopifyInventoryItemId: '',
+  productGroupId: '',
+  productGroupRole: 'primary',
+  productGroupName: '',
+  groupCode: ''
 };
 
 export const blankCategory = {
@@ -143,7 +147,11 @@ const normalizeProductPayload = (draft) => ({
   isArchived: Boolean(draft.isArchived),
   shopifyProductId: String(draft.shopifyProductId || '').trim(),
   shopifyVariantId: String(draft.shopifyVariantId || '').trim(),
-  shopifyInventoryItemId: String(draft.shopifyInventoryItemId || '').trim()
+  shopifyInventoryItemId: String(draft.shopifyInventoryItemId || '').trim(),
+  productGroupId: String(draft.productGroupId || '').trim(),
+  productGroupRole: draft.productGroupRole || 'primary',
+  productGroupName: String(draft.productGroupName || '').trim(),
+  groupCode: String(draft.groupCode || '').trim()
 });
 
 const normalizeSimplePayload = (draft, fallback = {}) => ({
@@ -259,6 +267,59 @@ const ProductMasterTable = ({
 
   const getDraft = (product) => draftRows[product.id] || product;
 
+  const getProductGroupSortKey = (product) => (
+    product.productGroupId
+      || product.productGroupName
+      || product.id
+      || ''
+  );
+
+  const groupedProducts = useMemo(() => {
+    const groups = new Map();
+
+    for (const product of products || []) {
+      const key = getProductGroupSortKey(product);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          name: product.productGroupName || product.name || '名称未設定',
+          brandName: product.brandName || '',
+          categoryName: product.categoryName || '',
+          products: []
+        });
+      }
+
+      const group = groups.get(key);
+      group.products.push(product);
+
+      if (product.productGroupRole === 'primary') {
+        group.name = product.productGroupName || product.name || group.name;
+        group.brandName = product.brandName || group.brandName;
+        group.categoryName = product.categoryName || group.categoryName;
+      }
+    }
+
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        products: [...group.products].sort((a, b) => {
+          const aPrimary = a.productGroupRole === 'primary' ? 0 : 1;
+          const bPrimary = b.productGroupRole === 'primary' ? 0 : 1;
+          if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+
+          const bySize = String(a.size || '').localeCompare(String(b.size || ''), 'ja');
+          if (bySize !== 0) return bySize;
+
+          return String(a.sku || a.productCode || '').localeCompare(String(b.sku || b.productCode || ''), 'ja');
+        })
+      }))
+      .sort((a, b) => {
+        const byName = String(a.name || '').localeCompare(String(b.name || ''), 'ja');
+        if (byName !== 0) return byName;
+        return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
+      });
+  }, [products]);
+
   const updateDraft = (productId, patch) => {
     setDraftRows((current) => ({
       ...current,
@@ -270,11 +331,32 @@ const ProductMasterTable = ({
   };
 
   const updateNewRow = (patch) => {
-    setNewRow((current) => ({ ...current, ...patch }));
+    setNewRow((current) => ({
+      ...current,
+      ...patch
+    }));
+  };
+
+  const buildProductSavePayload = (draft) => {
+    const matchedBrand = brands.find((brand) => brand.id === draft.brandId);
+    const matchedCategory = productCategories.find((category) => category.id === draft.categoryId);
+    const matchedGroup = productCategoryGroups.find((group) => group.id === (draft.categoryGroupId || matchedCategory?.groupId));
+    const matchedSupplier = suppliers.find((supplier) => supplier.id === (draft.supplierId || matchedBrand?.supplierId));
+
+    return normalizeProductPayload({
+      ...draft,
+      brandName: matchedBrand?.name || draft.brandName || '',
+      categoryName: matchedCategory?.name || draft.categoryName || '',
+      categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId || '',
+      categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
+      supplierId: matchedBrand?.supplierId || draft.supplierId || '',
+      supplierName: matchedSupplier?.name || matchedBrand?.supplierName || draft.supplierName || ''
+    });
   };
 
   const saveExisting = async (product) => {
     const draft = getDraft(product);
+
     if (!String(draft.name || '').trim()) {
       alert('商品名を入力してください');
       return;
@@ -282,7 +364,7 @@ const ProductMasterTable = ({
 
     setSavingKey(product.id);
     try {
-      await onSaveProduct(normalizeProductPayload(draft));
+      await onSaveProduct(buildProductSavePayload(draft));
       setDraftRows((current) => {
         const next = { ...current };
         delete next[product.id];
@@ -302,7 +384,7 @@ const ProductMasterTable = ({
 
     setSavingKey('__new__');
     try {
-      await onSaveProduct(normalizeProductPayload(newRow));
+      await onSaveProduct(buildProductSavePayload(newRow));
       setNewRow({ ...blankProduct });
       onSaved?.();
     } finally {
@@ -310,9 +392,164 @@ const ProductMasterTable = ({
     }
   };
 
+  const createSkuDraftFromProduct = (source) => ({
+    ...blankProduct,
+    name: source.name || '',
+    brandId: source.brandId || '',
+    brandName: source.brandName || '',
+    categoryId: source.categoryId || '',
+    categoryName: source.categoryName || '',
+    categoryGroupId: source.categoryGroupId || '',
+    categoryGroupName: source.categoryGroupName || '',
+    supplierId: source.supplierId || '',
+    supplierName: source.supplierName || '',
+    departmentId: source.departmentId || 'retail',
+    productType: source.productType || 'retail',
+    priceTaxIncluded: source.priceTaxIncluded ?? '',
+    priceTaxExcluded: source.priceTaxExcluded ?? '',
+    taxRateType: source.taxRateType || 'standard',
+    taxRate: source.taxRate ?? 10,
+    costTaxExcluded: source.costTaxExcluded ?? '',
+    costTaxIncluded: source.costTaxIncluded ?? '',
+    supplierCostRate: source.supplierCostRate ?? '',
+    orderLot: source.orderLot ?? source.reorderLot ?? '',
+    reorderLot: source.reorderLot ?? source.orderLot ?? '',
+    reorderPoint: source.reorderPoint ?? '',
+    reorderQuantity: source.reorderQuantity ?? '',
+    labelEnabled: Boolean(source.labelEnabled),
+    shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled),
+    isActive: source.isActive !== false,
+    isArchived: false,
+    productGroupId: source.productGroupId || '',
+    productGroupRole: 'variant',
+    productGroupName: source.productGroupName || source.name || '',
+    sku: '',
+    productCode: '',
+    barcode: '',
+    size: '',
+    colorName: '',
+    stockInQuantityDraft: ''
+  });
+
+  const addSkuToProductGroup = async (source) => {
+    if (!source?.id) return;
+
+    if (!source.productGroupId) {
+      alert('商品グループがまだ作成されていません。先にこの商品を保存してください。');
+      return;
+    }
+
+    const nextSku = createSkuDraftFromProduct(source);
+    setSavingKey(`sku:${source.id}`);
+
+    try {
+      const savedId = await onSaveProduct(buildProductSavePayload(nextSku));
+      onSaved?.();
+      alert('SKUを追加しました。追加されたSKU行に品番・バーコード・サイズ・色を入力してください。');
+      return savedId;
+    } catch (error) {
+      console.error('failed to add SKU', error);
+      alert(`SKU追加に失敗しました: ${error?.message || error}`);
+      return undefined;
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const saveProductGroupHeader = async (group, primaryDraft = {}) => {
+    if (!group?.products?.length) return;
+
+    const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
+    if (!primaryProduct?.id) return;
+
+    const matchedCategory = productCategories.find((category) => category.id === primaryDraft.categoryId);
+    const headerPatch = {
+      name: primaryDraft.name || '',
+      brandId: primaryDraft.brandId || '',
+      categoryId: primaryDraft.categoryId || '',
+      categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
+      departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail',
+      labelEnabled: Boolean(primaryDraft.labelEnabled)
+    };
+
+    if (!String(headerPatch.name || '').trim()) {
+      alert('商品名を入力してください');
+      return;
+    }
+
+    setSavingKey(`group:${group.key}`);
+
+    try {
+      for (const product of group.products) {
+        const draft = getDraft(product);
+        await onSaveProduct(buildProductSavePayload({
+          ...draft,
+          ...headerPatch,
+          id: product.id,
+          productGroupId: product.productGroupId,
+          productGroupRole: product.productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant')
+        }));
+      }
+
+      setDraftRows((current) => {
+        const next = { ...current };
+        for (const product of group.products) {
+          delete next[product.id];
+        }
+        return next;
+      });
+
+      onSaved?.();
+      alert('商品グループの共通項目を保存しました。');
+    } catch (error) {
+      console.error('failed to save product group header', error);
+      alert(`商品グループの保存に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const saveProductGroupShopifyEnabled = async (group, enabled) => {
+    if (!group?.products?.length) return;
+
+    const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
+    if (!primaryProduct?.id) return;
+
+    setSavingKey(`shopify:${group.key}`);
+
+    try {
+      for (const product of group.products) {
+        const draft = getDraft(product);
+        await onSaveProduct(buildProductSavePayload({
+          ...draft,
+          id: product.id,
+          productGroupId: product.productGroupId,
+          productGroupRole: product.productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant'),
+          shopifyCreateEnabled: Boolean(enabled),
+          shopifyEnabled: Boolean(enabled)
+        }));
+      }
+
+      setDraftRows((current) => {
+        const next = { ...current };
+        for (const product of group.products) {
+          delete next[product.id];
+        }
+        return next;
+      });
+
+      onSaved?.();
+    } catch (error) {
+      console.error('failed to save shopify enabled', error);
+      alert(`Shopify設定の保存に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSavingKey('');
+    }
+  };
+
   const deleteProduct = async (product) => {
     if (!product?.id) return;
-    if (!window.confirm(`商品「${product.name || product.id}」を削除しますか？`)) return;
+    if (!window.confirm(`${product.name || '商品'}を削除しますか？`)) return;
     await onDeleteProduct(product.id);
     onSaved?.();
   };
@@ -327,11 +564,75 @@ const ProductMasterTable = ({
       <div
         key={rowKey}
         className={classNames(
-          'rounded-xl border p-2 shadow-md shadow-slate-200/60',
-          isNew ? 'border-orange-100 bg-orange-50/60 shadow-orange-100/50' : 'border-slate-200 bg-slate-50/80'
+          'rounded-xl border p-2 shadow-sm',
+          isNew ? 'border-orange-100 bg-orange-50/60 shadow-orange-100/50' : 'border-slate-200 bg-white'
         )}
       >
-        <div className="grid grid-cols-[minmax(112px,1fr)_minmax(124px,0.98fr)_minmax(130px,1.02fr)_minmax(64px,0.5fr)_minmax(64px,0.5fr)_repeat(4,minmax(72px,0.55fr))_minmax(44px,0.35fr)_96px] gap-1.5">
+        {isNew && (
+          <div className="mb-2 rounded-lg border border-orange-100 bg-white/80 px-3 py-2">
+            <div className="grid grid-cols-[minmax(130px,1fr)_minmax(180px,1.6fr)_minmax(140px,1fr)_80px_96px] gap-2">
+              <div>
+                <FieldLabel>ブランド</FieldLabel>
+                <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
+                  <option value="">ブランド</option>
+                  {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </TableSelect>
+              </div>
+
+              <div>
+                <FieldLabel>商品名</FieldLabel>
+                <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
+              </div>
+
+              <div>
+                <FieldLabel>カテゴリー</FieldLabel>
+                <TableSelect
+                  value={row.categoryId || ''}
+                  onChange={(value) => {
+                    const matchedCategory = productCategories.find((category) => category.id === value);
+                    update({
+                      categoryId: value,
+                      categoryGroupId: matchedCategory?.groupId || row.categoryGroupId || '',
+                      departmentId: matchedCategory?.departmentId || row.departmentId || 'retail'
+                    });
+                  }}
+                  alertWhenEmpty
+                >
+                  <option value="">カテゴリー</option>
+                  {productCategories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </TableSelect>
+              </div>
+
+              <div>
+                <FieldLabel>ラベル</FieldLabel>
+                <PillToggle
+                  checked={row.labelEnabled}
+                  onChange={(value) => update({ labelEnabled: value })}
+                  onLabel="ラベル"
+                  offLabel="ラベル"
+                  className="!h-8 !min-w-[72px] !px-3 text-[11px]"
+                />
+              </div>
+
+              <div>
+                <FieldLabel>操作</FieldLabel>
+                <button
+                  type="button"
+                  onClick={saveNew}
+                  disabled={isSaving}
+                  className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
+                >
+                  {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(140px,1.1fr)_72px_72px_86px_64px_72px_72px_86px_82px_72px_96px] gap-1.5">
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
@@ -341,9 +642,9 @@ const ProductMasterTable = ({
             />
           </div>
 
-          <div className="col-span-2">
-            <FieldLabel>商品名</FieldLabel>
-            <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
+          <div>
+            <FieldLabel>バーコード</FieldLabel>
+            <TableTextInput value={row.barcode} onChange={(value) => update({ barcode: value })} placeholder="バーコード" />
           </div>
 
           <div>
@@ -357,12 +658,12 @@ const ProductMasterTable = ({
           </div>
 
           <div>
-            <FieldLabel>金額</FieldLabel>
-            <TableTextInput type="number" value={row.priceTaxIncluded} onChange={(value) => update({ priceTaxIncluded: value })} placeholder="金額" className="text-right" />
+            <FieldLabel>価格</FieldLabel>
+            <TableTextInput type="number" value={row.priceTaxIncluded} onChange={(value) => update({ priceTaxIncluded: value })} placeholder="価格" className="text-right" />
           </div>
 
           <div>
-            <FieldLabel>LOT数</FieldLabel>
+            <FieldLabel>LOT</FieldLabel>
             <TableTextInput type="number" value={row.orderLot ?? row.reorderLot ?? ''} onChange={(value) => update({ orderLot: value, reorderLot: value })} placeholder="LOT" className="text-right" />
           </div>
 
@@ -376,120 +677,69 @@ const ProductMasterTable = ({
             <TableTextInput type="number" value={row.reorderQuantity} onChange={(value) => update({ reorderQuantity: value })} placeholder="発注数" className="text-right" />
           </div>
 
-          <div className="row-span-2">
+          <div>
+            <FieldLabel>在庫数</FieldLabel>
+            <div className="flex h-8 items-center justify-end rounded-md border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700">
+              {Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>入庫履歴</FieldLabel>
+            <button
+              type="button"
+              className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-100 px-2 text-xs font-black text-slate-600 transition hover:bg-slate-200"
+              title="入庫履歴を表示"
+            >
+              入庫履歴
+            </button>
+          </div>
+
+          <div>
             <FieldLabel>入庫数</FieldLabel>
             <TableTextInput
               type="number"
               value={row.stockInQuantityDraft || ''}
               onChange={(value) => update({ stockInQuantityDraft: value })}
               placeholder="数"
-              className="h-[4.25rem] text-right text-base"
+              className="text-right"
             />
           </div>
 
-          <div className="row-span-2">
+          <div>
             <FieldLabel>操作</FieldLabel>
-            <div className="flex h-[4.25rem] flex-col gap-1.5">
+            <div className="flex h-8 gap-1">
               <button
                 type="button"
                 onClick={isNew ? saveNew : () => saveExisting(row)}
                 disabled={isSaving}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
               >
                 {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
-                保存・更新
+                保存
               </button>
               {!isNew && (
                 <button
                   type="button"
                   onClick={() => deleteProduct(row)}
-                  className="inline-flex h-8 items-center justify-center rounded-lg bg-rose-50 text-xs font-black text-rose-500"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-rose-50 text-rose-500"
                   title="削除"
                 >
                   <Trash2 size={13} />
-                  削除
                 </button>
               )}
             </div>
           </div>
-
-          <div>
-            <FieldLabel>ID</FieldLabel>
-            <div className="flex h-8 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-black text-slate-500">
-              {isNew ? '新規' : row.id?.slice(0, 8)}
-            </div>
-          </div>
-
-          <div>
-            <FieldLabel>カテゴリー</FieldLabel>
-            <TableSelect
-              value={row.categoryId || ''}
-              onChange={(value) => {
-                const matchedCategory = productCategories.find((category) => category.id === value);
-                update({
-                  categoryId: value,
-                  categoryGroupId: matchedCategory?.groupId || row.categoryGroupId || '',
-                  departmentId: matchedCategory?.departmentId || row.departmentId || 'retail'
-                });
-              }}
-              alertWhenEmpty
-              className="!border-slate-200 !bg-slate-50 !text-slate-500"
-            >
-              <option value="">カテゴリー</option>
-              {productCategories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </TableSelect>
-          </div>
-
-          <div>
-            <FieldLabel>ブランド</FieldLabel>
-            <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty className="!border-slate-200 !bg-slate-50 !text-slate-500">
-              <option value="">ブランド</option>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </TableSelect>
-          </div>
-
-          <div className="col-span-2">
-            <FieldLabel>バーコード</FieldLabel>
-            <TableTextInput value={row.barcode} onChange={(value) => update({ barcode: value })} placeholder="バーコード" className="!border-slate-200 !bg-slate-50 !text-slate-500" />
-          </div>
-
-          <div className="col-span-4 self-end">
-            <FieldLabel>表示 / Shopify / ステータス / 入庫履歴 / 在庫</FieldLabel>
-            <div className="flex h-8 items-center gap-1.5 px-0">
-              <PillToggle
-                checked={row.labelEnabled}
-                onChange={(value) => update({ labelEnabled: value })}
-                onLabel="ラベル"
-                offLabel="ラベル"
-                className="!h-7 !min-w-[68px] !px-3 text-[11px]"
-              />
-              <PillToggle
-                checked={row.shopifyCreateEnabled}
-                onChange={(value) => update({ shopifyCreateEnabled: value })}
-                onLabel="Shopify"
-                offLabel="Shopify"
-                activeClassName="bg-emerald-600 text-white shadow-sm shadow-emerald-200"
-                inactiveClassName="bg-slate-200 text-slate-500"
-                className="!h-7 !min-w-[82px] !px-3 text-[11px]"
-              />
-              <span className="inline-flex h-7 min-w-[74px] items-center justify-center rounded-full bg-slate-900 px-3 text-[11px] font-black text-white">
-                ACTIVE
-              </span>
-              <button
-                type="button"
-                className="inline-flex h-7 min-w-[82px] items-center justify-center rounded-full bg-slate-100 px-3 text-[11px] font-black text-slate-600 transition hover:bg-slate-200"
-                title="入庫履歴を表示"
-              >
-                入庫履歴
-              </button>
-              <span className="inline-flex h-7 min-w-[82px] items-center justify-center rounded-full bg-blue-50 px-3 text-[11px] font-black text-blue-700">
-                在庫 {Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
-              </span>
-            </div>
-          </div>
         </div>
+
+        {!isNew && (
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black text-slate-400">
+            <span>
+              {row.productGroupRole === 'primary' ? 'Primary SKU' : 'Variant SKU'} / Group: {row.productGroupName || row.name || '未設定'}
+            </span>
+            <span>ID: {row.id?.slice(0, 8) || '-'}</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -500,39 +750,348 @@ const ProductMasterTable = ({
         <div>
           <h3 className="text-base font-black text-slate-900">商品マスター</h3>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
-            ブランドの下にカテゴリー、品番の下に商品名を配置し、横スクロールを抑えた直接入力型です。
+            商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
           </p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-4 py-2 text-sm font-black text-slate-600">
-          {products.length.toLocaleString()}件
+          {(products || []).length.toLocaleString()}件
         </div>
       </div>
 
       <div className="overflow-x-auto bg-sky-100/60 p-4">
         <div className="min-w-[1290px] space-y-3">
-          <div className="grid grid-cols-[minmax(112px,1fr)_minmax(124px,0.98fr)_minmax(130px,1.02fr)_minmax(64px,0.5fr)_minmax(64px,0.5fr)_repeat(4,minmax(72px,0.55fr))_minmax(44px,0.35fr)_96px] gap-1.5 px-2 pb-1 text-[11px] font-black tracking-widest text-slate-400">
-            <div>品番 / ID</div>
-            <div>商品名 / カテゴリー</div>
-            <div>商品名 / ブランド</div>
-            <div>サイズ / バーコード</div>
-            <div>色 / バーコード</div>
-            <div className="text-right">金額 / 表示</div>
-            <div className="text-right">LOT / Shopify</div>
-            <div className="text-right">発注点 / ACTIVE</div>
-            <div className="text-right">発注数 / 入庫履歴・在庫</div>
-            <div className="text-right">入庫数</div>
-            <div className="text-center">保存</div>
+          <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
+            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify / +SKU追加 / 保存</div>
+            <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 保存</div>
           </div>
+
           {renderEditableRow(newRow, { isNew: true })}
-          {products.map((product) => renderEditableRow(getDraft(product)))}
+
+          {(products || []).length > 0 && groupedProducts.map((group) => (
+            <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+                {(() => {
+                  const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
+                  const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
+                  const updatePrimary = primaryProduct
+                    ? (patch) => updateDraft(primaryProduct.id, patch)
+                    : () => {};
+
+                  return (
+                    <div className="grid grid-cols-[minmax(130px,1fr)_minmax(220px,1.7fr)_minmax(150px,1.1fr)_76px_88px_92px_96px_96px] gap-2">
+                      <div>
+                        <FieldLabel>ブランド</FieldLabel>
+                        <TableSelect
+                          value={primaryDraft.brandId || ''}
+                          onChange={(value) => updatePrimary({ brandId: value })}
+                          alertWhenEmpty
+                        >
+                          <option value="">ブランド</option>
+                          {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                        </TableSelect>
+                      </div>
+
+                      <div>
+                        <FieldLabel>商品名</FieldLabel>
+                        <TableTextInput
+                          value={primaryDraft.name || ''}
+                          onChange={(value) => updatePrimary({ name: value })}
+                          placeholder="商品名"
+                        />
+                      </div>
+
+                      <div>
+                        <FieldLabel>カテゴリー</FieldLabel>
+                        <TableSelect
+                          value={primaryDraft.categoryId || ''}
+                          onChange={(value) => {
+                            const matchedCategory = productCategories.find((category) => category.id === value);
+                            updatePrimary({
+                              categoryId: value,
+                              categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
+                              departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail'
+                            });
+                          }}
+                          alertWhenEmpty
+                        >
+                          <option value="">カテゴリー</option>
+                          {productCategories.map((category) => (
+                            <option key={category.id} value={category.id}>{category.name}</option>
+                          ))}
+                        </TableSelect>
+                      </div>
+
+                      <div>
+                        <FieldLabel>ラベル</FieldLabel>
+                        <PillToggle
+                          checked={Boolean(primaryDraft.labelEnabled)}
+                          onChange={(value) => updatePrimary({ labelEnabled: value })}
+                          onLabel="ラベル"
+                          offLabel="ラベル"
+                          className="!h-8 !min-w-[72px] !px-3 text-[11px]"
+                        />
+                      </div>
+
+                      <div>
+                        <FieldLabel>Shopify</FieldLabel>
+                        <PillToggle
+                          checked={group.products.some((product) => product.shopifyCreateEnabled)}
+                          onChange={(value) => saveProductGroupShopifyEnabled(group, value)}
+                          disabled={savingKey === `shopify:${group.key}`}
+                          onLabel="Shopify"
+                          offLabel="Shopify"
+                          activeClassName="bg-emerald-600 text-white shadow-sm shadow-emerald-200"
+                          inactiveClassName="bg-slate-200 text-slate-500"
+                          className="!h-8 !min-w-[86px] !px-3 text-[11px]"
+                        />
+                      </div>
+
+                      <div>
+                        <FieldLabel>SKU</FieldLabel>
+                        <button
+                          type="button"
+                          onClick={() => addSkuToProductGroup(primaryProduct)}
+                          disabled={!primaryProduct}
+                          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                        >
+                          +SKU追加
+                        </button>
+                      </div>
+
+                      <div>
+                        <FieldLabel>グループ</FieldLabel>
+                        <div className="flex h-8 items-center justify-center rounded-md bg-blue-50 px-2 text-xs font-black text-blue-600">
+                          {group.products.length.toLocaleString()} SKU
+                        </div>
+                      </div>
+
+                      <div>
+                        <FieldLabel>保存</FieldLabel>
+                        <button
+                          type="button"
+                          onClick={() => saveProductGroupHeader(group, primaryDraft)}
+                          disabled={savingKey === `group:${group.key}`}
+                          className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-3 text-xs font-black text-white transition hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {savingKey === `group:${group.key}` ? <LoadingSpinner size={12} /> : <Save size={13} />}
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="space-y-2 bg-slate-50/60 p-2">
+                {group.products.map((product) => renderEditableRow(getDraft(product)))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {products.length === 0 && (
+      {(products || []).length === 0 && (
         <div className="border-t border-slate-100 px-5 py-4 text-sm font-bold text-slate-400">
           まずは最上段の新規行に商品名を入力して保存してください。
         </div>
       )}
+    </section>
+  );
+};
+
+
+export const ShopifySettingsPanel = ({
+  settings,
+  onSave,
+  onSaved
+}) => {
+  const [draft, setDraft] = useState({
+    shopDomain: '',
+    clientId: '',
+    clientSecret: '',
+    locationId: '',
+    syncEnabled: false
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft({
+      shopDomain: settings?.shopDomain || '',
+      clientId: settings?.clientId || '',
+      clientSecret: settings?.clientSecret || '',
+      locationId: settings?.locationId || '',
+      syncEnabled: Boolean(settings?.syncEnabled)
+    });
+  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled]);
+
+  const update = (patch) => {
+    setDraft((current) => ({
+      ...current,
+      ...patch
+    }));
+  };
+
+  const save = async () => {
+    const shopDomain = String(draft.shopDomain || '').trim();
+    const clientId = String(draft.clientId || '').trim();
+    const clientSecret = String(draft.clientSecret || '').trim();
+    const locationId = String(draft.locationId || '').trim();
+
+    if (!shopDomain) {
+      alert('Shopifyのショップドメインを入力してください。例: your-store.myshopify.com');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shopDomain)) {
+      alert('ショップドメインは xxxx.myshopify.com の形式で入力してください。メールアドレスでは保存できません。');
+      return;
+    }
+
+    if (!clientId) {
+      alert('Dev DashboardのクライアントIDを入力してください。');
+      return;
+    }
+
+    if (clientId.length < 20) {
+      alert('クライアントIDが短すぎます。Shopify Dev Dashboardの資格情報を確認してください。');
+      return;
+    }
+
+    if (!clientSecret) {
+      alert('Dev Dashboardのシークレットを入力してください。');
+      return;
+    }
+
+    if (clientSecret.length < 20) {
+      alert('シークレットが短すぎます。Shopify Dev Dashboardの資格情報を確認してください。');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave?.({
+        shopDomain,
+        clientId,
+        clientSecret,
+        locationId,
+        syncEnabled: Boolean(draft.syncEnabled),
+        authMode: 'devDashboard'
+      });
+      onSaved?.();
+      alert('Shopify連携設定を保存しました。');
+    } catch (error) {
+      console.error('failed to save shopify settings', error);
+      alert(`Shopify連携設定の保存に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-black text-slate-900">Shopify連携設定</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+              Shopify Dev Dashboardで作成したAkuto POS用アプリの資格情報を保存します。このSTEPでは保存のみ行い、商品同期の実通信はまだ行いません。
+            </p>
+          </div>
+          <span className={classNames(
+            'rounded-full px-3 py-1 text-xs font-black',
+            draft.syncEnabled
+              ? 'bg-emerald-50 text-emerald-600'
+              : 'bg-slate-100 text-slate-500'
+          )}>
+            {draft.syncEnabled ? '同期ON' : '同期OFF'}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-4 p-5">
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_1.35fr_1.35fr]">
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">Shopifyストアドメイン</span>
+            <input
+              value={draft.shopDomain}
+              onChange={(event) => update({ shopDomain: event.target.value })}
+              placeholder="your-store.myshopify.com"
+              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+            />
+            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+              メールアドレスではなく、xxxx.myshopify.com の形式で入力します。
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">クライアントID</span>
+            <input
+              value={draft.clientId}
+              onChange={(event) => update({ clientId: event.target.value })}
+              placeholder="Dev DashboardのクライアントID"
+              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+            />
+            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+              Dev Dashboard &gt; 設定 &gt; 資格情報 のクライアントIDです。
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">シークレット</span>
+            <input
+              type="password"
+              value={draft.clientSecret}
+              onChange={(event) => update({ clientSecret: event.target.value })}
+              placeholder="Dev Dashboardのシークレット"
+              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+            />
+            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+              パスワード相当の情報です。ログやスクリーンショットに出さないように扱います。
+            </span>
+          </label>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">Shopify Location ID</span>
+            <input
+              value={draft.locationId}
+              onChange={(event) => update({ locationId: event.target.value })}
+              placeholder="未取得なら空欄でOK"
+              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+            />
+            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+              次STEPでShopify APIからロケーション一覧を取得して設定します。
+            </span>
+          </label>
+
+          <label className="flex min-w-[180px] items-end gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={draft.syncEnabled}
+              onChange={(event) => update({ syncEnabled: event.target.checked })}
+              className="h-5 w-5 rounded border-slate-300"
+            />
+            <span className="text-sm font-black text-slate-700">同期を有効にする</span>
+          </label>
+        </div>
+
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-700">
+          現在の方式はShopify Dev DashboardのクライアントID/シークレットを保存する方式です。商品作成・在庫同期の実通信はCloud Functions側で追加します。
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
+          >
+            {saving ? <LoadingSpinner size={14} /> : <Save size={16} />}
+            Shopify設定を保存
+          </button>
+        </div>
+      </div>
     </section>
   );
 };
@@ -1528,6 +2087,8 @@ const ProductMasterSettings = ({
   onDeleteBrand,
   onSaveSupplier,
   onDeleteSupplier,
+  shopifySettings,
+  onSaveShopifySettings,
   onSaved,
   externalKeyword,
   onExternalKeywordChange

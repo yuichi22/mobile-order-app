@@ -203,6 +203,11 @@ service cloud.firestore {
       }
 
 
+      match /productGroups/{groupId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
       match /products/{productId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
 

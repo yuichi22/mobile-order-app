@@ -63,6 +63,7 @@ import QRGenerator from './components/QRGenerator';
 import StaffInviteSettings from './components/StaffInviteSettings';
 import CrossSellSettings from './components/CrossSellSettings';
 import ProductMasterSettings, {
+  ShopifySettingsPanel,
   SimpleMasterPanel,
   blankBrand,
   blankCategory,
@@ -109,7 +110,7 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'purchaseManagement', mode: 'pos', group: null, label: '発注管理', icon: ShoppingCart, desc: '仕入先別発注確認と発注履歴を管理します' },
   { id: 'productManagement', mode: 'pos', group: null, label: '商品管理', icon: Boxes, desc: 'カテゴリー・カテゴリーグループ・ブランド・仕入先を管理します' },
   { id: 'inventoryManagement', mode: 'pos', group: null, label: '在庫管理', icon: Archive, desc: '在高確認・長期在庫・棚卸を管理します' },
-  { id: 'shopifyIntegration', mode: 'pos', group: null, label: 'Shopify連携', icon: Link, desc: 'Shopify商品・在庫との連携を設定します' },
+  { id: 'shopifyIntegration', mode: 'pos', group: null, label: 'EC連携', icon: Link, desc: 'Shopify / STORES / BASE / 楽天 / Amazon商品・在庫との連携を設定します' },
   { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
   { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
@@ -258,14 +259,15 @@ const POS_DUMMY_PAGES = {
       { id: 'stockTaking', label: '棚卸', description: '棚卸入力と差異確認を行います。' }
     ]
   },
-  shopifyIntegration: {
-    title: 'Shopify連携',
-    eyebrow: 'Shopify Integration',
-    description: 'Shopifyの商品・在庫情報との連携を設定する画面です。',
+  shopifyIntegration: { title: 'EC連携',
+    description: 'Shopifyを中心に、STORES / BASE / 楽天 / Amazon など外部ECとの連携設定を管理します。',
+    icon: ShoppingBag,
     tabs: [
-      { id: 'syncSettings', label: '連携設定', description: 'Shopifyとの接続設定を管理します。' },
-      { id: 'productSync', label: '商品同期', description: '商品情報の同期状況を確認します。' },
-      { id: 'inventorySync', label: '在庫同期', description: '在庫同期の対象と履歴を確認します。' }
+      { id: 'shopify', label: 'Shopify' },
+      { id: 'stores', label: 'STORES' },
+      { id: 'base', label: 'BASE' },
+      { id: 'rakuten', label: '楽天' },
+      { id: 'amazon', label: 'Amazon' }
     ]
   },
   csvImportExport: {
@@ -312,6 +314,44 @@ const CsvImportStepCard = ({
     </div>
   </section>
 );
+
+
+const EcIntegrationComingSoonPanel = ({ title }) => (
+  <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Coming Soon</p>
+      <h3 className="mt-2 text-xl font-black text-slate-900">{title}連携</h3>
+      <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+        このEC連携は今後の拡張用タブです。まずはShopify連携を完成させてから、同じproductGroup / SKU構造を使って順番に対応します。
+      </p>
+    </div>
+  </section>
+);
+
+const EcIntegrationPanel = ({
+  activeTab,
+  productMaster,
+  onSaved
+}) => {
+  if (activeTab === 'shopify') {
+    return (
+      <ShopifySettingsPanel
+        settings={productMaster?.shopifySettings}
+        onSave={productMaster?.saveShopifySettings}
+        onSaved={onSaved}
+      />
+    );
+  }
+
+  const labels = {
+    stores: 'STORES',
+    base: 'BASE',
+    rakuten: '楽天',
+    amazon: 'Amazon'
+  };
+
+  return <EcIntegrationComingSoonPanel title={labels[activeTab] || 'EC'} />;
+};
 
 const CsvImportWorkflowPanel = ({
   productMaster,
@@ -420,6 +460,16 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
   const activeTab = page.tabs.find((tab) => tab.id === activeDummyTab) || page.tabs[0];
 
   const renderProductManagementPanel = () => {
+    if (item?.id === 'shopifyIntegration' || item?.id === 'ecIntegration') {
+      return (
+        <EcIntegrationPanel
+          activeTab={activeDummyTab || 'shopify'}
+          productMaster={productMaster}
+          onSaved={onSaved}
+        />
+      );
+    }
+
     if (item?.id === 'csvImportExport') {
       const activeCsvTab = activeDummyTab || 'csvImport';
 
@@ -1072,6 +1122,8 @@ export const StoreSettings = ({
               onSaved={showSaveComplete}
               externalKeyword={posProductKeyword}
               onExternalKeywordChange={onPosProductKeywordChange}
+              shopifySettings={productMaster?.shopifySettings}
+              onSaveShopifySettings={productMaster?.saveShopifySettings}
             />
           )}
 

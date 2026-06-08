@@ -6,12 +6,16 @@ import {
   saveProductBrand,
   saveProductCategory,
   saveProductCategoryGroup,
+  saveProductGroup,
   saveProductMasterItem,
+  saveShopifySettings,
   saveSupplier,
   subscribeToProductBrands,
   subscribeToProductCategories,
   subscribeToProductCategoryGroups,
+  subscribeToProductGroups,
   subscribeToProductMasterItems,
+  subscribeToShopifySettings,
   subscribeToSuppliers
 } from '../../store/services/storeDataService';
 
@@ -48,18 +52,58 @@ const useStoreCollectionState = (storeId, subscribeFn, label) => {
   };
 };
 
+const useStoreDocState = (storeId, subscribeFn, label) => {
+  const hasStoreId = isValidStoreId(storeId);
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(() => hasStoreId);
+
+  useEffect(() => {
+    if (!hasStoreId) {
+      setItem(null);
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+
+    return subscribeFn(
+      storeId,
+      (nextItem) => {
+        setItem(nextItem || null);
+        setLoading(false);
+      },
+      (error) => {
+        console.error(`[${label}] subscribe failed`, error);
+        setLoading(false);
+      }
+    );
+  }, [hasStoreId, label, storeId, subscribeFn]);
+
+  return {
+    item: hasStoreId ? item : null,
+    loading: hasStoreId ? loading : false
+  };
+};
+
 export const useProductMasterData = (storeId) => {
   const productsState = useStoreCollectionState(storeId, subscribeToProductMasterItems, 'products');
+  const productGroupsState = useStoreCollectionState(storeId, subscribeToProductGroups, 'productGroups');
   const categoriesState = useStoreCollectionState(storeId, subscribeToProductCategories, 'productCategories');
   const categoryGroupsState = useStoreCollectionState(storeId, subscribeToProductCategoryGroups, 'productCategoryGroups');
   const brandsState = useStoreCollectionState(storeId, subscribeToProductBrands, 'brands');
   const suppliersState = useStoreCollectionState(storeId, subscribeToSuppliers, 'suppliers');
+  const shopifySettingsState = useStoreDocState(storeId, subscribeToShopifySettings, 'shopifySettings');
 
   const hasStoreId = isValidStoreId(storeId);
 
   const saveProduct = async (itemData) => {
-    if (!hasStoreId) return;
-    await saveProductMasterItem(storeId, itemData);
+    if (!hasStoreId) return undefined;
+    return await saveProductMasterItem(storeId, itemData);
+  };
+
+  const saveGroup = async (itemData) => {
+    if (!hasStoreId) return undefined;
+    return await saveProductGroup(storeId, itemData);
   };
 
   const deleteProduct = async (productId) => {
@@ -107,19 +151,29 @@ export const useProductMasterData = (storeId) => {
     await deleteProductMasterDoc(storeId, 'suppliers', supplierId);
   };
 
+  const saveShopifySettingsData = async (settings) => {
+    if (!hasStoreId) return undefined;
+    return await saveShopifySettings(storeId, settings);
+  };
+
   return {
     products: productsState.items,
+    productGroups: productGroupsState.items,
     productCategories: categoriesState.items,
     productCategoryGroups: categoryGroupsState.items,
     brands: brandsState.items,
     suppliers: suppliersState.items,
+    shopifySettings: shopifySettingsState.item,
     loading:
       productsState.loading ||
+      productGroupsState.loading ||
       categoriesState.loading ||
       categoryGroupsState.loading ||
       brandsState.loading ||
-      suppliersState.loading,
+      suppliersState.loading ||
+      shopifySettingsState.loading,
     saveProduct,
+    saveProductGroup: saveGroup,
     deleteProduct,
     saveCategory,
     deleteCategory,
@@ -128,6 +182,7 @@ export const useProductMasterData = (storeId) => {
     saveBrand,
     deleteBrand,
     saveSupplier: saveSupplierData,
-    deleteSupplier
+    deleteSupplier,
+    saveShopifySettings: saveShopifySettingsData
   };
 };

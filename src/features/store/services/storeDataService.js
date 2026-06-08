@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -168,9 +169,87 @@ export const saveStoreConfig = async (storeId, config) => {
   await setDoc(storeRootDocRef(storeId), { ...config, updatedAt: serverTimestamp() }, { merge: true });
 };
 
+export const subscribeToShopifySettings = (storeId, onData, onError) => (
+  onSnapshot(doc(db, 'stores', storeId, 'settings', 'shopify'), (snapshot) => {
+    onData(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null);
+  }, onError)
+);
+
+export const saveShopifySettings = async (storeId, settings = {}) => {
+  const payload = {
+    shopDomain: String(settings.shopDomain || '').trim(),
+    clientId: String(settings.clientId || '').trim(),
+    clientSecret: String(settings.clientSecret || '').trim(),
+    locationId: String(settings.locationId || '').trim(),
+    syncEnabled: Boolean(settings.syncEnabled),
+    authMode: settings.authMode || 'devDashboard',
+    accessToken: deleteField(),
+    updatedAt: serverTimestamp()
+  };
+
+  await setDoc(storeSettingsDocRef(storeId, 'shopify'), payload, { merge: true });
+};
+
+
 export const subscribeToProductMasterItems = (storeId, onData, onError) => (
   onSnapshot(storeCollectionRef(storeId, 'products'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
 );
+
+export const subscribeToProductGroups = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'productGroups'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+
+const normalizeGroupCodeSegment = (value) => (
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 18)
+);
+
+const createShortGroupCode = () => {
+  const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `PG-${random}`;
+};
+
+const normalizeProductGroupName = (itemData = {}) => {
+  const brandName = String(itemData.brandName || '').trim();
+  const productName = String(itemData.name || itemData.baseProductName || '').trim();
+  if (brandName && productName) return `${brandName}｜${productName}`;
+  return productName || brandName || '名称未設定';
+};
+
+const buildProductGroupPayloadFromProduct = (itemData = {}, productId = '') => {
+  const groupCode = itemData.groupCode || createShortGroupCode();
+  const brandName = String(itemData.brandName || '').trim();
+  const baseProductName = String(itemData.baseProductName || itemData.name || '').trim();
+  const groupName = normalizeProductGroupName({ ...itemData, baseProductName });
+
+  return {
+    name: groupName,
+    baseProductName,
+    brandId: String(itemData.brandId || '').trim(),
+    brandName,
+    categoryId: String(itemData.categoryId || '').trim(),
+    categoryName: String(itemData.categoryName || '').trim(),
+    categoryGroupId: String(itemData.categoryGroupId || '').trim(),
+    supplierId: String(itemData.supplierId || '').trim(),
+    groupCode,
+    productGroupKey: [
+      normalizeGroupCodeSegment(brandName || itemData.brandId),
+      normalizeGroupCodeSegment(baseProductName || itemData.name),
+      groupCode
+    ].filter(Boolean).join('-'),
+    createdFromProductId: productId || '',
+    shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
+    shopifyProductId: String(itemData.shopifyProductId || '').trim(),
+    isActive: itemData.isActive !== false,
+    isArchived: Boolean(itemData.isArchived)
+  };
+};
+
 
 const saveStoreCollectionDoc = async (storeId, collectionName, itemData) => {
   const docRef = itemData.id
@@ -188,14 +267,66 @@ const saveStoreCollectionDoc = async (storeId, collectionName, itemData) => {
   return itemData.id || payload.id || docRef.id;
 };
 
+export const saveProductGroup = async (storeId, itemData) => {
+  return await saveStoreCollectionDoc(storeId, 'productGroups', itemData);
+};
+
 export const saveProductMasterItem = async (storeId, itemData) => {
-  const productId = await saveStoreCollectionDoc(storeId, 'products', itemData);
+  const productId = itemData.id || doc(storeCollectionRef(storeId, 'products')).id;
+  let productGroupId = String(itemData.productGroupId || '').trim();
+
+  if (!productGroupId) {
+    const groupRef = doc(storeCollectionRef(storeId, 'productGroups'));
+    productGroupId = groupRef.id;
+    const groupPayload = buildProductGroupPayloadFromProduct(itemData, productId);
+
+    await setDoc(groupRef, {
+      ...groupPayload,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } else {
+    const groupUpdatePayload = {
+      name: normalizeProductGroupName(itemData),
+      baseProductName: String(itemData.baseProductName || itemData.name || '').trim(),
+      brandId: String(itemData.brandId || '').trim(),
+      brandName: String(itemData.brandName || '').trim(),
+      categoryId: String(itemData.categoryId || '').trim(),
+      categoryName: String(itemData.categoryName || '').trim(),
+      categoryGroupId: String(itemData.categoryGroupId || '').trim(),
+      supplierId: String(itemData.supplierId || '').trim(),
+      shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
+      shopifyProductId: String(itemData.shopifyProductId || '').trim(),
+      isActive: itemData.isActive !== false,
+      isArchived: Boolean(itemData.isArchived)
+    };
+
+    await setDoc(
+      doc(db, 'stores', storeId, 'productGroups', productGroupId),
+      {
+        ...groupUpdatePayload,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  }
+
+  const productPayload = {
+    ...itemData,
+    id: productId,
+    productGroupId,
+    productGroupRole: itemData.productGroupRole || 'primary',
+    productGroupName: normalizeProductGroupName(itemData)
+  };
+
+  const savedProductId = await saveStoreCollectionDoc(storeId, 'products', productPayload);
 
   if (!itemData.id) {
     await setDoc(
-      doc(db, 'stores', storeId, 'inventory', productId),
+      doc(db, 'stores', storeId, 'inventory', savedProductId),
       {
-        productId,
+        productId: savedProductId,
+        productGroupId,
         quantity: 0,
         availableQuantity: 0,
         reservedQuantity: 0,
@@ -205,7 +336,7 @@ export const saveProductMasterItem = async (storeId, itemData) => {
     );
   }
 
-  return productId;
+  return savedProductId;
 };
 
 export const subscribeToProductCategories = (storeId, onData, onError) => (
