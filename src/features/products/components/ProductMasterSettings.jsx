@@ -287,6 +287,41 @@ const ProductMasterTable = ({
     ).trim()
   );
 
+  const getGroupBrandName = (group) => (
+    String(
+      group?.brandName
+      || group?.products?.find((product) => product?.brandName)?.brandName
+      || ''
+    ).trim()
+  );
+
+  const getGroupCategoryName = (group) => (
+    String(
+      group?.categoryName
+      || group?.products?.find((product) => product?.categoryName)?.categoryName
+      || ''
+    ).trim()
+  );
+
+  const confirmShopifySyncMissingFields = (group) => {
+    const missingLabels = [];
+    if (!getGroupBrandName(group)) missingLabels.push('ブランド');
+    if (!getGroupCategoryName(group)) missingLabels.push('カテゴリー');
+
+    if (missingLabels.length === 0) return true;
+
+    const message = [
+      `${missingLabels.join('・')}が未設定です。`,
+      '',
+      !getGroupBrandName(group) ? 'Shopifyの商品ブランド（vendor）は空欄で作成されます。' : '',
+      !getGroupCategoryName(group) ? 'Shopifyの商品タイプ・カテゴリータグなしで作成されます。' : '',
+      '',
+      'このままShopify下書きを作成しますか？'
+    ].filter((line) => line !== '').join('\n');
+
+    return window.confirm(message);
+  };
+
   const getProductGroupSortKey = (product) => (
     product.productGroupId
       || product.productGroupName
@@ -541,6 +576,8 @@ const ProductMasterTable = ({
       alert('先にShopify連携をONにしてください。');
       return;
     }
+
+    if (!confirmShopifySyncMissingFields(group)) return;
 
     const hadExistingShopifyProductId = Boolean(getGroupShopifyProductId(group));
 
