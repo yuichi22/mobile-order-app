@@ -1136,6 +1136,7 @@ export const StoreSettings = ({
           )}
 
           {settingsMode === 'pos'
+            && activeSubTab !== 'products'
             && activeMenuItem
             && activeMenuItem.mode === 'pos'
             && !isKitchenOnlySettingsItem(activeMenuItem)
