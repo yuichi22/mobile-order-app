@@ -551,9 +551,32 @@ const ProductMasterTable = ({
     setShopifySyncingGroupId(productGroupId);
     try {
       const result = await onCreateShopifyDraftProduct?.(productGroupId);
-      const status = result?.status || result?.result?.status || '';
+      const status = String(
+        result?.status
+        || result?.result?.status
+        || result?.data?.status
+        || result?.shopifySyncStatus
+        || ''
+      ).trim();
 
-      if (status === 'already_synced' || status === 'skipped_already_synced') {
+      const action = String(
+        result?.action
+        || result?.result?.action
+        || result?.data?.action
+        || ''
+      ).trim();
+
+      const alreadySynced = (
+        status === 'already_synced'
+        || status === 'skipped_already_synced'
+        || status === 'skipped'
+        || action === 'skipped_already_synced'
+        || action === 'already_synced'
+        || result?.alreadySynced === true
+        || result?.result?.alreadySynced === true
+      );
+
+      if (alreadySynced) {
         alert('すでにShopify連携済みです。重複作成はしていません。');
       } else {
         alert('Shopifyに下書き商品を作成しました。');

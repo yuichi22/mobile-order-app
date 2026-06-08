@@ -8,7 +8,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 
-import { db } from '../../../shared/api/firebase/client';
+import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
 import { TAX_ROUNDING_MODES, normalizeTaxRounding } from '../../../shared/utils/tax';
 
 export const isValidStoreId = (storeId) => Boolean(storeId && typeof storeId === 'string');
@@ -388,7 +388,7 @@ export const createShopifyDraftProductFromGroup = async ({ storeId, productGroup
     throw new Error('ログイン状態を確認してください。');
   }
 
-  const endpoint = 'https://asia-northeast1-mobile-order-dev-5f7fd.cloudfunctions.net/createShopifyDraftProduct';
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/createShopifyDraftProduct`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
