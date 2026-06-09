@@ -37,3 +37,6 @@ functions/.env.*
 
 # Local generated exports / CSV investigation files
 local_exports/
+
+# Local import source files / FileMaker CSV
+local_imports/
