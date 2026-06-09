@@ -3121,6 +3121,55 @@ const normalizeShopifyText = (value, fallback = '') => {
   return text || fallback;
 };
 
+
+const normalizeShopifyTag = (value = '') => (
+  normalizeShopifyText(value, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+const buildMergedShopifyTags = (...tagGroups) => {
+  const tagMap = new Map();
+
+  for (const tagGroup of tagGroups) {
+    const tags = Array.isArray(tagGroup) ? tagGroup : [tagGroup];
+
+    for (const tag of tags) {
+      const normalized = normalizeShopifyTag(tag);
+      if (!normalized) continue;
+
+      const key = normalized.toLocaleLowerCase();
+      if (!tagMap.has(key)) {
+        tagMap.set(key, normalized);
+      }
+    }
+  }
+
+  return Array.from(tagMap.values());
+};
+
+const getShopifyProductTags = async ({ shopDomain, accessToken, productId }) => {
+  const normalizedProductId = String(productId || '').trim();
+  if (!normalizedProductId) return [];
+
+  const data = await callShopifyGraphql({
+    shopDomain,
+    accessToken,
+    query: `
+      query GetProductTags($id: ID!) {
+        product(id: $id) {
+          id
+          tags
+        }
+      }
+    `,
+    variables: { id: normalizedProductId }
+  });
+
+  return Array.isArray(data?.product?.tags) ? data.product.tags : [];
+};
+
+
 const getShopifyAccessTokenFromSettings = async (settings = {}) => {
   const shopDomain = normalizeShopifyDomain(settings.shopDomain);
   const clientId = String(settings.clientId || '').trim();
@@ -3213,7 +3262,9 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
       : baseOptionValue;
     usedOptionValues.add(optionValue);
 
-    return {
+    const tags = buildMergedShopifyTags(group.categoryName);
+
+  return {
       optionValues: [
         {
           optionName,
@@ -3256,7 +3307,7 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
   return {
     title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
-    ...(normalizeShopifyText(group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryName, '') } : {}),
+    ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     tags: [
       group.categoryName,
       group.groupCode,
@@ -3297,6 +3348,7 @@ const productSetCreateDraftMutation = `
         status
         vendor
         productType
+        tags
         variants(first: 100) {
           nodes {
             id
@@ -3561,6 +3613,9 @@ const productSetUpdateMutation = `
         title
         handle
         status
+        vendor
+        productType
+        tags
         variants(first: 100) {
           nodes {
             id
@@ -3583,7 +3638,7 @@ const productSetUpdateMutation = `
   }
 `;
 
-const buildShopifyProductUpdateInput = ({ group, products }) => {
+const buildShopifyProductUpdateInput = ({ group, products, existingTags = [] }) => {
   const optionName = resolveShopifyOptionName(products);
   const usedOptionValues = new Set();
 
@@ -3610,9 +3665,14 @@ const buildShopifyProductUpdateInput = ({ group, products }) => {
 
   const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
 
+  const tags = buildMergedShopifyTags(existingTags, group.categoryName);
+
   return {
     id: String(group.shopifyProductId || '').trim(),
     title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
+    ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
+    ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
     productOptions: [
       {
         name: optionName,
@@ -3699,9 +3759,15 @@ export const updateShopifyProduct = onRequest(
       }
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
+      const existingTags = await getShopifyProductTags({
+        shopDomain,
+        accessToken,
+        productId: group.shopifyProductId
+      });
       const input = buildShopifyProductUpdateInput({
         group,
-        products
+        products,
+        existingTags
       });
 
       const graphqlData = await callShopifyGraphql({
