@@ -3584,16 +3584,42 @@ const productSetUpdateMutation = `
 `;
 
 const buildShopifyProductUpdateInput = ({ group, products }) => {
-  const variants = products.map((product) => ({
-    id: String(product.shopifyVariantId || '').trim(),
-    sku: String(product.sku || product.productCode || '').trim(),
-    barcode: String(product.barcode || '').trim(),
-    price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0)
-  }));
+  const optionName = resolveShopifyOptionName(products);
+  const usedOptionValues = new Set();
+
+  const variants = products.map((product, index) => {
+    const baseOptionValue = resolveShopifyOptionValue(product, optionName);
+    const optionValue = usedOptionValues.has(baseOptionValue)
+      ? `${baseOptionValue} ${index + 1}`
+      : baseOptionValue;
+    usedOptionValues.add(optionValue);
+
+    return {
+      id: String(product.shopifyVariantId || '').trim(),
+      optionValues: [
+        {
+          optionName,
+          name: optionValue
+        }
+      ],
+      sku: String(product.sku || product.productCode || '').trim(),
+      barcode: String(product.barcode || '').trim(),
+      price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0)
+    };
+  });
+
+  const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
 
   return {
     id: String(group.shopifyProductId || '').trim(),
     title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
+    productOptions: [
+      {
+        name: optionName,
+        position: 1,
+        values: optionValues
+      }
+    ],
     variants
   };
 };
