@@ -3262,9 +3262,7 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
       : baseOptionValue;
     usedOptionValues.add(optionValue);
 
-    const tags = buildMergedShopifyTags(group.categoryName);
-
-  return {
+    return {
       optionValues: [
         {
           optionName,
@@ -3303,16 +3301,13 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
   });
 
   const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
+  const tags = buildMergedShopifyTags(group.categoryName, 'akuto-sync');
 
   return {
     title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
-    tags: [
-      group.categoryName,
-      group.groupCode,
-      'akuto-sync'
-    ].map((value) => String(value || '').trim()).filter(Boolean),
+    ...(tags.length > 0 ? { tags } : {}),
     status: 'DRAFT',
     productOptions: [
       {
