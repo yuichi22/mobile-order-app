@@ -409,6 +409,17 @@ const ProductMasterTable = ({
       .filter((group) => (
         group.products.some((product) => draftRows[product.id])
         && group.products.some((product) => product.shopifyCreateEnabled)
+        && !getGroupShopifyProductId(group)
+      ))
+  ), [draftRows, groupedProducts]);
+
+  const editedSyncedShopifyGroups = useMemo(() => (
+    groupedProducts
+      .map((group) => getWorkingGroup(group))
+      .filter((group) => (
+        group.products.some((product) => draftRows[product.id])
+        && group.products.some((product) => product.shopifyCreateEnabled)
+        && Boolean(getGroupShopifyProductId(group))
       ))
   ), [draftRows, groupedProducts]);
 
@@ -667,9 +678,9 @@ const ProductMasterTable = ({
         }
       }
 
+      onSaved?.();
       return { result, alreadySynced };
 
-      onSaved?.();
     } catch (error) {
       console.error('failed to create shopify draft product', error);
       if (!options.suppressErrorAlert) {
@@ -683,6 +694,19 @@ const ProductMasterTable = ({
 
   const syncEditedShopifyGroups = async () => {
     if (editedShopifyGroups.length === 0) {
+      if (editedSyncedShopifyGroups.length > 0) {
+        const syncedLines = editedSyncedShopifyGroups.map((group) => `・${getGroupDisplayName(group)}`);
+        alert([
+          '編集済みのShopify連携済み商品があります。',
+          '',
+          ...syncedLines,
+          '',
+          '既存Shopify商品の更新同期は次STEPで実装します。',
+          '今回は重複作成を防ぐため、Shopify側への同期は実行しません。'
+        ].join('\n'));
+        return;
+      }
+
       alert('Shopify同期対象の編集済み商品はありません。商品を編集してから実行してください。');
       return;
     }
@@ -706,8 +730,8 @@ const ProductMasterTable = ({
       '',
       ...targetLines,
       '',
-      '未同期の商品はShopify下書きを作成します。',
-      '同期済みの商品は現段階では重複作成せず、同期済み確認のみ行います。',
+      '未同期の商品だけShopify下書きを作成します。',
+      'Shopify連携済み商品の更新同期は次STEPで対応します。',
       '',
       missingLines.length > 0 ? '以下の商品には未設定項目があります。' : '',
       ...missingLines,
@@ -989,18 +1013,18 @@ const ProductMasterTable = ({
           <button
             type="button"
             onClick={syncEditedShopifyGroups}
-            disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || editedShopifyGroups.length === 0}
+            disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0)}
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-              editedShopifyGroups.length > 0
+              editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0
                 ? 'bg-slate-900 text-white hover:bg-slate-700'
                 : 'bg-slate-100 text-slate-400'
             )}
-            title={editedShopifyGroups.length > 0 ? `編集済み ${editedShopifyGroups.length}件をShopify同期` : '編集済みのShopify同期対象はありません'}
+            title={editedShopifyGroups.length > 0 ? `未同期・編集済み ${editedShopifyGroups.length}件をShopify同期` : editedSyncedShopifyGroups.length > 0 ? '更新同期は次STEPで対応します' : '編集済みのShopify同期対象はありません'}
           >
             {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
             Shopify同期
-            {editedShopifyGroups.length > 0 ? `(${editedShopifyGroups.length})` : ''}
+            {editedShopifyGroups.length > 0 ? `(${editedShopifyGroups.length})` : editedSyncedShopifyGroups.length > 0 ? '(更新待ち)' : ''}
           </button>
         </div>
       </div>
@@ -1008,7 +1032,7 @@ const ProductMasterTable = ({
       <div className="overflow-x-auto bg-sky-100/60 p-4">
         <div className="min-w-[1290px] space-y-3">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify / +SKU追加 / 保存。ヘッダーのShopify同期は編集済み商品だけ実行します。</div>
+            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。Shopify同期はヘッダーから未同期・編集済み商品だけ実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
@@ -1092,22 +1116,17 @@ const ProductMasterTable = ({
                           className="!h-8 !min-w-[86px] !px-3 text-[11px]"
                         />
 
-                        <button
-                          type="button"
-                          onClick={() => createShopifyDraftForGroup(group)}
-                          disabled={shopifySyncingGroupId === getGroupProductGroupId(group) || !group.products.some((product) => product.shopifyCreateEnabled)}
+                        <div
                           className={classNames(
-                            'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-50',
+                            'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
                             getGroupShopifyProductId(group)
-                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-slate-100 text-slate-400'
                           )}
-                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み確認' : 'Shopifyへ下書き作成'}
+                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み' : 'ヘッダーのShopify同期から下書き作成します'}
                         >
-                          {shopifySyncingGroupId === getGroupProductGroupId(group)
-                            ? <LoadingSpinner size={12} />
-                            : 'Shopify同期'}
-                        </button>
+                          {getGroupShopifyProductId(group) ? '同期済み' : '未同期'}
+                        </div>
                       </div>
 
                       <div>
