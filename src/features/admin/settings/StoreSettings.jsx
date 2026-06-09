@@ -439,6 +439,7 @@ const CsvImportWorkflowPanel = ({
         brands={productMaster?.brands || []}
         suppliers={productMaster?.suppliers || []}
         onSaveProduct={productMaster?.saveProduct}
+        onSaveProductGroup={productMaster?.saveProductGroup}
         onSaved={onSaved}
       />
     </CsvImportStepCard>

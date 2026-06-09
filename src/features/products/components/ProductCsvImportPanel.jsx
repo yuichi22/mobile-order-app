@@ -44,7 +44,11 @@ const normalizeImportedProductPayload = (product) => ({
   isArchived: Boolean(product.isArchived),
   shopifyProductId: String(product.shopifyProductId || '').trim(),
   shopifyVariantId: String(product.shopifyVariantId || '').trim(),
-  shopifyInventoryItemId: String(product.shopifyInventoryItemId || '').trim()
+  shopifyInventoryItemId: String(product.shopifyInventoryItemId || '').trim(),
+  productGroupId: String(product.productGroupId || '').trim(),
+  productGroupRole: product.productGroupRole || 'primary',
+  productGroupName: String(product.productGroupName || '').trim(),
+  groupCode: String(product.groupCode || '').trim()
 });
 
 const getFieldLabel = (fieldKey) => (
@@ -193,6 +197,7 @@ const ProductCsvImportPanel = ({
   brands = [],
   suppliers = [],
   onSaveProduct,
+  onSaveProductGroup,
   onSaved
 }) => {
   const inputRef = useRef(null);
@@ -277,15 +282,29 @@ const ProductCsvImportPanel = ({
     setError('');
 
     try {
+      const productGroups = Array.isArray(preview.importableProductGroups)
+        ? preview.importableProductGroups
+        : [];
+
+      if (productGroups.length > 0 && typeof onSaveProductGroup !== 'function') {
+        setError('商品グループ保存処理が未接続です。');
+        return;
+      }
+
+      for (const group of productGroups) {
+        await onSaveProductGroup(group);
+      }
+
       for (const product of preview.importableProducts) {
         const { __rowNumber, ...payload } = product;
         await onSaveProduct(normalizeImportedProductPayload(payload));
       }
 
       const savedCount = preview.importableProducts.length;
+      const savedGroupCount = productGroups.length;
       reset();
       onSaved?.();
-      window.alert(`${savedCount.toLocaleString()}件の商品を取り込みました。`);
+      window.alert(`${savedGroupCount.toLocaleString()}件の商品グループ、${savedCount.toLocaleString()}件の商品を取り込みました。`);
     } catch (nextError) {
       console.error('[ProductCsvImportPanel] CSV save failed', nextError);
       setError('CSV取込の保存に失敗しました。一部だけ保存された可能性があります。商品一覧を確認してください。');
@@ -366,7 +385,7 @@ const ProductCsvImportPanel = ({
 
         {(fileName || preview) && (
           <p className="mt-3 text-xs font-bold text-slate-500">
-            {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableProducts?.length || 0).toLocaleString()}件 / スキップ {Number(preview?.skippedProducts?.length || 0).toLocaleString()}件
+            {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / グループ {Number(preview?.importableProductGroups?.length || 0).toLocaleString()}件 / 取込対象 {Number(preview?.importableProducts?.length || 0).toLocaleString()}件 / スキップ {Number(preview?.skippedProducts?.length || 0).toLocaleString()}件
           </p>
         )}
 

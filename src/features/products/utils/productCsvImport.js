@@ -3,6 +3,10 @@ export const PRODUCT_CSV_FIELD_OPTIONS = [
   { id: 'sku', label: '品番', required: false },
   { id: 'name', label: '商品名', required: true },
   { id: 'barcode', label: 'バーコード', required: false },
+  { id: 'productGroupId', label: '商品グループID', required: false },
+  { id: 'productGroupRole', label: '商品グループ役割', required: false },
+  { id: 'productGroupName', label: '商品グループ名', required: false },
+  { id: 'groupCode', label: 'グループコード', required: false },
   { id: 'category', label: 'カテゴリー名', required: false },
   { id: 'categoryGroup', label: 'カテゴリーグループ名', required: false },
   { id: 'brand', label: 'ブランド名', required: false },
@@ -28,6 +32,10 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   sku: ['sku', '品番', '商品コード', 'productCode', 'product_code', 'Variant SKU'],
   name: ['name', '商品名', 'Title', 'Variant Title'],
   barcode: ['barcode', 'バーコード', 'jan', 'JAN', 'Variant Barcode'],
+  productGroupId: ['productGroupId', '商品グループID', 'groupId', 'group_id'],
+  productGroupRole: ['productGroupRole', '商品グループ役割', 'groupRole', 'role'],
+  productGroupName: ['productGroupName', 'productGroupTitle', '商品グループ名', 'groupName', 'Product Group Name'],
+  groupCode: ['groupCode', 'グループコード', 'group_code'],
   category: ['category', 'カテゴリー', 'カテゴリ', '部門', '部門名', 'Type'],
   categoryGroup: ['categoryGroup', 'category_group', 'カテゴリーグループ', '部門グループ', '部門グループ名', 'Product Category'],
   brand: ['brand', 'ブランド', 'Vendor'],
@@ -237,11 +245,8 @@ export const buildProductCsvPreview = ({
       return;
     }
 
-    if (sku && existingSkuSet.has(sku)) {
-      warnings.push(`${record.__rowNumber}行目：既存品番「${sku}」と重複するためスキップします。`);
-      skippedProducts.push({ rowNumber: record.__rowNumber, reason: `品番重複: ${sku}` });
-      return;
-    }
+    // SKUは商品グループ内の複数variantで重複する運用を許容する。
+    // barcodeはvariant識別子として重複禁止を維持する。
 
     if (barcode && existingBarcodeSet.has(barcode)) {
       warnings.push(`${record.__rowNumber}行目：既存バーコード「${barcode}」と重複するためスキップします。`);
@@ -297,11 +302,48 @@ export const buildProductCsvPreview = ({
       isArchived: false,
       shopifyProductId: normalizeCsvText(record.shopifyProductId),
       shopifyVariantId: normalizeCsvText(record.shopifyVariantId),
-      shopifyInventoryItemId: normalizeCsvText(record.shopifyInventoryItemId)
+      shopifyInventoryItemId: normalizeCsvText(record.shopifyInventoryItemId),
+      productGroupId: normalizeCsvText(record.productGroupId),
+      productGroupRole: normalizeCsvText(record.productGroupRole) || 'primary',
+      productGroupName: normalizeCsvText(record.productGroupName),
+      groupCode: normalizeCsvText(record.groupCode)
     });
 
-    if (sku) existingSkuSet.add(sku);
     if (barcode) existingBarcodeSet.add(barcode);
+  });
+
+  const productsByGroupId = new Map();
+
+  importableProducts.forEach((product) => {
+    const productGroupId = normalizeCsvText(product.productGroupId);
+    if (!productGroupId) return;
+    if (!productsByGroupId.has(productGroupId)) productsByGroupId.set(productGroupId, []);
+    productsByGroupId.get(productGroupId).push(product);
+  });
+
+  const productGroupPayloadsById = new Map();
+
+  productsByGroupId.forEach((groupProducts, productGroupId) => {
+    const primaryProduct = groupProducts.find((product) => product.productGroupRole === 'primary') || groupProducts[0];
+    if (!primaryProduct) return;
+
+    const groupName = normalizeCsvText(primaryProduct.productGroupName || primaryProduct.name);
+    productGroupPayloadsById.set(productGroupId, {
+      id: productGroupId,
+      name: groupName,
+      productGroupName: groupName,
+      groupCode: normalizeCsvText(primaryProduct.groupCode),
+      brandId: primaryProduct.brandId || '',
+      brandName: primaryProduct.brandName || '',
+      categoryId: primaryProduct.categoryId || '',
+      categoryName: primaryProduct.categoryName || '',
+      categoryGroupId: primaryProduct.categoryGroupId || '',
+      categoryGroupName: primaryProduct.categoryGroupName || '',
+      shopifyEnabled: groupProducts.some((product) => Boolean(product.shopifyCreateEnabled)),
+      shopifyProductId: normalizeCsvText(primaryProduct.shopifyProductId || groupProducts.find((product) => product.shopifyProductId)?.shopifyProductId),
+      isActive: true,
+      isArchived: false
+    });
   });
 
   return {
@@ -310,6 +352,7 @@ export const buildProductCsvPreview = ({
     recognizedHeaders: effectiveMapping.filter((mapping) => mapping.fieldKey).map((mapping) => mapping.header),
     totalRows: records.length,
     importableProducts,
+    importableProductGroups: [...productGroupPayloadsById.values()],
     skippedProducts,
     warnings,
     errors
