@@ -29,6 +29,7 @@ const blankProduct = {
   productCode: '',
   barcode: '',
   categoryId: '',
+  subCategoryName: '',
   categoryGroupId: '',
   brandId: '',
   supplierId: '',
@@ -123,6 +124,7 @@ const normalizeProductPayload = (draft) => ({
   productCode: String(draft.productCode || '').trim(),
   barcode: String(draft.barcode || '').trim(),
   categoryId: String(draft.categoryId || '').trim(),
+  subCategoryName: String(draft.subCategoryName || '').trim(),
   categoryGroupId: String(draft.categoryGroupId || '').trim(),
   brandId: String(draft.brandId || '').trim(),
   supplierId: String(draft.supplierId || '').trim(),
@@ -369,6 +371,7 @@ const ProductMasterTable = ({
           name: product.productGroupName || product.name || '名称未設定',
           brandName: product.brandName || '',
           categoryName: product.categoryName || '',
+          subCategoryName: product.subCategoryName || '',
           products: []
         });
       }
@@ -380,6 +383,7 @@ const ProductMasterTable = ({
         group.name = product.productGroupName || product.name || group.name;
         group.brandName = product.brandName || group.brandName;
         group.categoryName = product.categoryName || group.categoryName;
+        group.subCategoryName = product.subCategoryName || group.subCategoryName;
       }
     }
 
@@ -462,6 +466,7 @@ const ProductMasterTable = ({
       ...draft,
       brandName: matchedBrand?.name || draft.brandName || '',
       categoryName: matchedCategory?.name || draft.categoryName || '',
+      subCategoryName: draft.subCategoryName || '',
       categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId || '',
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
@@ -514,6 +519,7 @@ const ProductMasterTable = ({
     brandName: source.brandName || '',
     categoryId: source.categoryId || '',
     categoryName: source.categoryName || '',
+    subCategoryName: source.subCategoryName || '',
     categoryGroupId: source.categoryGroupId || '',
     categoryGroupName: source.categoryGroupName || '',
     supplierId: source.supplierId || '',

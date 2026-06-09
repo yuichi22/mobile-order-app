@@ -8,6 +8,7 @@ export const PRODUCT_CSV_FIELD_OPTIONS = [
   { id: 'productGroupName', label: '商品グループ名', required: false },
   { id: 'groupCode', label: 'グループコード', required: false },
   { id: 'category', label: 'カテゴリー名', required: false },
+  { id: 'subCategory', label: 'サブカテゴリー名', required: false },
   { id: 'categoryGroup', label: 'カテゴリーグループ名', required: false },
   { id: 'brand', label: 'ブランド名', required: false },
   { id: 'supplier', label: '仕入先名', required: false },
@@ -37,6 +38,7 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   productGroupName: ['productGroupName', 'productGroupTitle', '商品グループ名', 'groupName', 'Product Group Name'],
   groupCode: ['groupCode', 'グループコード', 'group_code'],
   category: ['category', 'カテゴリー', 'カテゴリ', '部門', '部門名', 'Type'],
+  subCategory: ['subCategory', 'subCategoryName', 'サブカテゴリー', 'サブカテゴリー名', '小カテゴリー', '小分類', 'Shopify Sub Category'],
   categoryGroup: ['categoryGroup', 'category_group', 'カテゴリーグループ', '部門グループ', '部門グループ名', 'Product Category'],
   brand: ['brand', 'ブランド', 'Vendor'],
   supplier: ['supplier', '仕入先', '仕入先名'],
@@ -255,6 +257,7 @@ export const buildProductCsvPreview = ({
     }
 
     const categoryName = normalizeCsvText(record.category);
+    const subCategoryName = normalizeCsvText(record.subCategory);
     const categoryGroupName = normalizeCsvText(record.categoryGroup);
     const brandName = normalizeCsvText(record.brand);
     const supplierName = normalizeCsvText(record.supplier);
@@ -279,6 +282,7 @@ export const buildProductCsvPreview = ({
       barcode,
       categoryId: matchedCategory?.id || '',
       categoryName: matchedCategory?.name || categoryName,
+      subCategoryName,
       categoryGroupId: matchedGroup?.id || '',
       categoryGroupName: matchedGroup?.name || categoryGroupName,
       brandId: matchedBrand?.id || '',
@@ -337,6 +341,7 @@ export const buildProductCsvPreview = ({
       brandName: primaryProduct.brandName || '',
       categoryId: primaryProduct.categoryId || '',
       categoryName: primaryProduct.categoryName || '',
+      subCategoryName: primaryProduct.subCategoryName || '',
       categoryGroupId: primaryProduct.categoryGroupId || '',
       categoryGroupName: primaryProduct.categoryGroupName || '',
       shopifyEnabled: groupProducts.some((product) => Boolean(product.shopifyCreateEnabled)),

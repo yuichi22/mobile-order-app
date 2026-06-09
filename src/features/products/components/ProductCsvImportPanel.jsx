@@ -20,6 +20,7 @@ const normalizeImportedProductPayload = (product) => ({
   productCode: String(product.productCode || product.sku || '').trim(),
   barcode: String(product.barcode || '').trim(),
   categoryId: String(product.categoryId || '').trim(),
+  subCategoryName: String(product.subCategoryName || '').trim(),
   categoryGroupId: String(product.categoryGroupId || '').trim(),
   brandId: String(product.brandId || '').trim(),
   supplierId: String(product.supplierId || '').trim(),
@@ -435,7 +436,7 @@ const ProductCsvImportPanel = ({
                     <td className="px-3 py-2">{product.__rowNumber}</td>
                     <td className="px-3 py-2">{product.sku || '-'}</td>
                     <td className="px-3 py-2 text-slate-900">{product.name}</td>
-                    <td className="px-3 py-2">{product.categoryName || '-'}</td>
+                    <td className="px-3 py-2">{product.subCategoryName ? `${product.categoryName || '-'} / ${product.subCategoryName}` : (product.categoryName || '-')}</td>
                     <td className="px-3 py-2">{product.brandName || '-'}</td>
                     <td className="px-3 py-2 text-right">{Number(product.priceTaxIncluded || 0).toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">{Number(product.inventoryQuantity || 0).toLocaleString()}</td>
