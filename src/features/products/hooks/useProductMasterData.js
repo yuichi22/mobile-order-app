@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 
 import {
   createShopifyDraftProductFromGroup,
+  updateShopifyProductFromGroup,
   deleteProductMasterDoc,
   isValidStoreId,
   saveProductBrand,
@@ -164,6 +165,17 @@ export const useProductMasterData = (storeId) => {
     });
   };
 
+  const updateShopifyProductData = async (productGroupId) => {
+    const auth = getAuth();
+    const idToken = await auth.currentUser?.getIdToken?.();
+
+    return await updateShopifyProductFromGroup({
+      storeId,
+      productGroupId,
+      idToken
+    });
+  };
+
   const saveShopifySettingsData = async (settings) => {
     if (!hasStoreId) return undefined;
     return await saveShopifySettings(storeId, settings);
@@ -197,6 +209,7 @@ export const useProductMasterData = (storeId) => {
     saveSupplier: saveSupplierData,
     deleteSupplier,
     saveShopifySettings: saveShopifySettingsData,
-    createShopifyDraftProduct: createShopifyDraftProductData
+    createShopifyDraftProduct: createShopifyDraftProductData,
+    updateShopifyProduct: updateShopifyProductData
   };
 };

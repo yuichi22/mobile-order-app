@@ -412,3 +412,40 @@ export const createShopifyDraftProductFromGroup = async ({ storeId, productGroup
   return body;
 };
 
+
+
+export const updateShopifyProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const normalizedProductGroupId = String(productGroupId || '').trim();
+
+  if (!normalizedStoreId || !normalizedProductGroupId) {
+    throw new Error('Shopify更新に必要な商品グループ情報が不足しています。');
+  }
+
+  if (!idToken) {
+    throw new Error('Shopify更新にはログインが必要です。');
+  }
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/updateShopifyProduct`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify({
+      storeId: normalizedStoreId,
+      productGroupId: normalizedProductGroupId
+    })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    const message = body?.error?.message || body?.message || 'Shopify商品の更新に失敗しました。';
+    throw new Error(message);
+  }
+
+  return body;
+};

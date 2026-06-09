@@ -260,6 +260,7 @@ const ProductMasterTable = ({
   onSaveProduct,
   onDeleteProduct,
   onCreateShopifyDraftProduct,
+  onUpdateShopifyProduct,
   onSaved
 }) => {
   const [draftRows, setDraftRows] = useState({});
@@ -691,26 +692,59 @@ const ProductMasterTable = ({
     }
   };
 
-  const syncEditedShopifyGroups = async () => {
-    if (editedShopifyGroups.length === 0) {
-      if (editedSyncedShopifyGroups.length > 0) {
-        const syncedLines = editedSyncedShopifyGroups.map((group) => `・${getGroupDisplayName(group)}`);
-        alert([
-          '編集済みのShopify連携済み商品があります。',
-          '',
-          ...syncedLines,
-          '',
-          '既存Shopify商品の更新同期は次STEPで実装します。',
-          '今回は重複作成を防ぐため、Shopify側への同期は実行しません。'
-        ].join('\n'));
-        return;
+  const updateShopifyProductForGroup = async (group, options = {}) => {
+    const productGroupId = getGroupProductGroupId(group);
+
+    if (!productGroupId) {
+      alert('商品グループIDが見つかりません。商品グループを保存してから再度お試しください。');
+      return undefined;
+    }
+
+    if (!getGroupShopifyProductId(group)) {
+      alert('Shopify商品IDが見つかりません。先にShopify下書きを作成してください。');
+      return undefined;
+    }
+
+    setShopifySyncingGroupId(productGroupId);
+    try {
+      if (typeof onUpdateShopifyProduct !== 'function') {
+        throw new Error('Shopify更新処理が画面に接続されていません。画面を再読み込みしてから再度お試しください。');
       }
 
+      const result = await onUpdateShopifyProduct(productGroupId);
+
+      if (!options.suppressSuccessAlert) {
+        alert('Shopify商品を更新しました。');
+      }
+
+      onSaved?.();
+      return { result };
+    } catch (error) {
+      console.error('failed to update shopify product', error);
+      if (!options.suppressErrorAlert) {
+        alert(`Shopify商品の更新に失敗しました: ${error?.message || error}`);
+      }
+      throw error;
+    } finally {
+      setShopifySyncingGroupId(null);
+    }
+  };
+
+  const syncEditedShopifyGroups = async () => {
+    if (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0) {
       alert('Shopify同期対象の編集済み商品はありません。商品を編集してから実行してください。');
       return;
     }
 
-    const targetLines = editedShopifyGroups.map((group) => `・${getGroupDisplayName(group)}`);
+    const createTargetLines = editedShopifyGroups.map((group) => `・${getGroupDisplayName(group)}`);
+    const updateTargetLines = editedSyncedShopifyGroups.map((group) => `・${getGroupDisplayName(group)}`);
+
+    const targetLines = [
+      editedShopifyGroups.length > 0 ? '下書き作成:' : '',
+      ...createTargetLines,
+      editedSyncedShopifyGroups.length > 0 ? '更新同期:' : '',
+      ...updateTargetLines
+    ].filter((line) => line !== '');
 
     const missingLines = editedShopifyGroups.flatMap((group) => {
       const missing = [];
@@ -729,8 +763,8 @@ const ProductMasterTable = ({
       '',
       ...targetLines,
       '',
-      '未同期の商品だけShopify下書きを作成します。',
-      'Shopify連携済み商品の更新同期は次STEPで対応します。',
+      editedShopifyGroups.length > 0 ? '未同期の商品はShopify下書きを作成します。' : '',
+      editedSyncedShopifyGroups.length > 0 ? 'Shopify連携済み商品は商品名・SKU・JAN・価格を更新します。' : '',
       '',
       missingLines.length > 0 ? '以下の商品には未設定項目があります。' : '',
       ...missingLines,
@@ -756,7 +790,18 @@ const ProductMasterTable = ({
         });
       }
 
-      alert(`Shopify同期が完了しました。対象: ${editedShopifyGroups.length}件`);
+      for (const group of editedSyncedShopifyGroups) {
+        const originalGroup = groupedProducts.find((item) => item.key === group.key) || group;
+        const primaryProduct = originalGroup.products.find((product) => product.productGroupRole === 'primary') || originalGroup.products[0];
+        const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
+
+        await saveProductGroupHeader(originalGroup, primaryDraft, { suppressSuccessAlert: true });
+        await updateShopifyProductForGroup(getWorkingGroup(originalGroup), {
+          suppressSuccessAlert: true
+        });
+      }
+
+      alert(`Shopify同期が完了しました。下書き作成: ${editedShopifyGroups.length}件 / 更新: ${editedSyncedShopifyGroups.length}件`);
     } catch (error) {
       console.error('failed to sync edited shopify groups', error);
       alert(`Shopify同期に失敗しました: ${error?.message || error}`);
@@ -1019,11 +1064,11 @@ const ProductMasterTable = ({
                 ? 'bg-slate-900 text-white hover:bg-slate-700'
                 : 'bg-slate-100 text-slate-400'
             )}
-            title={editedShopifyGroups.length > 0 ? `未同期・編集済み ${editedShopifyGroups.length}件をShopify同期` : editedSyncedShopifyGroups.length > 0 ? '更新同期は次STEPで対応します' : '編集済みのShopify同期対象はありません'}
+            title={editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0 ? `下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : '編集済みのShopify同期対象はありません'}
           >
             {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
             Shopify同期
-            {editedShopifyGroups.length > 0 ? `(${editedShopifyGroups.length})` : editedSyncedShopifyGroups.length > 0 ? '(更新待ち)' : ''}
+            {editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0 ? `(${editedShopifyGroups.length + editedSyncedShopifyGroups.length})` : ''}
           </button>
         </div>
       </div>
@@ -1031,7 +1076,7 @@ const ProductMasterTable = ({
       <div className="overflow-x-auto bg-sky-100/60 p-4">
         <div className="min-w-[1290px] space-y-3">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。Shopify同期はヘッダーから未同期・編集済み商品だけ実行します。</div>
+            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。Shopify同期はヘッダーから下書き作成・既存商品更新を実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
@@ -2362,6 +2407,7 @@ const ProductMasterSettings = ({
   onSaveProduct,
   onDeleteProduct,
   onCreateShopifyDraftProduct,
+  onUpdateShopifyProduct,
   onSaveCategory,
   onDeleteCategory,
   onSaveCategoryGroup,
@@ -2412,6 +2458,7 @@ const ProductMasterSettings = ({
               onSaveProduct={onSaveProduct}
               onDeleteProduct={onDeleteProduct}
               onCreateShopifyDraftProduct={onCreateShopifyDraftProduct}
+              onUpdateShopifyProduct={onUpdateShopifyProduct}
               onSaved={onSaved}
             />
           )}
