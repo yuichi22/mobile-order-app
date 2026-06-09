@@ -1,5 +1,6 @@
 import {
   collection,
+  addDoc,
   deleteDoc,
   deleteField,
   doc,
@@ -273,71 +274,111 @@ export const saveProductGroup = async (storeId, itemData) => {
 
 export const saveProductMasterItem = async (storeId, itemData) => {
   const productId = itemData.id || doc(storeCollectionRef(storeId, 'products')).id;
-  let productGroupId = String(itemData.productGroupId || '').trim();
+  const productGroupId = itemData.productGroupId || itemData.groupId || '';
 
-  if (!productGroupId) {
+  const stockInQuantity = Math.max(Number(itemData.stockInQuantityDraft || 0), 0);
+  const currentInventoryQuantity = Math.max(Number(itemData.inventoryQuantity ?? itemData.quantity ?? 0), 0);
+  const nextInventoryQuantity = stockInQuantity > 0
+    ? currentInventoryQuantity + stockInQuantity
+    : currentInventoryQuantity;
+
+  let nextProductGroupId = productGroupId;
+
+  if (!nextProductGroupId) {
     const groupRef = doc(storeCollectionRef(storeId, 'productGroups'));
-    productGroupId = groupRef.id;
-    const groupPayload = buildProductGroupPayloadFromProduct(itemData, productId);
+    nextProductGroupId = groupRef.id;
 
     await setDoc(groupRef, {
-      ...groupPayload,
+      id: nextProductGroupId,
+      name: itemData.productGroupName || itemData.name || '',
+      baseProductName: itemData.name || '',
+      brandId: itemData.brandId || '',
+      categoryId: itemData.categoryId || '',
+      categoryGroupId: itemData.categoryGroupId || '',
+      departmentId: itemData.departmentId || 'retail',
+      labelEnabled: Boolean(itemData.labelEnabled),
+      shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
+      shopifyProductId: String(itemData.shopifyProductId || '').trim(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
   } else {
-    const groupUpdatePayload = {
-      name: normalizeProductGroupName(itemData),
-      baseProductName: String(itemData.baseProductName || itemData.name || '').trim(),
-      brandId: String(itemData.brandId || '').trim(),
-      brandName: String(itemData.brandName || '').trim(),
-      categoryId: String(itemData.categoryId || '').trim(),
-      categoryName: String(itemData.categoryName || '').trim(),
-      categoryGroupId: String(itemData.categoryGroupId || '').trim(),
-      supplierId: String(itemData.supplierId || '').trim(),
-      shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
-      shopifyProductId: String(itemData.shopifyProductId || '').trim(),
-      isActive: itemData.isActive !== false,
-      isArchived: Boolean(itemData.isArchived)
-    };
-
     await setDoc(
-      doc(db, 'stores', storeId, 'productGroups', productGroupId),
+      doc(db, 'stores', storeId, 'productGroups', nextProductGroupId),
       {
-        ...groupUpdatePayload,
+        name: itemData.productGroupName || itemData.name || '',
+        baseProductName: itemData.productGroupName || itemData.name || '',
+        brandId: itemData.brandId || '',
+        categoryId: itemData.categoryId || '',
+        categoryGroupId: itemData.categoryGroupId || '',
+        departmentId: itemData.departmentId || 'retail',
+        labelEnabled: Boolean(itemData.labelEnabled),
+        shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
+        shopifyProductId: String(itemData.shopifyProductId || '').trim(),
         updatedAt: serverTimestamp()
       },
       { merge: true }
     );
   }
 
+  const {
+    stockInQuantityDraft,
+    ...rawProductPayload
+  } = itemData;
+
   const productPayload = {
-    ...itemData,
+    ...rawProductPayload,
     id: productId,
-    productGroupId,
+    productGroupId: nextProductGroupId,
+    groupId: nextProductGroupId,
+    productGroupName: itemData.productGroupName || itemData.name || '',
     productGroupRole: itemData.productGroupRole || 'primary',
-    productGroupName: normalizeProductGroupName(itemData)
+    inventoryQuantity: nextInventoryQuantity,
+    quantity: nextInventoryQuantity,
+    ...(stockInQuantity > 0 ? {
+      lastStockInQuantity: stockInQuantity,
+      lastStockInAt: serverTimestamp()
+    } : {})
   };
 
   const savedProductId = await saveStoreCollectionDoc(storeId, 'products', productPayload);
 
-  if (!itemData.id) {
-    await setDoc(
-      doc(db, 'stores', storeId, 'inventory', savedProductId),
-      {
-        productId: savedProductId,
-        productGroupId,
-        quantity: 0,
-        availableQuantity: 0,
-        reservedQuantity: 0,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+  await setDoc(
+    doc(db, 'stores', storeId, 'inventory', savedProductId),
+    {
+      productId: savedProductId,
+      productGroupId: nextProductGroupId,
+      quantity: nextInventoryQuantity,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  if (stockInQuantity > 0) {
+    const movementPayload = {
+      productId: savedProductId,
+      productGroupId: nextProductGroupId,
+      type: 'stock_in',
+      quantity: stockInQuantity,
+      beforeQuantity: currentInventoryQuantity,
+      afterQuantity: nextInventoryQuantity,
+      note: '商品マスター入庫',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await addDoc(storeCollectionRef(storeId, 'stockIns'), {
+      ...movementPayload,
+      status: 'completed'
+    });
+
+    await addDoc(storeCollectionRef(storeId, 'stockMovements'), movementPayload);
   }
 
   return savedProductId;
 };
+
+
 
 export const subscribeToProductCategories = (storeId, onData, onError) => (
   onSnapshot(storeCollectionRef(storeId, 'productCategories'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
@@ -374,6 +415,7 @@ export const saveSupplier = async (storeId, itemData) => {
 export const deleteProductMasterDoc = async (storeId, collectionName, itemId) => {
   await deleteDoc(doc(db, 'stores', storeId, collectionName, itemId));
 };
+
 
 export const createShopifyDraftProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
   const normalizedStoreId = String(storeId || '').trim();

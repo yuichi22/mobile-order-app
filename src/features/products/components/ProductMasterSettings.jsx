@@ -268,6 +268,7 @@ const ProductMasterTable = ({
   const [savingKey, setSavingKey] = useState('');
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
+  const [productMasterBulkSaving, setProductMasterBulkSaving] = useState(false);
 
   const getDraft = (product) => draftRows[product.id] || product;
 
@@ -422,6 +423,16 @@ const ProductMasterTable = ({
         && Boolean(getGroupShopifyProductId(group))
       ))
   ), [draftRows, groupedProducts]);
+
+  const editedProductRows = useMemo(() => (
+    Object.values(draftRows || {}).filter((row) => row?.id)
+  ), [draftRows]);
+
+  const editedProductRowCount = editedProductRows.length;
+
+  const stockInTargetRows = useMemo(() => (
+    editedProductRows.filter((row) => Number(row.stockInQuantityDraft || 0) > 0)
+  ), [editedProductRows]);
 
 
   const updateDraft = (productId, patch) => {
@@ -730,6 +741,55 @@ const ProductMasterTable = ({
     }
   };
 
+  const saveEditedProductRows = async () => {
+    if (editedProductRows.length === 0) {
+      alert('更新対象の変更はありません。');
+      return;
+    }
+
+    const targetLines = editedProductRows.map((row) => {
+      const stockInQuantity = Number(row.stockInQuantityDraft || 0);
+      return `・${row.name || row.productGroupName || row.sku || row.id}${stockInQuantity > 0 ? ` / 入庫 +${stockInQuantity}` : ''}`;
+    });
+
+    const message = [
+      '以下の変更を商品マスターに反映します。',
+      '',
+      ...targetLines,
+      '',
+      stockInTargetRows.length > 0 ? `入庫反映: ${stockInTargetRows.length}件` : '',
+      stockInTargetRows.length > 0 ? '入庫数は在庫数へ加算し、入庫履歴を記録します。' : '',
+      '',
+      '実行してよろしいですか？'
+    ].filter((line) => line !== '').join('\n');
+
+    if (!window.confirm(message)) return;
+
+    setProductMasterBulkSaving(true);
+
+    try {
+      for (const row of editedProductRows) {
+        await onSaveProduct(buildProductSavePayload(row));
+      }
+
+      setDraftRows((current) => {
+        const next = { ...current };
+        for (const row of editedProductRows) {
+          delete next[row.id];
+        }
+        return next;
+      });
+
+      onSaved?.();
+      alert(`商品マスターを更新しました。対象: ${editedProductRows.length}件${stockInTargetRows.length > 0 ? ` / 入庫: ${stockInTargetRows.length}件` : ''}`);
+    } catch (error) {
+      console.error('failed to save edited product rows', error);
+      alert(`商品マスター更新に失敗しました: ${error?.message || error}`);
+    } finally {
+      setProductMasterBulkSaving(false);
+    }
+  };
+
   const syncEditedShopifyGroups = async () => {
     if (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0) {
       alert('Shopify同期対象の編集済み商品はありません。商品を編集してから実行してください。');
@@ -992,7 +1052,7 @@ const ProductMasterTable = ({
               className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200"
               title="入庫履歴を表示"
             >
-              入庫: 未登録
+              {Number(row.lastStockInQuantity || 0) > 0 ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()}` : '入庫: 未登録'}
             </button>
           </div>
 
@@ -1056,6 +1116,22 @@ const ProductMasterTable = ({
           </div>
           <button
             type="button"
+            onClick={saveEditedProductRows}
+            disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || editedProductRowCount === 0}
+            className={classNames(
+              'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+              editedProductRowCount > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-slate-100 text-slate-400'
+            )}
+            title={editedProductRowCount > 0 ? `商品マスター更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件` : '変更された商品はありません'}
+          >
+            {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
+            更新
+            {editedProductRowCount > 0 ? `(${editedProductRowCount})` : ''}
+          </button>
+          <button
+            type="button"
             onClick={syncEditedShopifyGroups}
             disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0)}
             className={classNames(
@@ -1076,7 +1152,7 @@ const ProductMasterTable = ({
       <div className="overflow-x-auto bg-sky-100/60 p-4">
         <div className="min-w-[1290px] space-y-3">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。Shopify同期はヘッダーから下書き作成・既存商品更新を実行します。</div>
+            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
