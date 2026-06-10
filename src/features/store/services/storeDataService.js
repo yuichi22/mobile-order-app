@@ -500,9 +500,11 @@ export const updateShopifyProductFromGroup = async ({ storeId, productGroupId, i
   return body;
 };
 
-export const subscribeToProductSalesAreas = (storeId, onNext, onError) =>
-  subscribeToStoreCollection(storeId, 'productSalesAreas', onNext, onError, 'sortOrder');
+export const subscribeToProductSalesAreas = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'productSalesAreas'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
 
-export const saveProductSalesArea = (storeId, salesArea) =>
-  saveStoreDocument(storeId, 'productSalesAreas', salesArea);
+export const saveProductSalesArea = async (storeId, itemData) => {
+  return await saveStoreCollectionDoc(storeId, 'productSalesAreas', itemData);
+};
 
