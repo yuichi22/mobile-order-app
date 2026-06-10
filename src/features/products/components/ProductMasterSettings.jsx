@@ -2502,11 +2502,21 @@ export const SimpleMasterPanel = ({
         const subCategoryCategoryId = String(subCategory.categoryId || '').trim();
         const subCategoryCategoryName = String(subCategory.categoryName || '').trim();
 
-        return (
-          (categoryId && subCategoryCategoryId === categoryId)
-          || (categoryName && subCategoryCategoryName === categoryName)
-        );
+        if (categoryId) {
+          return subCategoryCategoryId === categoryId;
+        }
+
+        return Boolean(categoryName && subCategoryCategoryName === categoryName);
       })
+      .filter((subCategory, index, array) => (
+        array.findIndex((candidate) => (
+          String(candidate.id || '').trim() === String(subCategory.id || '').trim()
+          || (
+            String(candidate.name || '').trim() === String(subCategory.name || '').trim()
+            && String(candidate.categoryId || '').trim() === String(subCategory.categoryId || '').trim()
+          )
+        )) === index
+      ))
       .sort((a, b) => {
         const aSort = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 999999;
         const bSort = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 999999;
