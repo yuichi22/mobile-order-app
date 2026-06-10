@@ -1983,16 +1983,24 @@ const ClassificationChoiceButton = ({
     disabled={disabled}
     onClick={onClick}
     className={classNames(
-      'rounded-2xl border px-4 py-3 text-left transition',
-      disabled ? 'cursor-default opacity-40' : 'hover:border-orange-300 hover:bg-orange-50',
+      'group rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-orange-200',
+      disabled
+        ? 'cursor-default border-slate-200 bg-white text-slate-500 opacity-45'
+        : 'hover:border-orange-300 hover:bg-orange-50',
       active
         ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10'
-        : 'border-slate-200 bg-white text-slate-700'
+        : 'border-slate-200 bg-white text-slate-800 hover:text-slate-950'
     )}
   >
     <div className="text-sm font-black">{label}</div>
     {subLabel ? (
-      <div className={classNames('mt-0.5 text-[11px] font-bold', active ? 'text-slate-200' : 'text-slate-400')}>
+      <div
+        className={classNames(
+          'mt-0.5 text-[11px] font-bold transition',
+          active ? 'text-slate-200' : 'text-slate-500 group-hover:text-slate-700',
+          disabled ? 'group-hover:text-slate-500' : ''
+        )}
+      >
         {subLabel}
       </div>
     ) : null}
