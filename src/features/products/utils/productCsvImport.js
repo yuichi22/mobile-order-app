@@ -177,6 +177,98 @@ const findMasterByName = (items, name) => {
   return (items || []).find((item) => normalizeMasterName(item.name) === normalizedName) || null;
 };
 
+const normalizeMasterId = (value) => String(value || '').trim();
+
+const getMasterGroupId = (item) => (
+  normalizeMasterId(item?.categoryGroupId)
+  || normalizeMasterId(item?.groupId)
+);
+
+const getMasterGroupName = (item) => (
+  normalizeCsvText(item?.categoryGroupName)
+  || normalizeCsvText(item?.groupName)
+);
+
+const getMasterCategoryId = (item) => normalizeMasterId(item?.categoryId);
+
+const findCategoryByHierarchy = (productCategories, categoryName, matchedGroup, categoryGroupName) => {
+  const normalizedCategoryName = normalizeMasterName(categoryName);
+  if (!normalizedCategoryName) return null;
+
+  const candidates = (productCategories || []).filter((category) => (
+    normalizeMasterName(category.name) === normalizedCategoryName
+  ));
+
+  if (candidates.length <= 1) return candidates[0] || null;
+
+  const groupId = normalizeMasterId(matchedGroup?.id);
+  const groupNameKey = normalizeMasterName(matchedGroup?.name || categoryGroupName);
+
+  if (groupId) {
+    const matchedByGroupId = candidates.find((category) => getMasterGroupId(category) === groupId);
+    if (matchedByGroupId) return matchedByGroupId;
+  }
+
+  if (groupNameKey) {
+    const matchedByGroupName = candidates.find((category) => normalizeMasterName(getMasterGroupName(category)) === groupNameKey);
+    if (matchedByGroupName) return matchedByGroupName;
+  }
+
+  return candidates[0] || null;
+};
+
+const findSubCategoryByHierarchy = (
+  productSubCategories,
+  subCategoryName,
+  matchedCategory,
+  matchedGroup,
+  categoryName,
+  categoryGroupName
+) => {
+  const normalizedSubCategoryName = normalizeMasterName(subCategoryName);
+  if (!normalizedSubCategoryName) return null;
+
+  const candidates = (productSubCategories || []).filter((subCategory) => (
+    normalizeMasterName(subCategory.name) === normalizedSubCategoryName
+  ));
+
+  if (candidates.length <= 1) return candidates[0] || null;
+
+  const categoryId = normalizeMasterId(matchedCategory?.id);
+  const categoryNameKey = normalizeMasterName(matchedCategory?.name || categoryName);
+  const groupId = normalizeMasterId(matchedGroup?.id);
+  const groupNameKey = normalizeMasterName(matchedGroup?.name || categoryGroupName);
+
+  if (categoryId) {
+    const matchedByCategoryId = candidates.find((subCategory) => getMasterCategoryId(subCategory) === categoryId);
+    if (matchedByCategoryId) return matchedByCategoryId;
+  }
+
+  let scopedCandidates = candidates;
+
+  if (categoryNameKey) {
+    const byCategoryName = scopedCandidates.filter((subCategory) => (
+      normalizeMasterName(subCategory.categoryName) === categoryNameKey
+    ));
+    if (byCategoryName.length === 1) return byCategoryName[0];
+    if (byCategoryName.length > 1) scopedCandidates = byCategoryName;
+  }
+
+  if (groupId) {
+    const matchedByGroupId = scopedCandidates.find((subCategory) => getMasterGroupId(subCategory) === groupId);
+    if (matchedByGroupId) return matchedByGroupId;
+  }
+
+  if (groupNameKey) {
+    const matchedByGroupName = scopedCandidates.find((subCategory) => (
+      normalizeMasterName(getMasterGroupName(subCategory)) === groupNameKey
+    ));
+    if (matchedByGroupName) return matchedByGroupName;
+  }
+
+  return scopedCandidates[0] || candidates[0] || null;
+};
+
 export const buildProductCsvRecordsFromMapping = (rows, mappingDraft = []) => {
   const records = rows.slice(1).map((row, rowIndex) => {
     const record = { __rowNumber: rowIndex + 2 };
@@ -199,6 +291,8 @@ export const buildProductCsvPreview = ({
   products = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
+  productSalesAreas = [],
   brands = [],
   suppliers = []
 }) => {
@@ -272,13 +366,24 @@ export const buildProductCsvPreview = ({
     const brandName = normalizeCsvText(record.brand);
     const supplierName = normalizeCsvText(record.supplier);
 
-    const matchedCategory = findMasterByName(productCategories, categoryName);
     const matchedGroup = findMasterByName(productCategoryGroups, categoryGroupName);
+    const matchedCategory = findCategoryByHierarchy(productCategories, categoryName, matchedGroup, categoryGroupName);
+    const matchedSubCategory = findSubCategoryByHierarchy(
+      productSubCategories,
+      subCategoryName,
+      matchedCategory,
+      matchedGroup,
+      categoryName,
+      categoryGroupName
+    );
+    const matchedSalesArea = findMasterByName(productSalesAreas, salesAreaName);
     const matchedBrand = findMasterByName(brands, brandName);
     const matchedSupplier = findMasterByName(suppliers, supplierName);
 
-    if (categoryName && !matchedCategory) warnings.push(`${record.__rowNumber}行目：カテゴリー「${categoryName}」は未登録です。nameのみ保持します。`);
     if (categoryGroupName && !matchedGroup) warnings.push(`${record.__rowNumber}行目：カテゴリーグループ「${categoryGroupName}」は未登録です。nameのみ保持します。`);
+    if (categoryName && !matchedCategory) warnings.push(`${record.__rowNumber}行目：カテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName}」は未登録です。nameのみ保持します。`);
+    if (subCategoryName && !matchedSubCategory) warnings.push(`${record.__rowNumber}行目：サブカテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName ? `${categoryName} / ` : ''}${subCategoryName}」は未登録です。nameのみ保持します。`);
+    if (salesAreaName && !matchedSalesArea) warnings.push(`${record.__rowNumber}行目：売場「${salesAreaName}」は未登録です。nameのみ保持します。`);
     if (brandName && !matchedBrand) warnings.push(`${record.__rowNumber}行目：ブランド「${brandName}」は未登録です。nameのみ保持します。`);
     if (supplierName && !matchedSupplier) warnings.push(`${record.__rowNumber}行目：仕入先「${supplierName}」は未登録です。nameのみ保持します。`);
 
@@ -293,10 +398,12 @@ export const buildProductCsvPreview = ({
       barcode,
       categoryId: matchedCategory?.id || '',
       categoryName: matchedCategory?.name || categoryName,
-      subCategoryName,
-      salesAreaName,
-      categoryGroupId: matchedGroup?.id || '',
-      categoryGroupName: matchedGroup?.name || categoryGroupName,
+      subCategoryId: matchedSubCategory?.id || '',
+      subCategoryName: matchedSubCategory?.name || subCategoryName,
+      salesAreaId: matchedSalesArea?.id || '',
+      salesAreaName: matchedSalesArea?.name || salesAreaName,
+      categoryGroupId: matchedGroup?.id || getMasterGroupId(matchedCategory) || '',
+      categoryGroupName: matchedGroup?.name || getMasterGroupName(matchedCategory) || categoryGroupName,
       brandId: matchedBrand?.id || '',
       brandName: matchedBrand?.name || brandName,
       supplierId: matchedSupplier?.id || '',
@@ -353,7 +460,10 @@ export const buildProductCsvPreview = ({
       brandName: primaryProduct.brandName || '',
       categoryId: primaryProduct.categoryId || '',
       categoryName: primaryProduct.categoryName || '',
+      subCategoryId: primaryProduct.subCategoryId || '',
       subCategoryName: primaryProduct.subCategoryName || '',
+      salesAreaId: primaryProduct.salesAreaId || '',
+      salesAreaName: primaryProduct.salesAreaName || '',
       categoryGroupId: primaryProduct.categoryGroupId || '',
       categoryGroupName: primaryProduct.categoryGroupName || '',
       shopifyEnabled: groupProducts.some((product) => Boolean(product.shopifyCreateEnabled)),
