@@ -244,6 +244,7 @@ const POS_DUMMY_PAGES = {
     description: '商品マスターから分離した補助マスターを管理する画面です。',
     tabs: [
       { id: 'categories', label: 'カテゴリー', description: '商品マスターで使う商品カテゴリーをここで管理します。' },
+      { id: 'subCategories', label: 'サブカテゴリー', description: 'Shopifyメニューの3階層目にあたるサブカテゴリーを管理します。' },
       { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。' },
       { id: 'brands', label: 'ブランド', description: '商品に紐づくブランド情報をここで管理します。' },
       { id: 'suppliers', label: '仕入先', description: '発注や入庫で使う仕入先情報をここで管理します。' }
@@ -503,6 +504,40 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
           ]}
           onSave={productMaster?.saveCategory}
           onDelete={productMaster?.deleteCategory}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    if (activeDummyTab === 'subCategories') {
+      return (
+        <SimpleMasterPanel
+          key="product-sub-categories-panel"
+          label="サブカテゴリー"
+          blank={blankCategory}
+          items={productMaster?.productSubCategories || []}
+          productCategories={productMaster?.productCategories || []}
+          productCategoryGroups={productMaster?.productCategoryGroups || []}
+          fields={[
+            { id: 'name', label: 'サブカテゴリー名' },
+            { id: 'categoryId', label: '親カテゴリー', type: 'categorySelect' },
+            { id: 'sortOrder', label: '並び順', type: 'number' },
+            { id: 'color', label: 'カラー' },
+          ]}
+          onSave={(payload) => {
+            const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === payload.categoryId);
+            const matchedGroup = (productMaster?.productCategoryGroups || []).find((group) => group.id === matchedCategory?.groupId);
+            return productMaster?.saveSubCategory?.({
+              ...payload,
+              categoryName: matchedCategory?.name || payload.categoryName || '',
+              categoryGroupId: matchedCategory?.groupId || payload.categoryGroupId || '',
+              categoryGroupName: matchedGroup?.name || payload.categoryGroupName || '',
+              groupId: matchedCategory?.groupId || payload.groupId || '',
+              groupName: matchedGroup?.name || payload.groupName || '',
+              subCategoryName: payload.name || payload.subCategoryName || ''
+            });
+          }}
+          onDelete={productMaster?.deleteSubCategory}
           onSaved={onSaved}
         />
       );
@@ -1115,6 +1150,7 @@ export const StoreSettings = ({
               products={productMaster.products}
               productCategories={productMaster.productCategories}
               productCategoryGroups={productMaster.productCategoryGroups}
+              productSubCategories={productMaster.productSubCategories || []}
               brands={productMaster.brands}
               suppliers={productMaster.suppliers}
               loading={productMaster.loading}

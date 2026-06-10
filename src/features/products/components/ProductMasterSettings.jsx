@@ -257,6 +257,7 @@ const ProductMasterTable = ({
   products,
   productCategories,
   productCategoryGroups,
+  productSubCategories = [],
   brands,
   suppliers,
   onSaveProduct,
@@ -273,6 +274,14 @@ const ProductMasterTable = ({
   const [productMasterBulkSaving, setProductMasterBulkSaving] = useState(false);
 
   const getDraft = (product) => draftRows[product.id] || product;
+
+  const getSubCategoryOptions = (categoryId) => {
+    const normalizedCategoryId = String(categoryId || '').trim();
+    if (!normalizedCategoryId) return [];
+    return productSubCategories
+      .filter((item) => String(item.categoryId || '').trim() === normalizedCategoryId)
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  };
 
   const getGroupProductGroupId = (group) => (
     String(
@@ -959,6 +968,7 @@ const ProductMasterTable = ({
                     const matchedCategory = productCategories.find((category) => category.id === value);
                     update({
                       categoryId: value,
+                      subCategoryName: '',
                       categoryGroupId: matchedCategory?.groupId || row.categoryGroupId || '',
                       departmentId: matchedCategory?.departmentId || row.departmentId || 'retail'
                     });
@@ -968,6 +978,20 @@ const ProductMasterTable = ({
                   <option value="">カテゴリー</option>
                   {productCategories.map((category) => (
                     <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </TableSelect>
+              </div>
+
+              <div>
+                <FieldLabel>サブカテゴリー</FieldLabel>
+                <TableSelect
+                  value={row.subCategoryName || ''}
+                  onChange={(value) => update({ subCategoryName: value })}
+                  disabled={!row.categoryId || getSubCategoryOptions(row.categoryId).length === 0}
+                >
+                  <option value="">サブカテゴリー</option>
+                  {getSubCategoryOptions(row.categoryId).map((subCategory) => (
+                    <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
                   ))}
                 </TableSelect>
               </div>
@@ -1205,6 +1229,7 @@ const ProductMasterTable = ({
                             const matchedCategory = productCategories.find((category) => category.id === value);
                             updatePrimary({
                               categoryId: value,
+                              subCategoryName: '',
                               categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
                               departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail'
                             });
@@ -1214,6 +1239,20 @@ const ProductMasterTable = ({
                           <option value="">カテゴリー</option>
                           {productCategories.map((category) => (
                             <option key={category.id} value={category.id}>{category.name}</option>
+                          ))}
+                        </TableSelect>
+                      </div>
+
+                      <div>
+                        <FieldLabel>サブカテゴリー</FieldLabel>
+                        <TableSelect
+                          value={primaryDraft.subCategoryName || ''}
+                          onChange={(value) => updatePrimary({ subCategoryName: value })}
+                          disabled={!primaryDraft.categoryId || getSubCategoryOptions(primaryDraft.categoryId).length === 0}
+                        >
+                          <option value="">サブカテゴリー</option>
+                          {getSubCategoryOptions(primaryDraft.categoryId).map((subCategory) => (
+                            <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
                           ))}
                         </TableSelect>
                       </div>
@@ -1944,6 +1983,7 @@ export const SimpleMasterPanel = ({
   onDelete,
   onSaved,
   suppliers = [],
+  productCategories = [],
   productCategoryGroups = [],
   onSaveSupplier,
   onSaveCategoryGroup
@@ -2249,7 +2289,42 @@ export const SimpleMasterPanel = ({
 
         <div className="space-y-4">
           {fields.map((field) => (
-            field.type === 'categoryGroupSelect' ? (
+            field.type === 'categorySelect' ? (
+              <PosModalSelect
+                key={field.id}
+                label={field.label}
+                value={draft[field.id]}
+                options={productCategories}
+                disabled={!canEdit}
+                placeholder="親カテゴリーを選択"
+                searchPlaceholder="カテゴリー名・IDで検索"
+                createLabel="カテゴリーを新規作成"
+                onCreateSave={undefined}
+                createFields={[
+                  { id: 'name', label: 'カテゴリー名' }
+                ]}
+                createInitialValue={{ name: '', sortOrder: 0, isActive: true }}
+                onCreate={reset}
+                getOptionLabel={(option) => {
+                  const groupName = option.groupName || productCategoryGroups.find((group) => group.id === option.groupId)?.name || '';
+                  return groupName ? `${groupName} / ${option.name}` : option.name;
+                }}
+                getOptionSubLabel={(option) => option.id}
+                onChange={(value, category) => {
+                  const group = productCategoryGroups.find((item) => item.id === category?.groupId);
+                  setDraft((current) => ({
+                    ...current,
+                    [field.id]: value,
+                    categoryName: category?.name || '',
+                    categoryGroupId: category?.groupId || '',
+                    categoryGroupName: group?.name || category?.groupName || category?.categoryGroupName || '',
+                    groupId: category?.groupId || '',
+                    groupName: group?.name || category?.groupName || category?.categoryGroupName || ''
+                  }));
+                  onSaved?.();
+                }}
+              />
+            ) : field.type === 'categoryGroupSelect' ? (
               <PosModalSelect
                 key={field.id}
                 label={field.label}
@@ -2483,6 +2558,7 @@ const ProductMasterSettings = ({
   products = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
   brands = [],
   suppliers = [],
   loading,
@@ -2519,6 +2595,7 @@ const ProductMasterSettings = ({
   const filteredProducts = useMemo(() => filterItems(products), [keyword, products]);
   const filteredCategories = useMemo(() => filterItems(productCategories), [keyword, productCategories]);
   const filteredGroups = useMemo(() => filterItems(productCategoryGroups), [keyword, productCategoryGroups]);
+  const filteredSubCategories = useMemo(() => filterItems(productSubCategories), [keyword, productSubCategories]);
   const filteredBrands = useMemo(() => filterItems(brands), [keyword, brands]);
   const filteredSuppliers = useMemo(() => filterItems(suppliers), [keyword, suppliers]);
 
@@ -2535,6 +2612,7 @@ const ProductMasterSettings = ({
               products={filteredProducts}
               productCategories={productCategories}
               productCategoryGroups={productCategoryGroups}
+              productSubCategories={productSubCategories}
               brands={brands}
               suppliers={suppliers}
               onSaveProduct={onSaveProduct}
@@ -2558,6 +2636,25 @@ const ProductMasterSettings = ({
               ]}
               onSave={onSaveCategory}
               onDelete={onDeleteCategory}
+              onSaved={onSaved}
+            />
+          )}
+
+          {false && activeTab === 'subCategories' && (
+            <SimpleMasterPanel
+              label="サブカテゴリー"
+              blank={blankCategory}
+              items={filteredSubCategories}
+              fields={[
+                { id: 'name', label: 'サブカテゴリー名' },
+                { id: 'categoryId', label: '親カテゴリーID' },
+                { id: 'categoryName', label: '親カテゴリー名' },
+                { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
+                { id: 'sortOrder', label: '並び順', type: 'number' },
+                { id: 'color', label: 'カラー' }
+              ]}
+              onSave={() => undefined}
+              onDelete={() => undefined}
               onSaved={onSaved}
             />
           )}

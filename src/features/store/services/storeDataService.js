@@ -396,6 +396,14 @@ export const saveProductCategoryGroup = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'productCategoryGroups', itemData);
 };
 
+export const subscribeToProductSubCategories = (storeId, onData, onError) => (
+  onSnapshot(storeCollectionRef(storeId, 'productSubCategories'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+);
+
+export const saveProductSubCategory = async (storeId, itemData) => {
+  return await saveStoreCollectionDoc(storeId, 'productSubCategories', itemData);
+};
+
 export const subscribeToProductBrands = (storeId, onData, onError) => (
   onSnapshot(storeCollectionRef(storeId, 'brands'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
 );
