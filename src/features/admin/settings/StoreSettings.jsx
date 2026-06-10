@@ -579,6 +579,8 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
           label="カテゴリーグループ"
           blank={blankGroup}
           items={productMaster?.productCategoryGroups || []}
+          productCategories={productMaster?.productCategories || []}
+          productSubCategories={productMaster?.productSubCategories || []}
           fields={[
             { id: 'name', label: 'グループ名' },
           ]}

@@ -2491,6 +2491,73 @@ export const SimpleMasterPanel = ({
     );
   };
 
+  const getChildCategoriesForDraft = () => {
+    if (label !== 'カテゴリーグループ') return [];
+
+    const groupId = String(draft.id || editingId || '').trim();
+    const groupName = String(draft.name || '').trim();
+
+    return (productCategories || [])
+      .filter((category) => {
+        const categoryGroupId = String(category.groupId || category.categoryGroupId || '').trim();
+        const categoryGroupName = String(category.groupName || category.categoryGroupName || '').trim();
+
+        if (groupId) {
+          return categoryGroupId === groupId;
+        }
+
+        return Boolean(groupName && categoryGroupName === groupName);
+      })
+      .filter((category, index, array) => (
+        array.findIndex((candidate) => (
+          String(candidate.id || '').trim() === String(category.id || '').trim()
+          || (
+            String(candidate.name || '').trim() === String(category.name || '').trim()
+            && String(candidate.groupId || candidate.categoryGroupId || '').trim()
+              === String(category.groupId || category.categoryGroupId || '').trim()
+          )
+        )) === index
+      ))
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 999999;
+        const bSort = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 999999;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'ja');
+      });
+  };
+
+  const getSubCategoriesForCategory = (category) => {
+    const categoryId = String(category?.id || '').trim();
+    const categoryName = String(category?.name || '').trim();
+
+    return (productSubCategories || [])
+      .filter((subCategory) => {
+        const subCategoryCategoryId = String(subCategory.categoryId || '').trim();
+        const subCategoryCategoryName = String(subCategory.categoryName || '').trim();
+
+        if (categoryId) {
+          return subCategoryCategoryId === categoryId;
+        }
+
+        return Boolean(categoryName && subCategoryCategoryName === categoryName);
+      })
+      .filter((subCategory, index, array) => (
+        array.findIndex((candidate) => (
+          String(candidate.id || '').trim() === String(subCategory.id || '').trim()
+          || (
+            String(candidate.name || '').trim() === String(subCategory.name || '').trim()
+            && String(candidate.categoryId || '').trim() === String(subCategory.categoryId || '').trim()
+          )
+        )) === index
+      ))
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 999999;
+        const bSort = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 999999;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'ja');
+      });
+  };
+
   const getChildSubCategoriesForDraft = () => {
     if (label !== 'カテゴリー') return [];
 
@@ -2834,6 +2901,67 @@ export const SimpleMasterPanel = ({
               />
             )
           ))}
+
+          {label === 'カテゴリーグループ' && editingId && (
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-slate-500">含まれるカテゴリー</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                    このグループ配下のカテゴリーとサブカテゴリーを確認できます。
+                  </div>
+                </div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                  {getChildCategoriesForDraft().length}件
+                </span>
+              </div>
+
+              {getChildCategoriesForDraft().length > 0 ? (
+                <div className="mt-3 space-y-2.5">
+                  {getChildCategoriesForDraft().map((category) => {
+                    const childSubCategories = getSubCategoriesForCategory(category);
+
+                    return (
+                      <div
+                        key={category.id || category.name}
+                        className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-black text-slate-700">
+                            {category.name}
+                          </div>
+                          <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-400">
+                            {childSubCategories.length}件
+                          </span>
+                        </div>
+
+                        {childSubCategories.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {childSubCategories.map((subCategory) => (
+                              <span
+                                key={subCategory.id || `${category.id || category.name}:${subCategory.name}`}
+                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600"
+                              >
+                                {subCategory.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-[11px] font-bold text-slate-400">
+                            サブカテゴリーなし
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-400">
+                  まだカテゴリーが紐付いていません。
+                </div>
+              )}
+            </div>
+          )}
 
           {label === 'カテゴリー' && editingId && (
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
