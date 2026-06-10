@@ -2600,6 +2600,7 @@ const ProductMasterSettings = ({
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
+  productSalesAreas = [],
   brands = [],
   suppliers = [],
   loading,
