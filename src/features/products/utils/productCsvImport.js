@@ -211,11 +211,12 @@ export const buildProductCsvPreview = ({
       .map((product) => normalizeCsvText(product.sku || product.productCode))
       .filter(Boolean)
   );
-  const existingBarcodeSet = new Set(
+  const existingProductsByBarcode = new Map(
     products
-      .map((product) => normalizeCsvText(product.barcode))
-      .filter(Boolean)
+      .map((product) => [normalizeCsvText(product.barcode), product])
+      .filter(([barcode]) => Boolean(barcode))
   );
+  const seenImportBarcodeSet = new Set();
 
   const mappedFieldKeys = new Set(effectiveMapping.map((mapping) => mapping.fieldKey).filter(Boolean));
   const warnings = [];
@@ -248,12 +249,19 @@ export const buildProductCsvPreview = ({
     }
 
     // SKUは商品グループ内の複数variantで重複する運用を許容する。
-    // barcodeはvariant識別子として重複禁止を維持する。
+    // barcodeはvariant識別子として同一CSV内の重複だけ禁止する。
+    // 既存バーコードはスキップせず、既存商品の更新として取り込む。
 
-    if (barcode && existingBarcodeSet.has(barcode)) {
-      warnings.push(`${record.__rowNumber}行目：既存バーコード「${barcode}」と重複するためスキップします。`);
-      skippedProducts.push({ rowNumber: record.__rowNumber, reason: `バーコード重複: ${barcode}` });
+    const existingProduct = barcode ? existingProductsByBarcode.get(barcode) : null;
+
+    if (barcode && seenImportBarcodeSet.has(barcode)) {
+      warnings.push(`${record.__rowNumber}行目：CSV内でバーコード「${barcode}」が重複するためスキップします。`);
+      skippedProducts.push({ rowNumber: record.__rowNumber, reason: `CSV内バーコード重複: ${barcode}` });
       return;
+    }
+
+    if (existingProduct) {
+      warnings.push(`${record.__rowNumber}行目：既存バーコード「${barcode}」の商品を更新対象として取り込みます。`);
     }
 
     const categoryName = normalizeCsvText(record.category);
@@ -276,8 +284,9 @@ export const buildProductCsvPreview = ({
 
     importableProducts.push({
       __rowNumber: record.__rowNumber,
-      sku,
-      productCode: sku,
+      id: existingProduct?.id || '',
+      sku: sku || normalizeCsvText(existingProduct?.sku || existingProduct?.productCode),
+      productCode: sku || normalizeCsvText(existingProduct?.productCode || existingProduct?.sku),
       name,
       barcode,
       categoryId: matchedCategory?.id || '',
@@ -313,7 +322,7 @@ export const buildProductCsvPreview = ({
       groupCode: normalizeCsvText(record.groupCode)
     });
 
-    if (barcode) existingBarcodeSet.add(barcode);
+    if (barcode) seenImportBarcodeSet.add(barcode);
   });
 
   const productsByGroupId = new Map();
