@@ -2254,6 +2254,7 @@ export const SimpleMasterPanel = ({
   suppliers = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
   onSaveSupplier,
   onSaveCategoryGroup
 }) => {
@@ -2488,6 +2489,30 @@ export const SimpleMasterPanel = ({
         {item.groupName || productCategoryGroups.find((group) => group.id === item.groupId)?.name || item.supplierName || item.kana || item.contactName || item.paymentTerms || item.brandProfile || item.note || item.id}
       </div>
     );
+  };
+
+  const getChildSubCategoriesForDraft = () => {
+    if (label !== 'カテゴリー') return [];
+
+    const categoryId = String(draft.id || editingId || '').trim();
+    const categoryName = String(draft.name || '').trim();
+
+    return (productSubCategories || [])
+      .filter((subCategory) => {
+        const subCategoryCategoryId = String(subCategory.categoryId || '').trim();
+        const subCategoryCategoryName = String(subCategory.categoryName || '').trim();
+
+        return (
+          (categoryId && subCategoryCategoryId === categoryId)
+          || (categoryName && subCategoryCategoryName === categoryName)
+        );
+      })
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 999999;
+        const bSort = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 999999;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'ja');
+      });
   };
 
   const getEffectiveCostRateDisplay = () => {
@@ -2799,6 +2824,40 @@ export const SimpleMasterPanel = ({
               />
             )
           ))}
+
+          {label === 'カテゴリー' && editingId && (
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-slate-500">含まれるサブカテゴリー</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                    このカテゴリー配下のサブカテゴリーを確認できます。
+                  </div>
+                </div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                  {getChildSubCategoriesForDraft().length}件
+                </span>
+              </div>
+
+              {getChildSubCategoriesForDraft().length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {getChildSubCategoriesForDraft().map((subCategory) => (
+                    <span
+                      key={subCategory.id || subCategory.name}
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-600"
+                    >
+                      {subCategory.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-400">
+                  まだサブカテゴリーが紐付いていません。
+                </div>
+              )}
+            </div>
+          )}
+
           <SimpleToggle
             label="有効"
             checked={draft.isActive !== false}
