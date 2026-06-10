@@ -2107,6 +2107,26 @@ export const SimpleMasterPanel = ({
     setIsEditing(false);
   };
 
+  const toggleAllowedCategoryGroupName = (groupName) => {
+    setDraft((current) => {
+      const normalizedGroupName = String(groupName || '').trim();
+      if (!normalizedGroupName) return current;
+
+      const currentNames = Array.isArray(current.allowedCategoryGroupNames)
+        ? current.allowedCategoryGroupNames
+        : [];
+
+      const nextNames = currentNames.includes(normalizedGroupName)
+        ? currentNames.filter((name) => name !== normalizedGroupName)
+        : [...currentNames, normalizedGroupName];
+
+      return {
+        ...current,
+        allowedCategoryGroupNames: nextNames
+      };
+    });
+  };
+
   const save = async () => {
     if (!String(draft.name || '').trim()) {
       alert(`${label}名を入力してください`);
@@ -2124,6 +2144,11 @@ export const SimpleMasterPanel = ({
         ...(draft.sortOrder !== undefined ? { sortOrder: normalizeNumberOrNull(draft.sortOrder) ?? 0 } : {}),
         ...(draft.departmentId !== undefined ? { departmentId: draft.departmentId || 'retail' } : {}),
         ...(draft.color !== undefined ? { color: draft.color || '#64748b' } : {}),
+        ...(draft.allowedCategoryGroupNames !== undefined ? {
+          allowedCategoryGroupNames: Array.isArray(draft.allowedCategoryGroupNames)
+            ? draft.allowedCategoryGroupNames.map((name) => String(name || '').trim()).filter(Boolean)
+            : []
+        } : {}),
         ...(draft.contactName !== undefined ? { contactName: String(draft.contactName || '').trim() } : {}),
         ...(draft.tel !== undefined ? { tel: String(draft.tel || '').trim() } : {}),
         ...(draft.email !== undefined ? { email: String(draft.email || '').trim() } : {}),
@@ -2330,7 +2355,45 @@ export const SimpleMasterPanel = ({
 
         <div className="space-y-4">
           {fields.map((field) => (
-            field.type === 'categorySelect' ? (
+            field.type === 'categoryGroupMultiSelect' ? (
+              <div key={field.id} className="space-y-2">
+                <FieldLabel>{field.label}</FieldLabel>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {(productCategoryGroups || []).map((group) => {
+                    const groupName = String(group.name || '').trim();
+                    const checked = Array.isArray(draft.allowedCategoryGroupNames)
+                      && draft.allowedCategoryGroupNames.includes(groupName);
+
+                    return (
+                      <label
+                        key={group.id || groupName}
+                        className={classNames(
+                          'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition',
+                          !canEdit ? 'cursor-default opacity-70' : 'cursor-pointer',
+                          checked
+                            ? 'border-slate-900 bg-slate-900 text-white'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-orange-200'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={checked}
+                          disabled={!canEdit}
+                          onChange={() => toggleAllowedCategoryGroupName(groupName)}
+                        />
+                        <span>{groupName}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {(productCategoryGroups || []).length === 0 && (
+                  <div className="text-xs font-bold text-slate-400">
+                    先にカテゴリーグループを登録してください。
+                  </div>
+                )}
+              </div>
+            ) :             field.type === 'categorySelect' ? (
               <PosModalSelect
                 key={field.id}
                 label={field.label}

@@ -551,11 +551,13 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
           label="売場"
           blank={blankCategory}
           items={productMaster?.productSalesAreas || []}
+          productCategoryGroups={productMaster?.productCategoryGroups || []}
           fields={[
             { id: 'name', label: '売場名' },
             { id: 'displayName', label: '表示名' },
             { id: 'sortOrder', label: '並び順', type: 'number' },
             { id: 'color', label: 'カラー' },
+            { id: 'allowedCategoryGroupNames', label: '紐付けカテゴリーグループ', type: 'categoryGroupMultiSelect' },
           ]}
           onSave={(payload) =>
             productMaster?.saveSalesArea?.({
