@@ -30,6 +30,7 @@ const blankProduct = {
   barcode: '',
   categoryId: '',
   subCategoryName: '',
+  salesAreaName: '',
   categoryGroupId: '',
   brandId: '',
   supplierId: '',
@@ -125,6 +126,7 @@ const normalizeProductPayload = (draft) => ({
   barcode: String(draft.barcode || '').trim(),
   categoryId: String(draft.categoryId || '').trim(),
   subCategoryName: String(draft.subCategoryName || '').trim(),
+  salesAreaName: String(draft.salesAreaName || '').trim(),
   categoryGroupId: String(draft.categoryGroupId || '').trim(),
   brandId: String(draft.brandId || '').trim(),
   supplierId: String(draft.supplierId || '').trim(),
@@ -258,6 +260,7 @@ const ProductMasterTable = ({
   productCategories,
   productCategoryGroups,
   productSubCategories = [],
+  productSalesAreas = [],
   brands,
   suppliers,
   onSaveProduct,
@@ -282,6 +285,12 @@ const ProductMasterTable = ({
       .filter((item) => String(item.categoryId || '').trim() === normalizedCategoryId)
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   };
+
+  const getSalesAreaOptions = () => (
+    productSalesAreas
+      .filter((item) => String(item?.name || '').trim())
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+  );
 
   const getGroupProductGroupId = (group) => (
     String(
@@ -337,6 +346,7 @@ const ProductMasterTable = ({
       name: primaryProduct.productGroupName || primaryProduct.name || group?.name || '',
       brandName: primaryProduct.brandName || group?.brandName || '',
       categoryName: primaryProduct.categoryName || group?.categoryName || '',
+      salesAreaName: primaryProduct.salesAreaName || group?.salesAreaName || '',
       products: workingProducts
     };
   };
@@ -381,6 +391,7 @@ const ProductMasterTable = ({
           brandName: product.brandName || '',
           categoryName: product.categoryName || '',
           subCategoryName: product.subCategoryName || '',
+          salesAreaName: product.salesAreaName || '',
           products: []
         });
       }
@@ -393,6 +404,7 @@ const ProductMasterTable = ({
         group.brandName = product.brandName || group.brandName;
         group.categoryName = product.categoryName || group.categoryName;
         group.subCategoryName = product.subCategoryName || group.subCategoryName;
+        group.salesAreaName = product.salesAreaName || group.salesAreaName;
       }
     }
 
@@ -476,6 +488,7 @@ const ProductMasterTable = ({
       brandName: matchedBrand?.name || draft.brandName || '',
       categoryName: matchedCategory?.name || draft.categoryName || '',
       subCategoryName: draft.subCategoryName || '',
+      salesAreaName: draft.salesAreaName || '',
       categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId || '',
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
@@ -529,6 +542,7 @@ const ProductMasterTable = ({
     categoryId: source.categoryId || '',
     categoryName: source.categoryName || '',
     subCategoryName: source.subCategoryName || '',
+    salesAreaName: source.salesAreaName || '',
     categoryGroupId: source.categoryGroupId || '',
     categoryGroupName: source.categoryGroupName || '',
     supplierId: source.supplierId || '',
@@ -598,6 +612,7 @@ const ProductMasterTable = ({
       brandId: primaryDraft.brandId || '',
       categoryId: primaryDraft.categoryId || '',
       categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
+      salesAreaName: primaryDraft.salesAreaName || '',
       departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail',
       labelEnabled: Boolean(primaryDraft.labelEnabled)
     };
@@ -997,6 +1012,19 @@ const ProductMasterTable = ({
               </div>
 
               <div>
+                <FieldLabel>売場</FieldLabel>
+                <TableSelect
+                  value={row.salesAreaName || ''}
+                  onChange={(value) => update({ salesAreaName: value })}
+                >
+                  <option value="">売場</option>
+                  {getSalesAreaOptions().map((salesArea) => (
+                    <option key={salesArea.id} value={salesArea.name}>{salesArea.displayName || salesArea.name}</option>
+                  ))}
+                </TableSelect>
+              </div>
+
+              <div>
                 <FieldLabel>ラベル</FieldLabel>
                 <PillToggle
                   checked={row.labelEnabled}
@@ -1253,6 +1281,19 @@ const ProductMasterTable = ({
                           <option value="">サブカテゴリー</option>
                           {getSubCategoryOptions(primaryDraft.categoryId).map((subCategory) => (
                             <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
+                          ))}
+                        </TableSelect>
+                      </div>
+
+                      <div>
+                        <FieldLabel>売場</FieldLabel>
+                        <TableSelect
+                          value={primaryDraft.salesAreaName || ''}
+                          onChange={(value) => updatePrimary({ salesAreaName: value })}
+                        >
+                          <option value="">売場</option>
+                          {getSalesAreaOptions().map((salesArea) => (
+                            <option key={salesArea.id} value={salesArea.name}>{salesArea.displayName || salesArea.name}</option>
                           ))}
                         </TableSelect>
                       </div>
@@ -2613,6 +2654,7 @@ const ProductMasterSettings = ({
               productCategories={productCategories}
               productCategoryGroups={productCategoryGroups}
               productSubCategories={productSubCategories}
+              productSalesAreas={productSalesAreas}
               brands={brands}
               suppliers={suppliers}
               onSaveProduct={onSaveProduct}

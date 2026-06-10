@@ -245,6 +245,7 @@ const POS_DUMMY_PAGES = {
     tabs: [
       { id: 'categories', label: 'カテゴリー', description: '商品マスターで使う商品カテゴリーをここで管理します。' },
       { id: 'subCategories', label: 'サブカテゴリー', description: 'Shopifyメニューの3階層目にあたるサブカテゴリーを管理します。' },
+      { id: 'salesAreas', label: '売場', description: '店頭の売場分類を管理します。POS分析用の軸で、Shopifyの商品タイプには使いません。' },
       { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。' },
       { id: 'brands', label: 'ブランド', description: '商品に紐づくブランド情報をここで管理します。' },
       { id: 'suppliers', label: '仕入先', description: '発注や入庫で使う仕入先情報をここで管理します。' }
@@ -538,6 +539,31 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
             });
           }}
           onDelete={productMaster?.deleteSubCategory}
+          onSaved={onSaved}
+        />
+      );
+    }
+
+    if (activeDummyTab === 'salesAreas') {
+      return (
+        <SimpleMasterPanel
+          key="product-sales-areas-panel"
+          label="売場"
+          blank={blankCategory}
+          items={productMaster?.productSalesAreas || []}
+          fields={[
+            { id: 'name', label: '売場名' },
+            { id: 'displayName', label: '表示名' },
+            { id: 'sortOrder', label: '並び順', type: 'number' },
+            { id: 'color', label: 'カラー' },
+          ]}
+          onSave={(payload) =>
+            productMaster?.saveSalesArea?.({
+              ...payload,
+              displayName: payload.displayName || payload.name || ''
+            })
+          }
+          onDelete={productMaster?.deleteSalesArea}
           onSaved={onSaved}
         />
       );
@@ -1151,6 +1177,7 @@ export const StoreSettings = ({
               productCategories={productMaster.productCategories}
               productCategoryGroups={productMaster.productCategoryGroups}
               productSubCategories={productMaster.productSubCategories || []}
+              productSalesAreas={productMaster.productSalesAreas || []}
               brands={productMaster.brands}
               suppliers={productMaster.suppliers}
               loading={productMaster.loading}

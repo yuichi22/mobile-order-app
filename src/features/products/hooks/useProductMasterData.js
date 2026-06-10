@@ -10,6 +10,7 @@ import {
   saveProductCategory,
   saveProductCategoryGroup,
   saveProductSubCategory,
+  saveProductSalesArea,
   saveProductGroup,
   saveProductMasterItem,
   saveShopifySettings,
@@ -18,6 +19,7 @@ import {
   subscribeToProductCategories,
   subscribeToProductCategoryGroups,
   subscribeToProductSubCategories,
+  subscribeToProductSalesAreas,
   subscribeToProductGroups,
   subscribeToProductMasterItems,
   subscribeToShopifySettings,
@@ -96,6 +98,7 @@ export const useProductMasterData = (storeId) => {
   const categoriesState = useStoreCollectionState(storeId, subscribeToProductCategories, 'productCategories');
   const categoryGroupsState = useStoreCollectionState(storeId, subscribeToProductCategoryGroups, 'productCategoryGroups');
   const subCategoriesState = useStoreCollectionState(storeId, subscribeToProductSubCategories, 'productSubCategories');
+  const salesAreasState = useStoreCollectionState(storeId, subscribeToProductSalesAreas, 'productSalesAreas');
   const brandsState = useStoreCollectionState(storeId, subscribeToProductBrands, 'brands');
   const suppliersState = useStoreCollectionState(storeId, subscribeToSuppliers, 'suppliers');
   const shopifySettingsState = useStoreDocState(storeId, subscribeToShopifySettings, 'shopifySettings');
@@ -145,6 +148,16 @@ export const useProductMasterData = (storeId) => {
   const deleteSubCategory = async (subCategoryId) => {
     if (!hasStoreId || !subCategoryId) return;
     await deleteProductMasterDoc(storeId, 'productSubCategories', subCategoryId);
+  };
+
+  const saveSalesArea = async (itemData) => {
+    if (!hasStoreId) return undefined;
+    return await saveProductSalesArea(storeId, itemData);
+  };
+
+  const deleteSalesArea = async (salesAreaId) => {
+    if (!hasStoreId || !salesAreaId) return;
+    await deleteProductMasterDoc(storeId, 'productSalesAreas', salesAreaId);
   };
 
   const saveBrand = async (itemData) => {
@@ -200,6 +213,7 @@ export const useProductMasterData = (storeId) => {
     productCategories: categoriesState.items,
     productCategoryGroups: categoryGroupsState.items,
     productSubCategories: subCategoriesState.items,
+    productSalesAreas: salesAreasState.items,
     brands: brandsState.items,
     suppliers: suppliersState.items,
     shopifySettings: shopifySettingsState.item,
@@ -209,6 +223,7 @@ export const useProductMasterData = (storeId) => {
       categoriesState.loading ||
       categoryGroupsState.loading ||
       subCategoriesState.loading ||
+      salesAreasState.loading ||
       brandsState.loading ||
       suppliersState.loading ||
       shopifySettingsState.loading,
@@ -221,6 +236,8 @@ export const useProductMasterData = (storeId) => {
     deleteCategoryGroup,
     saveSubCategory,
     deleteSubCategory,
+    saveSalesArea,
+    deleteSalesArea,
     saveBrand,
     deleteBrand,
     saveSupplier: saveSupplierData,

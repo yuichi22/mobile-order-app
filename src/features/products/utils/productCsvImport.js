@@ -39,6 +39,7 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   groupCode: ['groupCode', 'グループコード', 'group_code'],
   category: ['category', 'カテゴリー', 'カテゴリ', '部門', '部門名', 'Type'],
   subCategory: ['subCategory', 'subCategoryName', 'サブカテゴリー', 'サブカテゴリー名', '小カテゴリー', '小分類', 'Shopify Sub Category'],
+  salesArea: ['salesArea', 'salesAreaName', '売場', '売場名', '販売エリア', '売場分類'],
   categoryGroup: ['categoryGroup', 'category_group', 'カテゴリーグループ', '部門グループ', '部門グループ名', 'Product Category'],
   brand: ['brand', 'ブランド', 'Vendor'],
   supplier: ['supplier', '仕入先', '仕入先名'],
@@ -266,6 +267,7 @@ export const buildProductCsvPreview = ({
 
     const categoryName = normalizeCsvText(record.category);
     const subCategoryName = normalizeCsvText(record.subCategory);
+    const salesAreaName = normalizeCsvText(record.salesArea);
     const categoryGroupName = normalizeCsvText(record.categoryGroup);
     const brandName = normalizeCsvText(record.brand);
     const supplierName = normalizeCsvText(record.supplier);
@@ -292,6 +294,7 @@ export const buildProductCsvPreview = ({
       categoryId: matchedCategory?.id || '',
       categoryName: matchedCategory?.name || categoryName,
       subCategoryName,
+      salesAreaName,
       categoryGroupId: matchedGroup?.id || '',
       categoryGroupName: matchedGroup?.name || categoryGroupName,
       brandId: matchedBrand?.id || '',

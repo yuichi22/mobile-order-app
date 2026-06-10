@@ -257,6 +257,11 @@ service cloud.firestore {
         allow write: if isPlatformAdmin() || isStoreManager(storeId);
       }
 
+      match /productSalesAreas/{salesAreaId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
       match /brands/{brandId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreManager(storeId);

@@ -499,3 +499,10 @@ export const updateShopifyProductFromGroup = async ({ storeId, productGroupId, i
 
   return body;
 };
+
+export const subscribeToProductSalesAreas = (storeId, onNext, onError) =>
+  subscribeToStoreCollection(storeId, 'productSalesAreas', onNext, onError, 'sortOrder');
+
+export const saveProductSalesArea = (storeId, salesArea) =>
+  saveStoreDocument(storeId, 'productSalesAreas', salesArea);
+
