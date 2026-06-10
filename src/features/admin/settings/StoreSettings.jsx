@@ -243,10 +243,10 @@ const POS_DUMMY_PAGES = {
     eyebrow: 'Product Management',
     description: '商品マスターから分離した補助マスターを管理する画面です。',
     tabs: [
+      { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。売場との紐付け前に登録します。' },
+      { id: 'salesAreas', label: '売場', description: '店頭の売場分類を管理します。カテゴリーグループと紐付けることで、商品登録時の候補を絞り込めます。' },
       { id: 'categories', label: 'カテゴリー', description: '商品マスターで使う商品カテゴリーをここで管理します。' },
       { id: 'subCategories', label: 'サブカテゴリー', description: 'Shopifyメニューの3階層目にあたるサブカテゴリーを管理します。' },
-      { id: 'salesAreas', label: '売場', description: '店頭の売場分類を管理します。POS分析用の軸で、Shopifyの商品タイプには使いません。' },
-      { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。' },
       { id: 'brands', label: 'ブランド', description: '商品に紐づくブランド情報をここで管理します。' },
       { id: 'suppliers', label: '仕入先', description: '発注や入庫で使う仕入先情報をここで管理します。' }
     ]

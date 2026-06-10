@@ -2184,6 +2184,40 @@ export const SimpleMasterPanel = ({
   const canEdit = !editingId || isEditing;
 
   const renderListSubInfo = (item) => {
+    if (label === '売場') {
+      const allowedNames = Array.isArray(item.allowedCategoryGroupNames)
+        ? item.allowedCategoryGroupNames.map((name) => String(name || '').trim()).filter(Boolean)
+        : [];
+      const displayName = String(item.displayName || '').trim();
+
+      return (
+        <div className="mt-2 space-y-2">
+          {displayName && displayName !== item.name && (
+            <div className="text-xs font-bold text-slate-400">
+              表示名：{displayName}
+            </div>
+          )}
+
+          {allowedNames.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {allowedNames.map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs font-bold text-orange-500">
+              カテゴリーグループ未紐付け
+            </div>
+          )}
+        </div>
+      );
+    }
+
     if (label === '仕入先') {
       const costRateNumber = Number(item.defaultCostRate);
       const hasCostRate = Number.isFinite(costRateNumber) && costRateNumber > 0;
@@ -2393,7 +2427,7 @@ export const SimpleMasterPanel = ({
                   </div>
                 )}
               </div>
-            ) :             field.type === 'categorySelect' ? (
+            ) : field.type === 'categorySelect' ? (
               <PosModalSelect
                 key={field.id}
                 label={field.label}
