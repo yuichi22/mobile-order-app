@@ -1946,7 +1946,7 @@ const getClassificationGroupName = (value, productCategoryGroups = []) => {
   if (value?.categoryGroupName) return String(value.categoryGroupName || '').trim();
 
   const matchedGroup = productCategoryGroups.find((group) => (
-    group.id === activeValue?.categoryGroupId
+    group.id === value?.categoryGroupId
     || group.name === value?.categoryGroupName
   ));
 
