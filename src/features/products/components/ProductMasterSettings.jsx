@@ -611,7 +611,10 @@ const ProductMasterTable = ({
       name: primaryDraft.name || '',
       brandId: primaryDraft.brandId || '',
       categoryId: primaryDraft.categoryId || '',
+      categoryName: matchedCategory?.name || primaryDraft.categoryName || '',
+      subCategoryName: primaryDraft.subCategoryName || '',
       categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
+      categoryGroupName: productCategoryGroups.find((group) => group.id === (matchedCategory?.groupId || primaryDraft.categoryGroupId))?.name || primaryDraft.categoryGroupName || '',
       salesAreaName: primaryDraft.salesAreaName || '',
       departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail',
       labelEnabled: Boolean(primaryDraft.labelEnabled)
@@ -975,53 +978,15 @@ const ProductMasterTable = ({
                 <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
               </div>
 
-              <div>
-                <FieldLabel>カテゴリー</FieldLabel>
-                <TableSelect
-                  value={row.categoryId || ''}
-                  onChange={(value) => {
-                    const matchedCategory = productCategories.find((category) => category.id === value);
-                    update({
-                      categoryId: value,
-                      subCategoryName: '',
-                      categoryGroupId: matchedCategory?.groupId || row.categoryGroupId || '',
-                      departmentId: matchedCategory?.departmentId || row.departmentId || 'retail'
-                    });
-                  }}
-                  alertWhenEmpty
-                >
-                  <option value="">カテゴリー</option>
-                  {productCategories.map((category) => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </TableSelect>
-              </div>
-
-              <div>
-                <FieldLabel>サブカテゴリー</FieldLabel>
-                <TableSelect
-                  value={row.subCategoryName || ''}
-                  onChange={(value) => update({ subCategoryName: value })}
-                  disabled={!row.categoryId || getSubCategoryOptions(row.categoryId).length === 0}
-                >
-                  <option value="">サブカテゴリー</option>
-                  {getSubCategoryOptions(row.categoryId).map((subCategory) => (
-                    <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
-                  ))}
-                </TableSelect>
-              </div>
-
-              <div>
-                <FieldLabel>売場</FieldLabel>
-                <TableSelect
-                  value={row.salesAreaName || ''}
-                  onChange={(value) => update({ salesAreaName: value })}
-                >
-                  <option value="">売場</option>
-                  {getSalesAreaOptions().map((salesArea) => (
-                    <option key={salesArea.id} value={salesArea.name}>{salesArea.displayName || salesArea.name}</option>
-                  ))}
-                </TableSelect>
+              <div className="lg:col-span-3">
+                <ProductClassificationControl
+                  value={row}
+                  onChange={update}
+                  productSalesAreas={getSalesAreaOptions()}
+                  productCategoryGroups={productCategoryGroups}
+                  productCategories={productCategories}
+                  productSubCategories={productSubCategories}
+                />
               </div>
 
               <div>
@@ -1249,53 +1214,15 @@ const ProductMasterTable = ({
                         />
                       </div>
 
-                      <div>
-                        <FieldLabel>カテゴリー</FieldLabel>
-                        <TableSelect
-                          value={primaryDraft.categoryId || ''}
-                          onChange={(value) => {
-                            const matchedCategory = productCategories.find((category) => category.id === value);
-                            updatePrimary({
-                              categoryId: value,
-                              subCategoryName: '',
-                              categoryGroupId: matchedCategory?.groupId || primaryDraft.categoryGroupId || '',
-                              departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail'
-                            });
-                          }}
-                          alertWhenEmpty
-                        >
-                          <option value="">カテゴリー</option>
-                          {productCategories.map((category) => (
-                            <option key={category.id} value={category.id}>{category.name}</option>
-                          ))}
-                        </TableSelect>
-                      </div>
-
-                      <div>
-                        <FieldLabel>サブカテゴリー</FieldLabel>
-                        <TableSelect
-                          value={primaryDraft.subCategoryName || ''}
-                          onChange={(value) => updatePrimary({ subCategoryName: value })}
-                          disabled={!primaryDraft.categoryId || getSubCategoryOptions(primaryDraft.categoryId).length === 0}
-                        >
-                          <option value="">サブカテゴリー</option>
-                          {getSubCategoryOptions(primaryDraft.categoryId).map((subCategory) => (
-                            <option key={subCategory.id} value={subCategory.name}>{subCategory.name}</option>
-                          ))}
-                        </TableSelect>
-                      </div>
-
-                      <div>
-                        <FieldLabel>売場</FieldLabel>
-                        <TableSelect
-                          value={primaryDraft.salesAreaName || ''}
-                          onChange={(value) => updatePrimary({ salesAreaName: value })}
-                        >
-                          <option value="">売場</option>
-                          {getSalesAreaOptions().map((salesArea) => (
-                            <option key={salesArea.id} value={salesArea.name}>{salesArea.displayName || salesArea.name}</option>
-                          ))}
-                        </TableSelect>
+                      <div className="lg:col-span-3">
+                        <ProductClassificationControl
+                          value={primaryDraft}
+                          onChange={updatePrimary}
+                          productSalesAreas={getSalesAreaOptions()}
+                          productCategoryGroups={productCategoryGroups}
+                          productCategories={productCategories}
+                          productSubCategories={productSubCategories}
+                        />
                       </div>
 
                       <div>
@@ -2014,6 +1941,307 @@ const SimpleToggle = ({ label, checked, onChange, disabled = false }) => (
     <span>{checked ? 'ON' : 'OFF'}</span>
   </button>
 );
+
+const getClassificationGroupName = (value, productCategoryGroups = []) => {
+  if (value?.categoryGroupName) return String(value.categoryGroupName || '').trim();
+
+  const matchedGroup = productCategoryGroups.find((group) => (
+    group.id === value?.categoryGroupId
+    || group.name === value?.categoryGroupName
+  ));
+
+  return String(matchedGroup?.name || '').trim();
+};
+
+const getClassificationCategoryName = (value, productCategories = []) => {
+  if (value?.categoryName) return String(value.categoryName || '').trim();
+
+  const matchedCategory = productCategories.find((category) => category.id === value?.categoryId);
+  return String(matchedCategory?.name || '').trim();
+};
+
+const buildClassificationBreadcrumb = (value, productCategoryGroups = [], productCategories = []) => {
+  const crumbs = [
+    String(value?.salesAreaName || '').trim(),
+    getClassificationGroupName(value, productCategoryGroups),
+    getClassificationCategoryName(value, productCategories),
+    String(value?.subCategoryName || '').trim()
+  ].filter(Boolean);
+
+  return crumbs.length > 0 ? crumbs.join(' ＞ ') : '分類未設定';
+};
+
+const ClassificationChoiceButton = ({
+  label,
+  subLabel = '',
+  active = false,
+  disabled = false,
+  onClick
+}) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    className={classNames(
+      'rounded-2xl border px-4 py-3 text-left transition',
+      disabled ? 'cursor-default opacity-40' : 'hover:border-orange-300 hover:bg-orange-50',
+      active
+        ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10'
+        : 'border-slate-200 bg-white text-slate-700'
+    )}
+  >
+    <div className="text-sm font-black">{label}</div>
+    {subLabel ? (
+      <div className={classNames('mt-0.5 text-[11px] font-bold', active ? 'text-slate-200' : 'text-slate-400')}>
+        {subLabel}
+      </div>
+    ) : null}
+  </button>
+);
+
+const ProductClassificationControl = ({
+  value,
+  onChange,
+  productSalesAreas = [],
+  productCategoryGroups = [],
+  productCategories = [],
+  productSubCategories = []
+}) => {
+  const [open, setOpen] = useState(false);
+
+  const selectedSalesArea = productSalesAreas.find((salesArea) => salesArea.name === value?.salesAreaName) || null;
+  const selectedGroupName = getClassificationGroupName(value, productCategoryGroups);
+  const selectedGroup = productCategoryGroups.find((group) => (
+    group.id === value?.categoryGroupId
+    || group.name === selectedGroupName
+  )) || null;
+  const selectedCategory = productCategories.find((category) => category.id === value?.categoryId) || null;
+
+  const allowedGroupNames = Array.isArray(selectedSalesArea?.allowedCategoryGroupNames)
+    ? selectedSalesArea.allowedCategoryGroupNames.map((name) => String(name || '').trim()).filter(Boolean)
+    : [];
+
+  const groupOptions = allowedGroupNames.length > 0
+    ? productCategoryGroups.filter((group) => allowedGroupNames.includes(String(group.name || '').trim()))
+    : productCategoryGroups;
+
+  const categoryOptions = selectedGroup
+    ? productCategories.filter((category) => (
+      category.groupId === selectedGroup.id
+      || category.categoryGroupId === selectedGroup.id
+      || category.groupName === selectedGroup.name
+      || category.categoryGroupName === selectedGroup.name
+    ))
+    : [];
+
+  const subCategoryOptions = selectedCategory
+    ? productSubCategories.filter((subCategory) => (
+      subCategory.categoryId === selectedCategory.id
+      || subCategory.categoryName === selectedCategory.name
+    ))
+    : [];
+
+  const breadcrumb = buildClassificationBreadcrumb(value, productCategoryGroups, productCategories);
+
+  const selectSalesArea = (salesArea) => {
+    onChange({
+      salesAreaName: salesArea?.name || '',
+      categoryGroupId: '',
+      categoryGroupName: '',
+      categoryId: '',
+      categoryName: '',
+      subCategoryName: ''
+    });
+  };
+
+  const selectGroup = (group) => {
+    onChange({
+      categoryGroupId: group?.id || '',
+      categoryGroupName: group?.name || '',
+      categoryId: '',
+      categoryName: '',
+      subCategoryName: ''
+    });
+  };
+
+  const selectCategory = (category) => {
+    onChange({
+      categoryId: category?.id || '',
+      categoryName: category?.name || '',
+      categoryGroupId: category?.groupId || category?.categoryGroupId || value?.categoryGroupId || '',
+      categoryGroupName: selectedGroup?.name || category?.groupName || category?.categoryGroupName || value?.categoryGroupName || '',
+      departmentId: category?.departmentId || value?.departmentId || 'retail',
+      subCategoryName: ''
+    });
+  };
+
+  const selectSubCategory = (subCategory) => {
+    onChange({
+      subCategoryName: subCategory?.name || ''
+    });
+  };
+
+  const modalNode = open ? (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Product Classification</p>
+            <h3 className="mt-1 text-xl font-black text-slate-900">商品分類を選択</h3>
+            <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+              売場から順番に選ぶと、候補が自動で絞り込まれます。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200"
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
+          <div className="text-xs font-black text-slate-400">現在の分類</div>
+          <div className="mt-1 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-800 shadow-sm">
+            {breadcrumb}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="grid gap-5 lg:grid-cols-4">
+            <section className="space-y-3">
+              <div>
+                <div className="text-sm font-black text-slate-900">1. 売場</div>
+                <div className="mt-1 text-xs font-bold text-slate-400">最初に店頭の売場を選びます。</div>
+              </div>
+              <div className="space-y-2">
+                {productSalesAreas.map((salesArea) => (
+                  <ClassificationChoiceButton
+                    key={salesArea.id || salesArea.name}
+                    label={salesArea.displayName || salesArea.name}
+                    subLabel={salesArea.name}
+                    active={value?.salesAreaName === salesArea.name}
+                    onClick={() => selectSalesArea(salesArea)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <div className="text-sm font-black text-slate-900">2. カテゴリーグループ</div>
+                <div className="mt-1 text-xs font-bold text-slate-400">売場に紐付いたグループだけ表示します。</div>
+              </div>
+              <div className="space-y-2">
+                {groupOptions.map((group) => (
+                  <ClassificationChoiceButton
+                    key={group.id || group.name}
+                    label={group.name}
+                    active={selectedGroup?.id === group.id || selectedGroupName === group.name}
+                    disabled={!value?.salesAreaName}
+                    onClick={() => selectGroup(group)}
+                  />
+                ))}
+                {value?.salesAreaName && groupOptions.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                    この売場に紐付いたカテゴリーグループがありません。
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <div className="text-sm font-black text-slate-900">3. カテゴリー</div>
+                <div className="mt-1 text-xs font-bold text-slate-400">グループ配下のカテゴリーを選びます。</div>
+              </div>
+              <div className="space-y-2">
+                {categoryOptions.map((category) => (
+                  <ClassificationChoiceButton
+                    key={category.id || category.name}
+                    label={category.name}
+                    active={value?.categoryId === category.id}
+                    disabled={!selectedGroup}
+                    onClick={() => selectCategory(category)}
+                  />
+                ))}
+                {selectedGroup && categoryOptions.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                    このグループにカテゴリーがありません。
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <div className="text-sm font-black text-slate-900">4. サブカテゴリー</div>
+                <div className="mt-1 text-xs font-bold text-slate-400">必要な場合だけ選択します。</div>
+              </div>
+              <div className="space-y-2">
+                <ClassificationChoiceButton
+                  label="サブカテゴリーなし"
+                  active={!value?.subCategoryName}
+                  disabled={!selectedCategory}
+                  onClick={() => selectSubCategory(null)}
+                />
+                {subCategoryOptions.map((subCategory) => (
+                  <ClassificationChoiceButton
+                    key={subCategory.id || subCategory.name}
+                    label={subCategory.name}
+                    active={value?.subCategoryName === subCategory.name}
+                    disabled={!selectedCategory}
+                    onClick={() => selectSubCategory(subCategory)}
+                  />
+                ))}
+                {selectedCategory && subCategoryOptions.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                    このカテゴリーにサブカテゴリーはありません。
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
+          <div className="min-w-0 text-sm font-black text-slate-700">
+            {breadcrumb}
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
+          >
+            決定
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <div className="space-y-1.5">
+      <FieldLabel>分類</FieldLabel>
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <div className="line-clamp-2 text-xs font-black leading-relaxed text-slate-700">
+          {breadcrumb}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 inline-flex h-8 items-center justify-center rounded-xl bg-slate-900 px-3 text-[11px] font-black text-white transition hover:bg-slate-700"
+        >
+          分類を変更
+        </button>
+      </div>
+
+      {modalNode && createPortal(modalNode, document.body)}
+    </div>
+  );
+};
 
 export const SimpleMasterPanel = ({
   label,
