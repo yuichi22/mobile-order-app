@@ -1946,7 +1946,7 @@ const getClassificationGroupName = (value, productCategoryGroups = []) => {
   if (value?.categoryGroupName) return String(value.categoryGroupName || '').trim();
 
   const matchedGroup = productCategoryGroups.find((group) => (
-    group.id === value?.categoryGroupId
+    group.id === activeValue?.categoryGroupId
     || group.name === value?.categoryGroupName
   ));
 
@@ -2008,14 +2008,39 @@ const ProductClassificationControl = ({
   productSubCategories = []
 }) => {
   const [open, setOpen] = useState(false);
+  const [modalDraft, setModalDraft] = useState(value || {});
 
-  const selectedSalesArea = productSalesAreas.find((salesArea) => salesArea.name === value?.salesAreaName) || null;
-  const selectedGroupName = getClassificationGroupName(value, productCategoryGroups);
+  const activeValue = open ? modalDraft : (value || {});
+
+  const openModal = () => {
+    setModalDraft({ ...(value || {}) });
+    setOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalDraft({ ...(value || {}) });
+    setOpen(false);
+  };
+
+  const applyModalDraft = () => {
+    onChange(modalDraft || {});
+    setOpen(false);
+  };
+
+  const updateModalDraft = (patch) => {
+    setModalDraft((current) => ({
+      ...(current || {}),
+      ...patch
+    }));
+  };
+
+  const selectedSalesArea = productSalesAreas.find((salesArea) => salesArea.name === activeValue?.salesAreaName) || null;
+  const selectedGroupName = getClassificationGroupName(activeValue, productCategoryGroups);
   const selectedGroup = productCategoryGroups.find((group) => (
-    group.id === value?.categoryGroupId
+    group.id === activeValue?.categoryGroupId
     || group.name === selectedGroupName
   )) || null;
-  const selectedCategory = productCategories.find((category) => category.id === value?.categoryId) || null;
+  const selectedCategory = productCategories.find((category) => category.id === activeValue?.categoryId) || null;
 
   const allowedGroupNames = Array.isArray(selectedSalesArea?.allowedCategoryGroupNames)
     ? selectedSalesArea.allowedCategoryGroupNames.map((name) => String(name || '').trim()).filter(Boolean)
@@ -2041,10 +2066,10 @@ const ProductClassificationControl = ({
     ))
     : [];
 
-  const breadcrumb = buildClassificationBreadcrumb(value, productCategoryGroups, productCategories);
+  const breadcrumb = buildClassificationBreadcrumb(activeValue, productCategoryGroups, productCategories);
 
   const selectSalesArea = (salesArea) => {
-    onChange({
+    updateModalDraft({
       salesAreaName: salesArea?.name || '',
       categoryGroupId: '',
       categoryGroupName: '',
@@ -2055,7 +2080,7 @@ const ProductClassificationControl = ({
   };
 
   const selectGroup = (group) => {
-    onChange({
+    updateModalDraft({
       categoryGroupId: group?.id || '',
       categoryGroupName: group?.name || '',
       categoryId: '',
@@ -2065,18 +2090,18 @@ const ProductClassificationControl = ({
   };
 
   const selectCategory = (category) => {
-    onChange({
+    updateModalDraft({
       categoryId: category?.id || '',
       categoryName: category?.name || '',
-      categoryGroupId: category?.groupId || category?.categoryGroupId || value?.categoryGroupId || '',
-      categoryGroupName: selectedGroup?.name || category?.groupName || category?.categoryGroupName || value?.categoryGroupName || '',
-      departmentId: category?.departmentId || value?.departmentId || 'retail',
+      categoryGroupId: category?.groupId || category?.categoryGroupId || activeValue?.categoryGroupId || '',
+      categoryGroupName: selectedGroup?.name || category?.groupName || category?.categoryGroupName || activeValue?.categoryGroupName || '',
+      departmentId: category?.departmentId || activeValue?.departmentId || 'retail',
       subCategoryName: ''
     });
   };
 
   const selectSubCategory = (subCategory) => {
-    onChange({
+    updateModalDraft({
       subCategoryName: subCategory?.name || ''
     });
   };
@@ -2094,7 +2119,7 @@ const ProductClassificationControl = ({
           </div>
           <button
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={closeModal}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200"
             aria-label="閉じる"
           >
@@ -2122,7 +2147,7 @@ const ProductClassificationControl = ({
                     key={salesArea.id || salesArea.name}
                     label={salesArea.displayName || salesArea.name}
                     subLabel={salesArea.name}
-                    active={value?.salesAreaName === salesArea.name}
+                    active={activeValue?.salesAreaName === salesArea.name}
                     onClick={() => selectSalesArea(salesArea)}
                   />
                 ))}
@@ -2140,11 +2165,11 @@ const ProductClassificationControl = ({
                     key={group.id || group.name}
                     label={group.name}
                     active={selectedGroup?.id === group.id || selectedGroupName === group.name}
-                    disabled={!value?.salesAreaName}
+                    disabled={!activeValue?.salesAreaName}
                     onClick={() => selectGroup(group)}
                   />
                 ))}
-                {value?.salesAreaName && groupOptions.length === 0 && (
+                {activeValue?.salesAreaName && groupOptions.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
                     この売場に紐付いたカテゴリーグループがありません。
                   </div>
@@ -2162,7 +2187,7 @@ const ProductClassificationControl = ({
                   <ClassificationChoiceButton
                     key={category.id || category.name}
                     label={category.name}
-                    active={value?.categoryId === category.id}
+                    active={activeValue?.categoryId === category.id}
                     disabled={!selectedGroup}
                     onClick={() => selectCategory(category)}
                   />
@@ -2183,7 +2208,7 @@ const ProductClassificationControl = ({
               <div className="space-y-2">
                 <ClassificationChoiceButton
                   label="サブカテゴリーなし"
-                  active={!value?.subCategoryName}
+                  active={!activeValue?.subCategoryName}
                   disabled={!selectedCategory}
                   onClick={() => selectSubCategory(null)}
                 />
@@ -2191,7 +2216,7 @@ const ProductClassificationControl = ({
                   <ClassificationChoiceButton
                     key={subCategory.id || subCategory.name}
                     label={subCategory.name}
-                    active={value?.subCategoryName === subCategory.name}
+                    active={activeValue?.subCategoryName === subCategory.name}
                     disabled={!selectedCategory}
                     onClick={() => selectSubCategory(subCategory)}
                   />
@@ -2210,13 +2235,22 @@ const ProductClassificationControl = ({
           <div className="min-w-0 text-sm font-black text-slate-700">
             {breadcrumb}
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
-          >
-            決定
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-100 px-5 text-sm font-black text-slate-500 transition hover:bg-slate-200"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={applyModalDraft}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
+            >
+              決定
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2231,7 +2265,7 @@ const ProductClassificationControl = ({
         </div>
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openModal}
           className="mt-2 inline-flex h-8 items-center justify-center rounded-xl bg-slate-900 px-3 text-[11px] font-black text-white transition hover:bg-slate-700"
         >
           分類を変更
