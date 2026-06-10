@@ -195,6 +195,8 @@ const ProductCsvImportPanel = ({
   products = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
+  productSalesAreas = [],
   brands = [],
   suppliers = [],
   onSaveProduct,
