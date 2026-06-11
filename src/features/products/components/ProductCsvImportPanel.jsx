@@ -36,6 +36,31 @@ const getImportJobGroupProgressText = (job = {}) => {
   return `${saved} / ${total}`;
 };
 
+const getImportResultProductCount = (result = {}) => {
+  if (Array.isArray(result.importedProducts)) return getImportResultProductCount(result);
+  if (result.importedProductCount !== undefined) return Number(result.importedProductCount || 0);
+  if (result.queuedForFunction) return Number(result.totalProductCount || 0);
+  return 0;
+};
+
+const getImportResultGroupCount = (result = {}) => {
+  if (Array.isArray(result.importedGroups)) return getImportResultGroupCount(result);
+  if (result.importedGroupCount !== undefined) return Number(result.importedGroupCount || 0);
+  if (result.queuedForFunction) return Number(result.totalGroupCount || 0);
+  return 0;
+};
+
+const getImportResultMessage = (result = {}) => {
+  const productCount = getImportResultProductCount(result);
+  const groupCount = getImportResultGroupCount(result);
+
+  if (result.queuedForFunction) {
+    return `CSVをバックグラウンド取込に登録しました（商品 ${productCount}件 / グループ ${groupCount}件）。履歴で完了状態を確認してください。`;
+  }
+
+  return `商品CSV取込を完了しました（商品 ${productCount}件 / グループ ${groupCount}件）。`;
+};
+
 const normalizeNumberOrNullForImport = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const numberValue = Number(value);
