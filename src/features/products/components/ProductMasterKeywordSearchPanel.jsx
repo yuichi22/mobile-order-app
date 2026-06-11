@@ -47,6 +47,7 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
   const [searchedKeyword, setSearchedKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
 
   const normalizedKeyword = useMemo(() => normalizeSearchText(keyword), [keyword]);
 
@@ -55,6 +56,7 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
       setResults([]);
       setError('');
       setLoading(false);
+      setDebugInfo(null);
       return undefined;
     }
 
@@ -63,11 +65,21 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
       setSearchedKeyword('');
       setError('');
       setLoading(false);
+      setDebugInfo(null);
       return undefined;
     }
 
     const timer = window.setTimeout(async () => {
       const searchTerms = buildSearchTerms(normalizedKeyword);
+      const searchTermsPreview = searchTerms.slice(0, 12);
+
+      setDebugInfo({
+        storeId,
+        keyword: normalizedKeyword,
+        searchTerms: searchTermsPreview,
+        searchTermsCount: searchTerms.length,
+        status: 'querying'
+      });
 
       if (!searchTerms.length) {
         setResults([]);
@@ -87,12 +99,30 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
         );
 
         const snapshot = await getDocs(searchQuery);
-        setResults(snapshot.docs.map(mapProductDoc));
+        const nextResults = snapshot.docs.map(mapProductDoc);
+        setResults(nextResults);
         setSearchedKeyword(normalizedKeyword);
+        setDebugInfo({
+          storeId,
+          keyword: normalizedKeyword,
+          searchTerms: searchTermsPreview,
+          searchTermsCount: searchTerms.length,
+          resultCount: nextResults.length,
+          status: 'success'
+        });
       } catch (searchError) {
         console.error('[product master keyword search] failed', searchError);
         setResults([]);
         setError('検索に失敗しました。時間をおいて再度お試しください。');
+        setDebugInfo({
+          storeId,
+          keyword: normalizedKeyword,
+          searchTerms: searchTermsPreview,
+          searchTermsCount: searchTerms.length,
+          resultCount: 0,
+          status: 'error',
+          message: searchError?.message || String(searchError)
+        });
       } finally {
         setLoading(false);
       }
@@ -151,6 +181,19 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
       {error && (
         <div className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">
           {error}
+        </div>
+      )}
+
+      {debugInfo && (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-[11px] font-bold leading-relaxed text-slate-500">
+          <div className="mb-1 text-xs font-black text-slate-700">Debug:</div>
+          <div>status: {debugInfo.status}</div>
+          <div>storeId: {debugInfo.storeId || '(empty)'}</div>
+          <div>keyword: {debugInfo.keyword || '(empty)'}</div>
+          <div>searchTermsCount: {debugInfo.searchTermsCount ?? '-'}</div>
+          <div>searchTerms: {(debugInfo.searchTerms || []).join(' / ') || '-'}</div>
+          <div>resultCount: {debugInfo.resultCount ?? '-'}</div>
+          {debugInfo.message && <div className="text-rose-600">message: {debugInfo.message}</div>}
         </div>
       )}
 
