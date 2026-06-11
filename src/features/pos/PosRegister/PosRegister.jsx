@@ -2268,6 +2268,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         handleAbortSession={handleAbortSession}
         tableId={tableId}
         tableDisplayName={tableDisplayName}
+        onClose={onBack}
       />
 
       <style>{'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}'}</style>

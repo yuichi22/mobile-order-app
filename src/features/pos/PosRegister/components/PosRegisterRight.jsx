@@ -10,7 +10,8 @@ import {
   QrCode,
   ScanQrCode,
   ShoppingBag,
-  Store
+  Store,
+  X
 } from 'lucide-react';
 
 const PAYMENT_METHOD_OPTIONS = [
@@ -96,7 +97,8 @@ export const PosRegisterRight = ({
   handlePayment,
   handleAbortSession,
   tableId,
-  tableDisplayName
+  tableDisplayName,
+  onClose
 }) => {
   const tableTitle = tableDisplayName || tableId || '';
 
@@ -197,15 +199,28 @@ export const PosRegisterRight = ({
 
   return (
     <div className="relative flex h-full min-h-0 w-5/12 flex-col overflow-hidden bg-white">
-      <div className="shrink-0 border-b border-gray-100 px-5 py-3">
-        <h2 className="flex min-w-0 items-center gap-2 text-lg font-black text-gray-900">
-          <span className="shrink-0">会計伝票</span>
-          {tableTitle && (
-            <span className="min-w-0 truncate text-gray-500">
-              {tableTitle}
-            </span>
-          )}
-        </h2>
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3">
+        <div className="min-w-0">
+          <h2 className="flex min-w-0 items-center gap-2 text-xl font-black text-gray-900">
+            <span className="shrink-0">会計伝票</span>
+            {tableTitle && (
+              <span className="min-w-0 truncate text-gray-500">
+                {tableTitle}
+              </span>
+            )}
+          </h2>
+        </div>
+
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            aria-label="会計伝票を閉じる"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col p-4">

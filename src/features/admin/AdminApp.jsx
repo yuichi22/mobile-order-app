@@ -601,6 +601,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   storeId={storeId}
                   registerMode={registerMode}
                   onBack={!showAdminHeader ? onBack : undefined}
+                  onPaymentResult={handlePaymentResultToast}
                 />
               )}
 
