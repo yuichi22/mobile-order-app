@@ -18,24 +18,24 @@ const getSafeArrayLength = (value) => (Array.isArray(value) ? value.length : 0);
 
 const getImportJobProductProgressText = (job = {}) => {
   const summary = job.functionSaveSummary || {};
-  const saved = job.importedProductCount ?? summary.savedProductCount;
-  const total = job.totalProductCount ?? summary.productCandidateCount ?? job.csvImportableRows;
+  const saved = summary.savedProductCount ?? job.importedProductCount ?? job.processedProducts;
+  const total = summary.productCandidateCount ?? job.totalProductCount ?? job.totalProducts ?? job.csvImportableRows;
 
   if (saved === undefined && total === undefined) return '-';
   if (saved === undefined) return `- / ${total ?? '-'}`;
   if (total === undefined) return `${saved} / -`;
-  return `${saved} / ${total}`;
+  return `${Number(saved || 0).toLocaleString()} / ${Number(total || 0).toLocaleString()}`;
 };
 
 const getImportJobGroupProgressText = (job = {}) => {
   const summary = job.functionSaveSummary || {};
-  const saved = job.importedGroupCount ?? summary.savedGroupCount;
-  const total = job.totalGroupCount ?? summary.groupCandidateCount ?? job.functionWritePlan?.groupCandidateCount;
+  const saved = summary.savedGroupCount ?? job.importedGroupCount ?? job.processedProductGroups;
+  const total = summary.groupCandidateCount ?? job.totalGroupCount ?? job.totalProductGroups ?? job.functionWritePlan?.groupCandidateCount;
 
   if (saved === undefined && total === undefined) return '-';
   if (saved === undefined) return `- / ${total ?? '-'}`;
   if (total === undefined) return `${saved} / -`;
-  return `${saved} / ${total}`;
+  return `${Number(saved || 0).toLocaleString()} / ${Number(total || 0).toLocaleString()}`;
 };
 
 
@@ -952,10 +952,10 @@ const ProductCsvImportPanel = ({
                       <td className="whitespace-nowrap px-3 py-2">{job.storageUploaded ? '保存済み' : '-'}</td>
                       <td className="max-w-[220px] truncate px-3 py-2">{job.fileName || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {Number(job.processedProducts || 0).toLocaleString()} / {Number(job.totalProducts || 0).toLocaleString()}
+                        {getImportJobProductProgressText(job)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {Number(job.processedProductGroups || 0).toLocaleString()} / {Number(job.totalProductGroups || 0).toLocaleString()}
+                        {getImportJobGroupProgressText(job)}
                       </td>
                       <td className="max-w-[160px] truncate px-3 py-2 font-mono text-slate-400">{job.id}</td>
                     </tr>
