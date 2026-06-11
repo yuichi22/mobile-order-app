@@ -13,6 +13,8 @@ import { auth, db, storage } from '../../../shared/api/firebase/client';
 const PRODUCT_CSV_IMPORT_PROCESSING_MODE = 'function';
 const PRODUCT_CSV_IMPORT_EXECUTE_PRODUCT_WRITES = true;
 
+const getSafeArrayLength = (value) => (Array.isArray(value) ? value.length : 0);
+
 
 const getImportJobProductProgressText = (job = {}) => {
   const summary = job.functionSaveSummary || {};
@@ -36,15 +38,31 @@ const getImportJobGroupProgressText = (job = {}) => {
   return `${saved} / ${total}`;
 };
 
+
+const getPreviewImportableProductCount = (preview = {}) => getSafeArrayLength(preview.importableProducts);
+
+const getPreviewGroupCount = (preview = {}) => {
+  if (Array.isArray(preview.productGroupPayloads)) return getPreviewGroupCount(preview);
+  if (Array.isArray(preview.productGroups)) return getPreviewGroupCount(preview);
+  if (preview.productGroupPayloadsById && typeof preview.productGroupPayloadsById === 'object') {
+    return Object.keys(preview.productGroupPayloadsById).length;
+  }
+  if (preview.productGroupsById && typeof preview.productGroupsById === 'object') {
+    return Object.keys(preview.productGroupsById).length;
+  }
+  if (preview.groupCount !== undefined) return Number(preview.groupCount || 0);
+  return 0;
+};
+
 const getImportResultProductCount = (result = {}) => {
-  if (Array.isArray(result.importedProducts)) return result.importedProducts.length;
+  if (Array.isArray(result.importedProducts)) return getSafeArrayLength(result.importedProducts);
   if (result.importedProductCount !== undefined) return Number(result.importedProductCount || 0);
   if (result.queuedForFunction) return Number(result.totalProductCount || 0);
   return 0;
 };
 
 const getImportResultGroupCount = (result = {}) => {
-  if (Array.isArray(result.importedGroups)) return result.importedGroups.length;
+  if (Array.isArray(result.importedGroups)) return getSafeArrayLength(result.importedGroups);
   if (result.importedGroupCount !== undefined) return Number(result.importedGroupCount || 0);
   if (result.queuedForFunction) return Number(result.totalGroupCount || 0);
   return 0;
@@ -249,9 +267,9 @@ const runProductCsvImportJob = async ({
         status: 'queued',
         phase: 'queued',
         savedProducts: 0,
-        totalProducts: preview.importableProducts.length,
+        totalProducts: getPreviewImportableProductCount(preview),
         savedGroups: 0,
-        totalGroups: preview.productGroupPayloads.length
+        totalGroups: getPreviewGroupCount(preview)
       });
 
       return {
@@ -260,9 +278,9 @@ const runProductCsvImportJob = async ({
         processingMode: PRODUCT_CSV_IMPORT_PROCESSING_MODE,
         queuedForFunction: true,
         importedProductCount: 0,
-        totalProductCount: preview.importableProducts.length,
+        totalProductCount: getPreviewImportableProductCount(preview),
         importedGroupCount: 0,
-        totalGroupCount: preview.productGroupPayloads.length
+        totalGroupCount: getPreviewGroupCount(preview)
       };
     }
 
@@ -724,7 +742,7 @@ const ProductCsvImportPanel = ({
         await onSaveProduct(normalizeImportedProductPayload(payload));
       }
 
-      const savedCount = preview.importableProducts.length;
+      const savedCount = getPreviewImportableProductCount(preview);
       const savedGroupCount = productGroups.length;
       reset();
       onSaved?.();
@@ -877,7 +895,7 @@ const ProductCsvImportPanel = ({
               </tbody>
             </table>
 
-            {preview.importableProducts.length > 5 && (
+            {getPreviewImportableProductCount(preview) > 5 && (
               <div className="border-t border-slate-100 px-3 py-2 text-xs font-bold text-slate-400">
                 先頭5件のみ表示しています。
               </div>
