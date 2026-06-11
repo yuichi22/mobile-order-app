@@ -6,70 +6,9 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isAnonymous() {
-      return signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
-
-    function hasUserProfile() {
-      return signedIn()
-        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
-    }
-
-    function userProfile() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function userRole() {
-      return hasUserProfile() ? userProfile().role : null;
-    }
-
-    function isOwnerRole() {
-      return userRole() == 'owner' || userRole() == 'admin';
-    }
-
-    function isManagerRole() {
-      return userRole() == 'manager';
-    }
-
-    function isStaffRole() {
-      return userRole() == 'staff';
-    }
-
-    function hasPlatformAdminProfile() {
-      return signedIn()
-        && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
-    }
-
-    function platformAdminProfile() {
-      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data;
-    }
-
-    function isPlatformAdmin() {
-      return signedIn()
-        && !isAnonymous()
-        && hasPlatformAdminProfile()
-        && platformAdminProfile().role == 'super_admin';
-    }
-
-    function isStoreMember(storeId) {
-      return signedIn()
-        && !isAnonymous()
-        && hasUserProfile()
-        && userProfile().storeId == storeId;
-    }
-
-    function isStoreManager(storeId) {
-      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole());
-    }
-
-    function isStoreStaff(storeId) {
-      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole() || isStaffRole());
-    }
-
     match /stores/{storeId}/importJobs/{jobId}/{fileName=**} {
-      allow read: if isPlatformAdmin() || isStoreStaff(storeId);
-      allow write: if (isPlatformAdmin() || isStoreManager(storeId))
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.resource.size < 50 * 1024 * 1024;
     }
   }
