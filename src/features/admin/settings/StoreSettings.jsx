@@ -26,7 +26,7 @@ import {
   Package,
   ShoppingBag
 } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
@@ -493,6 +493,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
       if (activeCsvTab === 'csvExport') {
         return (
           <CsvExportWorkflowPanel
+            storeId={storeId}
             productMaster={productMaster}
           />
         );
@@ -867,6 +868,41 @@ const normalizeExportId = (value) => (
   String(value ?? '').trim().replace(/\.00$/, '')
 );
 
+const CSV_EXPORT_PAGE_SIZE = 500;
+
+const fetchAllStoreCollectionRows = async ({
+  storeId,
+  collectionName,
+  orderField = 'name',
+  pageSize = CSV_EXPORT_PAGE_SIZE
+}) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  if (!normalizedStoreId || !collectionName) return [];
+
+  const collectionRef = collection(db, 'stores', normalizedStoreId, collectionName);
+  const rows = [];
+  let lastSnapshot = null;
+
+  for (;;) {
+    const pageQuery = lastSnapshot
+      ? query(collectionRef, orderBy(orderField), startAfter(lastSnapshot), limit(pageSize))
+      : query(collectionRef, orderBy(orderField), limit(pageSize));
+
+    const snapshot = await getDocs(pageQuery);
+    rows.push(...snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data()
+    })));
+
+    if (snapshot.size < pageSize) break;
+    lastSnapshot = snapshot.docs[snapshot.docs.length - 1];
+
+    if (!lastSnapshot) break;
+  }
+
+  return rows;
+};
+
 const toExportBoolean = (value) => (value === false ? 'FALSE' : 'TRUE');
 
 const formatDateStamp = () => {
@@ -1005,13 +1041,14 @@ const buildProductExportRows = ({
 
 
 
-const CsvExportWorkflowPanel = ({ productMaster }) => {
+const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   const suppliers = productMaster?.suppliers || [];
   const brands = productMaster?.brands || [];
   const productCategories = productMaster?.productCategories || [];
   const productCategoryGroups = productMaster?.productCategoryGroups || [];
   const products = productMaster?.products || [];
   const productGroups = productMaster?.productGroups || [];
+  const [productCsvExporting, setProductCsvExporting] = useState(false);
 
   const handleExportSupplierCsv = () => {
     downloadCsvFile(
@@ -1045,39 +1082,63 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
     );
   };
 
-  const handleExportProductCsv = () => {
-    downloadCsvFile(
-      `akuto-products-export-${formatDateStamp()}.csv`,
-      [
-        'productGroupId',
-        'productGroupName',
-        'productCode',
-        'sku',
-        'barcode',
-        'productName',
-        'name',
-        'brandName',
-        'supplierName',
-        'categoryGroupName',
-        'categoryName',
-        'subCategoryName',
-        'colorName',
-        'size',
-        'priceTaxIncluded',
-        'priceTaxExcluded',
-        'taxRate',
-        'inventoryQuantity',
-        'shopifyCreateEnabled'
-      ],
-      buildProductExportRows({
-        products,
-        productGroups,
-        brands,
-        suppliers,
-        categories: productCategories,
-        categoryGroups: productCategoryGroups
-      })
-    );
+  const handleExportProductCsv = async () => {
+    if (productCsvExporting) return;
+
+    setProductCsvExporting(true);
+
+    try {
+      const [allProducts, allProductGroups] = await Promise.all([
+        fetchAllStoreCollectionRows({
+          storeId,
+          collectionName: 'products',
+          orderField: 'name'
+        }),
+        fetchAllStoreCollectionRows({
+          storeId,
+          collectionName: 'productGroups',
+          orderField: 'name'
+        })
+      ]);
+
+      downloadCsvFile(
+        `akuto-products-export-${formatDateStamp()}.csv`,
+        [
+          'productGroupId',
+          'productGroupName',
+          'productCode',
+          'sku',
+          'barcode',
+          'productName',
+          'name',
+          'brandName',
+          'supplierName',
+          'categoryGroupName',
+          'categoryName',
+          'subCategoryName',
+          'colorName',
+          'size',
+          'priceTaxIncluded',
+          'priceTaxExcluded',
+          'taxRate',
+          'inventoryQuantity',
+          'shopifyCreateEnabled'
+        ],
+        buildProductExportRows({
+          products: allProducts.length ? allProducts : products,
+          productGroups: allProductGroups.length ? allProductGroups : productGroups,
+          brands,
+          suppliers,
+          categories: productCategories,
+          categoryGroups: productCategoryGroups
+        })
+      );
+    } catch (error) {
+      console.error('[CsvExportWorkflowPanel] product CSV export failed', error);
+      window.alert('商品CSV出力に失敗しました。時間をおいて再度お試しください。');
+    } finally {
+      setProductCsvExporting(false);
+    }
   };
 
   const exportCards = [
@@ -1140,6 +1201,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
             key={card.id}
             type="button"
             onClick={card.onClick}
+            disabled={card.id === 'products' && productCsvExporting}
             className={[
               'rounded-2xl border p-4 text-left transition',
               card.primary
@@ -1148,7 +1210,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
             ].join(' ')}
           >
             <div className={card.primary ? 'text-sm font-black text-blue-700' : 'text-sm font-black text-slate-800'}>
-              {card.title}
+              {card.id === 'products' && productCsvExporting ? '商品CSV出力中...' : card.title}
             </div>
             <div className={card.primary ? 'mt-1 text-xs text-blue-500' : 'mt-1 text-xs text-slate-400'}>
               {card.meta}
