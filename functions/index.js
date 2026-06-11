@@ -5897,9 +5897,9 @@ const buildWorkerProductKey = ({
   size,
   colorName
 }) => {
+  if (barcode) return `barcode:${barcode}`;
   if (productCode) return `productCode:${productCode}`;
   if (sku) return `sku:${sku}`;
-  if (barcode) return `barcode:${barcode}`;
   return ['name', name, size, colorName]
     .map((value) => String(value || '').trim())
     .join('|');
@@ -6084,6 +6084,7 @@ const buildProductCsvFunctionWritePlanForJob = (writePlan = {}) => ({
   mode: writePlan.mode || 'dryRun',
   groupCandidateCount: Number(writePlan.groupCandidateCount || 0),
   productCandidateCount: Number(writePlan.productCandidateCount || 0),
+  barcodePrimaryKey: writePlan.barcodePrimaryKey === true,
   warningCount: Number(writePlan.warningCount || 0),
   mappedIndexes: writePlan.mappedIndexes || {},
   groupCandidates: Array.isArray(writePlan.groupCandidates) ? writePlan.groupCandidates.slice(0, 50) : [],
@@ -6158,9 +6159,9 @@ const getExistingProductRefForWorker = ({ existingProductRefs, product }) => {
   const sku = String(product.sku || '').trim();
   const barcode = String(product.barcode || '').trim();
 
-  return existingProductRefs.get(`productCode:${productCode}`)
+  return existingProductRefs.get(`barcode:${barcode}`)
+    || existingProductRefs.get(`productCode:${productCode}`)
     || existingProductRefs.get(`sku:${sku}`)
-    || existingProductRefs.get(`barcode:${barcode}`)
     || null;
 };
 
