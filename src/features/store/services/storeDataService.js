@@ -6,7 +6,10 @@ import {
   doc,
   onSnapshot,
   serverTimestamp,
-  setDoc
+  setDoc,
+  query,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
@@ -20,6 +23,26 @@ const mapCollectionSnapshot = (snapshot) => snapshot.docs.map((snapshotDoc) => (
 }));
 
 const storeCollectionRef = (storeId, collectionName) => collection(db, 'stores', storeId, collectionName);
+
+const PRODUCT_MASTER_INITIAL_LIMIT = 200;
+const PRODUCT_GROUP_INITIAL_LIMIT = 500;
+
+const subscribeToLimitedStoreCollection = (
+  storeId,
+  collectionName,
+  onData,
+  onError,
+  { limitCount = 200, orderField = 'name' } = {}
+) => {
+  const baseRef = storeCollectionRef(storeId, collectionName);
+  const limitedQuery = query(baseRef, orderBy(orderField), limit(limitCount));
+
+  return onSnapshot(
+    limitedQuery,
+    (snapshot) => onData(mapCollectionSnapshot(snapshot)),
+    onError
+  );
+};
 const storeSettingsDocRef = (storeId, docName) => doc(db, 'stores', storeId, 'settings', docName);
 const storeRootDocRef = (storeId) => doc(db, 'stores', storeId);
 
@@ -193,11 +216,29 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
 
 
 export const subscribeToProductMasterItems = (storeId, onData, onError) => (
-  onSnapshot(storeCollectionRef(storeId, 'products'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+  subscribeToLimitedStoreCollection(
+    storeId,
+    'products',
+    onData,
+    onError,
+    {
+      limitCount: PRODUCT_MASTER_INITIAL_LIMIT,
+      orderField: 'name'
+    }
+  )
 );
 
 export const subscribeToProductGroups = (storeId, onData, onError) => (
-  onSnapshot(storeCollectionRef(storeId, 'productGroups'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+  subscribeToLimitedStoreCollection(
+    storeId,
+    'productGroups',
+    onData,
+    onError,
+    {
+      limitCount: PRODUCT_GROUP_INITIAL_LIMIT,
+      orderField: 'name'
+    }
+  )
 );
 
 
