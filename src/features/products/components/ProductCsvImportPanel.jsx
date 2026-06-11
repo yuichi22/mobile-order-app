@@ -42,8 +42,9 @@ const getImportJobGroupProgressText = (job = {}) => {
 const getPreviewImportableProductCount = (preview = {}) => getSafeArrayLength(preview.importableProducts);
 
 const getPreviewGroupCount = (preview = {}) => {
-  if (Array.isArray(preview.productGroupPayloads)) return getPreviewGroupCount(preview);
-  if (Array.isArray(preview.productGroups)) return getPreviewGroupCount(preview);
+  if (Array.isArray(preview.productGroupPayloads)) return preview.productGroupPayloads.length;
+  if (Array.isArray(preview.importableProductGroups)) return preview.importableProductGroups.length;
+  if (Array.isArray(preview.productGroups)) return preview.productGroups.length;
   if (preview.productGroupPayloadsById && typeof preview.productGroupPayloadsById === 'object') {
     return Object.keys(preview.productGroupPayloadsById).length;
   }
