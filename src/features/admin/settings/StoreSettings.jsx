@@ -372,7 +372,7 @@ const CsvImportWorkflowPanel = ({
     <CsvImportStepCard
       number="01"
       title="仕入先CSV取込"
-      description="スマレジや既存台帳の仕入先情報を、Akuto POSの仕入先マスターへ取り込みます。"
+      description="既存台帳の仕入先情報を、Akuto POSの仕入先マスターへ取り込みます。"
       status="実装済み"
     >
       <MasterCsvImportPanel
@@ -412,7 +412,7 @@ const CsvImportWorkflowPanel = ({
     <CsvImportStepCard
       number="03"
       title="カテゴリー / カテゴリーグループCSV取込"
-      description="スマレジの部門・部門グループを、Akuto POSのカテゴリー・カテゴリーグループとして取り込みます。"
+      description="既存台帳のカテゴリー・カテゴリーグループを、Akuto POSのカテゴリー・カテゴリーグループとして取り込みます。"
       status="実装済み"
     >
       <MasterCsvImportPanel
@@ -883,7 +883,7 @@ const formatDateStamp = () => {
 
 const buildSupplierExportRows = (suppliers = []) => suppliers
   .map((supplier) => ({
-    smaregiSupplierId: normalizeExportId(supplier.smaregiSupplierId || supplier.supplierSmaregiId),
+    supplierId: normalizeExportId(supplier.smaregiSupplierId || supplier.supplierSmaregiId || supplier.supplierExternalId || supplier.externalSupplierId),
     name: supplier.name || supplier.supplierName || '',
     kana: supplier.kana || '',
     contactName: supplier.contactName || '',
@@ -908,7 +908,7 @@ const buildBrandExportRows = (brands = [], suppliers = []) => {
         kana: brand.kana || '',
         note: brand.note || '',
         isActive: toExportBoolean(brand.isActive),
-        supplierSmaregiId: normalizeExportId(brand.supplierSmaregiId || supplier?.smaregiSupplierId || supplier?.supplierSmaregiId),
+        supplierId: normalizeExportId(brand.supplierSmaregiId || supplier?.smaregiSupplierId || supplier?.supplierSmaregiId || brand.supplierId),
         supplierName: brand.supplierName || supplier?.name || supplier?.supplierName || ''
       };
     })
@@ -1016,7 +1016,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
   const handleExportSupplierCsv = () => {
     downloadCsvFile(
       `akuto-suppliers-export-${formatDateStamp()}.csv`,
-      ['smaregiSupplierId', 'name', 'kana', 'contactName', 'tel', 'email', 'paymentTerms', 'note', 'isActive'],
+      ['supplierId', 'name', 'kana', 'contactName', 'tel', 'email', 'paymentTerms', 'note', 'isActive'],
       buildSupplierExportRows(suppliers)
     );
   };
@@ -1024,7 +1024,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
   const handleExportBrandCsv = () => {
     downloadCsvFile(
       `akuto-brands-export-${formatDateStamp()}.csv`,
-      ['brandId', 'brandCode', 'brandName', 'kana', 'note', 'isActive', 'supplierSmaregiId', 'supplierName'],
+      ['brandId', 'brandCode', 'brandName', 'kana', 'note', 'isActive', 'supplierId', 'supplierName'],
       buildBrandExportRows(brands, suppliers)
     );
   };
@@ -1085,7 +1085,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
       id: 'suppliers',
       title: '仕入先CSV出力',
       description: '仕入先CSV取込と同じ項目で出力します。',
-      meta: 'smaregiSupplierId / name',
+      meta: 'supplierId / name',
       count: suppliers.length,
       onClick: handleExportSupplierCsv
     },
@@ -1093,7 +1093,7 @@ const CsvExportWorkflowPanel = ({ productMaster }) => {
       id: 'brands',
       title: 'ブランドCSV出力',
       description: 'ブランドCSV取込と同じ項目で出力します。仕入先紐付け列を含みます。',
-      meta: 'supplierSmaregiId / supplierName',
+      meta: 'supplierId / supplierName',
       count: brands.length,
       onClick: handleExportBrandCsv
     },

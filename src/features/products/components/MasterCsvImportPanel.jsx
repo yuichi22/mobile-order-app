@@ -12,7 +12,7 @@ const IMPORT_LABELS = {
     title: '仕入先CSV取込',
     requiredLabel: '仕入先名',
     previewColumns: [
-      ['仕入先ID', 'smaregiSupplierId'],
+      ['仕入先ID', 'supplierId'],
       ['仕入先名', 'name'],
       ['担当者', 'contactName'],
       ['電話番号', 'tel'],
@@ -23,10 +23,10 @@ const IMPORT_LABELS = {
     title: 'ブランドCSV取込',
     requiredLabel: 'ブランド名',
     previewColumns: [
-      ['ブランドID', 'smaregiBrandId'],
+      ['ブランドID', 'brandId'],
       ['ブランド名', 'name'],
       ['棚卸区分', 'stocktakingTypeCode'],
-      ['仕入先ID', 'supplierSmaregiId'],
+      ['仕入先ID', 'supplierId'],
       ['仕入先名', 'supplierName']
     ]
   },
@@ -34,9 +34,9 @@ const IMPORT_LABELS = {
     title: 'カテゴリー / カテゴリーグループCSV取込',
     requiredLabel: 'カテゴリー名',
     previewColumns: [
-      ['グループID', 'smaregiCategoryGroupId'],
+      ['グループID', 'categoryGroupId'],
       ['グループ名', 'categoryGroupName'],
-      ['カテゴリーID', 'smaregiCategoryId'],
+      ['カテゴリーID', 'categoryId'],
       ['カテゴリー名', 'categoryName'],
       ['並び順', 'sortOrder']
     ]

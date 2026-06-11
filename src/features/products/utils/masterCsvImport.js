@@ -1,7 +1,7 @@
 export const MASTER_CSV_FIELD_OPTIONS = {
   suppliers: [
     { id: '', label: '取り込まない' },
-    { id: 'smaregiSupplierId', label: '仕入先ID', required: false },
+    { id: 'supplierId', label: '仕入先ID', required: false },
     { id: 'name', label: '仕入先名', required: true },
     { id: 'contactName', label: '担当者' },
     { id: 'tel', label: '電話番号' },
@@ -13,18 +13,18 @@ export const MASTER_CSV_FIELD_OPTIONS = {
   ],
   brands: [
     { id: '', label: '取り込まない' },
-    { id: 'smaregiBrandId', label: 'ブランドID', required: false },
+    { id: 'brandId', label: 'ブランドID', required: false },
     { id: 'name', label: 'ブランド名', required: true },
     { id: 'stocktakingTypeCode', label: '棚卸区分コード' },
-    { id: 'supplierSmaregiId', label: '仕入先ID' },
+    { id: 'supplierId', label: '仕入先ID' },
     { id: 'supplierName', label: '仕入先名' },
     { id: 'note', label: 'メモ' }
   ],
   categories: [
     { id: '', label: '取り込まない' },
-    { id: 'smaregiCategoryGroupId', label: 'カテゴリーグループID' },
+    { id: 'categoryGroupId', label: 'カテゴリーグループID' },
     { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
-    { id: 'smaregiCategoryId', label: 'カテゴリーID' },
+    { id: 'categoryId', label: 'カテゴリーID' },
     { id: 'categoryName', label: 'カテゴリー名', required: true },
     { id: 'sortOrder', label: '並び順' },
     { id: 'departmentId', label: '部門ID' },
@@ -35,7 +35,7 @@ export const MASTER_CSV_FIELD_OPTIONS = {
 
 const MASTER_CSV_HEADER_ALIASES = {
   suppliers: {
-    smaregiSupplierId: ['仕入先ID', 'supplierId', 'supplier_id', 'supplierCode', '仕入先コード'],
+    supplierId: ['仕入先ID', 'supplierId', 'supplier_id', 'supplierCode', 'smaregiSupplierId', '仕入先コード'],
     name: ['仕入先名', 'name', 'supplierName', 'supplier_name'],
     contactName: ['担当者', '担当者名', 'contactName', 'contact'],
     tel: ['電話番号', '電話', 'TEL', 'tel', 'phone'],
@@ -46,10 +46,10 @@ const MASTER_CSV_HEADER_ALIASES = {
     note: ['メモ', '備考', 'note']
   },
   brands: {
-    smaregiBrandId: ['ブランドID', 'brandId', 'brand_id', 'ブランドコード'],
+    brandId: ['ブランドID', 'brandId', 'brand_id', 'brandCode', 'smaregiBrandId', 'ブランドコード'],
     name: ['ブランド名', 'name', 'brandName', 'brand_name'],
     stocktakingTypeCode: ['棚卸区分コード', 'stocktakingTypeCode', '棚卸区分'],
-    supplierSmaregiId: ['仕入先ID', 'supplierId', 'supplier_id', '仕入先コード'],
+    supplierId: ['仕入先ID', 'supplierId', 'supplier_id', 'supplierCode', 'supplierSmaregiId', 'smaregiSupplierId', '仕入先コード'],
     supplierName: ['仕入先名', 'supplierName', 'supplier_name'],
     note: ['メモ', '備考', 'note']
   },
@@ -288,7 +288,7 @@ export const buildMasterCsvPreview = ({
 
   records.forEach((record) => {
     if (type === 'suppliers') {
-      const smaregiSupplierId = normalizeText(record.smaregiSupplierId);
+      const smaregiSupplierId = normalizeText(record.supplierId || record.smaregiSupplierId);
       const name = normalizeText(record.name);
 
       if (!smaregiSupplierId && !name) {
@@ -335,9 +335,9 @@ export const buildMasterCsvPreview = ({
     }
 
     if (type === 'brands') {
-      const smaregiBrandId = normalizeText(record.smaregiBrandId);
+      const smaregiBrandId = normalizeText(record.brandId || record.smaregiBrandId);
       const name = normalizeText(record.name);
-      const supplierSmaregiId = normalizeText(record.supplierSmaregiId);
+      const supplierSmaregiId = normalizeText(record.supplierId || record.supplierSmaregiId || record.smaregiSupplierId);
       const supplierName = normalizeText(record.supplierName);
       const matchedSupplier = findSupplier(suppliers, supplierSmaregiId, supplierName);
 
@@ -387,9 +387,9 @@ export const buildMasterCsvPreview = ({
     }
 
     if (type === 'categories') {
-      const smaregiCategoryGroupId = normalizeText(record.smaregiCategoryGroupId);
+      const smaregiCategoryGroupId = normalizeText(record.categoryGroupId || record.smaregiCategoryGroupId);
       const categoryGroupName = normalizeText(record.categoryGroupName);
-      const smaregiCategoryId = normalizeText(record.smaregiCategoryId);
+      const smaregiCategoryId = normalizeText(record.categoryId || record.smaregiCategoryId);
       const categoryName = normalizeText(record.categoryName);
 
       if (!categoryGroupName && !categoryName) {
