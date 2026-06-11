@@ -37,14 +37,14 @@ const getImportJobGroupProgressText = (job = {}) => {
 };
 
 const getImportResultProductCount = (result = {}) => {
-  if (Array.isArray(result.importedProducts)) return getImportResultProductCount(result);
+  if (Array.isArray(result.importedProducts)) return result.importedProducts.length;
   if (result.importedProductCount !== undefined) return Number(result.importedProductCount || 0);
   if (result.queuedForFunction) return Number(result.totalProductCount || 0);
   return 0;
 };
 
 const getImportResultGroupCount = (result = {}) => {
-  if (Array.isArray(result.importedGroups)) return getImportResultGroupCount(result);
+  if (Array.isArray(result.importedGroups)) return result.importedGroups.length;
   if (result.importedGroupCount !== undefined) return Number(result.importedGroupCount || 0);
   if (result.queuedForFunction) return Number(result.totalGroupCount || 0);
   return 0;
