@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes } from 'firebase/storage';
 
 import {
   PRODUCT_CSV_FIELD_OPTIONS,
@@ -7,7 +8,7 @@ import {
   buildProductCsvPreview,
   parseProductCsvText
 } from '../utils/productCsvImport';
-import { db } from '../../../shared/api/firebase/client';
+import { db, storage } from '../../../shared/api/firebase/client';
 
 const normalizeNumberOrNullForImport = (value) => {
   if (value === '' || value === null || value === undefined) return null;
@@ -16,6 +17,15 @@ const normalizeNumberOrNullForImport = (value) => {
 };
 
 
+
+
+const sanitizeStorageFileName = (fileName = 'products.csv') => (
+  String(fileName || 'products.csv')
+    .trim()
+    .replace(/[^\w.\-ぁ-んァ-ヶ一-龠々ー]/g, '_')
+    .slice(0, 120)
+    || 'products.csv'
+);
 
 const formatImportJobDate = (value) => {
   if (!value) return '-';
@@ -88,6 +98,7 @@ const buildImportGroupPayload = ({ group, jobId }) => {
 const runProductCsvImportJob = async ({
   storeId,
   fileName,
+  file,
   preview,
   onProgress
 }) => {
@@ -104,6 +115,7 @@ const runProductCsvImportJob = async ({
   const storeRef = doc(db, 'stores', normalizedStoreId);
   const importJobRef = doc(collection(storeRef, 'importJobs'));
   const jobId = importJobRef.id;
+  const storagePath = `stores/${normalizedStoreId}/importJobs/${jobId}/${Date.now()}-${sanitizeStorageFileName(fileName)}`;
   const startedAt = serverTimestamp();
 
   const initialBatch = writeBatch(db);
@@ -111,6 +123,8 @@ const runProductCsvImportJob = async ({
     id: jobId,
     type: 'productCsvImport',
     fileName: fileName || '',
+    storagePath,
+    storageUploaded: false,
     status: 'running',
     phase: 'initializing',
     totalProducts: products.length,
@@ -125,6 +139,37 @@ const runProductCsvImportJob = async ({
     updatedAt: startedAt
   });
   await initialBatch.commit();
+
+  if (file) {
+    const uploadingBatch = writeBatch(db);
+    uploadingBatch.set(importJobRef, {
+      phase: 'uploadingCsv',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    await uploadingBatch.commit();
+
+    await uploadBytes(
+      storageRef(storage, storagePath),
+      file,
+      {
+        contentType: file.type || 'text/csv',
+        customMetadata: {
+          storeId: normalizedStoreId,
+          jobId,
+          type: 'productCsvImport'
+        }
+      }
+    );
+
+    const uploadedBatch = writeBatch(db);
+    uploadedBatch.set(importJobRef, {
+      storageUploaded: true,
+      storageUploadedAt: serverTimestamp(),
+      phase: 'initializing',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    await uploadedBatch.commit();
+  }
 
   const updateJob = async (patch) => {
     const batch = writeBatch(db);
@@ -201,6 +246,7 @@ const runProductCsvImportJob = async ({
 
     return {
       jobId,
+      storagePath,
       processedProducts,
       processedProductGroups
     };
@@ -413,6 +459,7 @@ const ProductCsvImportPanel = ({
   const inputRef = useRef(null);
   const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
@@ -461,6 +508,7 @@ const ProductCsvImportPanel = ({
   const reset = () => {
     setPreview(null);
     setFileName('');
+    setSelectedFile(null);
     setError('');
     setCsvRows([]);
     setMappingDraft([]);
@@ -495,6 +543,7 @@ const ProductCsvImportPanel = ({
     setCsvRows([]);
     setMappingDraft([]);
     setShowMappingModal(false);
+    setSelectedFile(file || null);
     setFileName(file?.name || '');
 
     if (!file) return;
@@ -527,6 +576,11 @@ const ProductCsvImportPanel = ({
       return;
     }
 
+    if (storeId && !selectedFile) {
+      setError('CSVファイル本体が見つかりません。もう一度CSVを選択してください。');
+      return;
+    }
+
     setSaving(true);
     setError('');
     setImportProgress(null);
@@ -536,6 +590,7 @@ const ProductCsvImportPanel = ({
         const result = await runProductCsvImportJob({
           storeId,
           fileName,
+          file: selectedFile,
           preview,
           onProgress: (progress) => setImportProgress(progress)
         });
@@ -544,7 +599,8 @@ const ProductCsvImportPanel = ({
           jobId: result.jobId,
           phase: 'completed',
           processedProducts: result.processedProducts,
-          processedProductGroups: result.processedProductGroups
+          processedProductGroups: result.processedProductGroups,
+          storagePath: result.storagePath
         });
 
         reset();
@@ -684,6 +740,7 @@ const ProductCsvImportPanel = ({
                     <th className="px-3 py-2">日時</th>
                     <th className="px-3 py-2">状態</th>
                     <th className="px-3 py-2">phase</th>
+                    <th className="px-3 py-2">Storage</th>
                     <th className="px-3 py-2">CSV</th>
                     <th className="px-3 py-2 text-right">商品</th>
                     <th className="px-3 py-2 text-right">グループ</th>
@@ -696,6 +753,7 @@ const ProductCsvImportPanel = ({
                       <td className="whitespace-nowrap px-3 py-2">{formatImportJobDate(job.createdAt)}</td>
                       <td className="whitespace-nowrap px-3 py-2">{getImportJobStatusLabel(job)}</td>
                       <td className="whitespace-nowrap px-3 py-2">{job.phase || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{job.storageUploaded ? '保存済み' : '-'}</td>
                       <td className="max-w-[220px] truncate px-3 py-2">{job.fileName || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         {Number(job.processedProducts || 0).toLocaleString()} / {Number(job.totalProducts || 0).toLocaleString()}

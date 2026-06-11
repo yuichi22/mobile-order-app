@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
 
 const requiredEnv = (key) => {
   const value = import.meta.env[key];
@@ -33,6 +34,7 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functionsApi = getFunctions(app, region);
+export const storage = getStorage(app);
 
 let persistencePromise = null;
 

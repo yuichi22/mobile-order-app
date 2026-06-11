@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return signedIn() && userProfile().data.role != null
+        ? userProfile().data.role
+        : null;
+    }
+
+    function userStoreId() {
+      return signedIn() && userProfile().data.storeId != null
+        ? userProfile().data.storeId
+        : null;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    function isStoreStaff(storeId) {
+      return signedIn()
+        && userStoreId() == storeId
+        && (userRole() == 'owner' || userRole() == 'admin' || userRole() == 'manager' || userRole() == 'staff');
+    }
+
+    function isStoreManager(storeId) {
+      return signedIn()
+        && userStoreId() == storeId
+        && (userRole() == 'owner' || userRole() == 'admin' || userRole() == 'manager');
+    }
+
+    match /stores/{storeId}/importJobs/{jobId}/{fileName=**} {
+      allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+      allow write: if (isPlatformAdmin() || isStoreManager(storeId))
+        && request.resource.size < 50 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('text/.*')
+          || request.resource.contentType == 'application/vnd.ms-excel'
+          || request.resource.contentType == 'application/csv'
+          || request.resource.contentType == 'application/octet-stream'
+        );
+    }
+  }
+}
