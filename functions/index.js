@@ -6070,14 +6070,27 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     productCandidateCount: productCandidates.length,
     warningCount: warnings.length,
     mappedIndexes: indexes,
-    groupCandidates: groupCandidates.slice(0, 50),
-    productCandidates: productCandidates.slice(0, 50),
-    sampleGroups: groupCandidates.slice(0, 10),
-    sampleProducts: productCandidates.slice(0, 20),
-    warnings: warnings.slice(0, 50)
+    groupCandidates,
+    productCandidates,
+    warnings
   };
 };
 
+
+
+
+const buildProductCsvFunctionWritePlanForJob = (writePlan = {}) => ({
+  mode: writePlan.mode || 'dryRun',
+  groupCandidateCount: Number(writePlan.groupCandidateCount || 0),
+  productCandidateCount: Number(writePlan.productCandidateCount || 0),
+  warningCount: Number(writePlan.warningCount || 0),
+  mappedIndexes: writePlan.mappedIndexes || {},
+  groupCandidates: Array.isArray(writePlan.groupCandidates) ? writePlan.groupCandidates.slice(0, 50) : [],
+  productCandidates: Array.isArray(writePlan.productCandidates) ? writePlan.productCandidates.slice(0, 50) : [],
+  sampleGroups: Array.isArray(writePlan.groupCandidates) ? writePlan.groupCandidates.slice(0, 10) : [],
+  sampleProducts: Array.isArray(writePlan.productCandidates) ? writePlan.productCandidates.slice(0, 20) : [],
+  warnings: Array.isArray(writePlan.warnings) ? writePlan.warnings.slice(0, 50) : []
+});
 
 
 const normalizeWorkerBoolean = (value, fallback = false) => {
@@ -6389,7 +6402,7 @@ export const processProductCsvImportJob = onDocumentWritten(
           csvImportableRows: summary.importableRows,
           csvBytes: buffer.length,
           functionPreview,
-          functionWritePlan,
+          functionWritePlan: buildProductCsvFunctionWritePlanForJob(functionWritePlan),
           functionSaveSummary: saveSummary
         }, { merge: true });
         return;
@@ -6407,7 +6420,7 @@ export const processProductCsvImportJob = onDocumentWritten(
         csvImportableRows: summary.importableRows,
         csvBytes: buffer.length,
         functionPreview,
-        functionWritePlan
+        functionWritePlan: buildProductCsvFunctionWritePlanForJob(functionWritePlan)
       }, { merge: true });
     } catch (error) {
       console.error('[processProductCsvImportJob] failed', {
