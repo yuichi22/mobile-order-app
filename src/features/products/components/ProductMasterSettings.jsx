@@ -22,6 +22,7 @@ import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import { db } from '../../../shared/api/firebase/client';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
+const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
 
 const normalizeProductMasterSearchText = (value) => (
   String(value || '')
@@ -3309,18 +3310,39 @@ const ProductMasterSettings = ({
 
       try {
         const productsRef = collection(db, 'stores', storeId, 'products');
-        const searchQuery = query(
-          productsRef,
-          where('searchKeywords', 'array-contains-any', searchTerms),
-          limit(PRODUCT_MASTER_HEADER_SEARCH_LIMIT)
+
+        const candidateTermGroups = requiredTerms.length > 1
+          ? requiredTerms.map((term) => buildProductMasterHeaderSearchTerms(term).slice(0, 10)).filter((terms) => terms.length)
+          : [searchTerms];
+
+        const candidateSnapshots = await Promise.all(
+          candidateTermGroups.map(async (candidateTerms) => {
+            const candidateQuery = query(
+              productsRef,
+              where('searchKeywords', 'array-contains-any', candidateTerms),
+              limit(PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT)
+            );
+            const snapshot = await getDocs(candidateQuery);
+            return {
+              terms: candidateTerms,
+              docs: snapshot.docs
+            };
+          })
         );
-        const snapshot = await getDocs(searchQuery);
-        const nextResults = snapshot.docs
+
+        const bestCandidate = candidateSnapshots
+          .filter((candidate) => candidate.docs.length > 0)
+          .sort((a, b) => a.docs.length - b.docs.length)[0];
+
+        const sourceDocs = bestCandidate?.docs || [];
+
+        const nextResults = sourceDocs
           .map((docSnapshot) => ({
             id: docSnapshot.id,
             ...docSnapshot.data()
           }))
-          .filter((product) => productMatchesAllHeaderSearchTerms(product, requiredTerms));
+          .filter((product) => productMatchesAllHeaderSearchTerms(product, requiredTerms))
+          .slice(0, PRODUCT_MASTER_HEADER_SEARCH_LIMIT);
 
         if (!cancelled) {
           setHeaderSearchResults(nextResults);
@@ -3366,8 +3388,8 @@ const ProductMasterSettings = ({
                   ) : (
                     <span>
                       全商品検索: 「{headerSearchKeyword}」 / {displayedProducts.length.toLocaleString()}件表示
-                      {headerSearchKeyword.includes(' ') || headerSearchKeyword.includes('　') ? '（複数ワードAND）' : ''}
-                      {displayedProducts.length >= PRODUCT_MASTER_HEADER_SEARCH_LIMIT ? `（上限${PRODUCT_MASTER_HEADER_SEARCH_LIMIT}件）` : ''}
+                      {headerSearchKeyword.includes(' ') || headerSearchKeyword.includes('　') ? '（複数ワードAND・代表候補検索）' : ''}
+                      {displayedProducts.length >= PRODUCT_MASTER_HEADER_SEARCH_LIMIT ? `（表示上限${PRODUCT_MASTER_HEADER_SEARCH_LIMIT}件）` : ''}
                     </span>
                   )}
                 </div>
