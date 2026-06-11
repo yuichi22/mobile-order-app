@@ -328,6 +328,31 @@ const StatusPill = ({ product }) => {
 
 const FieldLabel = () => null;
 
+const PRODUCT_SAVED_ROW_COMPARE_FIELDS = [
+  'name',
+  'sku',
+  'productCode',
+  'barcode',
+  'size',
+  'colorName',
+  'brandId',
+  'categoryId',
+  'subCategoryName',
+  'salesAreaName',
+  'priceTaxIncluded'
+];
+
+const normalizeSavedProductCompareValue = (value) => (
+  value === null || value === undefined ? '' : String(value)
+);
+
+const isSavedProductVisibleInSnapshot = (product = {}, saved = {}) => (
+  PRODUCT_SAVED_ROW_COMPARE_FIELDS.every((field) => (
+    normalizeSavedProductCompareValue(product[field])
+      === normalizeSavedProductCompareValue(saved[field])
+  ))
+);
+
 const ProductMasterTable = ({
   products,
   productCategories,
@@ -343,13 +368,44 @@ const ProductMasterTable = ({
   onSaved
 }) => {
   const [draftRows, setDraftRows] = useState({});
+  const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [savingKey, setSavingKey] = useState('');
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
   const [productMasterBulkSaving, setProductMasterBulkSaving] = useState(false);
 
-  const getDraft = (product) => draftRows[product.id] || product;
+  const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
+
+  useEffect(() => {
+    setRecentlySavedRows((current) => {
+      const next = { ...current };
+      let changed = false;
+
+      products.forEach((product) => {
+        const saved = next[product.id];
+        if (saved && isSavedProductVisibleInSnapshot(product, saved)) {
+          delete next[product.id];
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+  }, [products]);
+
+  const rememberSavedProduct = (payload) => {
+    if (!payload?.id) return;
+
+    setRecentlySavedRows((current) => ({
+      ...current,
+      [payload.id]: {
+        ...(products.find((product) => product.id === payload.id) || {}),
+        ...(current[payload.id] || {}),
+        ...payload
+      }
+    }));
+  };
 
   const getSubCategoryOptions = (categoryId) => {
     const normalizedCategoryId = String(categoryId || '').trim();
@@ -579,7 +635,9 @@ const ProductMasterTable = ({
 
     setSavingKey(product.id);
     try {
-      await onSaveProduct(buildProductSavePayload(draft));
+      const payload = buildProductSavePayload(draft);
+      await onSaveProduct(payload);
+      rememberSavedProduct(payload);
       setDraftRows((current) => {
         const next = { ...current };
         delete next[product.id];
@@ -703,13 +761,15 @@ const ProductMasterTable = ({
     try {
       for (const product of group.products) {
         const draft = getDraft(product);
-        await onSaveProduct(buildProductSavePayload({
+        const payload = buildProductSavePayload({
           ...draft,
           ...headerPatch,
           id: product.id,
           productGroupId: product.productGroupId || getDraft(product).productGroupId,
           productGroupRole: product.productGroupRole || getDraft(product).productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant')
-        }));
+        });
+        await onSaveProduct(payload);
+        rememberSavedProduct(payload);
       }
 
       setDraftRows((current) => {
@@ -875,7 +935,9 @@ const ProductMasterTable = ({
 
     try {
       for (const row of editedProductRows) {
-        await onSaveProduct(buildProductSavePayload(row));
+        const payload = buildProductSavePayload(row);
+        await onSaveProduct(payload);
+        rememberSavedProduct(payload);
       }
 
       setDraftRows((current) => {
@@ -987,14 +1049,16 @@ const ProductMasterTable = ({
     try {
       for (const product of group.products) {
         const draft = getDraft(product);
-        await onSaveProduct(buildProductSavePayload({
+        const payload = buildProductSavePayload({
           ...draft,
           id: product.id,
           productGroupId: product.productGroupId,
           productGroupRole: product.productGroupRole || (product.id === primaryProduct.id ? 'primary' : 'variant'),
           shopifyCreateEnabled: Boolean(enabled),
           shopifyEnabled: Boolean(enabled)
-        }));
+        });
+        await onSaveProduct(payload);
+        rememberSavedProduct(payload);
       }
 
       setDraftRows((current) => {
