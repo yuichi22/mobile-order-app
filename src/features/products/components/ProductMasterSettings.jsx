@@ -257,6 +257,7 @@ const FieldLabel = () => null;
 
 const ProductMasterTable = ({
   products,
+  productSearchLoading = false,
   productCategories,
   productCategoryGroups,
   productSubCategories = [],
@@ -1135,7 +1136,7 @@ const ProductMasterTable = ({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <div className="rounded-2xl bg-slate-50 px-4 py-2 text-sm font-black text-slate-600">
-            {(products || []).length.toLocaleString()}件
+            {productSearchLoading ? '検索中...' : `${(products || []).length.toLocaleString()}件`}
           </div>
           <button
             type="button"
@@ -3163,6 +3164,8 @@ export const SimpleMasterPanel = ({
 
 const ProductMasterSettings = ({
   products = [],
+  productSearchLoading = false,
+  searchProducts,
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
@@ -3191,6 +3194,18 @@ const ProductMasterSettings = ({
   const [activeTab, setActiveTab] = useState('products');
   const [internalKeyword, setInternalKeyword] = useState('');
   const keyword = typeof externalKeyword === 'string' ? externalKeyword : internalKeyword;
+
+  useEffect(() => {
+    if (activeTab !== 'products' || typeof searchProducts !== 'function') return undefined;
+
+    const normalizedKeyword = String(keyword || '').trim();
+    const timer = window.setTimeout(() => {
+      searchProducts(normalizedKeyword);
+    }, normalizedKeyword ? 350 : 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, keyword, searchProducts]);
+
   const setKeyword = typeof onExternalKeywordChange === 'function' ? onExternalKeywordChange : setInternalKeyword;
 
   const filterItems = (items) => {
@@ -3200,7 +3215,7 @@ const ProductMasterSettings = ({
     return items.filter((item) => JSON.stringify(item).toLowerCase().includes(normalizedKeyword));
   };
 
-  const filteredProducts = useMemo(() => filterItems(products), [keyword, products]);
+  const filteredProducts = useMemo(() => products || [], [products]);
   const filteredCategories = useMemo(() => filterItems(productCategories), [keyword, productCategories]);
   const filteredGroups = useMemo(() => filterItems(productCategoryGroups), [keyword, productCategoryGroups]);
   const filteredSubCategories = useMemo(() => filterItems(productSubCategories), [keyword, productSubCategories]);
@@ -3218,6 +3233,7 @@ const ProductMasterSettings = ({
           {activeTab === 'products' && (
             <ProductMasterTable
               products={filteredProducts}
+              productSearchLoading={productSearchLoading}
               productCategories={productCategories}
               productCategoryGroups={productCategoryGroups}
               productSubCategories={productSubCategories}

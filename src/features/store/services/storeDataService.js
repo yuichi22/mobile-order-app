@@ -9,7 +9,9 @@ import {
   setDoc,
   query,
   orderBy,
-  limit
+  limit,
+  getDocs,
+  where
 } from 'firebase/firestore';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
@@ -214,6 +216,53 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
   await setDoc(storeSettingsDocRef(storeId, 'shopify'), payload, { merge: true });
 };
 
+
+
+const PRODUCT_MASTER_SEARCH_LIMIT = 100;
+
+const normalizeProductSearchQueryText = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+);
+
+const addProductSearchQueryTerm = (terms, value) => {
+  const normalized = normalizeProductSearchQueryText(value);
+  if (!normalized) return;
+
+  terms.add(normalized);
+
+  normalized.split(/[\s　/／・,，、.。_\-ー]+/).forEach((part) => {
+    const token = normalizeProductSearchQueryText(part);
+    if (token) terms.add(token);
+  });
+
+  const compact = normalized.replace(/[\s　/／・,，、.。_\-ー]+/g, '');
+  if (compact) terms.add(compact);
+};
+
+const buildProductSearchQueryTerms = (keyword) => {
+  const terms = new Set();
+  addProductSearchQueryTerm(terms, keyword);
+  return Array.from(terms).filter(Boolean).slice(0, 30);
+};
+
+export const searchProductMasterItems = async (storeId, keyword, limitCount = PRODUCT_MASTER_SEARCH_LIMIT) => {
+  if (!isValidStoreId(storeId)) return [];
+
+  const searchTerms = buildProductSearchQueryTerms(keyword);
+  if (!searchTerms.length) return [];
+
+  const searchQuery = query(
+    storeCollectionRef(storeId, 'products'),
+    where('searchKeywords', 'array-contains-any', searchTerms),
+    limit(limitCount)
+  );
+
+  const snapshot = await getDocs(searchQuery);
+  return mapCollectionSnapshot(snapshot);
+};
 
 export const subscribeToProductMasterItems = (storeId, onData, onError) => (
   subscribeToLimitedStoreCollection(
