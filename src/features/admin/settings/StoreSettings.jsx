@@ -1180,6 +1180,7 @@ export const StoreSettings = ({
 
           {activeSubTab === 'products' && canAccessSettingsSection(normalizedRole, 'products') && (
             <ProductMasterSettings
+              storeId={storeId}
               products={productMaster.products}
               productCategories={productMaster.productCategories}
               productCategoryGroups={productMaster.productCategoryGroups}
