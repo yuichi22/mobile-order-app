@@ -19,6 +19,68 @@ const nowStamp = () => new Date().toISOString().replace(/[-:T]/g, '').slice(0, 1
 const outDir = `local_exports/dev-import-job-product-csv-${nowStamp()}`;
 
 const normalize = (value) => String(value ?? '').trim();
+
+const normalizeProductSearchText = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+);
+
+const addSearchTerm = (terms, value) => {
+  const normalized = normalizeProductSearchText(value);
+  if (!normalized) return;
+
+  terms.add(normalized);
+
+  normalized.split(/[\s　/／・,，、.。_\-ー]+/).forEach((part) => {
+    const token = normalizeProductSearchText(part);
+    if (token) terms.add(token);
+  });
+
+  const compact = normalized.replace(/[\s　/／・,，、.。_\-ー]+/g, '');
+  if (compact) terms.add(compact);
+
+  [normalized, compact].filter(Boolean).forEach((source) => {
+    const maxPrefix = Math.min(source.length, 24);
+    for (let length = 1; length <= maxPrefix; length += 1) {
+      terms.add(source.slice(0, length));
+    }
+
+    if (source.length >= 2 && source.length <= 80) {
+      for (let index = 0; index < source.length - 1; index += 1) {
+        terms.add(source.slice(index, index + 2));
+      }
+    }
+
+    if (source.length >= 3 && source.length <= 80) {
+      for (let index = 0; index < source.length - 2; index += 1) {
+        terms.add(source.slice(index, index + 3));
+      }
+    }
+  });
+};
+
+const buildProductSearchKeywords = (product = {}) => {
+  const terms = new Set();
+
+  [
+    product.name,
+    product.sku,
+    product.productCode,
+    product.barcode,
+    product.brandName,
+    product.categoryGroupName,
+    product.categoryName,
+    product.subCategoryName,
+    product.salesAreaName,
+    product.productGroupName,
+    product.groupCode
+  ].forEach((value) => addSearchTerm(terms, value));
+
+  return Array.from(terms).filter(Boolean).slice(0, 250);
+};
+
 const normalizeKey = (value) => normalize(value).toLowerCase().replace(/\s+/g, '');
 const normalizeId = (value) => normalize(value);
 
@@ -450,7 +512,8 @@ const main = async () => {
         productGroupName,
         groupCode: normalize(row.groupCode),
         importJobId: jobId,
-        importSource: 'productCsvImportJob',
+        searchKeywords: buildProductSearchKeywords(productPayload),
+      importSource: 'productCsvImportJob',
         updatedAt: FieldValue.serverTimestamp(),
         ...(existingProduct?.createdAt ? {} : { createdAt: FieldValue.serverTimestamp() })
       };
