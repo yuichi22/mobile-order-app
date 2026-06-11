@@ -9,8 +9,8 @@ import {
   CreditCard,
   Search,
   ShoppingBag,
-  Utensils
-} from 'lucide-react';
+  Utensils,
+  X} from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import { useStoreSettings } from '../store/hooks';
@@ -112,6 +112,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const [lastPaymentData, setLastPaymentData] = useState(null);
   const [posSettingsSubTab, setPosSettingsSubTab] = useState(null);
   const [posSettingsProductKeyword, setPosSettingsProductKeyword] = useState('');
+  const clearPosProductKeyword = () => setPosSettingsProductKeyword('');
   const [paymentResultToast, setPaymentResultToast] = useState(null);
   const [isPaymentResultReceiptPrinting, setIsPaymentResultReceiptPrinting] = useState(false);
 
@@ -546,8 +547,18 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     value={posSettingsProductKeyword}
                     onChange={(event) => setPosSettingsProductKeyword(event.target.value)}
                     placeholder="商品検索"
-                    className="h-11 w-full rounded-2xl border-2 border-gray-100 bg-white pl-11 pr-4 text-sm font-bold text-gray-700 outline-none transition focus:border-blue-400"
+                    className="h-11 w-full rounded-2xl border-2 border-gray-100 bg-white pl-11 pr-11 text-sm font-bold text-gray-700 outline-none transition focus:border-blue-400"
                   />
+                  {posSettingsProductKeyword && (
+                    <button
+                      type="button"
+                      onClick={clearPosProductKeyword}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                      aria-label="検索キーワードをクリア"
+                    >
+                      <X size={16} strokeWidth={2.7} />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
