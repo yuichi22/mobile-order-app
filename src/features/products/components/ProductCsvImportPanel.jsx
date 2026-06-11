@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 import {
   PRODUCT_CSV_FIELD_OPTIONS,
@@ -15,6 +15,31 @@ const normalizeNumberOrNullForImport = (value) => {
   return Number.isFinite(numberValue) ? numberValue : null;
 };
 
+
+
+const formatImportJobDate = (value) => {
+  if (!value) return '-';
+
+  const date = typeof value?.toDate === 'function'
+    ? value.toDate()
+    : new Date(value);
+
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+};
+
+const getImportJobStatusLabel = (job = {}) => {
+  if (job.status === 'completed') return '完了';
+  if (job.status === 'failed') return '失敗';
+  if (job.status === 'running') return '実行中';
+  return job.status || '-';
+};
 
 const PRODUCT_CSV_IMPORT_BATCH_SIZE = 400;
 
@@ -391,11 +416,47 @@ const ProductCsvImportPanel = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
+  const [importJobs, setImportJobs] = useState([]);
+  const [importJobsError, setImportJobsError] = useState('');
   const [csvRows, setCsvRows] = useState([]);
   const [mappingDraft, setMappingDraft] = useState([]);
   const [showMappingModal, setShowMappingModal] = useState(false);
 
   const headers = csvRows[0] || [];
+
+  useEffect(() => {
+    const normalizedStoreId = String(storeId || '').trim();
+
+    if (!normalizedStoreId) {
+      setImportJobs([]);
+      setImportJobsError('');
+      return undefined;
+    }
+
+    const jobsQuery = query(
+      collection(db, 'stores', normalizedStoreId, 'importJobs'),
+      orderBy('createdAt', 'desc'),
+      limit(8)
+    );
+
+    const unsubscribe = onSnapshot(
+      jobsQuery,
+      (snapshot) => {
+        setImportJobs(snapshot.docs
+          .map((documentSnapshot) => ({ id: documentSnapshot.id, ...documentSnapshot.data() }))
+          .filter((job) => job.type === 'productCsvImport'));
+        setImportJobsError('');
+      },
+      (nextError) => {
+        console.error('[ProductCsvImportPanel] importJobs subscribe failed', nextError);
+        setImportJobs([]);
+        setImportJobsError('取込履歴の読み込みに失敗しました。');
+      }
+    );
+
+    return unsubscribe;
+  }, [storeId]);
+
 
   const reset = () => {
     setPreview(null);
@@ -589,6 +650,67 @@ const ProductCsvImportPanel = ({
             {typeof importProgress.processedProducts === 'number' ? ` / 商品 ${importProgress.processedProducts.toLocaleString()}件` : ''}
           </div>
         )}
+
+        <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-black text-slate-900">直近のCSV取込履歴</div>
+              <div className="mt-1 text-[11px] font-bold text-slate-400">
+                importJobs に記録された商品CSV取込の履歴です。
+              </div>
+            </div>
+            <div className="text-[11px] font-black text-slate-400">
+              {importJobs.length.toLocaleString()}件
+            </div>
+          </div>
+
+          {importJobsError && (
+            <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
+              {importJobsError}
+            </div>
+          )}
+
+          {!importJobsError && importJobs.length === 0 && (
+            <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-400">
+              まだ商品CSV取込履歴はありません。
+            </div>
+          )}
+
+          {!importJobsError && importJobs.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-100">
+              <table className="w-full min-w-[760px] text-left text-[11px]">
+                <thead className="bg-slate-50 font-black text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">日時</th>
+                    <th className="px-3 py-2">状態</th>
+                    <th className="px-3 py-2">phase</th>
+                    <th className="px-3 py-2">CSV</th>
+                    <th className="px-3 py-2 text-right">商品</th>
+                    <th className="px-3 py-2 text-right">グループ</th>
+                    <th className="px-3 py-2">jobId</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
+                  {importJobs.map((job) => (
+                    <tr key={job.id}>
+                      <td className="whitespace-nowrap px-3 py-2">{formatImportJobDate(job.createdAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{getImportJobStatusLabel(job)}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{job.phase || '-'}</td>
+                      <td className="max-w-[220px] truncate px-3 py-2">{job.fileName || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {Number(job.processedProducts || 0).toLocaleString()} / {Number(job.totalProducts || 0).toLocaleString()}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {Number(job.processedProductGroups || 0).toLocaleString()} / {Number(job.totalProductGroups || 0).toLocaleString()}
+                      </td>
+                      <td className="max-w-[160px] truncate px-3 py-2 font-mono text-slate-400">{job.id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {!!mappingDraft.length && (
           <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
