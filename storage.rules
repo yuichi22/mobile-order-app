@@ -6,104 +6,71 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function platformAdminDoc() {
-      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
-    }
-
-    function isPlatformAdmin() {
+    function isAnonymous() {
       return signedIn()
-        && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid))
-        && platformAdminDoc().data.role == 'super_admin';
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
-    function userDoc() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-    }
-
-    function hasUserDoc() {
+    function hasUserProfile() {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
-    function userDocStoreId() {
-      return hasUserDoc() && userDoc().data.storeId != null
-        ? userDoc().data.storeId
-        : null;
+    function userProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
     }
 
-    function userDocRole() {
-      return hasUserDoc() && userDoc().data.role != null
-        ? userDoc().data.role
-        : null;
+    function userRole() {
+      return hasUserProfile() ? userProfile().role : null;
     }
 
-    function storeMemberDoc(storeId) {
-      return firestore.get(/databases/(default)/documents/stores/$(storeId)/members/$(request.auth.uid));
+    function isOwnerRole() {
+      return userRole() == 'owner' || userRole() == 'admin';
     }
 
-    function hasStoreMemberDoc(storeId) {
+    function isManagerRole() {
+      return userRole() == 'manager';
+    }
+
+    function isStaffRole() {
+      return userRole() == 'staff';
+    }
+
+    function hasPlatformAdminProfile() {
       return signedIn()
-        && firestore.exists(/databases/(default)/documents/stores/$(storeId)/members/$(request.auth.uid));
+        && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
     }
 
-    function storeMemberRole(storeId) {
-      return hasStoreMemberDoc(storeId) && storeMemberDoc(storeId).data.role != null
-        ? storeMemberDoc(storeId).data.role
-        : null;
+    function platformAdminProfile() {
+      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data;
     }
 
-    function isStaffRole(role) {
-      return role == 'owner'
-        || role == 'admin'
-        || role == 'manager'
-        || role == 'staff';
-    }
-
-    function isManagerRole(role) {
-      return role == 'owner'
-        || role == 'admin'
-        || role == 'manager';
-    }
-
-    function isStoreStaff(storeId) {
+    function isPlatformAdmin() {
       return signedIn()
-        && (
-          (
-            userDocStoreId() == storeId
-            && isStaffRole(userDocRole())
-          )
-          || (
-            hasStoreMemberDoc(storeId)
-            && isStaffRole(storeMemberRole(storeId))
-          )
-        );
+        && !isAnonymous()
+        && hasPlatformAdminProfile()
+        && platformAdminProfile().role == 'super_admin';
+    }
+
+    function isStoreMember(storeId) {
+      return signedIn()
+        && !isAnonymous()
+        && hasUserProfile()
+        && userProfile().storeId == storeId;
     }
 
     function isStoreManager(storeId) {
-      return signedIn()
-        && (
-          (
-            userDocStoreId() == storeId
-            && isManagerRole(userDocRole())
-          )
-          || (
-            hasStoreMemberDoc(storeId)
-            && isManagerRole(storeMemberRole(storeId))
-          )
-        );
+      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole());
+    }
+
+    function isStoreStaff(storeId) {
+      return isStoreMember(storeId) && (isOwnerRole() || isManagerRole() || isStaffRole());
     }
 
     match /stores/{storeId}/importJobs/{jobId}/{fileName=**} {
       allow read: if isPlatformAdmin() || isStoreStaff(storeId);
       allow write: if (isPlatformAdmin() || isStoreManager(storeId))
-        && request.resource.size < 50 * 1024 * 1024
-        && (
-          request.resource.contentType.matches('text/.*')
-          || request.resource.contentType == 'application/vnd.ms-excel'
-          || request.resource.contentType == 'application/csv'
-          || request.resource.contentType == 'text/csv'
-          || request.resource.contentType == 'application/octet-stream'
-        );
+        && request.resource.size < 50 * 1024 * 1024;
     }
   }
 }
