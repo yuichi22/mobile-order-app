@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { ref as storageRef, uploadBytes } from 'firebase/storage';
 
 import {
@@ -596,28 +597,46 @@ const ProductCsvImportPanel = ({
       return undefined;
     }
 
-    const jobsQuery = query(
-      collection(db, 'stores', normalizedStoreId, 'importJobs'),
-      orderBy('createdAt', 'desc'),
-      limit(8)
-    );
+    let unsubscribeJobs = null;
 
-    const unsubscribe = onSnapshot(
-      jobsQuery,
-      (snapshot) => {
-        setImportJobs(snapshot.docs
-          .map((documentSnapshot) => ({ id: documentSnapshot.id, ...documentSnapshot.data() }))
-          .filter((job) => job.type === 'productCsvImport'));
-        setImportJobsError('');
-      },
-      (nextError) => {
-        console.error('[ProductCsvImportPanel] importJobs subscribe failed', nextError);
-        setImportJobs([]);
-        setImportJobsError('取込履歴の読み込みに失敗しました。');
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (unsubscribeJobs) {
+        unsubscribeJobs();
+        unsubscribeJobs = null;
       }
-    );
 
-    return unsubscribe;
+      if (!currentUser) {
+        setImportJobs([]);
+        setImportJobsError('');
+        return;
+      }
+
+      const jobsQuery = query(
+        collection(db, 'stores', normalizedStoreId, 'importJobs'),
+        orderBy('createdAt', 'desc'),
+        limit(8)
+      );
+
+      unsubscribeJobs = onSnapshot(
+        jobsQuery,
+        (snapshot) => {
+          setImportJobs(snapshot.docs
+            .map((documentSnapshot) => ({ id: documentSnapshot.id, ...documentSnapshot.data() }))
+            .filter((job) => job.type === 'productCsvImport'));
+          setImportJobsError('');
+        },
+        (nextError) => {
+          console.error('[ProductCsvImportPanel] importJobs subscribe failed', nextError);
+          setImportJobs([]);
+          setImportJobsError('取込履歴の読み込みに失敗しました。');
+        }
+      );
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeJobs) unsubscribeJobs();
+    };
   }, [storeId]);
 
 
