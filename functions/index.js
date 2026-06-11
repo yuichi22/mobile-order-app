@@ -6068,6 +6068,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     mode: 'dryRun',
     groupCandidateCount: groupCandidates.length,
     productCandidateCount: productCandidates.length,
+    barcodePrimaryKey: true,
     warningCount: warnings.length,
     mappedIndexes: indexes,
     groupCandidates,
