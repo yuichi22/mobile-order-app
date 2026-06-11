@@ -6079,6 +6079,232 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
 };
 
 
+
+const normalizeWorkerBoolean = (value, fallback = false) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === '') return fallback;
+  return ['true', '1', 'yes', 'y', 'on', 'する', 'はい'].includes(normalized);
+};
+
+const buildWorkerSearchKeywords = (values = []) => {
+  const tokens = new Set();
+  values
+    .flatMap((value) => String(value ?? '').split(/[\s　,、/／|｜\-ー_]+/))
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach((value) => {
+      tokens.add(value);
+      if (/^[a-z0-9]+$/i.test(value)) tokens.add(value.toUpperCase());
+    });
+  return Array.from(tokens).slice(0, 80);
+};
+
+const chunkWorkerArray = (items = [], size = 10) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const collectExistingProductRefsForWorker = async ({ db, storeId, products = [] }) => {
+  const productsRef = db.collection('stores').doc(storeId).collection('products');
+  const keyMap = new Map();
+
+  const collectByField = async (fieldName) => {
+    const values = Array.from(new Set(
+      products
+        .map((product) => String(product[fieldName] || '').trim())
+        .filter(Boolean)
+    ));
+
+    for (const valuesChunk of chunkWorkerArray(values, 10)) {
+      const snapshot = await productsRef.where(fieldName, 'in', valuesChunk).get();
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data() || {};
+        const value = String(data[fieldName] || '').trim();
+        if (!value) return;
+        const key = `${fieldName}:${value}`;
+        if (!keyMap.has(key)) {
+          keyMap.set(key, doc.ref);
+        }
+      });
+    }
+  };
+
+  await collectByField('productCode');
+  await collectByField('sku');
+  await collectByField('barcode');
+
+  return keyMap;
+};
+
+const getExistingProductRefForWorker = ({ existingProductRefs, product }) => {
+  const productCode = String(product.productCode || '').trim();
+  const sku = String(product.sku || '').trim();
+  const barcode = String(product.barcode || '').trim();
+
+  return existingProductRefs.get(`productCode:${productCode}`)
+    || existingProductRefs.get(`sku:${sku}`)
+    || existingProductRefs.get(`barcode:${barcode}`)
+    || null;
+};
+
+const executeProductCsvFunctionWritesForWorker = async ({
+  db,
+  storeId,
+  jobId,
+  writePlan
+}) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const groupCandidates = Array.isArray(writePlan?.groupCandidates) ? writePlan.groupCandidates : [];
+  const productCandidates = Array.isArray(writePlan?.productCandidates) ? writePlan.productCandidates : [];
+
+  const groupIdByKey = new Map();
+  const existingProductRefs = await collectExistingProductRefsForWorker({
+    db,
+    storeId,
+    products: productCandidates
+  });
+
+  let savedGroupCount = 0;
+  let savedProductCount = 0;
+  let batch = db.batch();
+  let operationCount = 0;
+
+  const commitIfNeeded = async (force = false) => {
+    if (operationCount === 0) return;
+    if (!force && operationCount < 400) return;
+    await batch.commit();
+    batch = db.batch();
+    operationCount = 0;
+  };
+
+  for (const group of groupCandidates) {
+    const preferredId = String(group.sourceProductGroupId || '').trim();
+    const groupRef = preferredId
+      ? storeRef.collection('productGroups').doc(preferredId)
+      : storeRef.collection('productGroups').doc();
+
+    groupIdByKey.set(group.key, groupRef.id);
+
+    const groupData = {
+      id: groupRef.id,
+      name: group.name || '',
+      productGroupName: group.productGroupName || group.name || '',
+      groupCode: group.groupCode || '',
+      categoryGroupName: group.categoryGroupName || '',
+      categoryName: group.categoryName || '',
+      subCategoryName: group.subCategoryName || '',
+      salesAreaName: group.salesAreaName || '',
+      brandName: group.brandName || '',
+      productCount: Number(group.productCount || 0),
+      shopifyEnabled: false,
+      shopifyProductId: '',
+      importJobId: jobId,
+      updatedAt: FieldValue.serverTimestamp()
+    };
+
+    batch.set(groupRef, groupData, { merge: true });
+    operationCount += 1;
+    savedGroupCount += 1;
+    await commitIfNeeded();
+  }
+
+  for (const product of productCandidates) {
+    const existingRef = getExistingProductRefForWorker({
+      existingProductRefs,
+      product
+    });
+
+    const productRef = existingRef || storeRef.collection('products').doc();
+    const productGroupId = groupIdByKey.get(product.groupKey)
+      || product.sourceProductGroupId
+      || '';
+
+    const searchKeywords = buildWorkerSearchKeywords([
+      product.name,
+      product.sku,
+      product.productCode,
+      product.barcode,
+      product.brandName,
+      product.categoryGroupName,
+      product.categoryName,
+      product.subCategoryName,
+      product.salesAreaName,
+      product.size,
+      product.colorName
+    ]);
+
+    const productData = {
+      name: product.name || '',
+      sku: product.sku || '',
+      productCode: product.productCode || product.sku || '',
+      barcode: product.barcode || '',
+      brandId: '',
+      brandName: product.brandName || '',
+      supplierId: '',
+      supplierName: '',
+      categoryGroupId: '',
+      categoryGroupName: product.categoryGroupName || '',
+      categoryId: '',
+      categoryName: product.categoryName || '',
+      subCategoryId: '',
+      subCategoryName: product.subCategoryName || '',
+      salesAreaId: '',
+      salesAreaName: product.salesAreaName || '',
+      departmentId: '',
+      groupCode: product.groupCode || '',
+      productGroupId,
+      productGroupName: product.productGroupName || '',
+      productGroupRole: product.productGroupRole || 'primary',
+      productType: '',
+      size: product.size || '',
+      colorName: product.colorName || '',
+      priceTaxIncluded: product.priceTaxIncluded ?? 0,
+      priceTaxExcluded: product.priceTaxExcluded ?? null,
+      taxRate: product.taxRate ?? 10,
+      taxRateType: '',
+      inventoryQuantity: product.inventoryQuantity ?? 0,
+      costTaxIncluded: null,
+      costTaxExcluded: null,
+      supplierCostRate: null,
+      orderLot: null,
+      reorderLot: null,
+      reorderPoint: null,
+      reorderQuantity: null,
+      note: '',
+      labelEnabled: false,
+      isActive: true,
+      isArchived: false,
+      shopifyCreateEnabled: normalizeWorkerBoolean(product.shopifyCreateEnabled, false),
+      shopifyProductId: product.shopifyProductId || '',
+      shopifyVariantId: product.shopifyVariantId || '',
+      shopifyInventoryItemId: product.shopifyInventoryItemId || '',
+      searchKeywords,
+      searchKeywordsVersion: 1,
+      searchKeywordsUpdatedAt: FieldValue.serverTimestamp(),
+      importJobId: jobId,
+      updatedAt: FieldValue.serverTimestamp()
+    };
+
+    batch.set(productRef, productData, { merge: true });
+    operationCount += 1;
+    savedProductCount += 1;
+    await commitIfNeeded();
+  }
+
+  await commitIfNeeded(true);
+
+  return {
+    savedGroupCount,
+    savedProductCount,
+    productCandidateCount: productCandidates.length,
+    groupCandidateCount: groupCandidates.length
+  };
+};
+
+
 export const processProductCsvImportJob = onDocumentWritten(
   {
     region: REGION,
@@ -6134,6 +6360,40 @@ export const processProductCsvImportJob = onDocumentWritten(
       const summary = countMappedProductCsvRowsForWorker(rows);
       const functionPreview = buildProductCsvFunctionPreviewForWorker(rows);
       const functionWritePlan = buildProductCsvFunctionWritePlanForWorker(rows);
+
+      if (after.executeProductWrites === true) {
+        await jobRef.set({
+          phase: 'savingProducts',
+          functionReadOnly: false,
+          functionWritePlanOnly: false,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        const saveSummary = await executeProductCsvFunctionWritesForWorker({
+          db: getFirestore(),
+          storeId,
+          jobId,
+          writePlan: functionWritePlan
+        });
+
+        await jobRef.set({
+          status: 'completed',
+          phase: 'functionSaveCompleted',
+          workerCompletedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          functionReadOnly: false,
+          functionWritePlanOnly: false,
+          functionSaved: true,
+          csvHeaderCount: summary.headerCount,
+          csvDataRows: summary.dataRows,
+          csvImportableRows: summary.importableRows,
+          csvBytes: buffer.length,
+          functionPreview,
+          functionWritePlan,
+          functionSaveSummary: saveSummary
+        }, { merge: true });
+        return;
+      }
 
       await jobRef.set({
         status: 'completed',
