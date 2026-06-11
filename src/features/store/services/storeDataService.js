@@ -9,9 +9,7 @@ import {
   setDoc,
   query,
   orderBy,
-  limit,
-  getDocs,
-  where
+  limit
 } from 'firebase/firestore';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
@@ -217,92 +215,6 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
 };
 
 
-
-const PRODUCT_MASTER_SEARCH_LIMIT = 100;
-
-const normalizeProductSearchText = (value) => (
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-);
-
-const addSearchTerm = (terms, value) => {
-  const normalized = normalizeProductSearchText(value);
-  if (!normalized) return;
-
-  terms.add(normalized);
-
-  normalized.split(/[\s　/／・,，、.。_\-ー]+/).forEach((part) => {
-    const token = normalizeProductSearchText(part);
-    if (token) terms.add(token);
-  });
-
-  const compact = normalized.replace(/[\s　/／・,，、.。_\-ー]+/g, '');
-  if (compact) terms.add(compact);
-
-  [normalized, compact].filter(Boolean).forEach((source) => {
-    const maxPrefix = Math.min(source.length, 24);
-    for (let length = 1; length <= maxPrefix; length += 1) {
-      terms.add(source.slice(0, length));
-    }
-
-    if (source.length >= 2 && source.length <= 80) {
-      for (let index = 0; index < source.length - 1; index += 1) {
-        terms.add(source.slice(index, index + 2));
-      }
-    }
-
-    if (source.length >= 3 && source.length <= 80) {
-      for (let index = 0; index < source.length - 2; index += 1) {
-        terms.add(source.slice(index, index + 3));
-      }
-    }
-  });
-};
-
-export const buildProductSearchKeywords = (product = {}) => {
-  const terms = new Set();
-
-  [
-    product.name,
-    product.sku,
-    product.productCode,
-    product.barcode,
-    product.brandName,
-    product.categoryGroupName,
-    product.categoryName,
-    product.subCategoryName,
-    product.salesAreaName,
-    product.productGroupName,
-    product.groupCode
-  ].forEach((value) => addSearchTerm(terms, value));
-
-  return Array.from(terms).filter(Boolean).slice(0, 250);
-};
-
-const buildProductSearchQueryTerms = (keyword) => {
-  const terms = new Set();
-  addSearchTerm(terms, keyword);
-  return Array.from(terms).filter(Boolean).slice(0, 30);
-};
-
-export const searchProductMasterItems = async (storeId, keyword, limitCount = PRODUCT_MASTER_SEARCH_LIMIT) => {
-  if (!isValidStoreId(storeId)) return [];
-
-  const searchTerms = buildProductSearchQueryTerms(keyword);
-  if (!searchTerms.length) return [];
-
-  const searchQuery = query(
-    storeCollectionRef(storeId, 'products'),
-    where('searchKeywords', 'array-contains-any', searchTerms),
-    limit(limitCount)
-  );
-
-  const snapshot = await getDocs(searchQuery);
-  return mapCollectionSnapshot(snapshot);
-};
-
 export const subscribeToProductMasterItems = (storeId, onData, onError) => (
   subscribeToLimitedStoreCollection(
     storeId,
@@ -456,7 +368,6 @@ export const saveProductMasterItem = async (storeId, itemData) => {
   } = itemData;
 
   const productPayload = {
-    searchKeywords: buildProductSearchKeywords(itemData),
     ...rawProductPayload,
     id: productId,
     productGroupId: nextProductGroupId,
