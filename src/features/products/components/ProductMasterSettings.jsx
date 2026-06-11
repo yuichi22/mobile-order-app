@@ -51,6 +51,42 @@ const buildProductMasterHeaderSearchTerms = (keyword) => {
   return Array.from(terms).filter(Boolean).slice(0, 30);
 };
 
+const buildProductMasterRequiredSearchTerms = (keyword) => (
+  normalizeProductMasterSearchText(keyword)
+    .split(/[\s　]+/)
+    .map((term) => normalizeProductMasterSearchText(term))
+    .filter(Boolean)
+);
+
+const productMatchesAllHeaderSearchTerms = (product, requiredTerms) => {
+  if (!requiredTerms.length) return true;
+
+  const keywordSet = new Set(
+    Array.isArray(product?.searchKeywords)
+      ? product.searchKeywords.map((value) => normalizeProductMasterSearchText(value)).filter(Boolean)
+      : []
+  );
+
+  const fallbackText = normalizeProductMasterSearchText([
+    product?.name,
+    product?.sku,
+    product?.productCode,
+    product?.barcode,
+    product?.brandName,
+    product?.categoryGroupName,
+    product?.categoryName,
+    product?.subCategoryName,
+    product?.salesAreaName,
+    product?.productType
+  ].filter(Boolean).join(' '));
+
+  return requiredTerms.every((term) => (
+    keywordSet.has(term)
+    || Array.from(keywordSet).some((keyword) => keyword.includes(term))
+    || fallbackText.includes(term)
+  ));
+};
+
 const PRODUCT_TABS = [
   { id: 'products', label: '商品', icon: Package }
 ];
@@ -3257,6 +3293,7 @@ const ProductMasterSettings = ({
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       const searchTerms = buildProductMasterHeaderSearchTerms(headerSearchKeyword);
+      const requiredTerms = buildProductMasterRequiredSearchTerms(headerSearchKeyword);
 
       if (!searchTerms.length) {
         if (!cancelled) {
@@ -3278,10 +3315,12 @@ const ProductMasterSettings = ({
           limit(PRODUCT_MASTER_HEADER_SEARCH_LIMIT)
         );
         const snapshot = await getDocs(searchQuery);
-        const nextResults = snapshot.docs.map((docSnapshot) => ({
-          id: docSnapshot.id,
-          ...docSnapshot.data()
-        }));
+        const nextResults = snapshot.docs
+          .map((docSnapshot) => ({
+            id: docSnapshot.id,
+            ...docSnapshot.data()
+          }))
+          .filter((product) => productMatchesAllHeaderSearchTerms(product, requiredTerms));
 
         if (!cancelled) {
           setHeaderSearchResults(nextResults);
@@ -3327,6 +3366,7 @@ const ProductMasterSettings = ({
                   ) : (
                     <span>
                       全商品検索: 「{headerSearchKeyword}」 / {displayedProducts.length.toLocaleString()}件表示
+                      {headerSearchKeyword.includes(' ') || headerSearchKeyword.includes('　') ? '（複数ワードAND）' : ''}
                       {displayedProducts.length >= PRODUCT_MASTER_HEADER_SEARCH_LIMIT ? `（上限${PRODUCT_MASTER_HEADER_SEARCH_LIMIT}件）` : ''}
                     </span>
                   )}
