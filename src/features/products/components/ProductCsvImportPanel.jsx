@@ -10,6 +10,32 @@ import {
 } from '../utils/productCsvImport';
 import { auth, db, storage } from '../../../shared/api/firebase/client';
 
+const PRODUCT_CSV_IMPORT_PROCESSING_MODE = 'function';
+const PRODUCT_CSV_IMPORT_EXECUTE_PRODUCT_WRITES = true;
+
+
+const getImportJobProductProgressText = (job = {}) => {
+  const summary = job.functionSaveSummary || {};
+  const saved = job.importedProductCount ?? summary.savedProductCount;
+  const total = job.totalProductCount ?? summary.productCandidateCount ?? job.csvImportableRows;
+
+  if (saved === undefined && total === undefined) return '-';
+  if (saved === undefined) return `- / ${total ?? '-'}`;
+  if (total === undefined) return `${saved} / -`;
+  return `${saved} / ${total}`;
+};
+
+const getImportJobGroupProgressText = (job = {}) => {
+  const summary = job.functionSaveSummary || {};
+  const saved = job.importedGroupCount ?? summary.savedGroupCount;
+  const total = job.totalGroupCount ?? summary.groupCandidateCount ?? job.functionWritePlan?.groupCandidateCount;
+
+  if (saved === undefined && total === undefined) return '-';
+  if (saved === undefined) return `- / ${total ?? '-'}`;
+  if (total === undefined) return `${saved} / -`;
+  return `${saved} / ${total}`;
+};
+
 const normalizeNumberOrNullForImport = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const numberValue = Number(value);
@@ -128,6 +154,8 @@ const runProductCsvImportJob = async ({
   initialBatch.set(importJobRef, {
     id: jobId,
     type: 'productCsvImport',
+    processingMode: PRODUCT_CSV_IMPORT_PROCESSING_MODE,
+    executeProductWrites: PRODUCT_CSV_IMPORT_EXECUTE_PRODUCT_WRITES,
     createdByUid: currentUser.uid,
     fileName: fileName || '',
     storagePath,
@@ -177,6 +205,42 @@ const runProductCsvImportJob = async ({
       updatedAt: serverTimestamp()
     }, { merge: true });
     await uploadedBatch.commit();
+
+    if (PRODUCT_CSV_IMPORT_PROCESSING_MODE === 'function') {
+      const queuedBatch = writeBatch(db);
+      queuedBatch.set(importJobRef, {
+        status: 'queued',
+        phase: 'queued',
+        processingMode: PRODUCT_CSV_IMPORT_PROCESSING_MODE,
+        executeProductWrites: PRODUCT_CSV_IMPORT_EXECUTE_PRODUCT_WRITES,
+        functionReadOnly: false,
+        functionWritePlanOnly: false,
+        queuedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      await queuedBatch.commit();
+
+      onProgress?.({
+        status: 'queued',
+        phase: 'queued',
+        savedProducts: 0,
+        totalProducts: preview.importableProducts.length,
+        savedGroups: 0,
+        totalGroups: preview.productGroupPayloads.length
+      });
+
+      return {
+        jobId,
+        storagePath,
+        processingMode: PRODUCT_CSV_IMPORT_PROCESSING_MODE,
+        queuedForFunction: true,
+        importedProductCount: 0,
+        totalProductCount: preview.importableProducts.length,
+        importedGroupCount: 0,
+        totalGroupCount: preview.productGroupPayloads.length
+      };
+    }
+
   }
 
   const updateJob = async (patch) => {
