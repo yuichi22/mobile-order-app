@@ -5867,6 +5867,218 @@ const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
 };
 
 
+
+const toWorkerNumberOrNull = (value) => {
+  const normalized = String(value ?? '').trim().replace(/,/g, '');
+  if (normalized === '') return null;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+};
+
+const buildWorkerGroupKey = ({
+  productGroupId,
+  productGroupName,
+  categoryGroup,
+  category,
+  subCategory
+}) => {
+  if (productGroupId) return `id:${productGroupId}`;
+  if (productGroupName) return `name:${productGroupName}`;
+  return ['category', categoryGroup, category, subCategory]
+    .map((value) => String(value || '').trim())
+    .join('|');
+};
+
+const buildWorkerProductKey = ({
+  productCode,
+  sku,
+  barcode,
+  name,
+  size,
+  colorName
+}) => {
+  if (productCode) return `productCode:${productCode}`;
+  if (sku) return `sku:${sku}`;
+  if (barcode) return `barcode:${barcode}`;
+  return ['name', name, size, colorName]
+    .map((value) => String(value || '').trim())
+    .join('|');
+};
+
+const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
+  const headers = Array.isArray(rows?.[0])
+    ? rows[0].map(normalizeWorkerHeader)
+    : [];
+  const dataRows = Array.isArray(rows) && rows.length > 1 ? rows.slice(1) : [];
+
+  const indexes = {
+    productGroupId: findWorkerHeaderIndex(headers, ['productGroupId', '商品グループID', 'グループID']),
+    productGroupRole: findWorkerHeaderIndex(headers, ['productGroupRole', 'グループ役割']),
+    productGroupName: findWorkerHeaderIndex(headers, ['productGroupName', '商品グループ名', 'グループ名']),
+    name: findWorkerHeaderIndex(headers, ['name', '商品名', 'productName']),
+    sku: findWorkerHeaderIndex(headers, ['sku', '品番', 'productCode', '商品コード']),
+    productCode: findWorkerHeaderIndex(headers, ['productCode', '商品コード']),
+    barcode: findWorkerHeaderIndex(headers, ['barcode', 'バーコード', 'jan', 'JAN']),
+    brand: findWorkerHeaderIndex(headers, ['brand', 'brandName', 'ブランド']),
+    categoryGroup: findWorkerHeaderIndex(headers, ['categoryGroup', 'categoryGroupName', 'カテゴリグループ', 'カテゴリーグループ']),
+    category: findWorkerHeaderIndex(headers, ['category', 'categoryName', 'カテゴリ', 'カテゴリー']),
+    subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
+    salesAreaName: findWorkerHeaderIndex(headers, ['salesAreaName', '売場', '販売エリア']),
+    size: findWorkerHeaderIndex(headers, ['size', 'サイズ']),
+    colorName: findWorkerHeaderIndex(headers, ['colorName', 'color', 'カラー', '色']),
+    priceTaxIncluded: findWorkerHeaderIndex(headers, ['priceTaxIncluded', '税込価格', '税込売価']),
+    priceTaxExcluded: findWorkerHeaderIndex(headers, ['priceTaxExcluded', '税抜価格', '税抜売価']),
+    taxRate: findWorkerHeaderIndex(headers, ['taxRate', '税率']),
+    inventoryQuantity: findWorkerHeaderIndex(headers, ['inventoryQuantity', 'stock', 'stockQty', 'quantity', '在庫', '在庫数']),
+    shopifyCreateEnabled: findWorkerHeaderIndex(headers, ['shopifyCreateEnabled', 'Shopify作成']),
+    shopifyProductId: findWorkerHeaderIndex(headers, ['shopifyProductId']),
+    shopifyVariantId: findWorkerHeaderIndex(headers, ['shopifyVariantId']),
+    shopifyInventoryItemId: findWorkerHeaderIndex(headers, ['shopifyInventoryItemId'])
+  };
+
+  const groupMap = new Map();
+  const productCandidates = [];
+  const warnings = [];
+
+  dataRows.forEach((row, rowIndex) => {
+    const lineNumber = rowIndex + 2;
+
+    const productGroupId = getWorkerCell(row, indexes.productGroupId);
+    const productGroupRole = getWorkerCell(row, indexes.productGroupRole);
+    const productGroupName = getWorkerCell(row, indexes.productGroupName);
+    const name = getWorkerCell(row, indexes.name);
+    const sku = getWorkerCell(row, indexes.sku);
+    const productCode = getWorkerCell(row, indexes.productCode);
+    const barcode = getWorkerCell(row, indexes.barcode);
+    const brand = getWorkerCell(row, indexes.brand);
+    const categoryGroup = getWorkerCell(row, indexes.categoryGroup);
+    const category = getWorkerCell(row, indexes.category);
+    const subCategory = getWorkerCell(row, indexes.subCategory);
+    const salesAreaName = getWorkerCell(row, indexes.salesAreaName);
+    const size = getWorkerCell(row, indexes.size);
+    const colorName = getWorkerCell(row, indexes.colorName);
+    const priceTaxIncludedRaw = getWorkerCell(row, indexes.priceTaxIncluded);
+    const priceTaxExcludedRaw = getWorkerCell(row, indexes.priceTaxExcluded);
+    const taxRateRaw = getWorkerCell(row, indexes.taxRate);
+    const inventoryQuantityRaw = getWorkerCell(row, indexes.inventoryQuantity);
+    const shopifyCreateEnabled = getWorkerCell(row, indexes.shopifyCreateEnabled);
+    const shopifyProductId = getWorkerCell(row, indexes.shopifyProductId);
+    const shopifyVariantId = getWorkerCell(row, indexes.shopifyVariantId);
+    const shopifyInventoryItemId = getWorkerCell(row, indexes.shopifyInventoryItemId);
+
+    const isImportable = Boolean(name || sku || barcode || productCode);
+    if (!isImportable) {
+      warnings.push({
+        lineNumber,
+        type: 'emptyProductIdentity',
+        message: '商品名・品番・バーコード・商品コードが空のため保存対象外です。'
+      });
+      return;
+    }
+
+    const groupKey = buildWorkerGroupKey({
+      productGroupId,
+      productGroupName,
+      categoryGroup,
+      category,
+      subCategory
+    });
+
+    if (groupKey && !groupMap.has(groupKey)) {
+      groupMap.set(groupKey, {
+        key: groupKey,
+        sourceProductGroupId: productGroupId || '',
+        role: productGroupRole || '',
+        name: productGroupName || name || '',
+        categoryGroupName: categoryGroup || '',
+        categoryName: category || '',
+        subCategoryName: subCategory || '',
+        salesAreaName: salesAreaName || '',
+        brandName: brand || '',
+        productCount: 0,
+        sampleLineNumbers: []
+      });
+    }
+
+    const group = groupMap.get(groupKey);
+    if (group) {
+      group.productCount += 1;
+      if (group.sampleLineNumbers.length < 5) {
+        group.sampleLineNumbers.push(lineNumber);
+      }
+    }
+
+    const priceTaxIncluded = toWorkerNumberOrNull(priceTaxIncludedRaw);
+    const priceTaxExcluded = toWorkerNumberOrNull(priceTaxExcludedRaw);
+    const taxRate = toWorkerNumberOrNull(taxRateRaw);
+    const inventoryQuantity = toWorkerNumberOrNull(inventoryQuantityRaw);
+
+    productCandidates.push({
+      key: buildWorkerProductKey({
+        productCode,
+        sku,
+        barcode,
+        name,
+        size,
+        colorName
+      }),
+      lineNumber,
+      groupKey,
+      sourceProductGroupId: productGroupId || '',
+      productGroupName: productGroupName || '',
+      productGroupRole: productGroupRole || '',
+      name,
+      sku,
+      productCode,
+      barcode,
+      brandName: brand || '',
+      categoryGroupName: categoryGroup || '',
+      categoryName: category || '',
+      subCategoryName: subCategory || '',
+      salesAreaName: salesAreaName || '',
+      size,
+      colorName,
+      priceTaxIncluded,
+      priceTaxExcluded,
+      taxRate,
+      inventoryQuantity,
+      shopifyCreateEnabled,
+      shopifyProductId,
+      shopifyVariantId,
+      shopifyInventoryItemId
+    });
+  });
+
+  const groupCandidates = Array.from(groupMap.values());
+
+  const duplicateProductKeys = productCandidates
+    .map((product) => product.key)
+    .filter(Boolean)
+    .filter((key, index, array) => array.indexOf(key) !== index);
+
+  duplicateProductKeys.slice(0, 20).forEach((key) => {
+    warnings.push({
+      type: 'duplicateProductKey',
+      key,
+      message: 'CSV内で同じ商品キーが重複しています。保存前に確認してください。'
+    });
+  });
+
+  return {
+    mode: 'dryRun',
+    groupCandidateCount: groupCandidates.length,
+    productCandidateCount: productCandidates.length,
+    warningCount: warnings.length,
+    mappedIndexes: indexes,
+    groupCandidates: groupCandidates.slice(0, 50),
+    productCandidates: productCandidates.slice(0, 50),
+    sampleGroups: groupCandidates.slice(0, 10),
+    sampleProducts: productCandidates.slice(0, 20),
+    warnings: warnings.slice(0, 50)
+  };
+};
+
+
 export const processProductCsvImportJob = onDocumentWritten(
   {
     region: REGION,
@@ -5921,18 +6133,21 @@ export const processProductCsvImportJob = onDocumentWritten(
       const rows = parseProductCsvTextForWorker(csvText);
       const summary = countMappedProductCsvRowsForWorker(rows);
       const functionPreview = buildProductCsvFunctionPreviewForWorker(rows);
+      const functionWritePlan = buildProductCsvFunctionWritePlanForWorker(rows);
 
       await jobRef.set({
         status: 'completed',
-        phase: 'functionPreviewCompleted',
+        phase: 'functionWritePlanCompleted',
         workerCompletedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         functionReadOnly: true,
+        functionWritePlanOnly: true,
         csvHeaderCount: summary.headerCount,
         csvDataRows: summary.dataRows,
         csvImportableRows: summary.importableRows,
         csvBytes: buffer.length,
-        functionPreview
+        functionPreview,
+        functionWritePlan
       }, { merge: true });
     } catch (error) {
       console.error('[processProductCsvImportJob] failed', {
