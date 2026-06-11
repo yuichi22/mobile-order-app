@@ -8,7 +8,7 @@ import {
   buildProductCsvPreview,
   parseProductCsvText
 } from '../utils/productCsvImport';
-import { db, storage } from '../../../shared/api/firebase/client';
+import { auth, db, storage } from '../../../shared/api/firebase/client';
 
 const normalizeNumberOrNullForImport = (value) => {
   if (value === '' || value === null || value === undefined) return null;
@@ -115,6 +115,12 @@ const runProductCsvImportJob = async ({
   const storeRef = doc(db, 'stores', normalizedStoreId);
   const importJobRef = doc(collection(storeRef, 'importJobs'));
   const jobId = importJobRef.id;
+  const currentUser = auth.currentUser;
+
+  if (!currentUser?.uid) {
+    throw new Error('CSVアップロードにはログイン状態が必要です。再ログインしてからお試しください。');
+  }
+
   const storagePath = `stores/${normalizedStoreId}/importJobs/${jobId}/${Date.now()}-${sanitizeStorageFileName(fileName)}`;
   const startedAt = serverTimestamp();
 
@@ -122,6 +128,7 @@ const runProductCsvImportJob = async ({
   initialBatch.set(importJobRef, {
     id: jobId,
     type: 'productCsvImport',
+    createdByUid: currentUser.uid,
     fileName: fileName || '',
     storagePath,
     storageUploaded: false,

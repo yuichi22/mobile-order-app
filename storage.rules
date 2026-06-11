@@ -6,9 +6,28 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function importJobPath(storeId, jobId) {
+      return /databases/(default)/documents/stores/$(storeId)/importJobs/$(jobId);
+    }
+
+    function hasImportJob(storeId, jobId) {
+      return firestore.exists(importJobPath(storeId, jobId));
+    }
+
+    function importJob(storeId, jobId) {
+      return firestore.get(importJobPath(storeId, jobId)).data;
+    }
+
+    function isOwnProductCsvImportJob(storeId, jobId) {
+      return signedIn()
+        && hasImportJob(storeId, jobId)
+        && importJob(storeId, jobId).type == 'productCsvImport'
+        && importJob(storeId, jobId).createdByUid == request.auth.uid;
+    }
+
     match /stores/{storeId}/importJobs/{jobId}/{fileName=**} {
-      allow read: if signedIn();
-      allow write: if signedIn()
+      allow read: if isOwnProductCsvImportJob(storeId, jobId);
+      allow write: if isOwnProductCsvImportJob(storeId, jobId)
         && request.resource.size < 50 * 1024 * 1024;
     }
   }
