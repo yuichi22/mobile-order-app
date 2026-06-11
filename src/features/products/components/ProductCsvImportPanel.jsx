@@ -163,7 +163,8 @@ const runProductCsvImportJob = async ({
         customMetadata: {
           storeId: normalizedStoreId,
           jobId,
-          type: 'productCsvImport'
+          type: 'productCsvImport',
+          createdByUid: currentUser.uid
         }
       }
     );
