@@ -5749,6 +5749,124 @@ const countMappedProductCsvRowsForWorker = (rows = []) => {
   };
 };
 
+
+const normalizeWorkerHeader = (value = '') => String(value || '').trim();
+
+const normalizeWorkerCell = (value = '') => String(value || '').trim();
+
+const findWorkerHeaderIndex = (headers = [], candidates = []) => {
+  const normalizedCandidates = candidates.map((candidate) => String(candidate || '').trim().toLowerCase());
+  return headers.findIndex((header) => normalizedCandidates.includes(String(header || '').trim().toLowerCase()));
+};
+
+const getWorkerCell = (row = [], index = -1) => {
+  if (index < 0) return '';
+  return normalizeWorkerCell(row[index]);
+};
+
+const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
+  const headers = Array.isArray(rows?.[0])
+    ? rows[0].map(normalizeWorkerHeader)
+    : [];
+
+  const dataRows = Array.isArray(rows) && rows.length > 1 ? rows.slice(1) : [];
+
+  const indexes = {
+    sku: findWorkerHeaderIndex(headers, ['sku', '品番', 'productCode', '商品コード']),
+    barcode: findWorkerHeaderIndex(headers, ['barcode', 'バーコード', 'jan', 'JAN']),
+    name: findWorkerHeaderIndex(headers, ['name', '商品名', 'productName']),
+    categoryGroup: findWorkerHeaderIndex(headers, ['categoryGroup', 'categoryGroupName', 'カテゴリグループ', 'カテゴリーグループ']),
+    category: findWorkerHeaderIndex(headers, ['category', 'categoryName', 'カテゴリ', 'カテゴリー']),
+    subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
+    brand: findWorkerHeaderIndex(headers, ['brand', 'brandName', 'ブランド']),
+    supplier: findWorkerHeaderIndex(headers, ['supplier', 'supplierName', '仕入先']),
+    price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', '売価']),
+    stock: findWorkerHeaderIndex(headers, ['stock', 'stockQty', 'quantity', '在庫'])
+  };
+
+  const warnings = [];
+  const groupKeys = new Set();
+  const brandNames = new Set();
+  const supplierNames = new Set();
+  const sampleProducts = [];
+
+  let importableRows = 0;
+  let skippedRows = 0;
+
+  dataRows.forEach((row, rowIndex) => {
+    const lineNumber = rowIndex + 2;
+    const sku = getWorkerCell(row, indexes.sku);
+    const barcode = getWorkerCell(row, indexes.barcode);
+    const name = getWorkerCell(row, indexes.name);
+    const categoryGroup = getWorkerCell(row, indexes.categoryGroup);
+    const category = getWorkerCell(row, indexes.category);
+    const subCategory = getWorkerCell(row, indexes.subCategory);
+    const brand = getWorkerCell(row, indexes.brand);
+    const supplier = getWorkerCell(row, indexes.supplier);
+    const price = getWorkerCell(row, indexes.price);
+    const stock = getWorkerCell(row, indexes.stock);
+
+    const isImportable = Boolean(name || sku || barcode);
+
+    if (!isImportable) {
+      skippedRows += 1;
+      warnings.push({
+        lineNumber,
+        type: 'emptyProductIdentity',
+        message: '商品名・品番・バーコードが空のためスキップ候補です。'
+      });
+      return;
+    }
+
+    importableRows += 1;
+
+    const groupKey = [categoryGroup, category, subCategory].filter(Boolean).join(' / ');
+    if (groupKey) groupKeys.add(groupKey);
+    if (brand) brandNames.add(brand);
+    if (supplier) supplierNames.add(supplier);
+
+    if (!name) {
+      warnings.push({
+        lineNumber,
+        type: 'missingName',
+        message: '商品名が空です。'
+      });
+    }
+
+    if (sampleProducts.length < 20) {
+      sampleProducts.push({
+        lineNumber,
+        sku,
+        barcode,
+        name,
+        categoryGroup,
+        category,
+        subCategory,
+        brand,
+        supplier,
+        price,
+        stock
+      });
+    }
+  });
+
+  return {
+    headerCount: headers.length,
+    dataRows: dataRows.length,
+    importableRows,
+    skippedRows,
+    groupCandidateCount: groupKeys.size,
+    brandCandidateCount: brandNames.size,
+    supplierCandidateCount: supplierNames.size,
+    warningCount: warnings.length,
+    headers,
+    mappedIndexes: indexes,
+    sampleProducts,
+    warnings: warnings.slice(0, 50)
+  };
+};
+
+
 export const processProductCsvImportJob = onDocumentWritten(
   {
     region: REGION,
@@ -5802,17 +5920,19 @@ export const processProductCsvImportJob = onDocumentWritten(
       const csvText = buffer.toString('utf8');
       const rows = parseProductCsvTextForWorker(csvText);
       const summary = countMappedProductCsvRowsForWorker(rows);
+      const functionPreview = buildProductCsvFunctionPreviewForWorker(rows);
 
       await jobRef.set({
         status: 'completed',
-        phase: 'storageReadCompleted',
+        phase: 'functionPreviewCompleted',
         workerCompletedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         functionReadOnly: true,
         csvHeaderCount: summary.headerCount,
         csvDataRows: summary.dataRows,
         csvImportableRows: summary.importableRows,
-        csvBytes: buffer.length
+        csvBytes: buffer.length,
+        functionPreview
       }, { merge: true });
     } catch (error) {
       console.error('[processProductCsvImportJob] failed', {
