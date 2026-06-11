@@ -356,6 +356,7 @@ const EcIntegrationPanel = ({
 };
 
 const CsvImportWorkflowPanel = ({
+  storeId,
   productMaster,
   onSaved
 }) => (
@@ -435,6 +436,7 @@ const CsvImportWorkflowPanel = ({
       status="実装済み"
     >
       <ProductCsvImportPanel
+        storeId={storeId}
         products={productMaster?.products || []}
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
@@ -481,6 +483,7 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
       if (activeCsvTab === 'csvImport') {
         return (
           <CsvImportWorkflowPanel
+              storeId={storeId}
             productMaster={productMaster}
             onSaved={onSaved}
           />

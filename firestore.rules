@@ -203,6 +203,12 @@ service cloud.firestore {
       }
 
 
+      match /importJobs/{jobId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow create, update: if isPlatformAdmin() || isStoreManager(storeId);
+        allow delete: if false;
+      }
+
       match /productGroups/{groupId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreManager(storeId);

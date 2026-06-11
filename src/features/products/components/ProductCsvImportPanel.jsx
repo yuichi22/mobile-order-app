@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 import {
   PRODUCT_CSV_FIELD_OPTIONS,
@@ -6,12 +7,192 @@ import {
   buildProductCsvPreview,
   parseProductCsvText
 } from '../utils/productCsvImport';
+import { db } from '../../../shared/api/firebase/client';
 
 const normalizeNumberOrNullForImport = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
 };
+
+
+const PRODUCT_CSV_IMPORT_BATCH_SIZE = 400;
+
+const chunkArray = (items, size) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const omitInternalImportFields = (item = {}) => {
+  const { __rowNumber, ...payload } = item;
+  return payload;
+};
+
+const buildImportProductPayload = ({ product, jobId }) => {
+  const payload = normalizeImportedProductPayload(omitInternalImportFields(product));
+  const { id, ...data } = payload;
+
+  return {
+    id,
+    data: {
+      ...data,
+      importJobId: jobId,
+      updatedAt: serverTimestamp()
+    }
+  };
+};
+
+const buildImportGroupPayload = ({ group, jobId }) => {
+  const payload = omitInternalImportFields(group);
+  const id = String(payload.id || payload.productGroupId || '').trim();
+
+  return {
+    id,
+    data: {
+      ...payload,
+      id,
+      importJobId: jobId,
+      updatedAt: serverTimestamp()
+    }
+  };
+};
+
+const runProductCsvImportJob = async ({
+  storeId,
+  fileName,
+  preview,
+  onProgress
+}) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  if (!normalizedStoreId) throw new Error('storeId が見つかりません。');
+
+  const products = Array.isArray(preview?.importableProducts) ? preview.importableProducts : [];
+  const productGroups = Array.isArray(preview?.importableProductGroups) ? preview.importableProductGroups : [];
+
+  if (!products.length) {
+    throw new Error('取込対象の商品がありません。');
+  }
+
+  const storeRef = doc(db, 'stores', normalizedStoreId);
+  const importJobRef = doc(collection(storeRef, 'importJobs'));
+  const jobId = importJobRef.id;
+  const startedAt = serverTimestamp();
+
+  const initialBatch = writeBatch(db);
+  initialBatch.set(importJobRef, {
+    id: jobId,
+    type: 'productCsvImport',
+    fileName: fileName || '',
+    status: 'running',
+    phase: 'initializing',
+    totalProducts: products.length,
+    totalProductGroups: productGroups.length,
+    processedProducts: 0,
+    processedProductGroups: 0,
+    totalRows: Number(preview?.totalRows || products.length),
+    skippedProducts: Number(preview?.skippedProducts?.length || 0),
+    warningsCount: Number(preview?.warnings?.length || 0),
+    errorsCount: Number(preview?.errors?.length || 0),
+    createdAt: startedAt,
+    updatedAt: startedAt
+  });
+  await initialBatch.commit();
+
+  const updateJob = async (patch) => {
+    const batch = writeBatch(db);
+    batch.set(importJobRef, {
+      ...patch,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    await batch.commit();
+  };
+
+  let processedProductGroups = 0;
+  let processedProducts = 0;
+
+  try {
+    if (productGroups.length) {
+      await updateJob({ phase: 'writingProductGroups' });
+
+      for (const groupChunk of chunkArray(productGroups, PRODUCT_CSV_IMPORT_BATCH_SIZE)) {
+        const batch = writeBatch(db);
+
+        groupChunk.forEach((group) => {
+          const { id, data } = buildImportGroupPayload({ group, jobId });
+          if (!id) return;
+
+          batch.set(doc(collection(storeRef, 'productGroups'), id), data, { merge: true });
+        });
+
+        processedProductGroups += groupChunk.length;
+
+        batch.set(importJobRef, {
+          phase: 'writingProductGroups',
+          processedProductGroups,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        await batch.commit();
+        onProgress?.({ jobId, phase: 'writingProductGroups', processedProductGroups, processedProducts });
+      }
+    }
+
+    await updateJob({ phase: 'writingProducts' });
+
+    for (const productChunk of chunkArray(products, PRODUCT_CSV_IMPORT_BATCH_SIZE)) {
+      const batch = writeBatch(db);
+
+      productChunk.forEach((product) => {
+        const { id, data } = buildImportProductPayload({ product, jobId });
+        const productRef = id
+          ? doc(collection(storeRef, 'products'), id)
+          : doc(collection(storeRef, 'products'));
+
+        batch.set(productRef, data, { merge: true });
+      });
+
+      processedProducts += productChunk.length;
+
+      batch.set(importJobRef, {
+        phase: 'writingProducts',
+        processedProducts,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await batch.commit();
+      onProgress?.({ jobId, phase: 'writingProducts', processedProductGroups, processedProducts });
+    }
+
+    await updateJob({
+      status: 'completed',
+      phase: 'completed',
+      processedProducts,
+      processedProductGroups,
+      completedAt: serverTimestamp()
+    });
+
+    return {
+      jobId,
+      processedProducts,
+      processedProductGroups
+    };
+  } catch (error) {
+    await updateJob({
+      status: 'failed',
+      phase: 'failed',
+      errorMessage: error?.message || String(error),
+      processedProducts,
+      processedProductGroups,
+      failedAt: serverTimestamp()
+    });
+
+    throw error;
+  }
+};
+
 
 const normalizeImportedProductPayload = (product) => ({
   ...product,
@@ -192,6 +373,7 @@ const ProductCsvMappingModal = ({
 };
 
 const ProductCsvImportPanel = ({
+  storeId,
   products = [],
   productCategories = [],
   productCategoryGroups = [],
@@ -208,6 +390,7 @@ const ProductCsvImportPanel = ({
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [csvRows, setCsvRows] = useState([]);
   const [mappingDraft, setMappingDraft] = useState([]);
   const [showMappingModal, setShowMappingModal] = useState(false);
@@ -278,15 +461,37 @@ const ProductCsvImportPanel = ({
   const executeImport = async () => {
     if (!preview?.importableProducts?.length || saving) return;
 
-    if (typeof onSaveProduct !== 'function') {
+    if (!storeId && typeof onSaveProduct !== 'function') {
       setError('商品保存処理が未接続です。');
       return;
     }
 
     setSaving(true);
     setError('');
+    setImportProgress(null);
 
     try {
+      if (storeId) {
+        const result = await runProductCsvImportJob({
+          storeId,
+          fileName,
+          preview,
+          onProgress: (progress) => setImportProgress(progress)
+        });
+
+        setImportProgress({
+          jobId: result.jobId,
+          phase: 'completed',
+          processedProducts: result.processedProducts,
+          processedProductGroups: result.processedProductGroups
+        });
+
+        reset();
+        onSaved?.();
+        window.alert(`${Number(result.processedProductGroups || 0).toLocaleString()}件の商品グループ、${Number(result.processedProducts || 0).toLocaleString()}件の商品を取り込みました。`);
+        return;
+      }
+
       const productGroups = Array.isArray(preview.importableProductGroups)
         ? preview.importableProductGroups
         : [];
@@ -312,11 +517,12 @@ const ProductCsvImportPanel = ({
       window.alert(`${savedGroupCount.toLocaleString()}件の商品グループ、${savedCount.toLocaleString()}件の商品を取り込みました。`);
     } catch (nextError) {
       console.error('[ProductCsvImportPanel] CSV save failed', nextError);
-      setError('CSV取込の保存に失敗しました。一部だけ保存された可能性があります。商品一覧を確認してください。');
+      setError(nextError?.message || 'CSV取込の保存に失敗しました。一部だけ保存された可能性があります。商品一覧を確認してください。');
     } finally {
       setSaving(false);
     }
   };
+
 
   return (
     <div className="border-t border-slate-100 bg-white px-5 py-4">
@@ -375,6 +581,14 @@ const ProductCsvImportPanel = ({
             </button>
           </div>
         </div>
+
+        {importProgress?.jobId && (
+          <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold text-blue-700">
+            importJob: {importProgress.jobId} / {importProgress.phase}
+            {typeof importProgress.processedProductGroups === 'number' ? ` / グループ ${importProgress.processedProductGroups.toLocaleString()}件` : ''}
+            {typeof importProgress.processedProducts === 'number' ? ` / 商品 ${importProgress.processedProducts.toLocaleString()}件` : ''}
+          </div>
+        )}
 
         {!!mappingDraft.length && (
           <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
