@@ -1,4 +1,4 @@
-﻿import { initializeApp } from 'firebase-admin/app';
+import { initializeApp } from 'firebase-admin/app';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -5528,6 +5528,143 @@ export const autoVacateNoOrderSessions = onSchedule(
     console.log('[autoVacateNoOrderSessions] skipped sessions with orders:', skippedWithOrdersCount);
     console.log('[autoVacateNoOrderSessions] patched hasOrders sessions:', patchedHasOrdersCount);
     console.log('[autoVacateNoOrderSessions] archived sessions:', archivedCount);
+  }
+);
+
+
+// Auto-maintain product search keywords.
+// This keeps product master keyword search working after UI edits, CSV imports, and script writes.
+const PRODUCT_SEARCH_KEYWORDS_VERSION = 2;
+
+const normalizeProductSearchKeywordText = (value) => (
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+);
+
+const addProductSearchKeywordTerm = (terms, value) => {
+  const normalized = normalizeProductSearchKeywordText(value);
+  if (!normalized) return;
+
+  terms.add(normalized);
+
+  const parts = normalized
+    .split(/[\s　/／・,，、.。_\-ー]+/)
+    .map((part) => normalizeProductSearchKeywordText(part))
+    .filter(Boolean);
+
+  parts.forEach((part) => {
+    terms.add(part);
+
+    // Prefixes keep partial searches such as "mosco" -> "moscot" working.
+    if (/^[a-z0-9]+$/.test(part) && part.length >= 2) {
+      const maxPrefixLength = Math.min(part.length, 12);
+      for (let index = 2; index <= maxPrefixLength; index += 1) {
+        terms.add(part.slice(0, index));
+      }
+    }
+  });
+
+  const compact = normalized.replace(/[\s　/／・,，、.。_\-ー]+/g, '');
+  if (compact) {
+    terms.add(compact);
+
+    if (/^[a-z0-9]+$/.test(compact) && compact.length >= 2) {
+      const maxPrefixLength = Math.min(compact.length, 16);
+      for (let index = 2; index <= maxPrefixLength; index += 1) {
+        terms.add(compact.slice(0, index));
+      }
+    }
+
+    // Small n-grams help Japanese partial searches without making the document too large.
+    if (!/^[a-z0-9]+$/.test(compact) && compact.length >= 2) {
+      const maxGramLength = Math.min(6, compact.length);
+      for (let size = 2; size <= maxGramLength; size += 1) {
+        for (let start = 0; start <= compact.length - size; start += 1) {
+          terms.add(compact.slice(start, start + size));
+          if (terms.size >= 120) return;
+        }
+      }
+    }
+  }
+};
+
+const buildProductSearchKeywordsForFunction = (product = {}) => {
+  const terms = new Set();
+
+  [
+    product.name,
+    product.productName,
+    product.title,
+    product.productGroupTitle,
+    product.sku,
+    product.productCode,
+    product.code,
+    product.barcode,
+    product.janCode,
+    product.brandName,
+    product.vendor,
+    product.categoryGroupName,
+    product.categoryName,
+    product.subCategoryName,
+    product.salesAreaName,
+    product.productType,
+    product.colorName,
+    product.color,
+    product.colorCode,
+    product.size,
+    product.sizeName,
+    product.option1,
+    product.option2,
+    product.option3
+  ].forEach((value) => addProductSearchKeywordTerm(terms, value));
+
+  return Array.from(terms)
+    .filter(Boolean)
+    .slice(0, 120);
+};
+
+const areStringArraysEqualIgnoreOrder = (left = [], right = []) => {
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  if (left.length !== right.length) return false;
+
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+};
+
+export const syncProductSearchKeywords = onDocumentWritten(
+  {
+    region: 'asia-northeast1',
+    document: 'stores/{storeId}/products/{productId}'
+  },
+  async (event) => {
+    const afterSnapshot = event.data?.after;
+
+    if (!afterSnapshot?.exists) {
+      return;
+    }
+
+    const product = afterSnapshot.data() || {};
+    const nextSearchKeywords = buildProductSearchKeywordsForFunction(product);
+    const currentSearchKeywords = Array.isArray(product.searchKeywords) ? product.searchKeywords : [];
+
+    const alreadyCurrent = (
+      product.searchKeywordsVersion === PRODUCT_SEARCH_KEYWORDS_VERSION
+      && areStringArraysEqualIgnoreOrder(currentSearchKeywords, nextSearchKeywords)
+    );
+
+    if (alreadyCurrent) {
+      return;
+    }
+
+    await afterSnapshot.ref.update({
+      searchKeywords: nextSearchKeywords,
+      searchKeywordsVersion: PRODUCT_SEARCH_KEYWORDS_VERSION,
+      searchKeywordsUpdatedAt: FieldValue.serverTimestamp()
+    });
   }
 );
 
