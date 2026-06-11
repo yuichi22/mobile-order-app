@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
+import ProductMasterKeywordSearchPanel from './ProductMasterKeywordSearchPanel';
 
 const PRODUCT_TABS = [
   { id: 'products', label: '商品', icon: Package }
@@ -3162,6 +3163,7 @@ export const SimpleMasterPanel = ({
 };
 
 const ProductMasterSettings = ({
+  storeId,
   products = [],
   productCategories = [],
   productCategoryGroups = [],
@@ -3216,20 +3218,23 @@ const ProductMasterSettings = ({
       ) : (
         <>
           {activeTab === 'products' && (
-            <ProductMasterTable
-              products={filteredProducts}
-              productCategories={productCategories}
-              productCategoryGroups={productCategoryGroups}
-              productSubCategories={productSubCategories}
-              productSalesAreas={productSalesAreas}
-              brands={brands}
-              suppliers={suppliers}
-              onSaveProduct={onSaveProduct}
-              onDeleteProduct={onDeleteProduct}
-              onCreateShopifyDraftProduct={onCreateShopifyDraftProduct}
-              onUpdateShopifyProduct={onUpdateShopifyProduct}
-              onSaved={onSaved}
-            />
+            <>
+              <ProductMasterKeywordSearchPanel storeId={storeId} />
+              <ProductMasterTable
+                products={filteredProducts}
+                productCategories={productCategories}
+                productCategoryGroups={productCategoryGroups}
+                productSubCategories={productSubCategories}
+                productSalesAreas={productSalesAreas}
+                brands={brands}
+                suppliers={suppliers}
+                onSaveProduct={onSaveProduct}
+                onDeleteProduct={onDeleteProduct}
+                onCreateShopifyDraftProduct={onCreateShopifyDraftProduct}
+                onUpdateShopifyProduct={onUpdateShopifyProduct}
+                onSaved={onSaved}
+              />
+            </>
           )}
 
           {false && activeTab === 'categories' && (
