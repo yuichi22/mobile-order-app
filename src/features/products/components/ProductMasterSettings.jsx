@@ -1,3 +1,4 @@
+import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -18,7 +19,37 @@ import {
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
-import ProductMasterKeywordSearchPanel from './ProductMasterKeywordSearchPanel';
+import { db } from '../../../shared/api/firebase/client';
+
+const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
+
+const normalizeProductMasterSearchText = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+);
+
+const addProductMasterSearchTerm = (terms, value) => {
+  const normalized = normalizeProductMasterSearchText(value);
+  if (!normalized) return;
+
+  terms.add(normalized);
+
+  normalized.split(/[\s　/／・,，、.。_\-ー]+/).forEach((part) => {
+    const token = normalizeProductMasterSearchText(part);
+    if (token) terms.add(token);
+  });
+
+  const compact = normalized.replace(/[\s　/／・,，、.。_\-ー]+/g, '');
+  if (compact) terms.add(compact);
+};
+
+const buildProductMasterHeaderSearchTerms = (keyword) => {
+  const terms = new Set();
+  addProductMasterSearchTerm(terms, keyword);
+  return Array.from(terms).filter(Boolean).slice(0, 30);
+};
 
 const PRODUCT_TABS = [
   { id: 'products', label: '商品', icon: Package }
@@ -3208,6 +3239,74 @@ const ProductMasterSettings = ({
   const filteredSubCategories = useMemo(() => filterItems(productSubCategories), [keyword, productSubCategories]);
   const filteredBrands = useMemo(() => filterItems(brands), [keyword, brands]);
   const filteredSuppliers = useMemo(() => filterItems(suppliers), [keyword, suppliers]);
+  const [headerSearchResults, setHeaderSearchResults] = useState([]);
+  const [headerSearchLoading, setHeaderSearchLoading] = useState(false);
+  const [headerSearchError, setHeaderSearchError] = useState('');
+
+  const headerSearchKeyword = useMemo(() => normalizeProductMasterSearchText(keyword), [keyword]);
+  const isHeaderProductSearchActive = Boolean(storeId && headerSearchKeyword);
+
+  useEffect(() => {
+    if (!storeId || !headerSearchKeyword) {
+      setHeaderSearchResults([]);
+      setHeaderSearchError('');
+      setHeaderSearchLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const searchTerms = buildProductMasterHeaderSearchTerms(headerSearchKeyword);
+
+      if (!searchTerms.length) {
+        if (!cancelled) {
+          setHeaderSearchResults([]);
+          setHeaderSearchError('');
+          setHeaderSearchLoading(false);
+        }
+        return;
+      }
+
+      setHeaderSearchLoading(true);
+      setHeaderSearchError('');
+
+      try {
+        const productsRef = collection(db, 'stores', storeId, 'products');
+        const searchQuery = query(
+          productsRef,
+          where('searchKeywords', 'array-contains-any', searchTerms),
+          limit(PRODUCT_MASTER_HEADER_SEARCH_LIMIT)
+        );
+        const snapshot = await getDocs(searchQuery);
+        const nextResults = snapshot.docs.map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data()
+        }));
+
+        if (!cancelled) {
+          setHeaderSearchResults(nextResults);
+        }
+      } catch (searchError) {
+        console.error('[product master header search] failed', searchError);
+        if (!cancelled) {
+          setHeaderSearchResults([]);
+          setHeaderSearchError(searchError?.message || '全商品検索に失敗しました。');
+        }
+      } finally {
+        if (!cancelled) {
+          setHeaderSearchLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [headerSearchKeyword, storeId]);
+
+  const displayedProducts = isHeaderProductSearchActive ? headerSearchResults : filteredProducts;
+
 
   return (
     <div className="space-y-5">
@@ -3219,9 +3318,23 @@ const ProductMasterSettings = ({
         <>
           {activeTab === 'products' && (
             <>
-              <ProductMasterKeywordSearchPanel storeId={storeId} />
+              {isHeaderProductSearchActive && (
+                <div className="mb-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm font-bold text-slate-600">
+                  {headerSearchLoading ? (
+                    <span>全商品から検索中...</span>
+                  ) : headerSearchError ? (
+                    <span className="text-rose-600">全商品検索エラー: {headerSearchError}</span>
+                  ) : (
+                    <span>
+                      全商品検索: 「{headerSearchKeyword}」 / {displayedProducts.length.toLocaleString()}件表示
+                      {displayedProducts.length >= PRODUCT_MASTER_HEADER_SEARCH_LIMIT ? `（上限${PRODUCT_MASTER_HEADER_SEARCH_LIMIT}件）` : ''}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <ProductMasterTable
-                products={filteredProducts}
+                products={displayedProducts}
                 productCategories={productCategories}
                 productCategoryGroups={productCategoryGroups}
                 productSubCategories={productSubCategories}
