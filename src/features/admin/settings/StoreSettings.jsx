@@ -490,6 +490,14 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
         );
       }
 
+      if (activeCsvTab === 'csvExport') {
+        return (
+          <CsvExportWorkflowPanel
+            productMaster={productMaster}
+          />
+        );
+      }
+
       return null;
     }
 
@@ -831,6 +839,327 @@ const TimeSettings = ({
     </div>
   );
 };
+
+
+const csvEscapeForExport = (value) => {
+  const text = String(value ?? '');
+  if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+};
+
+const downloadCsvFile = (filename, headers, rows) => {
+  const csvRows = [
+    headers.map((header) => csvEscapeForExport(header)).join(','),
+    ...rows.map((row) => headers.map((header) => csvEscapeForExport(row[header])).join(','))
+  ];
+  const blob = new Blob([`\uFEFF${csvRows.join('\n')}\n`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+};
+
+const toExportBoolean = (value) => (value === false ? 'FALSE' : 'TRUE');
+
+const formatDateStamp = () => {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+    pad(now.getHours()),
+    pad(now.getMinutes())
+  ].join('');
+};
+
+const buildSupplierExportRows = (suppliers = []) => suppliers
+  .map((supplier) => ({
+    smaregiSupplierId: supplier.smaregiSupplierId || supplier.supplierSmaregiId || '',
+    name: supplier.name || supplier.supplierName || '',
+    kana: supplier.kana || '',
+    contactName: supplier.contactName || '',
+    tel: supplier.tel || supplier.phone || '',
+    email: supplier.email || '',
+    paymentTerms: supplier.paymentTerms || '',
+    note: supplier.note || '',
+    isActive: toExportBoolean(supplier.isActive)
+  }))
+  .filter((row) => row.name)
+  .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
+const buildBrandExportRows = (brands = [], suppliers = []) => {
+  const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  return brands
+    .map((brand) => {
+      const supplier = suppliersById.get(brand.supplierId || '') || null;
+      return {
+        brandId: brand.brandExternalId || brand.smaregiBrandId || brand.brandCode || brand.id || '',
+        brandCode: brand.brandCode || brand.smaregiBrandId || brand.brandExternalId || '',
+        brandName: brand.name || brand.brandName || '',
+        kana: brand.kana || '',
+        note: brand.note || '',
+        isActive: toExportBoolean(brand.isActive),
+        supplierSmaregiId: brand.supplierSmaregiId || supplier?.smaregiSupplierId || supplier?.supplierSmaregiId || '',
+        supplierName: brand.supplierName || supplier?.name || supplier?.supplierName || ''
+      };
+    })
+    .filter((row) => row.brandName)
+    .sort((a, b) => a.brandName.localeCompare(b.brandName, 'ja'));
+};
+
+const buildCategoryGroupExportRows = (categoryGroups = []) => categoryGroups
+  .map((group) => ({
+    categoryGroupId: group.groupExternalId || group.smaregiCategoryGroupId || group.categoryGroupCode || group.id || '',
+    categoryGroupName: group.name || group.groupName || group.categoryGroupName || '',
+    displayOrder: group.displayOrder ?? group.order ?? '',
+    note: group.note || '',
+    isActive: toExportBoolean(group.isActive)
+  }))
+  .filter((row) => row.categoryGroupName)
+  .sort((a, b) => String(a.displayOrder || '').localeCompare(String(b.displayOrder || ''), 'ja') || a.categoryGroupName.localeCompare(b.categoryGroupName, 'ja'));
+
+const buildCategoryExportRows = (categories = [], categoryGroups = []) => {
+  const groupsById = new Map(categoryGroups.map((group) => [group.id, group]));
+  return categories
+    .map((category) => {
+      const group = groupsById.get(category.groupId || category.categoryGroupId || '') || null;
+      return {
+        categoryId: category.categoryExternalId || category.smaregiCategoryId || category.categoryCode || category.id || '',
+        categoryName: category.name || category.categoryName || '',
+        categoryGroupId: category.categoryGroupExternalId || group?.groupExternalId || group?.smaregiCategoryGroupId || group?.categoryGroupCode || category.groupId || category.categoryGroupId || '',
+        categoryGroupName: category.categoryGroupName || group?.name || group?.groupName || group?.categoryGroupName || '',
+        displayOrder: category.displayOrder ?? category.order ?? '',
+        note: category.note || '',
+        isActive: toExportBoolean(category.isActive)
+      };
+    })
+    .filter((row) => row.categoryName)
+    .sort((a, b) => a.categoryGroupName.localeCompare(b.categoryGroupName, 'ja') || a.categoryName.localeCompare(b.categoryName, 'ja'));
+};
+
+const buildProductExportRows = ({
+  products = [],
+  productGroups = [],
+  brands = [],
+  suppliers = [],
+  categories = [],
+  categoryGroups = []
+}) => {
+  const groupsById = new Map(productGroups.map((group) => [group.id, group]));
+  const brandsById = new Map(brands.map((brand) => [brand.id, brand]));
+  const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const categoryGroupsById = new Map(categoryGroups.map((group) => [group.id, group]));
+
+  return products
+    .map((product) => {
+      const group = groupsById.get(product.groupId || product.productGroupId || '') || null;
+      const brand = brandsById.get(product.brandId || group?.brandId || '') || null;
+      const productSupplier = suppliersById.get(product.supplierId || '') || null;
+      const brandSupplier = suppliersById.get(brand?.supplierId || '') || null;
+      const category = categoriesById.get(product.categoryId || group?.categoryId || '') || null;
+      const categoryGroup = categoryGroupsById.get(product.categoryGroupId || group?.categoryGroupId || category?.groupId || category?.categoryGroupId || '') || null;
+
+      const supplierName = product.supplierName
+        || productSupplier?.name
+        || productSupplier?.supplierName
+        || brand?.supplierName
+        || brandSupplier?.name
+        || brandSupplier?.supplierName
+        || '';
+
+      return {
+        productGroupId: group?.groupExternalId || group?.productGroupExternalId || group?.groupCode || group?.id || product.groupId || product.productGroupId || '',
+        productGroupName: group?.name || group?.groupName || product.productGroupName || '',
+        productCode: product.productCode || product.code || '',
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        productName: product.name || product.productName || '',
+        name: product.name || product.productName || '',
+        brandName: product.brandName || group?.brandName || brand?.name || brand?.brandName || '',
+        supplierName,
+        categoryGroupName: product.categoryGroupName || group?.categoryGroupName || categoryGroup?.name || categoryGroup?.groupName || '',
+        categoryName: product.categoryName || group?.categoryName || category?.name || category?.categoryName || '',
+        subCategoryName: product.subCategoryName || '',
+        colorName: product.colorName || product.color || '',
+        size: product.size || product.sizeName || '',
+        priceTaxIncluded: product.priceTaxIncluded ?? product.price ?? product.salesPrice ?? '',
+        priceTaxExcluded: product.priceTaxExcluded ?? '',
+        taxRate: product.taxRate ?? product.tax ?? '',
+        inventoryQuantity: product.inventoryQuantity ?? product.stockQuantity ?? product.stock ?? '',
+        shopifyCreateEnabled: product.shopifyCreateEnabled === true || group?.shopifyCreateEnabled === true ? 'TRUE' : 'FALSE'
+      };
+    })
+    .filter((row) => row.productName || row.productCode || row.barcode)
+    .sort((a, b) => a.productGroupName.localeCompare(b.productGroupName, 'ja') || a.productName.localeCompare(b.productName, 'ja'));
+};
+
+
+
+const CsvExportWorkflowPanel = ({ productMaster }) => {
+  const suppliers = productMaster?.suppliers || [];
+  const brands = productMaster?.brands || [];
+  const productCategories = productMaster?.productCategories || [];
+  const productCategoryGroups = productMaster?.productCategoryGroups || [];
+  const products = productMaster?.products || [];
+  const productGroups = productMaster?.productGroups || [];
+
+  const handleExportSupplierCsv = () => {
+    downloadCsvFile(
+      `akuto-suppliers-export-${formatDateStamp()}.csv`,
+      ['smaregiSupplierId', 'name', 'kana', 'contactName', 'tel', 'email', 'paymentTerms', 'note', 'isActive'],
+      buildSupplierExportRows(suppliers)
+    );
+  };
+
+  const handleExportBrandCsv = () => {
+    downloadCsvFile(
+      `akuto-brands-export-${formatDateStamp()}.csv`,
+      ['brandId', 'brandCode', 'brandName', 'kana', 'note', 'isActive', 'supplierSmaregiId', 'supplierName'],
+      buildBrandExportRows(brands, suppliers)
+    );
+  };
+
+  const handleExportCategoryGroupCsv = () => {
+    downloadCsvFile(
+      `akuto-category-groups-export-${formatDateStamp()}.csv`,
+      ['categoryGroupId', 'categoryGroupName', 'displayOrder', 'note', 'isActive'],
+      buildCategoryGroupExportRows(productCategoryGroups)
+    );
+  };
+
+  const handleExportCategoryCsv = () => {
+    downloadCsvFile(
+      `akuto-categories-export-${formatDateStamp()}.csv`,
+      ['categoryId', 'categoryName', 'categoryGroupId', 'categoryGroupName', 'displayOrder', 'note', 'isActive'],
+      buildCategoryExportRows(productCategories, productCategoryGroups)
+    );
+  };
+
+  const handleExportProductCsv = () => {
+    downloadCsvFile(
+      `akuto-products-export-${formatDateStamp()}.csv`,
+      [
+        'productGroupId',
+        'productGroupName',
+        'productCode',
+        'sku',
+        'barcode',
+        'productName',
+        'name',
+        'brandName',
+        'supplierName',
+        'categoryGroupName',
+        'categoryName',
+        'subCategoryName',
+        'colorName',
+        'size',
+        'priceTaxIncluded',
+        'priceTaxExcluded',
+        'taxRate',
+        'inventoryQuantity',
+        'shopifyCreateEnabled'
+      ],
+      buildProductExportRows({
+        products,
+        productGroups,
+        brands,
+        suppliers,
+        categories: productCategories,
+        categoryGroups: productCategoryGroups
+      })
+    );
+  };
+
+  const exportCards = [
+    {
+      id: 'suppliers',
+      title: '仕入先CSV出力',
+      description: '仕入先CSV取込と同じ項目で出力します。',
+      meta: 'smaregiSupplierId / name',
+      count: suppliers.length,
+      onClick: handleExportSupplierCsv
+    },
+    {
+      id: 'brands',
+      title: 'ブランドCSV出力',
+      description: 'ブランドCSV取込と同じ項目で出力します。仕入先紐付け列を含みます。',
+      meta: 'supplierSmaregiId / supplierName',
+      count: brands.length,
+      onClick: handleExportBrandCsv
+    },
+    {
+      id: 'categoryGroups',
+      title: 'カテゴリーグループCSV出力',
+      description: 'カテゴリーグループをCSVで出力します。',
+      meta: 'categoryGroupName',
+      count: productCategoryGroups.length,
+      onClick: handleExportCategoryGroupCsv
+    },
+    {
+      id: 'categories',
+      title: 'カテゴリーCSV出力',
+      description: 'カテゴリーをCSVで出力します。',
+      meta: 'categoryGroupName / categoryName',
+      count: productCategories.length,
+      onClick: handleExportCategoryCsv
+    },
+    {
+      id: 'products',
+      title: '商品CSV出力',
+      description: '商品CSV取込と同じ項目で出力します。商品側仕入先が空の場合はブランド仕入先名を補完します。',
+      meta: 'barcode / brandName / supplierName',
+      count: products.length,
+      onClick: handleExportProductCsv,
+      primary: true
+    }
+  ];
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Export</p>
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">CSV出力</h2>
+        <p className="text-sm leading-relaxed text-slate-500">
+          取込と同じ項目で現在のマスターをCSV出力します。ブランドCSVは仕入先紐付け列を含み、商品CSVは仕入先が商品側に無い場合にブランド側の仕入先名を補完します。
+        </p>
+      </div>
+
+      <div data-csv-export-panel className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {exportCards.map((card) => (
+          <button
+            key={card.id}
+            type="button"
+            onClick={card.onClick}
+            className={[
+              'rounded-2xl border p-4 text-left transition',
+              card.primary
+                ? 'border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+            ].join(' ')}
+          >
+            <div className={card.primary ? 'text-sm font-black text-blue-700' : 'text-sm font-black text-slate-800'}>
+              {card.title}
+            </div>
+            <div className={card.primary ? 'mt-1 text-xs text-blue-500' : 'mt-1 text-xs text-slate-400'}>
+              {card.meta}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-slate-500">{card.description}</p>
+            <div className="mt-3 text-xs font-bold text-slate-400">
+              現在 {Number(card.count || 0).toLocaleString()} 件
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 
 export const StoreSettings = ({
   storeId,
