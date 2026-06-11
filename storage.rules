@@ -6,38 +6,91 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function userProfile() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-    }
-
-    function userRole() {
-      return signedIn() && userProfile().data.role != null
-        ? userProfile().data.role
-        : null;
-    }
-
-    function userStoreId() {
-      return signedIn() && userProfile().data.storeId != null
-        ? userProfile().data.storeId
-        : null;
+    function platformAdminDoc() {
+      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
     }
 
     function isPlatformAdmin() {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data.role == 'super_admin';
+        && platformAdminDoc().data.role == 'super_admin';
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function hasUserDoc() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function userDocStoreId() {
+      return hasUserDoc() && userDoc().data.storeId != null
+        ? userDoc().data.storeId
+        : null;
+    }
+
+    function userDocRole() {
+      return hasUserDoc() && userDoc().data.role != null
+        ? userDoc().data.role
+        : null;
+    }
+
+    function storeMemberDoc(storeId) {
+      return firestore.get(/databases/(default)/documents/stores/$(storeId)/members/$(request.auth.uid));
+    }
+
+    function hasStoreMemberDoc(storeId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/stores/$(storeId)/members/$(request.auth.uid));
+    }
+
+    function storeMemberRole(storeId) {
+      return hasStoreMemberDoc(storeId) && storeMemberDoc(storeId).data.role != null
+        ? storeMemberDoc(storeId).data.role
+        : null;
+    }
+
+    function isStaffRole(role) {
+      return role == 'owner'
+        || role == 'admin'
+        || role == 'manager'
+        || role == 'staff';
+    }
+
+    function isManagerRole(role) {
+      return role == 'owner'
+        || role == 'admin'
+        || role == 'manager';
     }
 
     function isStoreStaff(storeId) {
       return signedIn()
-        && userStoreId() == storeId
-        && (userRole() == 'owner' || userRole() == 'admin' || userRole() == 'manager' || userRole() == 'staff');
+        && (
+          (
+            userDocStoreId() == storeId
+            && isStaffRole(userDocRole())
+          )
+          || (
+            hasStoreMemberDoc(storeId)
+            && isStaffRole(storeMemberRole(storeId))
+          )
+        );
     }
 
     function isStoreManager(storeId) {
       return signedIn()
-        && userStoreId() == storeId
-        && (userRole() == 'owner' || userRole() == 'admin' || userRole() == 'manager');
+        && (
+          (
+            userDocStoreId() == storeId
+            && isManagerRole(userDocRole())
+          )
+          || (
+            hasStoreMemberDoc(storeId)
+            && isManagerRole(storeMemberRole(storeId))
+          )
+        );
     }
 
     match /stores/{storeId}/importJobs/{jobId}/{fileName=**} {
@@ -48,6 +101,7 @@ service firebase.storage {
           request.resource.contentType.matches('text/.*')
           || request.resource.contentType == 'application/vnd.ms-excel'
           || request.resource.contentType == 'application/csv'
+          || request.resource.contentType == 'text/csv'
           || request.resource.contentType == 'application/octet-stream'
         );
     }
