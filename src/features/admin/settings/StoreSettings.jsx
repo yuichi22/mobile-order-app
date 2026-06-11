@@ -483,7 +483,7 @@ const PosDummyTabbedPage = ({ item, productMaster, onSaved }) => {
       if (activeCsvTab === 'csvImport') {
         return (
           <CsvImportWorkflowPanel
-              storeId={storeId}
+            storeId={storeId}
             productMaster={productMaster}
             onSaved={onSaved}
           />
