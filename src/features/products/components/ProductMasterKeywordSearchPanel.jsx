@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { Search, X } from 'lucide-react';
 
@@ -41,102 +41,131 @@ const mapProductDoc = (snapshotDoc) => ({
   ...snapshotDoc.data()
 });
 
+const formatPrice = (value) => {
+  if (value === null || value === undefined || value === '') return '-';
+  return `¥${Number(value || 0).toLocaleString()}`;
+};
+
 const ProductMasterKeywordSearchPanel = ({ storeId }) => {
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState([]);
   const [searchedKeyword, setSearchedKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [debugInfo, setDebugInfo] = useState(null);
+  const [debugInfo, setDebugInfo] = useState({
+    status: 'idle',
+    storeId: storeId || '',
+    keyword: '',
+    searchTerms: [],
+    searchTermsCount: 0,
+    resultCount: 0
+  });
 
   const normalizedKeyword = useMemo(() => normalizeSearchText(keyword), [keyword]);
 
-  useEffect(() => {
+  const runSearch = async () => {
+    const searchTerms = buildSearchTerms(normalizedKeyword);
+    const baseDebug = {
+      storeId: storeId || '',
+      keyword: normalizedKeyword,
+      searchTerms: searchTerms.slice(0, 12),
+      searchTermsCount: searchTerms.length
+    };
+
     if (!storeId) {
       setResults([]);
-      setError('');
-      setLoading(false);
-      setDebugInfo(null);
-      return undefined;
+      setSearchedKeyword('');
+      setError('storeId が空のため検索できません。');
+      setDebugInfo({
+        ...baseDebug,
+        status: 'error',
+        resultCount: 0,
+        message: 'storeId is empty'
+      });
+      return;
     }
 
     if (!normalizedKeyword) {
       setResults([]);
       setSearchedKeyword('');
-      setError('');
-      setLoading(false);
-      setDebugInfo(null);
-      return undefined;
+      setError('検索語を入力してください。');
+      setDebugInfo({
+        ...baseDebug,
+        status: 'empty_keyword',
+        resultCount: 0
+      });
+      return;
     }
 
-    const timer = window.setTimeout(async () => {
-      const searchTerms = buildSearchTerms(normalizedKeyword);
-      const searchTermsPreview = searchTerms.slice(0, 12);
-
+    if (!searchTerms.length) {
+      setResults([]);
+      setSearchedKeyword(normalizedKeyword);
+      setError('検索語を分解できませんでした。');
       setDebugInfo({
-        storeId,
-        keyword: normalizedKeyword,
-        searchTerms: searchTermsPreview,
-        searchTermsCount: searchTerms.length,
-        status: 'querying'
+        ...baseDebug,
+        status: 'empty_terms',
+        resultCount: 0
       });
+      return;
+    }
 
-      if (!searchTerms.length) {
-        setResults([]);
-        setSearchedKeyword('');
-        return;
-      }
+    setLoading(true);
+    setError('');
+    setDebugInfo({
+      ...baseDebug,
+      status: 'querying',
+      resultCount: '-'
+    });
 
-      setLoading(true);
-      setError('');
+    try {
+      console.info('[product master keyword search] query', baseDebug);
 
-      try {
-        const productsRef = collection(db, 'stores', storeId, 'products');
-        const searchQuery = query(
-          productsRef,
-          where('searchKeywords', 'array-contains-any', searchTerms),
-          limit(SEARCH_LIMIT)
-        );
+      const productsRef = collection(db, 'stores', storeId, 'products');
+      const searchQuery = query(
+        productsRef,
+        where('searchKeywords', 'array-contains-any', searchTerms),
+        limit(SEARCH_LIMIT)
+      );
 
-        const snapshot = await getDocs(searchQuery);
-        const nextResults = snapshot.docs.map(mapProductDoc);
-        setResults(nextResults);
-        setSearchedKeyword(normalizedKeyword);
-        setDebugInfo({
-          storeId,
-          keyword: normalizedKeyword,
-          searchTerms: searchTermsPreview,
-          searchTermsCount: searchTerms.length,
-          resultCount: nextResults.length,
-          status: 'success'
-        });
-      } catch (searchError) {
-        console.error('[product master keyword search] failed', searchError);
-        setResults([]);
-        setError('検索に失敗しました。時間をおいて再度お試しください。');
-        setDebugInfo({
-          storeId,
-          keyword: normalizedKeyword,
-          searchTerms: searchTermsPreview,
-          searchTermsCount: searchTerms.length,
-          resultCount: 0,
-          status: 'error',
-          message: searchError?.message || String(searchError)
-        });
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
+      const snapshot = await getDocs(searchQuery);
+      const nextResults = snapshot.docs.map(mapProductDoc);
 
-    return () => window.clearTimeout(timer);
-  }, [normalizedKeyword, storeId]);
+      setResults(nextResults);
+      setSearchedKeyword(normalizedKeyword);
+      setDebugInfo({
+        ...baseDebug,
+        status: 'success',
+        resultCount: nextResults.length
+      });
+    } catch (searchError) {
+      console.error('[product master keyword search] failed', searchError);
+      setResults([]);
+      setSearchedKeyword(normalizedKeyword);
+      setError('検索に失敗しました。Debugのmessageを確認してください。');
+      setDebugInfo({
+        ...baseDebug,
+        status: 'error',
+        resultCount: 0,
+        message: searchError?.message || String(searchError)
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const clearSearch = () => {
     setKeyword('');
     setResults([]);
     setSearchedKeyword('');
     setError('');
-    setLoading(false);
+    setDebugInfo({
+      status: 'idle',
+      storeId: storeId || '',
+      keyword: '',
+      searchTerms: [],
+      searchTermsCount: 0,
+      resultCount: 0
+    });
   };
 
   return (
@@ -146,7 +175,7 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
           <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-500">Keyword Search</p>
           <h3 className="mt-1 text-lg font-black text-slate-900">全商品検索</h3>
           <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
-            初期表示200件とは別に、31,985件の商品からキーワード検索します。商品名・品番・バーコード・ブランド名・カテゴリー名に対応しています。
+            初期表示200件とは別に、31,985件の商品から searchKeywords で検索します。まずは「検索」ボタンを押して確認します。
           </p>
         </div>
 
@@ -162,6 +191,12 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
             type="search"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                runSearch();
+              }
+            }}
             placeholder="例: north / moscot / わらび / GRAMICCI / バーコード"
             className="h-12 w-full rounded-2xl border border-sky-100 bg-white pl-10 pr-10 text-sm font-bold text-slate-800 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
           />
@@ -176,6 +211,15 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={runSearch}
+          disabled={loading}
+          className="h-12 rounded-2xl bg-sky-600 px-6 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition active:scale-95 disabled:opacity-50"
+        >
+          {loading ? '検索中...' : '検索'}
+        </button>
       </div>
 
       {error && (
@@ -184,18 +228,16 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
         </div>
       )}
 
-      {debugInfo && (
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-[11px] font-bold leading-relaxed text-slate-500">
-          <div className="mb-1 text-xs font-black text-slate-700">Debug:</div>
-          <div>status: {debugInfo.status}</div>
-          <div>storeId: {debugInfo.storeId || '(empty)'}</div>
-          <div>keyword: {debugInfo.keyword || '(empty)'}</div>
-          <div>searchTermsCount: {debugInfo.searchTermsCount ?? '-'}</div>
-          <div>searchTerms: {(debugInfo.searchTerms || []).join(' / ') || '-'}</div>
-          <div>resultCount: {debugInfo.resultCount ?? '-'}</div>
-          {debugInfo.message && <div className="text-rose-600">message: {debugInfo.message}</div>}
-        </div>
-      )}
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-[11px] font-bold leading-relaxed text-slate-500">
+        <div className="mb-1 text-xs font-black text-slate-700">Debug:</div>
+        <div>status: {debugInfo.status}</div>
+        <div>storeId: {debugInfo.storeId || '(empty)'}</div>
+        <div>keyword: {debugInfo.keyword || '(empty)'}</div>
+        <div>searchTermsCount: {debugInfo.searchTermsCount ?? '-'}</div>
+        <div>searchTerms: {(debugInfo.searchTerms || []).join(' / ') || '-'}</div>
+        <div>resultCount: {debugInfo.resultCount ?? '-'}</div>
+        {debugInfo.message && <div className="text-rose-600">message: {debugInfo.message}</div>}
+      </div>
 
       {searchedKeyword && !loading && results.length === 0 && !error && (
         <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-500 shadow-sm">
@@ -231,9 +273,7 @@ const ProductMasterKeywordSearchPanel = ({ storeId }) => {
                       {[product.categoryGroupName, product.categoryName, product.subCategoryName].filter(Boolean).join(' / ') || '-'}
                     </td>
                     <td className={classNames('px-4 py-3 text-right font-black text-slate-900')}>
-                      {product.priceTaxIncluded === null || product.priceTaxIncluded === undefined || product.priceTaxIncluded === ''
-                        ? '-'
-                        : `¥${Number(product.priceTaxIncluded || 0).toLocaleString()}`}
+                      {formatPrice(product.priceTaxIncluded)}
                     </td>
                   </tr>
                 ))}
