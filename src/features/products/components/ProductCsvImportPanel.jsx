@@ -56,16 +56,16 @@ const getPreviewGroupCount = (preview = {}) => {
 };
 
 const getImportResultProductCount = (result = {}) => {
+  if (result.queuedForFunction) return Number(result.totalProductCount || 0);
   if (Array.isArray(result.importedProducts)) return getSafeArrayLength(result.importedProducts);
   if (result.importedProductCount !== undefined) return Number(result.importedProductCount || 0);
-  if (result.queuedForFunction) return Number(result.totalProductCount || 0);
   return 0;
 };
 
 const getImportResultGroupCount = (result = {}) => {
+  if (result.queuedForFunction) return Number(result.totalGroupCount || 0);
   if (Array.isArray(result.importedGroups)) return getSafeArrayLength(result.importedGroups);
   if (result.importedGroupCount !== undefined) return Number(result.importedGroupCount || 0);
-  if (result.queuedForFunction) return Number(result.totalGroupCount || 0);
   return 0;
 };
 
