@@ -78,7 +78,11 @@ const productMatchesAllHeaderSearchTerms = (product, requiredTerms) => {
     product?.categoryName,
     product?.subCategoryName,
     product?.salesAreaName,
-    product?.productType
+    product?.productType,
+    product?.colorName,
+    product?.color,
+    product?.size,
+    product?.sizeName
   ].filter(Boolean).join(' '));
 
   return requiredTerms.every((term) => (
