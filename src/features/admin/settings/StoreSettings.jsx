@@ -863,6 +863,10 @@ const downloadCsvFile = (filename, headers, rows) => {
   URL.revokeObjectURL(url);
 };
 
+const normalizeExportId = (value) => (
+  String(value ?? '').trim().replace(/\.00$/, '')
+);
+
 const toExportBoolean = (value) => (value === false ? 'FALSE' : 'TRUE');
 
 const formatDateStamp = () => {
@@ -879,7 +883,7 @@ const formatDateStamp = () => {
 
 const buildSupplierExportRows = (suppliers = []) => suppliers
   .map((supplier) => ({
-    smaregiSupplierId: supplier.smaregiSupplierId || supplier.supplierSmaregiId || '',
+    smaregiSupplierId: normalizeExportId(supplier.smaregiSupplierId || supplier.supplierSmaregiId),
     name: supplier.name || supplier.supplierName || '',
     kana: supplier.kana || '',
     contactName: supplier.contactName || '',
@@ -898,13 +902,13 @@ const buildBrandExportRows = (brands = [], suppliers = []) => {
     .map((brand) => {
       const supplier = suppliersById.get(brand.supplierId || '') || null;
       return {
-        brandId: brand.brandExternalId || brand.smaregiBrandId || brand.brandCode || brand.id || '',
-        brandCode: brand.brandCode || brand.smaregiBrandId || brand.brandExternalId || '',
+        brandId: normalizeExportId(brand.brandExternalId || brand.smaregiBrandId || brand.brandCode || brand.id),
+        brandCode: normalizeExportId(brand.brandCode || brand.smaregiBrandId || brand.brandExternalId),
         brandName: brand.name || brand.brandName || '',
         kana: brand.kana || '',
         note: brand.note || '',
         isActive: toExportBoolean(brand.isActive),
-        supplierSmaregiId: brand.supplierSmaregiId || supplier?.smaregiSupplierId || supplier?.supplierSmaregiId || '',
+        supplierSmaregiId: normalizeExportId(brand.supplierSmaregiId || supplier?.smaregiSupplierId || supplier?.supplierSmaregiId),
         supplierName: brand.supplierName || supplier?.name || supplier?.supplierName || ''
       };
     })
