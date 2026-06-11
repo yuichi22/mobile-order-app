@@ -721,7 +721,7 @@ const ProductCsvImportPanel = ({
 
         reset();
         onSaved?.();
-        window.alert(`${Number(result.processedProductGroups || 0).toLocaleString()}件の商品グループ、${Number(result.processedProducts || 0).toLocaleString()}件の商品を取り込みました。`);
+        window.alert(getImportResultMessage(result));
         return;
       }
 
