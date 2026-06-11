@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
 import { createHash, randomBytes } from 'node:crypto';
@@ -5665,6 +5666,170 @@ export const syncProductSearchKeywords = onDocumentWritten(
       searchKeywordsVersion: PRODUCT_SEARCH_KEYWORDS_VERSION,
       searchKeywordsUpdatedAt: FieldValue.serverTimestamp()
     });
+  }
+);
+
+
+const parseProductCsvTextForWorker = (sourceText = '') => {
+  const text = String(sourceText || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let current = '';
+  let row = [];
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') index += 1;
+      row.push(current);
+      current = '';
+      if (row.some((value) => String(value || '').trim() !== '')) {
+        rows.push(row);
+      }
+      row = [];
+      continue;
+    }
+
+    current += char;
+  }
+
+  row.push(current);
+  if (row.some((value) => String(value || '').trim() !== '')) {
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+const countMappedProductCsvRowsForWorker = (rows = []) => {
+  if (!Array.isArray(rows) || rows.length <= 1) {
+    return {
+      headerCount: Array.isArray(rows?.[0]) ? rows[0].length : 0,
+      dataRows: 0,
+      importableRows: 0
+    };
+  }
+
+  const headers = rows[0].map((header) => String(header || '').trim());
+  const nameIndex = headers.findIndex((header) => ['name', '商品名', 'productName'].includes(header));
+  const skuIndex = headers.findIndex((header) => ['sku', '品番', 'productCode', '商品コード'].includes(header));
+  const barcodeIndex = headers.findIndex((header) => ['barcode', 'バーコード', 'JAN'].includes(header));
+
+  const dataRows = rows.slice(1);
+  const importableRows = dataRows.filter((row) => {
+    const name = nameIndex >= 0 ? String(row[nameIndex] || '').trim() : '';
+    const sku = skuIndex >= 0 ? String(row[skuIndex] || '').trim() : '';
+    const barcode = barcodeIndex >= 0 ? String(row[barcodeIndex] || '').trim() : '';
+    return Boolean(name || sku || barcode);
+  }).length;
+
+  return {
+    headerCount: headers.length,
+    dataRows: dataRows.length,
+    importableRows
+  };
+};
+
+export const processProductCsvImportJob = onDocumentWritten(
+  {
+    region: REGION,
+    document: 'stores/{storeId}/importJobs/{jobId}',
+    timeoutSeconds: 540,
+    memory: '1GiB'
+  },
+  async (event) => {
+    const before = event.data?.before?.data() || null;
+    const after = event.data?.after?.data() || null;
+
+    if (!after) return;
+
+    const { storeId, jobId } = event.params || {};
+
+    if (after.type !== 'productCsvImport') return;
+    if (after.processingMode !== 'function') return;
+    if (after.status !== 'queued') return;
+
+    if (before && before.status === after.status && before.processingMode === after.processingMode) {
+      return;
+    }
+
+    const storagePath = String(after.storagePath || '').trim();
+    const jobRef = getFirestore()
+      .collection('stores')
+      .doc(storeId)
+      .collection('importJobs')
+      .doc(jobId);
+
+    if (!storagePath) {
+      await jobRef.set({
+        status: 'failed',
+        phase: 'failed',
+        errorMessage: 'storagePath is required for function processing.',
+        failedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      return;
+    }
+
+    try {
+      await jobRef.set({
+        status: 'running',
+        phase: 'readingStorageCsv',
+        workerStartedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      const [buffer] = await getStorage().bucket().file(storagePath).download();
+      const csvText = buffer.toString('utf8');
+      const rows = parseProductCsvTextForWorker(csvText);
+      const summary = countMappedProductCsvRowsForWorker(rows);
+
+      await jobRef.set({
+        status: 'completed',
+        phase: 'storageReadCompleted',
+        workerCompletedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        functionReadOnly: true,
+        csvHeaderCount: summary.headerCount,
+        csvDataRows: summary.dataRows,
+        csvImportableRows: summary.importableRows,
+        csvBytes: buffer.length
+      }, { merge: true });
+    } catch (error) {
+      console.error('[processProductCsvImportJob] failed', {
+        storeId,
+        jobId,
+        storagePath,
+        message: error?.message
+      });
+
+      await jobRef.set({
+        status: 'failed',
+        phase: 'failed',
+        errorMessage: error?.message || String(error),
+        failedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
   }
 );
 
