@@ -5780,8 +5780,8 @@ const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
     subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
     brand: findWorkerHeaderIndex(headers, ['brand', 'brandName', 'ブランド']),
     supplier: findWorkerHeaderIndex(headers, ['supplier', 'supplierName', '仕入先']),
-    price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', '売価']),
-    stock: findWorkerHeaderIndex(headers, ['stock', 'stockQty', 'quantity', '在庫'])
+    price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', 'priceTaxIncluded', 'priceTaxExcluded', '税込価格', '税抜価格', '売価']),
+    stock: findWorkerHeaderIndex(headers, ['stock', 'stockQty', 'quantity', 'inventoryQuantity', '在庫', '在庫数'])
   };
 
   const warnings = [];
