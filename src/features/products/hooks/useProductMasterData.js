@@ -22,18 +22,12 @@ import {
   subscribeToProductSalesAreas,
   subscribeToProductGroups,
   subscribeToProductMasterItems,
-  searchProductMasterItems,
   subscribeToShopifySettings,
   subscribeToSuppliers
 } from '../../store/services/storeDataService';
 
 const useStoreCollectionState = (storeId, subscribeFn, label) => {
   const hasStoreId = isValidStoreId(storeId);
-
-  const [searchedProducts, setSearchedProducts] = useState([]);
-  const [productSearchLoading, setProductSearchLoading] = useState(false);
-  const [productSearchKeyword, setProductSearchKeyword] = useState('');
-
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(() => hasStoreId);
 
@@ -110,31 +104,6 @@ export const useProductMasterData = (storeId) => {
   const shopifySettingsState = useStoreDocState(storeId, subscribeToShopifySettings, 'shopifySettings');
 
   const hasStoreId = isValidStoreId(storeId);
-
-  const searchProducts = async (keyword) => {
-    const normalizedKeyword = String(keyword || '').trim();
-    setProductSearchKeyword(normalizedKeyword);
-
-    if (!hasStoreId || !normalizedKeyword) {
-      setSearchedProducts([]);
-      setProductSearchLoading(false);
-      return [];
-    }
-
-    setProductSearchLoading(true);
-
-    try {
-      const results = await searchProductMasterItems(storeId, normalizedKeyword);
-      setSearchedProducts(Array.isArray(results) ? results : []);
-      return Array.isArray(results) ? results : [];
-    } catch (error) {
-      console.error('[products] search failed', error);
-      setSearchedProducts([]);
-      return [];
-    } finally {
-      setProductSearchLoading(false);
-    }
-  };
 
   const saveProduct = async (itemData) => {
     if (!hasStoreId) return undefined;
@@ -239,11 +208,7 @@ export const useProductMasterData = (storeId) => {
   };
 
   return {
-    products: productSearchKeyword ? searchedProducts : productsState.items,
-    initialProducts: productsState.items,
-    productSearchKeyword,
-    productSearchLoading,
-    searchProducts,
+    products: productsState.items,
     productGroups: productGroupsState.items,
     productCategories: categoriesState.items,
     productCategoryGroups: categoryGroupsState.items,
