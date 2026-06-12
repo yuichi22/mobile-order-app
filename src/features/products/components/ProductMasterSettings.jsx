@@ -3536,6 +3536,86 @@ const ProductMasterSettings = ({
       ) : (
         <>
           {activeTab === 'products' && (
+            <div className="rounded-[2rem] border border-slate-200 bg-slate-50/70 p-5">
+              <div className="mb-5">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Category Tax Defaults</p>
+                <h3 className="mt-2 text-xl font-black text-slate-900">分類・税率</h3>
+                <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+                  カテゴリーグループ、カテゴリー、サブカテゴリーごとに、標準税率を使用するか、例外税率を指定します。
+                </p>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-3">
+                <SimpleMasterPanel
+                  label="カテゴリーグループ"
+                  blank={blankGroup}
+                  items={filteredGroups}
+                  fields={[
+                    { id: 'name', label: 'グループ名' },
+                    { id: 'sortOrder', label: '並び順', type: 'number' },
+                    { id: 'taxRateType', label: '税率', type: 'taxRateSelect' }
+                  ]}
+                  onSave={onSaveCategoryGroup}
+                  onDelete={onDeleteCategoryGroup}
+                  onSaved={onSaved}
+                  productCategories={productCategories}
+                  productCategoryGroups={productCategoryGroups}
+                  productSubCategories={productSubCategories}
+                />
+
+                <SimpleMasterPanel
+                  label="カテゴリー"
+                  blank={blankCategory}
+                  items={filteredCategories}
+                  fields={[
+                    { id: 'name', label: 'カテゴリー名' },
+                    { id: 'groupId', label: 'グループID' },
+                    { id: 'sortOrder', label: '並び順', type: 'number' },
+                    { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
+                    { id: 'color', label: 'カラー' }
+                  ]}
+                  onSave={onSaveCategory}
+                  onDelete={onDeleteCategory}
+                  onSaved={onSaved}
+                  productCategories={productCategories}
+                  productCategoryGroups={productCategoryGroups}
+                  productSubCategories={productSubCategories}
+                  onSaveCategoryGroup={onSaveCategoryGroup}
+                />
+
+                <SimpleMasterPanel
+                  label="サブカテゴリー"
+                  blank={{
+                    ...blankCategory,
+                    categoryId: '',
+                    categoryName: '',
+                    categoryGroupName: '',
+                    subCategoryName: '',
+                    taxRateType: 'inherit',
+                    taxRate: null
+                  }}
+                  items={filteredSubCategories}
+                  fields={[
+                    { id: 'name', label: 'サブカテゴリー名' },
+                    { id: 'categoryId', label: '親カテゴリーID' },
+                    { id: 'categoryName', label: '親カテゴリー名' },
+                    { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
+                    { id: 'sortOrder', label: '並び順', type: 'number' },
+                    { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
+                    { id: 'color', label: 'カラー' }
+                  ]}
+                  onSave={() => undefined}
+                  onDelete={() => undefined}
+                  onSaved={onSaved}
+                  productCategories={productCategories}
+                  productCategoryGroups={productCategoryGroups}
+                  productSubCategories={productSubCategories}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'products' && (
             <>
               {isHeaderProductSearchActive && (
                 <div className="mb-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm font-bold text-slate-600">
@@ -3570,7 +3650,7 @@ const ProductMasterSettings = ({
             </>
           )}
 
-          {activeTab === 'products' && (
+          {false && activeTab === 'products' && (
             <SimpleMasterPanel
               label="カテゴリー"
               blank={blankCategory}
