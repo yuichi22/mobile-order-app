@@ -715,26 +715,26 @@ const CategoryTaxRulePanel = ({
   ), [activeItems]);
 
   const [selectedId, setSelectedId] = useState('');
-  const [taxRateType, setTaxRateType] = useState('standard');
+  const [taxRateType, setTaxRateType] = useState('');
   const [savingKey, setSavingKey] = useState('');
 
   const selectedItem = activeItems.find((item) => item.id === selectedId) || null;
 
   useEffect(() => {
-    if (!selectedId && activeItems.length > 0) {
-      setSelectedId(activeItems[0].id);
-      setTaxRateType(getCategoryTaxRuleValue(activeItems[0]));
+    if (selectedId && !activeItems.some((item) => item.id === selectedId)) {
+      setSelectedId('');
+      setTaxRateType('');
     }
   }, [activeItems, selectedId]);
 
   const handleSelect = (value) => {
     const item = activeItems.find((entry) => entry.id === value) || null;
     setSelectedId(value);
-    setTaxRateType(item ? getCategoryTaxRuleValue(item) : 'standard');
+    setTaxRateType(item ? getCategoryTaxRuleValue(item) : '');
   };
 
   const applyRule = async () => {
-    if (!selectedItem || typeof onSave !== 'function') return;
+    if (!selectedItem || !taxRateType || typeof onSave !== 'function') return;
 
     const payload = buildCategoryTaxRulePayload(selectedItem, taxRateType);
 
@@ -813,8 +813,9 @@ const CategoryTaxRulePanel = ({
             disabled={disabled || activeItems.length === 0 || Boolean(savingKey)}
             className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
           >
+            <option value="">選択してください</option>
             {activeItems.length === 0 ? (
-              <option value="">対象がありません</option>
+              <option value="" disabled>対象がありません</option>
             ) : null}
             {activeItems.map((item) => {
               const subLabel = getOptionSubLabel(item);
@@ -832,9 +833,10 @@ const CategoryTaxRulePanel = ({
           <select
             value={taxRateType}
             onChange={(event) => setTaxRateType(event.target.value)}
-            disabled={disabled || !selectedItem || Boolean(savingKey)}
+            disabled={disabled || !selectedItem || !taxRateType || Boolean(savingKey)}
             className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
           >
+            <option value="">選択してください</option>
             {CATEGORY_TAX_OPTIONS.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
             ))}
@@ -844,7 +846,7 @@ const CategoryTaxRulePanel = ({
         <button
           type="button"
           onClick={applyRule}
-          disabled={disabled || !selectedItem || Boolean(savingKey)}
+          disabled={disabled || !selectedItem || !taxRateType || Boolean(savingKey)}
           className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {savingKey.startsWith('apply:') ? '適用中...' : '適用する'}
@@ -984,7 +986,6 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
             <h3 className="mt-2 text-2xl font-black text-slate-900">税・価格設定</h3>
             <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
               Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
-              Shopifyへ同期する価格は、税込・税抜のどちらで送るかをここで固定します。
             </p>
           </div>
 
@@ -1100,44 +1101,6 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Shopify Price Sync</p>
-          <h3 className="mt-2 text-xl font-black text-slate-900">Shopifyへ同期する価格</h3>
-          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
-            Akuto POS側は税抜価格を正として保持し、Shopifyに送る時だけ税込または税抜に変換します。この設定だけではShopifyへの書き込みは行いません。
-          </p>
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {[
-            {
-              id: 'taxIncluded',
-              title: '税込価格で同期',
-              description: 'EC表示価格を税込に揃えたい場合。日本国内向けのShopify運用ではこちらを標準にします。'
-            },
-            {
-              id: 'taxExcluded',
-              title: '税抜価格で同期',
-              description: 'Shopify側で税計算・税込表示を制御する場合。外部EC側の設定確認が必要です。'
-            }
-          ].map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => updateSetting('shopifyPriceSyncMode', option.id)}
-              className={`rounded-3xl border-2 p-5 text-left transition ${
-                settings.shopifyPriceSyncMode === option.id
-                  ? 'border-blue-400 bg-blue-50 shadow-lg shadow-blue-500/10'
-                  : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              <p className="text-base font-black text-slate-900">{option.title}</p>
-              <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">{option.description}</p>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5">

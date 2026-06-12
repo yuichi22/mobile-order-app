@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, query, serverTimestamp, where, writeBatch, setDoc} from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -1656,6 +1656,63 @@ export const ShopifySettingsPanel = ({
   onSave,
   onSaved
 }) => {
+  const [shopifyPriceSyncMode, setShopifyPriceSyncMode] = useState('taxIncluded');
+  const [shopifyPriceSyncLoading, setShopifyPriceSyncLoading] = useState(true);
+  const [shopifyPriceSyncSaving, setShopifyPriceSyncSaving] = useState(false);
+
+  useEffect(() => {
+    if (!storeId) {
+      setShopifyPriceSyncLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadShopifyPriceSyncMode = async () => {
+      setShopifyPriceSyncLoading(true);
+      try {
+        const snapshot = await getDoc(doc(db, 'stores', storeId, 'settings', 'taxPrice'));
+        if (cancelled) return;
+
+        const data = snapshot.exists() ? snapshot.data() : {};
+        setShopifyPriceSyncMode(data.shopifyPriceSyncMode || 'taxIncluded');
+      } catch (error) {
+        console.error('Failed to load Shopify price sync mode', error);
+      } finally {
+        if (!cancelled) {
+          setShopifyPriceSyncLoading(false);
+        }
+      }
+    };
+
+    loadShopifyPriceSyncMode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
+  const saveShopifyPriceSyncMode = async () => {
+    if (!storeId) return;
+
+    setShopifyPriceSyncSaving(true);
+    try {
+      await setDoc(
+        doc(db, 'stores', storeId, 'settings', 'taxPrice'),
+        {
+          shopifyPriceSyncMode,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      onSaved?.('Shopify価格同期設定を保存しました。');
+    } finally {
+      setShopifyPriceSyncSaving(false);
+    }
+  };
+
+
   const [draft, setDraft] = useState({
     shopDomain: '',
     clientId: '',
@@ -1740,6 +1797,38 @@ export const ShopifySettingsPanel = ({
 
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Price Sync</p>
+          <h4 className="mt-2 text-lg font-black text-slate-900">Shopifyへ同期する価格</h4>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+            Akuto POSの税抜価格を基準に、Shopifyへ送る価格を税込・税抜のどちらにするかを設定します。
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+          <select
+            value={shopifyPriceSyncMode}
+            onChange={(event) => setShopifyPriceSyncMode(event.target.value)}
+            disabled={shopifyPriceSyncLoading || shopifyPriceSyncSaving}
+            className="h-12 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <option value="taxIncluded">税込価格を同期する</option>
+            <option value="taxExcluded">税抜価格を同期する</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={saveShopifyPriceSyncMode}
+            disabled={shopifyPriceSyncLoading || shopifyPriceSyncSaving}
+            className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {shopifyPriceSyncSaving ? '保存中...' : '保存する'}
+          </button>
+        </div>
+      </div>
+
       <div className="border-b border-slate-100 px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
