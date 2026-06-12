@@ -1573,28 +1573,41 @@ const ProductMasterTable = ({
 
                       <div>
                         <FieldLabel>Shopify</FieldLabel>
-                        <PillToggle
-                          checked={group.products.some((product) => product.shopifyCreateEnabled)}
-                          onChange={(value) => saveProductGroupShopifyEnabled(group, value)}
-                          disabled={savingKey === `shopify:${group.key}`}
-                          onLabel="Shopify"
-                          offLabel="Shopify"
-                          activeClassName="bg-emerald-600 text-white shadow-sm shadow-emerald-200"
-                          inactiveClassName="bg-slate-200 text-slate-500"
-                          className="!h-8 !min-w-[86px] !px-3 text-[11px]"
-                        />
+                        {(() => {
+                          const isShopifySynced = Boolean(getGroupShopifyProductId(group));
+                          const isShopifyTarget = group.products.some((product) => product.shopifyCreateEnabled);
 
-                        <div
-                          className={classNames(
-                            'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
-                            getGroupShopifyProductId(group)
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'bg-slate-100 text-slate-400'
-                          )}
-                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み' : 'Shopify未同期です。ヘッダーのShopify同期から下書き作成します。'}
-                        >
-                          {getGroupShopifyProductId(group) ? '同期済み' : '未同期'}
-                        </div>
+                          return (
+                            <>
+                              <PillToggle
+                                checked={isShopifyTarget}
+                                onChange={(value) => saveProductGroupShopifyEnabled(group, value)}
+                                disabled={savingKey === `shopify:${group.key}`}
+                                onLabel={isShopifySynced ? '連携済' : '同期対象'}
+                                offLabel="対象外"
+                                activeClassName={
+                                  isShopifySynced
+                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                    : 'bg-slate-500 text-white shadow-sm shadow-slate-200'
+                                }
+                                inactiveClassName="bg-slate-200 text-slate-500"
+                                className="!h-8 !min-w-[86px] !px-3 text-[11px]"
+                              />
+
+                              <div
+                                className={classNames(
+                                  'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
+                                  isShopifySynced
+                                    ? 'bg-blue-50 text-blue-600'
+                                    : 'bg-slate-100 text-slate-400'
+                                )}
+                                title={isShopifySynced ? 'Shopify連携済み' : 'Shopify未同期です。ヘッダーのShopify同期から下書き作成します。'}
+                              >
+                                {isShopifySynced ? '同期済み' : '未同期'}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       <div>
