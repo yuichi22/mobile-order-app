@@ -23,6 +23,7 @@ const IMPORT_LABELS = {
     title: 'ブランドCSV取込',
     requiredLabel: 'ブランド名',
     previewColumns: [
+      ['処理', 'importActionLabel'],
       ['ブランドID', 'brandId'],
       ['ブランド名', 'name'],
       ['棚卸区分', 'stocktakingTypeCode'],
@@ -70,13 +71,16 @@ const normalizeSupplierPayload = (item) => ({
 
 const normalizeBrandPayload = (item) => ({
   ...item,
+  ...(item.id ? { id: String(item.id).trim() } : {}),
   name: String(item.name || '').trim(),
   kana: String(item.kana || '').trim(),
-  smaregiBrandId: String(item.smaregiBrandId || '').trim(),
-  brandExternalId: String(item.brandExternalId || item.smaregiBrandId || '').trim(),
+  smaregiBrandId: String(item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
+  brandExternalId: String(item.brandExternalId || item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
+  brandCode: String(item.brandCode || item.brandId || item.smaregiBrandId || item.brandExternalId || '').trim(),
   stocktakingTypeCode: String(item.stocktakingTypeCode || '').trim(),
   supplierId: String(item.supplierId || '').trim(),
-  supplierSmaregiId: String(item.supplierSmaregiId || '').trim(),
+  supplierSmaregiId: String(item.supplierSmaregiId || item.supplierExternalId || '').trim(),
+  supplierExternalId: String(item.supplierExternalId || item.supplierSmaregiId || '').trim(),
   supplierName: String(item.supplierName || '').trim(),
   note: String(item.note || '').trim(),
   isActive: item.isActive !== false
@@ -139,6 +143,9 @@ const MasterCsvMappingModal = ({
       return mapping;
     }));
   };
+
+  const updateCount = preview?.importableItems?.filter((item) => item.importAction === 'update').length || 0;
+  const createCount = preview?.importableItems?.filter((item) => item.importAction !== 'update').length || 0;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
@@ -239,6 +246,7 @@ const MasterCsvImportPanel = ({
   const inputRef = useRef(null);
   const label = IMPORT_LABELS[type] || IMPORT_LABELS.suppliers;
   const [preview, setPreview] = useState(null);
+  const [brandDuplicateMode, setBrandDuplicateMode] = useState('skip');
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -266,7 +274,8 @@ const MasterCsvImportPanel = ({
       suppliers,
       brands,
       productCategories,
-      productCategoryGroups
+      productCategoryGroups,
+      duplicateHandlingMode: type === 'brands' ? brandDuplicateMode : 'skip'
     });
 
     setPreview(nextPreview);
@@ -303,6 +312,26 @@ const MasterCsvImportPanel = ({
       console.error('[MasterCsvImportPanel] CSV parse failed', nextError);
       setError('CSVの読み込みに失敗しました。ファイル形式を確認してください。');
     }
+  };
+
+  const handleBrandDuplicateModeChange = (nextMode) => {
+    setBrandDuplicateMode(nextMode);
+
+    if (type !== 'brands' || !Array.isArray(csvRows) || csvRows.length === 0) return;
+
+    const nextPreview = buildMasterCsvPreview({
+      type,
+      rows: csvRows,
+      mappingDraft,
+      suppliers,
+      brands,
+      productCategories,
+      productCategoryGroups,
+      duplicateHandlingMode: nextMode
+    });
+
+    setPreview(nextPreview);
+    setError(nextPreview.errors[0] || '');
   };
 
   const executeImport = async () => {
@@ -465,9 +494,46 @@ const MasterCsvImportPanel = ({
         </div>
       )}
 
+      {type === 'brands' && (
+        <div className="mt-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
+          <div className="text-xs font-black text-slate-700">既存ブランドの扱い</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => handleBrandDuplicateModeChange('skip')}
+              disabled={saving}
+              className={[
+                'rounded-2xl px-4 py-2 text-xs font-black transition',
+                brandDuplicateMode === 'skip'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              ].join(' ')}
+            >
+              既存はスキップ
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBrandDuplicateModeChange('update')}
+              disabled={saving}
+              className={[
+                'rounded-2xl px-4 py-2 text-xs font-black transition',
+                brandDuplicateMode === 'update'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              ].join(' ')}
+            >
+              既存を更新
+            </button>
+          </div>
+          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+            既存更新は brandId / brandCode / ブランド名で既存ブランドを探し、仕入先・メモ等をmerge更新します。doc IDは変更しません。
+          </p>
+        </div>
+      )}
+
       {(fileName || preview) && (
         <p className="mt-3 text-xs font-bold text-slate-500">
-          {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableItems?.length || 0).toLocaleString()}件 / スキップ {Number(preview?.skippedItems?.length || 0).toLocaleString()}件
+          {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableItems?.length || 0).toLocaleString()}件{type === 'brands' ? ` / 新規 ${createCount.toLocaleString()}件 / 更新 ${updateCount.toLocaleString()}件` : ''} / スキップ {Number(preview?.skippedItems?.length || 0).toLocaleString()}件
         </p>
       )}
 

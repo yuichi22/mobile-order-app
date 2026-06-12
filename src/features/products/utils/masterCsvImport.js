@@ -253,7 +253,8 @@ export const buildMasterCsvPreview = ({
   suppliers = [],
   brands = [],
   productCategories = [],
-  productCategoryGroups = []
+  productCategoryGroups = [],
+  duplicateHandlingMode = 'skip'
 }) => {
   const headers = rows[0]?.map((header) => String(header || '').replace(/^\uFEFF/, '').trim()) || [];
   const effectiveMapping = Array.isArray(mappingDraft) ? mappingDraft : buildMasterCsvMappingDraft(type, headers);
@@ -282,7 +283,30 @@ export const buildMasterCsvPreview = ({
   const existingSupplierNames = new Set((suppliers || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
   const existingSupplierIds = new Set((suppliers || []).map((item) => normalizeText(item.smaregiSupplierId || item.supplierExternalId || item.externalSupplierId)).filter(Boolean));
   const existingBrandNames = new Set((brands || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
-  const existingBrandIds = new Set((brands || []).map((item) => normalizeText(item.smaregiBrandId || item.brandExternalId || item.externalBrandId)).filter(Boolean));
+  const existingBrandIds = new Set((brands || []).map((item) => normalizeText(item.smaregiBrandId || item.brandExternalId || item.externalBrandId || item.brandCode || item.id)).filter(Boolean));
+  const existingBrandsById = new Map();
+  const existingBrandsByName = new Map();
+
+  (brands || []).forEach((brand) => {
+    [
+      brand.smaregiBrandId,
+      brand.brandExternalId,
+      brand.externalBrandId,
+      brand.brandCode,
+      brand.id
+    ].forEach((brandIdCandidate) => {
+      const normalizedBrandId = normalizeText(brandIdCandidate);
+      if (normalizedBrandId && !existingBrandsById.has(normalizedBrandId)) {
+        existingBrandsById.set(normalizedBrandId, brand);
+      }
+    });
+
+    const normalizedBrandName = normalizeMasterName(brand.name || brand.brandName);
+    if (normalizedBrandName && !existingBrandsByName.has(normalizedBrandName)) {
+      existingBrandsByName.set(normalizedBrandName, brand);
+    }
+  });
+
   const existingCategoryNames = new Set((productCategories || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
   const existingGroupNames = new Set((productCategoryGroups || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
 
@@ -352,15 +376,19 @@ export const buildMasterCsvPreview = ({
         return;
       }
 
-      if (smaregiBrandId && existingBrandIds.has(smaregiBrandId)) {
-        warnings.push(`${record.__rowNumber}行目：既存ブランドID「${smaregiBrandId}」と重複するためスキップします。`);
-        skippedItems.push({ rowNumber: record.__rowNumber, reason: `ブランドID重複: ${smaregiBrandId}` });
-        return;
-      }
+      const normalizedBrandName = normalizeMasterName(name);
+      const matchedExistingBrand = (
+        (smaregiBrandId && existingBrandsById.get(smaregiBrandId))
+        || existingBrandsByName.get(normalizedBrandName)
+        || null
+      );
 
-      if (existingBrandNames.has(normalizeMasterName(name))) {
-        warnings.push(`${record.__rowNumber}行目：既存ブランド名「${name}」と重複するためスキップします。`);
-        skippedItems.push({ rowNumber: record.__rowNumber, reason: `ブランド名重複: ${name}` });
+      if (matchedExistingBrand && duplicateHandlingMode !== 'update') {
+        const reason = smaregiBrandId && existingBrandsById.get(smaregiBrandId)
+          ? `ブランドID重複: ${smaregiBrandId}`
+          : `ブランド名重複: ${name}`;
+        warnings.push(`${record.__rowNumber}行目：既存ブランド「${name}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason });
         return;
       }
 
@@ -370,11 +398,21 @@ export const buildMasterCsvPreview = ({
 
       importableItems.push({
         __rowNumber: record.__rowNumber,
+        ...(matchedExistingBrand ? {
+          id: matchedExistingBrand.id,
+          importAction: 'update',
+          importActionLabel: '既存更新'
+        } : {
+          importAction: 'create',
+          importActionLabel: '新規追加'
+        }),
+        brandId: smaregiBrandId,
         smaregiBrandId,
         brandExternalId: smaregiBrandId,
         name,
         stocktakingTypeCode: normalizeText(record.stocktakingTypeCode),
-        supplierId: matchedSupplier?.id || '',
+        supplierId: matchedSupplier?.id || matchedExistingBrand?.supplierId || '',
+        supplierExternalId: supplierSmaregiId,
         supplierSmaregiId,
         supplierName: matchedSupplier?.name || supplierName,
         note: normalizeText(record.note),
@@ -382,7 +420,13 @@ export const buildMasterCsvPreview = ({
       });
 
       if (smaregiBrandId) existingBrandIds.add(smaregiBrandId);
-      existingBrandNames.add(normalizeMasterName(name));
+      if (smaregiBrandId && !existingBrandsById.has(smaregiBrandId)) {
+        existingBrandsById.set(smaregiBrandId, { id: '', name, smaregiBrandId });
+      }
+      existingBrandNames.add(normalizedBrandName);
+      if (normalizedBrandName && !existingBrandsByName.has(normalizedBrandName)) {
+        existingBrandsByName.set(normalizedBrandName, { id: '', name, smaregiBrandId });
+      }
       return;
     }
 
