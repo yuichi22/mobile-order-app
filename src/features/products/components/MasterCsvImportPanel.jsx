@@ -17,9 +17,10 @@ const IMPORT_LABELS = {
       ['仕入先名', 'name'],
       ['担当者', 'contactName'],
       ['電話番号', 'tel'],
-      ['掛率', 'defaultCostRate']
+      ['FAX', 'fax'],
       ['メール', 'email'],
-      ['住所', 'address']
+      ['住所', 'address'],
+      ['掛率', 'defaultCostRate']
     ]
   },
   brands: {
