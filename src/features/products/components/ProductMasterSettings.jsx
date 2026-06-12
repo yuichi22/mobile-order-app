@@ -1,4 +1,4 @@
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -252,6 +252,133 @@ const normalizeSimplePayload = (draft, fallback = {}) => {
       taxRate: resolveMasterTaxRate(taxRateType, draft.taxRate ?? fallback.taxRate)
     } : {}),
     isActive: draft.isActive !== false
+  };
+};
+
+
+const normalizeCascadeTaxRateValue = (value, fallback = 10) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return fallback;
+  return number;
+};
+
+const calculateCascadeTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded) || excluded <= 0) return null;
+
+  const rate = normalizeCascadeTaxRateValue(taxRate, 10);
+  return Math.floor(excluded * (100 + rate) / 100);
+};
+
+const hasMasterTaxRateChanged = (before = {}, after = {}) => {
+  const beforeType = before.taxRateType || '';
+  const afterType = after.taxRateType || '';
+  const beforeRate = normalizeCascadeTaxRateValue(before.taxRate, null);
+  const afterRate = normalizeCascadeTaxRateValue(after.taxRate, null);
+
+  return beforeType !== afterType || beforeRate !== afterRate;
+};
+
+const getCascadeMatchedProducts = ({
+  products = [],
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = ''
+}) => {
+  const id = String(masterId || '').trim();
+  const name = String(masterName || '').trim();
+
+  return (products || []).filter((product = {}) => {
+    if (!product?.id) return false;
+
+    if (cascadeTaxLevel === 'group') {
+      return (
+        (id && (product.categoryGroupId === id || product.groupId === id)) ||
+        (name && (product.categoryGroupName === name || product.groupName === name))
+      );
+    }
+
+    if (cascadeTaxLevel === 'category') {
+      return (
+        (id && (product.categoryId === id || product.categoryDocId === id)) ||
+        (name && product.categoryName === name)
+      );
+    }
+
+    if (cascadeTaxLevel === 'subCategory') {
+      return (
+        (id && (product.subCategoryId === id || product.subCategoryDocId === id)) ||
+        (name && product.subCategoryName === name)
+      );
+    }
+
+    return false;
+  });
+};
+
+const cascadeMasterTaxRateToProducts = async ({
+  storeId,
+  products = [],
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = '',
+  taxRate,
+  taxRateType
+}) => {
+  if (!storeId || !cascadeTaxLevel || !masterId) {
+    return { scanned: products.length, matched: 0, updated: 0 };
+  }
+
+  const normalizedTaxRate = normalizeCascadeTaxRateValue(taxRate, 10);
+  const normalizedTaxRateType = normalizeMasterTaxRateType(taxRateType);
+  const matchedProducts = getCascadeMatchedProducts({
+    products,
+    cascadeTaxLevel,
+    masterId,
+    masterName
+  });
+
+  let updated = 0;
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
+  for (const product of matchedProducts) {
+    const priceTaxExcluded = Number(product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? 0);
+    const priceTaxIncluded = calculateCascadeTaxIncludedPrice(priceTaxExcluded, normalizedTaxRate);
+
+    batch.set(
+      doc(db, 'stores', storeId, 'products', product.id),
+      {
+        taxRate: normalizedTaxRate,
+        taxRateType: normalizedTaxRateType,
+        priceTaxIncluded,
+        updatedAt: serverTimestamp(),
+        taxRateCascadeUpdatedAt: serverTimestamp(),
+        taxRateCascadeLevel: cascadeTaxLevel,
+        taxRateCascadeMasterId: masterId,
+        taxRateCascadeMasterName: masterName || ''
+      },
+      { merge: true }
+    );
+
+    updated += 1;
+    batchCount += 1;
+
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return {
+    scanned: products.length,
+    matched: matchedProducts.length,
+    updated
   };
 };
 
@@ -2509,7 +2636,10 @@ export const SimpleMasterPanel = ({
   productSubCategories = [],
   onSaveSupplier,
   onSaveCategoryGroup,
-  defaultTaxRate = 10
+  defaultTaxRate = 10,
+  storeId = '',
+  products = [],
+  cascadeTaxLevel = ''
 }) => {
   const [draft, setDraft] = useState({ ...blank });
   const [editingId, setEditingId] = useState('');
@@ -2650,8 +2780,30 @@ export const SimpleMasterPanel = ({
       };
 
       const savedDraft = { ...draft, ...payload };
+      const shouldCascadeTaxRate = Boolean(
+        editingId &&
+        cascadeTaxLevel &&
+        draft.taxRateType !== undefined &&
+        hasMasterTaxRateChanged(selectedSnapshot || {}, payload || {})
+      );
 
       await onSave(payload);
+
+      if (shouldCascadeTaxRate) {
+        const cascadeResult = await cascadeMasterTaxRateToProducts({
+          storeId,
+          products,
+          cascadeTaxLevel,
+          masterId: editingId,
+          masterName: payload.name || draft.name || selectedSnapshot?.name || '',
+          taxRate: payload.taxRate,
+          taxRateType: payload.taxRateType
+        });
+
+        if (cascadeResult.updated > 0) {
+          alert(`税率を配下商品 ${cascadeResult.updated.toLocaleString()} 件へ反映しました。`);
+        }
+      }
 
       if (editingId) {
         setDraft(savedDraft);
@@ -3577,6 +3729,9 @@ const ProductMasterSettings = ({
                   onDelete={onDeleteCategoryGroup}
                   onSaved={onSaved}
                   defaultTaxRate={defaultTaxRate}
+                  storeId={storeId}
+                  products={products}
+                  cascadeTaxLevel="group"
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
@@ -3597,6 +3752,9 @@ const ProductMasterSettings = ({
                   onDelete={onDeleteCategory}
                   onSaved={onSaved}
                   defaultTaxRate={defaultTaxRate}
+                  storeId={storeId}
+                  products={products}
+                  cascadeTaxLevel="category"
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
@@ -3628,6 +3786,9 @@ const ProductMasterSettings = ({
                   onDelete={onDeleteSubCategory}
                   onSaved={onSaved}
                   defaultTaxRate={defaultTaxRate}
+                  storeId={storeId}
+                  products={products}
+                  cascadeTaxLevel="subCategory"
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
