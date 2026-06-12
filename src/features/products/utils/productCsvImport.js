@@ -10,6 +10,8 @@ export const PRODUCT_CSV_FIELD_OPTIONS = [
   { id: 'category', label: 'カテゴリー名', required: false },
   { id: 'subCategory', label: 'サブカテゴリー名', required: false },
   { id: 'categoryGroup', label: 'カテゴリーグループ名', required: false },
+  { id: 'salesAreaId', label: '売場ID', required: false },
+  { id: 'salesAreaName', label: '売場名', required: false },
   { id: 'brand', label: 'ブランド名', required: false },
   { id: 'supplier', label: '仕入先名', required: false },
   { id: 'size', label: 'サイズ', required: false },
