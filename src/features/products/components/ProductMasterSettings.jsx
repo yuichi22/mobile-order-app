@@ -1237,7 +1237,7 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>価格</FieldLabel>
-            <TableTextInput type="number" value={row.priceTaxIncluded} onChange={(value) => update({ priceTaxIncluded: value })} placeholder="価格" className="text-right" />
+            <TableTextInput type="number" value={row.priceTaxExcluded} onChange={(value) => update({ priceTaxExcluded: value })} placeholder="税抜売価" className="text-right" />
           </div>
 
           <div>

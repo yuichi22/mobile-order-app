@@ -5780,7 +5780,7 @@ const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
     subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
     brand: findWorkerHeaderIndex(headers, ['brand', 'brandName', 'ブランド']),
     supplier: findWorkerHeaderIndex(headers, ['supplier', 'supplierName', '仕入先']),
-    price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', 'priceTaxIncluded', 'priceTaxExcluded', '税込価格', '税抜価格', '売価']),
+    price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', '売価', '販売価格', 'Variant Price']),
     stock: findWorkerHeaderIndex(headers, ['stock', 'stockQty', 'quantity', 'inventoryQuantity', '在庫', '在庫数'])
   };
 
@@ -5930,8 +5930,8 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     salesAreaName: findWorkerHeaderIndex(headers, ['salesAreaName', 'salesArea', '売場', '販売エリア']),
     size: findWorkerHeaderIndex(headers, ['size', 'サイズ']),
     colorName: findWorkerHeaderIndex(headers, ['colorName', 'color', 'カラー', '色']),
-    priceTaxIncluded: findWorkerHeaderIndex(headers, ['priceTaxIncluded', '税込価格', '税込売価']),
     priceTaxExcluded: findWorkerHeaderIndex(headers, ['priceTaxExcluded', '税抜価格', '税抜売価']),
+    priceTaxIncluded: findWorkerHeaderIndex(headers, ['priceTaxIncluded', '税込価格', '税込売価']),
     taxRate: findWorkerHeaderIndex(headers, ['taxRate', '税率']),
     inventoryQuantity: findWorkerHeaderIndex(headers, ['inventoryQuantity', 'stock', 'stockQty', 'quantity', '在庫', '在庫数']),
     shopifyCreateEnabled: findWorkerHeaderIndex(headers, ['shopifyCreateEnabled', 'Shopify作成']),
@@ -5965,8 +5965,9 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     const salesAreaName = getWorkerCell(row, indexes.salesAreaName);
     const size = getWorkerCell(row, indexes.size);
     const colorName = getWorkerCell(row, indexes.colorName);
+    const genericPriceRaw = getWorkerCell(row, indexes.price);
+    const priceTaxExcludedRaw = getWorkerCell(row, indexes.priceTaxExcluded) || genericPriceRaw;
     const priceTaxIncludedRaw = getWorkerCell(row, indexes.priceTaxIncluded);
-    const priceTaxExcludedRaw = getWorkerCell(row, indexes.priceTaxExcluded);
     const taxRateRaw = getWorkerCell(row, indexes.taxRate);
     const inventoryQuantityRaw = getWorkerCell(row, indexes.inventoryQuantity);
     const shopifyCreateEnabled = getWorkerCell(row, indexes.shopifyCreateEnabled);
@@ -6054,8 +6055,8 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
       salesAreaName: salesAreaName || '',
       size,
       colorName,
-      priceTaxIncluded,
       priceTaxExcluded,
+      priceTaxIncluded,
       taxRate,
       inventoryQuantity,
       shopifyCreateEnabled,
@@ -6296,8 +6297,8 @@ const executeProductCsvFunctionWritesForWorker = async ({
       productType: '',
       size: product.size || '',
       colorName: product.colorName || '',
-      priceTaxIncluded: product.priceTaxIncluded ?? 0,
-      priceTaxExcluded: product.priceTaxExcluded ?? null,
+      priceTaxExcluded: product.priceTaxExcluded ?? 0,
+      priceTaxIncluded: product.priceTaxIncluded ?? null,
       taxRate: product.taxRate ?? 10,
       taxRateType: '',
       inventoryQuantity: product.inventoryQuantity ?? 0,

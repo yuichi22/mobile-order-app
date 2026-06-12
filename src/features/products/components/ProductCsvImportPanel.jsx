@@ -906,7 +906,7 @@ const ProductCsvImportPanel = ({
                   <th className="px-3 py-2">商品名</th>
                   <th className="px-3 py-2">カテゴリー</th>
                   <th className="px-3 py-2">ブランド</th>
-                  <th className="px-3 py-2 text-right">売価</th>
+                  <th className="px-3 py-2 text-right">売価（税抜）</th>
                   <th className="px-3 py-2 text-right">在庫</th>
                 </tr>
               </thead>
@@ -918,7 +918,7 @@ const ProductCsvImportPanel = ({
                     <td className="px-3 py-2 text-slate-900">{product.name}</td>
                     <td className="px-3 py-2">{product.subCategoryName ? `${product.categoryName || '-'} / ${product.subCategoryName}` : (product.categoryName || '-')}</td>
                     <td className="px-3 py-2">{product.brandName || '-'}</td>
-                    <td className="px-3 py-2 text-right">{Number(product.priceTaxIncluded || 0).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">{Number(product.priceTaxExcluded || 0).toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">{Number(product.inventoryQuantity || 0).toLocaleString()}</td>
                   </tr>
                 ))}
