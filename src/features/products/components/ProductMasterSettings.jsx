@@ -422,8 +422,7 @@ const ProductMasterTable = ({
   onDeleteProduct,
   onCreateShopifyDraftProduct,
   onUpdateShopifyProduct,
-  onSaved,
-  defaultTaxRate = 10
+  onSaved
 }) => {
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
@@ -1514,8 +1513,7 @@ const ProductMasterTable = ({
 export const ShopifySettingsPanel = ({
   settings,
   onSave,
-  onSaved,
-  defaultTaxRate = 10
+  onSaved
 }) => {
   const [draft, setDraft] = useState({
     shopDomain: '',
@@ -2496,7 +2494,8 @@ export const SimpleMasterPanel = ({
   productCategoryGroups = [],
   productSubCategories = [],
   onSaveSupplier,
-  onSaveCategoryGroup
+  onSaveCategoryGroup,
+  defaultTaxRate = 10
 }) => {
   const [draft, setDraft] = useState({ ...blank });
   const [editingId, setEditingId] = useState('');
@@ -3417,6 +3416,7 @@ const ProductMasterSettings = ({
   shopifySettings,
   onSaveShopifySettings,
   onSaved,
+  defaultTaxRate = 10,
   externalKeyword,
   onExternalKeywordChange
 }) => {
@@ -3562,6 +3562,7 @@ const ProductMasterSettings = ({
                   onSave={onSaveCategoryGroup}
                   onDelete={onDeleteCategoryGroup}
                   onSaved={onSaved}
+                  defaultTaxRate={defaultTaxRate}
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
@@ -3581,6 +3582,7 @@ const ProductMasterSettings = ({
                   onSave={onSaveCategory}
                   onDelete={onDeleteCategory}
                   onSaved={onSaved}
+                  defaultTaxRate={defaultTaxRate}
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
@@ -3611,6 +3613,7 @@ const ProductMasterSettings = ({
                   onSave={onSaveSubCategory}
                   onDelete={onDeleteSubCategory}
                   onSaved={onSaved}
+                  defaultTaxRate={defaultTaxRate}
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
                   productSubCategories={productSubCategories}
@@ -3669,6 +3672,7 @@ const ProductMasterSettings = ({
               onSave={onSaveCategory}
               onDelete={onDeleteCategory}
               onSaved={onSaved}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
 
@@ -3689,6 +3693,7 @@ const ProductMasterSettings = ({
               onSave={onSaveSubCategory}
               onDelete={onDeleteSubCategory}
               onSaved={onSaved}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
 
@@ -3705,6 +3710,7 @@ const ProductMasterSettings = ({
               onSave={onSaveCategoryGroup}
               onDelete={onDeleteCategoryGroup}
               onSaved={onSaved}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
 
@@ -3721,6 +3727,7 @@ const ProductMasterSettings = ({
               onSave={onSaveBrand}
               onDelete={onDeleteBrand}
               onSaved={onSaved}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
 
@@ -3743,6 +3750,7 @@ const ProductMasterSettings = ({
               onSave={onSaveSupplier}
               onDelete={onDeleteSupplier}
               onSaved={onSaved}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
         </>

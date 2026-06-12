@@ -2177,6 +2177,7 @@ export const StoreSettings = ({
 }) => {
   const { logout, role, currentUser, profileName } = useAuth();
   const { settings, updateSettings, loading: settingsLoading } = useStoreSettings(storeId);
+  const [taxPriceSettingsForProducts, setTaxPriceSettingsForProducts] = useState(() => mergeTaxPriceSettings());
   const {
     settings: businessSettings,
     updateSettings: updateBusinessSettings,
@@ -2184,6 +2185,26 @@ export const StoreSettings = ({
   } = useBusinessSettings(storeId);
   const { menuItems, loading: menuLoading, updateMenu, deleteMenu } = useMenuData(storeId);
   const productMaster = useProductMasterData(storeId);
+  useEffect(() => {
+    if (!storeId) {
+      setTaxPriceSettingsForProducts(mergeTaxPriceSettings());
+      return undefined;
+    }
+
+    const taxPriceRef = doc(db, 'stores', storeId, 'settings', 'taxPrice');
+
+    return onSnapshot(
+      taxPriceRef,
+      (snapshot) => {
+        setTaxPriceSettingsForProducts(mergeTaxPriceSettings(snapshot.exists() ? snapshot.data() : {}));
+      },
+      (error) => {
+        console.error('[tax price settings for product master subscription error]', error);
+        setTaxPriceSettingsForProducts(mergeTaxPriceSettings());
+      }
+    );
+  }, [storeId]);
+
   const { discounts, loading: discountsLoading, saveDiscount, deleteDiscount } = useDiscountData(storeId);
   const { layoutItems, saveLayout, loading: layoutLoading } = useFloorLayout(storeId);
   const { categories, loading: categoryLoading, updateCategories } = useCategoryData(storeId);
@@ -2543,6 +2564,8 @@ export const StoreSettings = ({
               onDeleteCategory={productMaster.deleteCategory}
               onSaveCategoryGroup={productMaster.saveCategoryGroup}
               onDeleteCategoryGroup={productMaster.deleteCategoryGroup}
+              onSaveSubCategory={productMaster.saveSubCategory}
+              onDeleteSubCategory={productMaster.deleteSubCategory}
               onSaveBrand={productMaster.saveBrand}
               onDeleteBrand={productMaster.deleteBrand}
               onSaveSupplier={productMaster.saveSupplier}
@@ -2552,10 +2575,8 @@ export const StoreSettings = ({
               onExternalKeywordChange={onPosProductKeywordChange}
               shopifySettings={productMaster?.shopifySettings}
               onSaveShopifySettings={productMaster?.saveShopifySettings}
-                          defaultTaxRate={Number(settings?.taxRate) === 8 ? 8 : 10}
-              onSaveSubCategory={productMaster?.saveSubCategory}
-              onDeleteSubCategory={productMaster?.deleteSubCategory}
-/>
+              defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+            />
           )}
 
           {settingsMode === 'pos'
