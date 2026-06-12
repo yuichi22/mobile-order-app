@@ -341,6 +341,7 @@ const EcIntegrationComingSoonPanel = ({ title }) => (
 );
 
 const EcIntegrationPanel = ({
+  storeId,
   activeTab,
   productMaster,
   onSaved
@@ -348,6 +349,7 @@ const EcIntegrationPanel = ({
   if (activeTab === 'shopify') {
     return (
       <ShopifySettingsPanel
+        storeId={storeId}
         settings={productMaster?.shopifySettings}
         onSave={productMaster?.saveShopifySettings}
         onSaved={onSaved}
@@ -833,7 +835,7 @@ const CategoryTaxRulePanel = ({
           <select
             value={taxRateType}
             onChange={(event) => setTaxRateType(event.target.value)}
-            disabled={disabled || !selectedItem || !taxRateType || Boolean(savingKey)}
+            disabled={disabled || !selectedItem || Boolean(savingKey)}
             className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
           >
             <option value="">選択してください</option>
@@ -1804,6 +1806,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
     if (item?.id === 'shopifyIntegration' || item?.id === 'ecIntegration') {
       return (
         <EcIntegrationPanel
+                  storeId={storeId}
           activeTab={activeDummyTab || 'shopify'}
           productMaster={productMaster}
           onSaved={onSaved}

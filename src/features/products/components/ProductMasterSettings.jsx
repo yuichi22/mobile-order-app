@@ -1652,6 +1652,7 @@ const ProductMasterTable = ({
 
 
 export const ShopifySettingsPanel = ({
+  storeId,
   settings,
   onSave,
   onSaved
