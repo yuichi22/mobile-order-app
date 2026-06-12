@@ -63,13 +63,16 @@ const normalizeSupplierPayload = (item) => ({
   kana: String(item.kana || '').trim(),
   smaregiSupplierId: String(item.smaregiSupplierId || item.supplierId || item.supplierCode || '').trim(),
   supplierExternalId: String(item.supplierExternalId || item.smaregiSupplierId || item.supplierId || item.supplierCode || '').trim(),
-  supplierCode: String(item.supplierCode || item.supplierId || item.smaregiSupplierId || item.supplierExternalId || '').trim(),
+  externalSupplierId: String(item.externalSupplierId || item.smaregiSupplierId || item.supplierId || item.supplierCode || '').trim(),
+  code: String(item.code || item.supplierCode || item.smaregiSupplierId || item.supplierId || '').trim(),
   contactName: String(item.contactName || '').trim(),
   tel: String(item.tel || '').trim(),
   fax: String(item.fax || '').trim(),
   email: String(item.email || '').trim(),
   address: String(item.address || '').trim(),
-  backorderValidDays: normalizeNumberOrNull(item.backorderValidDays),
+  orderLot: normalizeNumberOrNull(item.orderLot),
+  minOrderQuantity: normalizeNumberOrNull(item.minOrderQuantity),
+  leadTimeDays: normalizeNumberOrNull(item.leadTimeDays),
   orderListPrice: normalizeNumberOrNull(item.orderListPrice),
   defaultCostRate: normalizeNumberOrNull(item.defaultCostRate),
   paymentTerms: String(item.paymentTerms || '').trim(),
@@ -84,8 +87,8 @@ const normalizeBrandPayload = (item) => ({
   kana: String(item.kana || '').trim(),
   smaregiBrandId: String(item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
   brandExternalId: String(item.brandExternalId || item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
-  brandCode: String(item.brandCode || item.brandId || item.smaregiBrandId || item.brandExternalId || '').trim(),
-  stocktakingTypeCode: String(item.stocktakingTypeCode || '').trim(),
+  externalBrandId: String(item.externalBrandId || item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
+  brandCode: String(item.brandCode || item.smaregiBrandId || item.brandId || '').trim(),
   supplierId: String(item.supplierId || '').trim(),
   supplierSmaregiId: String(item.supplierSmaregiId || item.supplierExternalId || '').trim(),
   supplierExternalId: String(item.supplierExternalId || item.supplierSmaregiId || '').trim(),
@@ -104,37 +107,47 @@ const normalizeGroupPayload = (item) => ({
   isActive: item.isActive !== false
 });
 
-const normalizeCategoryPayload = (item) => ({
-  ...item,
-  name: String(item.name || '').trim(),
-  smaregiCategoryId: String(item.smaregiCategoryId || '').trim(),
-  categoryExternalId: String(item.categoryExternalId || item.smaregiCategoryId || '').trim(),
-  groupId: String(item.groupId || '').trim(),
-  groupName: String(item.groupName || '').trim(),
-  sortOrder: normalizeNumberOrNull(item.sortOrder) ?? 0,
-  departmentId: item.departmentId || 'retail',
-  color: item.color || '#64748b',
-  note: String(item.note || '').trim(),
-  isActive: item.isActive !== false
-});
+const normalizeCategoryPayload = (item) => {
+  const { color, categoryColor, subCategoryColor, ...cleanItem } = item;
+  return ({
+    ...cleanItem,
+    id: String(cleanItem.id || '').trim(),
+    name: String(cleanItem.name || '').trim(),
+    smaregiCategoryId: String(cleanItem.smaregiCategoryId || '').trim(),
+    categoryExternalId: String(cleanItem.categoryExternalId || cleanItem.smaregiCategoryId || '').trim(),
+    externalCategoryId: String(cleanItem.externalCategoryId || cleanItem.smaregiCategoryId || '').trim(),
+    groupId: String(cleanItem.groupId || '').trim(),
+    groupName: String(cleanItem.groupName || '').trim(),
+    categoryGroupName: String(cleanItem.categoryGroupName || cleanItem.groupName || '').trim(),
+    smaregiCategoryGroupId: String(cleanItem.smaregiCategoryGroupId || '').trim(),
+    categoryGroupExternalId: String(cleanItem.categoryGroupExternalId || cleanItem.smaregiCategoryGroupId || '').trim(),
+    sortOrder: normalizeNumberOrNull(cleanItem.sortOrder) ?? 0,
+    departmentId: cleanItem.departmentId || 'retail',
+    note: String(cleanItem.note || '').trim(),
+    isActive: cleanItem.isActive !== false
+  });
+};
 
-const normalizeSubCategoryPayload = (item) => ({
-  ...item,
-  id: String(item.id || '').trim(),
-  name: String(item.name || item.subCategoryName || '').trim(),
-  subCategoryName: String(item.subCategoryName || item.name || '').trim(),
-  smaregiSubCategoryId: String(item.smaregiSubCategoryId || '').trim(),
-  subCategoryExternalId: String(item.subCategoryExternalId || item.smaregiSubCategoryId || '').trim(),
-  externalSubCategoryId: String(item.externalSubCategoryId || item.smaregiSubCategoryId || '').trim(),
-  categoryId: String(item.categoryId || '').trim(),
-  categoryName: String(item.categoryName || '').trim(),
-  categoryGroupId: String(item.categoryGroupId || item.groupId || '').trim(),
-  categoryGroupName: String(item.categoryGroupName || '').trim(),
-  groupId: String(item.groupId || item.categoryGroupId || '').trim(),
-  sortOrder: Number.isFinite(Number(item.sortOrder)) ? Number(item.sortOrder) : 0,
-  note: String(item.note || '').trim(),
-  isActive: item.isActive !== false
-});
+const normalizeSubCategoryPayload = (item) => {
+  const { color, categoryColor, subCategoryColor, ...cleanSubCategoryItem } = item;
+  return ({
+    ...cleanSubCategoryItem,
+    id: String(cleanSubCategoryItem.id || '').trim(),
+    name: String(cleanSubCategoryItem.name || cleanSubCategoryItem.subCategoryName || '').trim(),
+    subCategoryName: String(cleanSubCategoryItem.subCategoryName || cleanSubCategoryItem.name || '').trim(),
+    smaregiSubCategoryId: String(cleanSubCategoryItem.smaregiSubCategoryId || '').trim(),
+    subCategoryExternalId: String(cleanSubCategoryItem.subCategoryExternalId || cleanSubCategoryItem.smaregiSubCategoryId || '').trim(),
+    externalSubCategoryId: String(cleanSubCategoryItem.externalSubCategoryId || cleanSubCategoryItem.smaregiSubCategoryId || '').trim(),
+    categoryId: String(cleanSubCategoryItem.categoryId || '').trim(),
+    categoryName: String(cleanSubCategoryItem.categoryName || '').trim(),
+    categoryGroupId: String(cleanSubCategoryItem.categoryGroupId || cleanSubCategoryItem.groupId || '').trim(),
+    categoryGroupName: String(cleanSubCategoryItem.categoryGroupName || '').trim(),
+    groupId: String(cleanSubCategoryItem.groupId || cleanSubCategoryItem.categoryGroupId || '').trim(),
+    sortOrder: Number.isFinite(Number(cleanSubCategoryItem.sortOrder)) ? Number(cleanSubCategoryItem.sortOrder) : 0,
+    note: String(cleanSubCategoryItem.note || '').trim(),
+    isActive: cleanSubCategoryItem.isActive !== false
+  });
+};
 
 
 const MasterCsvMappingModal = ({

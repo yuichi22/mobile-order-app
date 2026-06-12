@@ -32,7 +32,6 @@ export const MASTER_CSV_FIELD_OPTIONS = {
     { id: 'subCategoryName', label: 'サブカテゴリー名' },
     { id: 'sortOrder', label: '並び順' },
     { id: 'departmentId', label: '部門ID' },
-    { id: 'color', label: 'カラー' },
     { id: 'note', label: 'メモ' }
   ]
 };
@@ -100,7 +99,6 @@ const MASTER_CSV_HEADER_ALIASES = {
     subCategoryName: ['サブカテゴリー名', 'サブカテゴリー', '小カテゴリー', '小分類', 'subCategoryName', 'sub_category_name', 'Shopify Sub Category'],
     sortOrder: ['表示順', '並び順', 'sortOrder', 'order'],
     departmentId: ['部門ID', 'departmentId'],
-    color: ['カラー', 'color'],
     note: ['メモ', '備考', 'note']
   }
 };
@@ -637,7 +635,6 @@ export const buildMasterCsvPreview = ({
           categoryGroupExternalId: smaregiCategoryGroupId,
           sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedCategory.sortOrder ?? 0,
           departmentId: normalizeText(record.departmentId) || matchedCategory.departmentId || 'retail',
-          color: normalizeText(record.color) || matchedCategory.color || '#64748b',
           note: normalizeText(record.note) || matchedCategory.note || '',
           isActive: true
         }
@@ -654,7 +651,6 @@ export const buildMasterCsvPreview = ({
             categoryGroupExternalId: smaregiCategoryGroupId,
             sortOrder: normalizeNumber(record.sortOrder, 0) ?? 0,
             departmentId: normalizeText(record.departmentId) || 'retail',
-            color: normalizeText(record.color) || '#64748b',
             note: normalizeText(record.note),
             isActive: true
           }

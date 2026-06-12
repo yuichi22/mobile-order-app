@@ -431,7 +431,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
       { key: 'subCategoryName', label: 'サブカテゴリー名' },
       { key: 'sortOrder', label: '並び順' },
       { key: 'departmentId', label: '部門ID' },
-      { key: 'color', label: 'カラー' },
       { key: 'note', label: 'メモ' }
     ],
     sampleRows: [
@@ -444,7 +443,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryName: 'プレート',
         sortOrder: '10',
         departmentId: 'retail',
-        color: '#64748b',
         note: 'サンプル'
       }
     ]
@@ -782,19 +780,19 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
             { id: 'name', label: 'サブカテゴリー名' },
             { id: 'categoryId', label: '親カテゴリー', type: 'categorySelect' },
             { id: 'sortOrder', label: '並び順', type: 'number' },
-            { id: 'color', label: 'カラー' },
           ]}
           onSave={(payload) => {
-            const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === payload.categoryId);
+            const { color, categoryColor, subCategoryColor, ...cleanSubCategoryPayload } = payload;
+            const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === cleanSubCategoryPayload.categoryId);
             const matchedGroup = (productMaster?.productCategoryGroups || []).find((group) => group.id === matchedCategory?.groupId);
             return productMaster?.saveSubCategory?.({
-              ...payload,
-              categoryName: matchedCategory?.name || payload.categoryName || '',
-              categoryGroupId: matchedCategory?.groupId || payload.categoryGroupId || '',
-              categoryGroupName: matchedGroup?.name || payload.categoryGroupName || '',
-              groupId: matchedCategory?.groupId || payload.groupId || '',
-              groupName: matchedGroup?.name || payload.groupName || '',
-              subCategoryName: payload.name || payload.subCategoryName || ''
+              ...cleanSubCategoryPayload,
+              categoryName: matchedCategory?.name || cleanSubCategoryPayload.categoryName || '',
+              categoryGroupId: matchedCategory?.groupId || cleanSubCategoryPayload.categoryGroupId || '',
+              categoryGroupName: matchedGroup?.name || cleanSubCategoryPayload.categoryGroupName || '',
+              groupId: matchedCategory?.groupId || cleanSubCategoryPayload.groupId || '',
+              groupName: matchedGroup?.name || cleanSubCategoryPayload.groupName || '',
+              subCategoryName: cleanSubCategoryPayload.name || cleanSubCategoryPayload.subCategoryName || ''
             });
           }}
           onDelete={productMaster?.deleteSubCategory}
