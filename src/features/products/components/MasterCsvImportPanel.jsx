@@ -18,6 +18,8 @@ const IMPORT_LABELS = {
       ['担当者', 'contactName'],
       ['電話番号', 'tel'],
       ['掛率', 'defaultCostRate']
+      ['メール', 'email'],
+      ['住所', 'address']
     ]
   },
   brands: {
@@ -62,6 +64,8 @@ const normalizeSupplierPayload = (item) => ({
   contactName: String(item.contactName || '').trim(),
   tel: String(item.tel || '').trim(),
   fax: String(item.fax || '').trim(),
+  email: String(item.email || '').trim(),
+  address: String(item.address || '').trim(),
   backorderValidDays: normalizeNumberOrNull(item.backorderValidDays),
   orderListPrice: normalizeNumberOrNull(item.orderListPrice),
   defaultCostRate: normalizeNumberOrNull(item.defaultCostRate),
