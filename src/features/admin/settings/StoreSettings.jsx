@@ -727,6 +727,10 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
         );
       }
 
+      if (activeCsvTab === 'templates') {
+        return <CsvTemplateWorkflowPanel />;
+      }
+
       return null;
     }
 
@@ -1058,9 +1062,7 @@ const TimeSettings = ({
           onSave={onSavePeriods}
           onSaved={onSaved}
         />
-      ) : activeCsvTab === 'templates' ? (
-            <CsvTemplateWorkflowPanel />
-          ) : (
+      ) : (
         <BusinessSettings
           settings={businessSettings}
           onSave={updateBusinessSettings}
