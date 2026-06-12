@@ -287,6 +287,54 @@ const findSubCategoryByHierarchy = (
   return scopedCandidates[0] || candidates[0] || null;
 };
 
+
+const normalizeProductCsvTaxRateType = (value) => (
+  ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : ''
+);
+
+const resolveProductCsvMasterTaxRate = (item = {}, fallbackDefaultTaxRate = 10) => {
+  const normalizedDefaultTaxRate = Number(fallbackDefaultTaxRate) === 8 ? 8 : 10;
+  const taxRateType = normalizeProductCsvTaxRateType(item?.taxRateType);
+
+  if (taxRateType === 'standard') return 10;
+  if (taxRateType === 'reduced') return 8;
+  if (taxRateType === 'taxFree') return 0;
+
+  const explicitTaxRate = Number(item?.taxRate);
+  if (Number.isFinite(explicitTaxRate)) return explicitTaxRate;
+
+  return normalizedDefaultTaxRate;
+};
+
+const resolveProductCsvTaxRate = ({
+  record = {},
+  matchedSubCategory = null,
+  matchedCategory = null,
+  matchedGroup = null,
+  defaultTaxRate = 10
+} = {}) => {
+  const csvTaxRateRaw = record.taxRate;
+  const csvTaxRate = csvTaxRateRaw === '' || csvTaxRateRaw === null || csvTaxRateRaw === undefined
+    ? null
+    : normalizeCsvNumber(csvTaxRateRaw, null);
+
+  if (csvTaxRate !== null && csvTaxRate !== undefined) return csvTaxRate;
+
+  if (matchedSubCategory?.taxRateType !== undefined || matchedSubCategory?.taxRate !== undefined) {
+    return resolveProductCsvMasterTaxRate(matchedSubCategory, defaultTaxRate);
+  }
+
+  if (matchedCategory?.taxRateType !== undefined || matchedCategory?.taxRate !== undefined) {
+    return resolveProductCsvMasterTaxRate(matchedCategory, defaultTaxRate);
+  }
+
+  if (matchedGroup?.taxRateType !== undefined || matchedGroup?.taxRate !== undefined) {
+    return resolveProductCsvMasterTaxRate(matchedGroup, defaultTaxRate);
+  }
+
+  return Number(defaultTaxRate) === 8 ? 8 : 10;
+};
+
 export const buildProductCsvRecordsFromMapping = (rows, mappingDraft = []) => {
   const records = rows.slice(1).map((row, rowIndex) => {
     const record = { __rowNumber: rowIndex + 2 };
@@ -310,6 +358,7 @@ export const buildProductCsvPreview = ({
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
+  defaultTaxRate = 10,
   productSalesAreas = [],
   brands = [],
   suppliers = []
@@ -435,7 +484,13 @@ export const buildProductCsvPreview = ({
       priceTaxExcluded: normalizeCsvNumber(record.priceTaxExcluded, 0),
       priceTaxIncluded: normalizeCsvNumber(record.priceTaxIncluded, null),
       costTaxExcluded: normalizeCsvNumber(record.costTaxExcluded, 0),
-      taxRate: normalizeCsvNumber(record.taxRate, 10),
+      taxRate: resolveProductCsvTaxRate({
+        record,
+        matchedSubCategory,
+        matchedCategory,
+        matchedGroup,
+        defaultTaxRate
+      }),
       inventoryQuantity: normalizeCsvNumber(record.inventoryQuantity, 0),
       reorderPoint: normalizeCsvNumber(record.reorderPoint, 0),
       reorderQuantity: normalizeCsvNumber(record.reorderQuantity, 0),

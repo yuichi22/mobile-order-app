@@ -5764,6 +5764,72 @@ const getWorkerCell = (row = [], index = -1) => {
   return normalizeWorkerCell(row[index]);
 };
 
+
+const normalizeWorkerTaxRateType = (value) => (
+  ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : ''
+);
+
+const resolveWorkerMasterTaxRate = (item = {}, fallbackDefaultTaxRate = 10) => {
+  const normalizedDefaultTaxRate = Number(fallbackDefaultTaxRate) === 8 ? 8 : 10;
+  const taxRateType = normalizeWorkerTaxRateType(item?.taxRateType);
+
+  if (taxRateType === 'standard') return 10;
+  if (taxRateType === 'reduced') return 8;
+  if (taxRateType === 'taxFree') return 0;
+
+  const explicitTaxRate = toWorkerNumberOrNull(item?.taxRate);
+  if (explicitTaxRate !== null && explicitTaxRate !== undefined) return explicitTaxRate;
+
+  return normalizedDefaultTaxRate;
+};
+
+const findWorkerMasterById = (items = [], id = '') => {
+  const key = String(id || '').trim();
+  if (!key) return null;
+  return (items || []).find((item) => String(item?.id || '').trim() === key) || null;
+};
+
+const findWorkerMasterByName = (items = [], name = '') => {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key) return null;
+  return (items || []).find((item) => String(item?.name || item?.categoryName || item?.groupName || '').trim().toLowerCase() === key) || null;
+};
+
+const resolveWorkerProductTaxRate = ({
+  product = {},
+  productCategoryGroups = [],
+  productCategories = [],
+  productSubCategories = [],
+  defaultTaxRate = 10
+} = {}) => {
+  if (product.taxRate !== null && product.taxRate !== undefined) return product.taxRate;
+
+  const matchedSubCategory = findWorkerMasterById(productSubCategories, product.subCategoryId)
+    || findWorkerMasterByName(productSubCategories, product.subCategoryName);
+
+  const matchedCategory = findWorkerMasterById(productCategories, product.categoryId)
+    || findWorkerMasterByName(productCategories, product.categoryName);
+
+  const matchedGroup = findWorkerMasterById(productCategoryGroups, product.categoryGroupId)
+    || findWorkerMasterByName(productCategoryGroups, product.categoryGroupName)
+    || findWorkerMasterById(productCategoryGroups, matchedCategory?.groupId || matchedCategory?.categoryGroupId)
+    || findWorkerMasterByName(productCategoryGroups, matchedCategory?.groupName || matchedCategory?.categoryGroupName);
+
+  if (matchedSubCategory?.taxRateType !== undefined || matchedSubCategory?.taxRate !== undefined) {
+    return resolveWorkerMasterTaxRate(matchedSubCategory, defaultTaxRate);
+  }
+
+  if (matchedCategory?.taxRateType !== undefined || matchedCategory?.taxRate !== undefined) {
+    return resolveWorkerMasterTaxRate(matchedCategory, defaultTaxRate);
+  }
+
+  if (matchedGroup?.taxRateType !== undefined || matchedGroup?.taxRate !== undefined) {
+    return resolveWorkerMasterTaxRate(matchedGroup, defaultTaxRate);
+  }
+
+  return Number(defaultTaxRate) === 8 ? 8 : 10;
+};
+
 const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
   const headers = Array.isArray(rows?.[0])
     ? rows[0].map(normalizeWorkerHeader)
@@ -6186,7 +6252,11 @@ const executeProductCsvFunctionWritesForWorker = async ({
   db,
   storeId,
   jobId,
-  writePlan
+  writePlan,
+  productCategoryGroups = [],
+  productCategories = [],
+  productSubCategories = [],
+  defaultTaxRate = 10
 }) => {
   const storeRef = db.collection('stores').doc(storeId);
   const groupCandidates = Array.isArray(writePlan?.groupCandidates) ? writePlan.groupCandidates : [];
@@ -6299,7 +6369,13 @@ const executeProductCsvFunctionWritesForWorker = async ({
       colorName: product.colorName || '',
       priceTaxExcluded: product.priceTaxExcluded ?? 0,
       priceTaxIncluded: product.priceTaxIncluded ?? null,
-      taxRate: product.taxRate ?? 10,
+      taxRate: resolveWorkerProductTaxRate({
+        product,
+        productCategoryGroups,
+        productCategories,
+        productSubCategories,
+        defaultTaxRate
+      }),
       taxRateType: '',
       inventoryQuantity: product.inventoryQuantity ?? 0,
       costTaxIncluded: null,
@@ -6390,6 +6466,25 @@ export const processProductCsvImportJob = onDocumentWritten(
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
+      const storeRef = getFirestore().collection('stores').doc(storeId);
+      const [
+        taxPriceSettingsDoc,
+        categoryGroupSnapshot,
+        categorySnapshot,
+        subCategorySnapshot
+      ] = await Promise.all([
+        storeRef.collection('settings').doc('taxPrice').get(),
+        storeRef.collection('productCategoryGroups').get(),
+        storeRef.collection('productCategories').get(),
+        storeRef.collection('productSubCategories').get()
+      ]);
+
+      const taxPriceSettings = taxPriceSettingsDoc.exists ? taxPriceSettingsDoc.data() : {};
+      const defaultTaxRate = Number(taxPriceSettings.defaultTaxRate) === 8 ? 8 : 10;
+      const productCategoryGroups = categoryGroupSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const productCategories = categorySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const productSubCategories = subCategorySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
       const [buffer] = await getStorage().bucket().file(storagePath).download();
       const csvText = buffer.toString('utf8');
       const rows = parseProductCsvTextForWorker(csvText);
@@ -6409,7 +6504,11 @@ export const processProductCsvImportJob = onDocumentWritten(
           db: getFirestore(),
           storeId,
           jobId,
-          writePlan: functionWritePlan
+          writePlan: functionWritePlan,
+          productCategoryGroups,
+          productCategories,
+          productSubCategories,
+          defaultTaxRate
         });
 
         await jobRef.set({

@@ -576,13 +576,13 @@ const ProductCsvImportPanel = ({
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
+  defaultTaxRate = 10,
   productSalesAreas = [],
   brands = [],
   suppliers = [],
   onSaveProduct,
   onSaveProductGroup,
-  onSaved
-}) => {
+  onSaved}) => {
   const inputRef = useRef(null);
   const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -671,6 +671,7 @@ const ProductCsvImportPanel = ({
       productCategories,
       productCategoryGroups,
       productSubCategories,
+        defaultTaxRate,
       productSalesAreas,
       brands,
       suppliers

@@ -1296,6 +1296,7 @@ const CsvImportWorkflowPanel = ({
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
         productSubCategories={productMaster?.productSubCategories || []}
+        defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
         brands={productMaster?.brands || []}
         suppliers={productMaster?.suppliers || []}
         onSaveProduct={productMaster?.saveProduct}
