@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, limit, query, serverTimestamp, where, writeBatch, setDoc} from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
