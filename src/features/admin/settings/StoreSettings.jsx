@@ -419,14 +419,16 @@ const CSV_TEMPLATE_DEFINITIONS = [
   },
   {
     id: 'categories',
-    title: 'カテゴリーCSVテンプレート',
-    description: 'カテゴリーグループとカテゴリーをまとめて登録・更新するためのCSVです。',
+    title: 'カテゴリー / サブカテゴリーCSVテンプレート',
+    description: 'カテゴリーグループ・カテゴリー・サブカテゴリーをまとめて登録・更新するためのCSVです。',
     filename: 'akuto-categories-template',
     columns: [
       { key: 'categoryGroupId', label: 'カテゴリーグループID' },
       { key: 'categoryGroupName', label: 'カテゴリーグループ名' },
       { key: 'categoryId', label: 'カテゴリーID' },
       { key: 'categoryName', label: 'カテゴリー名' },
+      { key: 'subCategoryId', label: 'サブカテゴリーID' },
+      { key: 'subCategoryName', label: 'サブカテゴリー名' },
       { key: 'sortOrder', label: '並び順' },
       { key: 'departmentId', label: '部門ID' },
       { key: 'color', label: 'カラー' },
@@ -438,6 +440,8 @@ const CSV_TEMPLATE_DEFINITIONS = [
         categoryGroupName: '生活雑貨',
         categoryId: 'CAT-001',
         categoryName: '食器',
+        subCategoryId: 'SUBCAT-001',
+        subCategoryName: 'プレート',
         sortOrder: '10',
         departmentId: 'retail',
         color: '#64748b',
@@ -459,6 +463,7 @@ const CSV_TEMPLATE_DEFINITIONS = [
       { key: 'color', label: 'カラー' },
       { key: 'categoryGroupName', label: 'カテゴリーグループ名' },
       { key: 'categoryName', label: 'カテゴリー名' },
+      { key: 'subCategoryName', label: 'サブカテゴリー名' },
       { key: 'brandName', label: 'ブランド名' },
       { key: 'supplierName', label: '仕入先名' },
       { key: 'costPrice', label: '原価' },
@@ -479,6 +484,7 @@ const CSV_TEMPLATE_DEFINITIONS = [
         color: 'WHITE',
         categoryGroupName: '生活雑貨',
         categoryName: '食器',
+        subCategoryName: 'プレート',
         brandName: 'サンプルブランド',
         supplierName: 'サンプル仕入先',
         costPrice: '600',
@@ -593,7 +599,7 @@ const CsvImportWorkflowPanel = ({
       <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Import Workflow</p>
       <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">CSV取込の順番</h2>
       <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
-        商品CSVを正しく紐づけるために、先に補助マスターを登録します。推奨順は、仕入先 → ブランド → カテゴリーグループ/カテゴリー → 商品です。
+        商品CSVを正しく紐づけるために、先に補助マスターを登録します。推奨順は、仕入先 → ブランド → カテゴリーグループ/カテゴリー/サブカテゴリー → 商品です。
       </p>
     </div>
 
@@ -608,10 +614,12 @@ const CsvImportWorkflowPanel = ({
         brands={productMaster?.brands || []}
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
+        productSubCategories={productMaster?.productSubCategories || []}
         onSaveSupplier={productMaster?.saveSupplier}
         onSaveBrand={productMaster?.saveBrand}
         onSaveCategory={productMaster?.saveCategory}
         onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaveSubCategory={productMaster?.saveSubCategory}
         onSaved={onSaved}
       />
     </CsvImportStepCard>
@@ -627,18 +635,20 @@ const CsvImportWorkflowPanel = ({
         brands={productMaster?.brands || []}
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
+        productSubCategories={productMaster?.productSubCategories || []}
         onSaveSupplier={productMaster?.saveSupplier}
         onSaveBrand={productMaster?.saveBrand}
         onSaveCategory={productMaster?.saveCategory}
         onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaveSubCategory={productMaster?.saveSubCategory}
         onSaved={onSaved}
       />
     </CsvImportStepCard>
 
     <CsvImportStepCard
       number="03"
-      title="カテゴリー / カテゴリーグループCSV取込"
-      description="既存台帳のカテゴリー・カテゴリーグループを、Akuto POSのカテゴリー・カテゴリーグループとして取り込みます。"
+      title="カテゴリー / サブカテゴリー / カテゴリーグループCSV取込"
+      description="既存台帳のカテゴリーグループ・カテゴリー・サブカテゴリーを、Akuto POSの商品カテゴリー階層として取り込みます。"
     >
       <MasterCsvImportPanel
         type="categories"
@@ -646,10 +656,12 @@ const CsvImportWorkflowPanel = ({
         brands={productMaster?.brands || []}
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
+        productSubCategories={productMaster?.productSubCategories || []}
         onSaveSupplier={productMaster?.saveSupplier}
         onSaveBrand={productMaster?.saveBrand}
         onSaveCategory={productMaster?.saveCategory}
         onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+        onSaveSubCategory={productMaster?.saveSubCategory}
         onSaved={onSaved}
       />
     </CsvImportStepCard>
@@ -668,12 +680,12 @@ const CsvImportWorkflowPanel = ({
         products={productMaster?.products || []}
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
+        productSubCategories={productMaster?.productSubCategories || []}
         brands={productMaster?.brands || []}
         suppliers={productMaster?.suppliers || []}
         onSaveProduct={productMaster?.saveProduct}
         onSaveProductGroup={productMaster?.saveProductGroup}
         onSaved={onSaved}
-        productSubCategories={productMaster?.productSubCategories || []}
         productSalesAreas={productMaster?.productSalesAreas || []}
       />
     </CsvImportStepCard>
@@ -1195,23 +1207,61 @@ const buildCategoryGroupExportRows = (categoryGroups = []) => categoryGroups
   .filter((row) => row.categoryGroupName)
   .sort((a, b) => String(a.displayOrder || '').localeCompare(String(b.displayOrder || ''), 'ja') || a.categoryGroupName.localeCompare(b.categoryGroupName, 'ja'));
 
-const buildCategoryExportRows = (categories = [], categoryGroups = []) => {
+const buildCategoryExportRows = (categories = [], categoryGroups = [], subCategories = []) => {
   const groupsById = new Map(categoryGroups.map((group) => [group.id, group]));
-  return categories
-    .map((category) => {
-      const group = groupsById.get(category.groupId || category.categoryGroupId || '') || null;
-      return {
-        categoryId: category.categoryExternalId || category.smaregiCategoryId || category.categoryCode || category.id || '',
-        categoryName: category.name || category.categoryName || '',
-        categoryGroupId: category.categoryGroupExternalId || group?.groupExternalId || group?.smaregiCategoryGroupId || group?.categoryGroupCode || category.groupId || category.categoryGroupId || '',
-        categoryGroupName: category.categoryGroupName || group?.name || group?.groupName || group?.categoryGroupName || '',
-        displayOrder: category.displayOrder ?? category.order ?? '',
-        note: category.note || '',
-        isActive: toExportBoolean(category.isActive)
-      };
-    })
-    .filter((row) => row.categoryName)
-    .sort((a, b) => a.categoryGroupName.localeCompare(b.categoryGroupName, 'ja') || a.categoryName.localeCompare(b.categoryName, 'ja'));
+  const subCategoriesByCategoryId = new Map();
+
+  (subCategories || []).forEach((subCategory) => {
+    const categoryId = subCategory.categoryId || '';
+    if (!categoryId) return;
+    if (!subCategoriesByCategoryId.has(categoryId)) subCategoriesByCategoryId.set(categoryId, []);
+    subCategoriesByCategoryId.get(categoryId).push(subCategory);
+  });
+
+  const rows = [];
+
+  (categories || []).forEach((category) => {
+    const group = groupsById.get(category.groupId || category.categoryGroupId || '') || null;
+    const matchedSubCategories = subCategoriesByCategoryId.get(category.id) || [];
+
+    const baseRow = {
+      categoryGroupId: category.categoryGroupExternalId || group?.groupExternalId || group?.smaregiCategoryGroupId || group?.categoryGroupCode || category.groupId || category.categoryGroupId || '',
+      categoryGroupName: category.categoryGroupName || group?.name || group?.groupName || group?.categoryGroupName || '',
+      categoryId: category.categoryExternalId || category.smaregiCategoryId || category.categoryCode || category.id || '',
+      categoryName: category.name || category.categoryName || '',
+      displayOrder: category.displayOrder ?? category.order ?? '',
+      note: category.note || '',
+      isActive: toExportBoolean(category.isActive)
+    };
+
+    if (!matchedSubCategories.length) {
+      rows.push({
+        ...baseRow,
+        subCategoryId: '',
+        subCategoryName: ''
+      });
+      return;
+    }
+
+    matchedSubCategories.forEach((subCategory) => {
+      rows.push({
+        ...baseRow,
+        subCategoryId: subCategory.subCategoryExternalId || subCategory.smaregiSubCategoryId || subCategory.subCategoryCode || subCategory.id || '',
+        subCategoryName: subCategory.name || subCategory.subCategoryName || '',
+        displayOrder: subCategory.displayOrder ?? subCategory.sortOrder ?? baseRow.displayOrder,
+        note: subCategory.note || baseRow.note,
+        isActive: toExportBoolean(subCategory.isActive)
+      });
+    });
+  });
+
+  return rows
+    .filter((row) => row.categoryName || row.subCategoryName)
+    .sort((a, b) => (
+      a.categoryGroupName.localeCompare(b.categoryGroupName, 'ja') ||
+      a.categoryName.localeCompare(b.categoryName, 'ja') ||
+      a.subCategoryName.localeCompare(b.subCategoryName, 'ja')
+    ));
 };
 
 const buildProductExportRows = ({
@@ -1278,6 +1328,7 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   const brands = productMaster?.brands || [];
   const productCategories = productMaster?.productCategories || [];
   const productCategoryGroups = productMaster?.productCategoryGroups || [];
+  const productSubCategories = productMaster?.productSubCategories || [];
   const products = productMaster?.products || [];
   const productGroups = productMaster?.productGroups || [];
   const [productCsvExporting, setProductCsvExporting] = useState(false);
@@ -1352,8 +1403,8 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   const handleExportCategoryCsv = () => {
     downloadCsvFile(
       `akuto-categories-export-${formatDateStamp()}.csv`,
-      ['categoryId', 'categoryName', 'categoryGroupId', 'categoryGroupName', 'displayOrder', 'note', 'isActive'],
-      buildCategoryExportRows(productCategories, productCategoryGroups)
+      ['categoryGroupId', 'categoryGroupName', 'categoryId', 'categoryName', 'subCategoryId', 'subCategoryName', 'displayOrder', 'note', 'isActive'],
+      buildCategoryExportRows(productCategories, productCategoryGroups, productSubCategories)
     );
   };
 
@@ -1444,9 +1495,9 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
     {
       id: 'categories',
       title: 'カテゴリーCSV出力',
-      description: 'カテゴリーをCSVで出力します。',
-      meta: 'categoryGroupName / categoryName',
-      count: productCategories.length,
+      description: 'カテゴリーグループ・カテゴリー・サブカテゴリーの階層をCSVで出力します。',
+      meta: 'categoryGroupName / categoryName / subCategoryName',
+      count: productCategories.length + productSubCategories.length,
       onClick: handleExportCategoryCsv
     },
     {

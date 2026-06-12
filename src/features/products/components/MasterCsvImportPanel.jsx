@@ -44,6 +44,8 @@ const IMPORT_LABELS = {
       ['グループ名', 'categoryGroupName'],
       ['カテゴリーID', 'categoryId'],
       ['カテゴリー名', 'categoryName'],
+      ['サブカテゴリーID', 'subCategoryId'],
+      ['サブカテゴリー名', 'subCategoryName'],
       ['並び順', 'sortOrder']
     ]
   }
@@ -115,6 +117,25 @@ const normalizeCategoryPayload = (item) => ({
   note: String(item.note || '').trim(),
   isActive: item.isActive !== false
 });
+
+const normalizeSubCategoryPayload = (item) => ({
+  ...item,
+  id: String(item.id || '').trim(),
+  name: String(item.name || item.subCategoryName || '').trim(),
+  subCategoryName: String(item.subCategoryName || item.name || '').trim(),
+  smaregiSubCategoryId: String(item.smaregiSubCategoryId || '').trim(),
+  subCategoryExternalId: String(item.subCategoryExternalId || item.smaregiSubCategoryId || '').trim(),
+  externalSubCategoryId: String(item.externalSubCategoryId || item.smaregiSubCategoryId || '').trim(),
+  categoryId: String(item.categoryId || '').trim(),
+  categoryName: String(item.categoryName || '').trim(),
+  categoryGroupId: String(item.categoryGroupId || item.groupId || '').trim(),
+  categoryGroupName: String(item.categoryGroupName || '').trim(),
+  groupId: String(item.groupId || item.categoryGroupId || '').trim(),
+  sortOrder: Number.isFinite(Number(item.sortOrder)) ? Number(item.sortOrder) : 0,
+  note: String(item.note || '').trim(),
+  isActive: item.isActive !== false
+});
+
 
 const MasterCsvMappingModal = ({
   type,
@@ -240,10 +261,12 @@ const MasterCsvImportPanel = ({
   brands = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
   onSaveSupplier,
   onSaveBrand,
   onSaveCategory,
   onSaveCategoryGroup,
+  onSaveSubCategory,
   onSaved
 }) => {
   const inputRef = useRef(null);
@@ -278,6 +301,7 @@ const MasterCsvImportPanel = ({
       brands,
       productCategories,
       productCategoryGroups,
+      productSubCategories,
       duplicateHandlingMode: brandDuplicateMode
     });
 
@@ -330,6 +354,7 @@ const MasterCsvImportPanel = ({
       brands,
       productCategories,
       productCategoryGroups,
+      productSubCategories,
       duplicateHandlingMode: nextMode
     });
 
@@ -367,6 +392,9 @@ const MasterCsvImportPanel = ({
       if (type === 'categories') {
         if (typeof onSaveCategory !== 'function' || typeof onSaveCategoryGroup !== 'function') {
           throw new Error('カテゴリー保存処理が未接続です。');
+        }
+        if (preview.importableItems.some((item) => item.subCategoryPayload) && typeof onSaveSubCategory !== 'function') {
+          throw new Error('サブカテゴリー保存処理が未接続です。');
         }
 
         const groupIdByExternalId = new Map();
@@ -409,6 +437,8 @@ const MasterCsvImportPanel = ({
         }
 
         for (const item of preview.importableItems) {
+          let savedCategoryId = '';
+
           if (item.categoryPayload) {
             const groupExternalId = String(item.smaregiCategoryGroupId || '').trim();
             const groupNameKey = String(item.categoryGroupName || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -419,15 +449,36 @@ const MasterCsvImportPanel = ({
               ''
             );
 
-            await onSaveCategory(normalizeCategoryPayload({
+            const savedCategoryResult = await onSaveCategory(normalizeCategoryPayload({
               ...item.categoryPayload,
               groupId: resolvedGroupId,
               groupName: item.categoryPayload.groupName || item.categoryGroupName || '',
               categoryGroupName: item.categoryGroupName || item.categoryPayload.categoryGroupName || '',
               smaregiCategoryGroupId: item.smaregiCategoryGroupId || item.categoryPayload.smaregiCategoryGroupId || ''
             }));
+            savedCategoryId = typeof savedCategoryResult === 'string'
+              ? savedCategoryResult
+              : (savedCategoryResult?.id || savedCategoryResult?.categoryId || item.categoryPayload?.id || item.categoryPayload?.categoryId || '');
             savedCount += 1;
           }
+
+          if (item.subCategoryPayload) {
+            const resolvedCategoryId = item.subCategoryPayload.categoryId || savedCategoryId || item.categoryPayload?.id || item.categoryPayload?.categoryId || '';
+            const resolvedCategoryName = item.subCategoryPayload.categoryName || item.categoryName || item.categoryPayload?.name || '';
+            const resolvedCategoryGroupId = item.subCategoryPayload.categoryGroupId || item.subCategoryPayload.groupId || item.categoryPayload?.groupId || item.categoryPayload?.categoryGroupId || '';
+            const resolvedCategoryGroupName = item.subCategoryPayload.categoryGroupName || item.categoryGroupName || item.categoryPayload?.categoryGroupName || item.categoryPayload?.groupName || '';
+
+            await onSaveSubCategory(normalizeSubCategoryPayload({
+              ...item.subCategoryPayload,
+              categoryId: resolvedCategoryId,
+              categoryName: resolvedCategoryName,
+              categoryGroupId: resolvedCategoryGroupId,
+              categoryGroupName: resolvedCategoryGroupName,
+              groupId: resolvedCategoryGroupId
+            }));
+            savedCount += 1;
+          }
+
         }
       }
 
@@ -582,7 +633,7 @@ const MasterCsvImportPanel = ({
                 <tr key={`${item.__rowNumber}-${JSON.stringify(item).slice(0, 80)}`}>
                   <td className="px-3 py-2">{item.__rowNumber}</td>
                   {label.previewColumns.map(([columnLabel, key]) => (
-                    <td key={columnLabel} className="px-3 py-2">{String(item[key] ?? item.categoryPayload?.[key] ?? item.categoryGroupPayload?.[key] ?? '-')}</td>
+                    <td key={columnLabel} className="px-3 py-2">{String(item[key] ?? item.subCategoryPayload?.[key] ?? item.categoryPayload?.[key] ?? item.categoryGroupPayload?.[key] ?? '-')}</td>
                   ))}
                 </tr>
               ))}

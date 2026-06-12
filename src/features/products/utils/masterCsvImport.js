@@ -28,6 +28,8 @@ export const MASTER_CSV_FIELD_OPTIONS = {
     { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
     { id: 'categoryId', label: 'カテゴリーID' },
     { id: 'categoryName', label: 'カテゴリー名', required: true },
+    { id: 'subCategoryId', label: 'サブカテゴリーID' },
+    { id: 'subCategoryName', label: 'サブカテゴリー名' },
     { id: 'sortOrder', label: '並び順' },
     { id: 'departmentId', label: '部門ID' },
     { id: 'color', label: 'カラー' },
@@ -94,6 +96,8 @@ const MASTER_CSV_HEADER_ALIASES = {
       'Type ID'
     ],
     categoryName: ['部門名', 'カテゴリー名', 'categoryName', 'category_name', 'Type', 'カテゴリ名'],
+    smaregiSubCategoryId: ['サブカテゴリーID', 'サブカテゴリーコード', 'subCategoryId', 'sub_category_id', 'subCategoryCode'],
+    subCategoryName: ['サブカテゴリー名', 'サブカテゴリー', '小カテゴリー', '小分類', 'subCategoryName', 'sub_category_name', 'Shopify Sub Category'],
     sortOrder: ['表示順', '並び順', 'sortOrder', 'order'],
     departmentId: ['部門ID', 'departmentId'],
     color: ['カラー', 'color'],
@@ -270,6 +274,66 @@ const findCategory = (categories, categoryExternalId, categoryName) => {
   return findByName(categories, categoryName);
 };
 
+
+const findSubCategory = (subCategories, subCategoryExternalId, subCategoryName, matchedCategory, categoryName, matchedGroup, categoryGroupName) => {
+  const normalizedId = normalizeText(subCategoryExternalId);
+  const normalizedName = normalizeMasterName(subCategoryName);
+
+  if (normalizedId) {
+    const matchedById = (subCategories || []).find((subCategory) => (
+      normalizeText(subCategory.smaregiSubCategoryId) === normalizedId ||
+      normalizeText(subCategory.subCategoryExternalId) === normalizedId ||
+      normalizeText(subCategory.externalSubCategoryId) === normalizedId ||
+      normalizeText(subCategory.subCategoryCode) === normalizedId ||
+      normalizeText(subCategory.id) === normalizedId
+    ));
+    if (matchedById) return matchedById;
+  }
+
+  if (!normalizedName) return null;
+
+  let candidates = (subCategories || []).filter((subCategory) => (
+    normalizeMasterName(subCategory.name || subCategory.subCategoryName) === normalizedName
+  ));
+
+  if (!candidates.length) return null;
+
+  const categoryId = normalizeText(matchedCategory?.id);
+  const categoryNameKey = normalizeMasterName(matchedCategory?.name || categoryName);
+  const groupId = normalizeText(matchedGroup?.id || matchedCategory?.groupId || matchedCategory?.categoryGroupId);
+  const groupNameKey = normalizeMasterName(matchedGroup?.name || matchedCategory?.categoryGroupName || categoryGroupName);
+
+  if (categoryId) {
+    const scoped = candidates.filter((subCategory) => normalizeText(subCategory.categoryId) === categoryId);
+    if (scoped.length === 1) return scoped[0];
+    if (scoped.length > 1) candidates = scoped;
+  }
+
+  if (categoryNameKey) {
+    const scoped = candidates.filter((subCategory) => normalizeMasterName(subCategory.categoryName) === categoryNameKey);
+    if (scoped.length === 1) return scoped[0];
+    if (scoped.length > 1) candidates = scoped;
+  }
+
+  if (groupId) {
+    const scoped = candidates.filter((subCategory) => (
+      normalizeText(subCategory.categoryGroupId) === groupId ||
+      normalizeText(subCategory.groupId) === groupId
+    ));
+    if (scoped.length === 1) return scoped[0];
+    if (scoped.length > 1) candidates = scoped;
+  }
+
+  if (groupNameKey) {
+    const scoped = candidates.filter((subCategory) => (
+      normalizeMasterName(subCategory.categoryGroupName || subCategory.groupName) === groupNameKey
+    ));
+    if (scoped.length === 1) return scoped[0];
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+};
+
 export const buildMasterCsvPreview = ({
   type,
   rows,
@@ -278,6 +342,7 @@ export const buildMasterCsvPreview = ({
   brands = [],
   productCategories = [],
   productCategoryGroups = [],
+  productSubCategories = [],
   duplicateHandlingMode = 'skip'
 }) => {
   const headers = rows[0]?.map((header) => String(header || '').replace(/^\uFEFF/, '').trim()) || [];
@@ -355,6 +420,7 @@ export const buildMasterCsvPreview = ({
 
   const existingCategoryNames = new Set((productCategories || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
   const existingGroupNames = new Set((productCategoryGroups || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
+  const existingSubCategoryNames = new Set((productSubCategories || []).map((item) => normalizeMasterName(item.name || item.subCategoryName)).filter(Boolean));
 
   records.forEach((record) => {
     if (type === 'suppliers') {
@@ -502,6 +568,8 @@ export const buildMasterCsvPreview = ({
       const categoryGroupName = normalizeText(record.categoryGroupName);
       const smaregiCategoryId = normalizeText(record.categoryId || record.smaregiCategoryId);
       const categoryName = normalizeText(record.categoryName);
+      const smaregiSubCategoryId = normalizeText(record.subCategoryId || record.smaregiSubCategoryId);
+      const subCategoryName = normalizeText(record.subCategoryName);
 
       if (!categoryGroupName && !categoryName) {
         skippedItems.push({ rowNumber: record.__rowNumber, reason: '空行扱い' });
@@ -516,6 +584,7 @@ export const buildMasterCsvPreview = ({
 
       const groupNameKey = normalizeMasterName(categoryGroupName);
       const categoryNameKey = normalizeMasterName(categoryName);
+      const subCategoryNameKey = normalizeMasterName(subCategoryName);
 
       if (existingCategoryNames.has(categoryNameKey)) {
         warnings.push(`${record.__rowNumber}行目：既存カテゴリー名「${categoryName}」と重複するため、カテゴリーはスキップ対象です。`);
@@ -523,10 +592,13 @@ export const buildMasterCsvPreview = ({
 
       const matchedGroup = findCategoryGroup(productCategoryGroups, smaregiCategoryGroupId, categoryGroupName);
       const matchedCategory = findCategory(productCategories, smaregiCategoryId, categoryName);
+      const matchedSubCategory = findSubCategory(productSubCategories, smaregiSubCategoryId, subCategoryName, matchedCategory, categoryName, matchedGroup, categoryGroupName);
       const shouldCreateGroup = !!categoryGroupName && !matchedGroup && !existingGroupNames.has(groupNameKey);
       const shouldUpdateGroup = !!categoryGroupName && !!matchedGroup?.id && duplicateHandlingMode === 'update';
       const shouldCreateCategory = !matchedCategory && !existingCategoryNames.has(categoryNameKey);
       const shouldUpdateCategory = !!matchedCategory?.id && duplicateHandlingMode === 'update';
+      const shouldCreateSubCategory = !!subCategoryName && !matchedSubCategory && !existingSubCategoryNames.has(subCategoryNameKey);
+      const shouldUpdateSubCategory = !!matchedSubCategory?.id && duplicateHandlingMode === 'update';
 
       const categoryGroupPayload = shouldUpdateGroup
         ? {
@@ -588,7 +660,48 @@ export const buildMasterCsvPreview = ({
           }
           : null;
 
-      if (!categoryGroupPayload && !categoryPayload) {
+      const effectiveCategoryId = matchedCategory?.id || categoryPayload?.id || '';
+      const effectiveCategoryName = matchedCategory?.name || categoryName || categoryPayload?.name || '';
+      const effectiveGroupId = matchedGroup?.id || matchedCategory?.groupId || categoryPayload?.groupId || '';
+      const effectiveGroupName = matchedGroup?.name || categoryGroupName || matchedCategory?.categoryGroupName || categoryPayload?.categoryGroupName || '';
+
+      const subCategoryPayload = shouldUpdateSubCategory
+        ? {
+          id: matchedSubCategory.id,
+          smaregiSubCategoryId,
+          subCategoryExternalId: smaregiSubCategoryId,
+          externalSubCategoryId: smaregiSubCategoryId,
+          name: subCategoryName || matchedSubCategory.name || matchedSubCategory.subCategoryName || '',
+          subCategoryName: subCategoryName || matchedSubCategory.subCategoryName || matchedSubCategory.name || '',
+          categoryId: effectiveCategoryId || matchedSubCategory.categoryId || '',
+          categoryName: effectiveCategoryName || matchedSubCategory.categoryName || '',
+          categoryGroupId: effectiveGroupId || matchedSubCategory.categoryGroupId || matchedSubCategory.groupId || '',
+          categoryGroupName: effectiveGroupName || matchedSubCategory.categoryGroupName || '',
+          groupId: effectiveGroupId || matchedSubCategory.groupId || matchedSubCategory.categoryGroupId || '',
+          sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedSubCategory.sortOrder ?? 0,
+          note: normalizeText(record.note) || matchedSubCategory.note || '',
+          isActive: true
+        }
+        : shouldCreateSubCategory
+          ? {
+            smaregiSubCategoryId,
+            subCategoryExternalId: smaregiSubCategoryId,
+            externalSubCategoryId: smaregiSubCategoryId,
+            name: subCategoryName,
+            subCategoryName,
+            categoryId: effectiveCategoryId,
+            categoryName: effectiveCategoryName || categoryName,
+            categoryGroupId: effectiveGroupId,
+            categoryGroupName: effectiveGroupName || categoryGroupName,
+            groupId: effectiveGroupId,
+            sortOrder: normalizeNumber(record.sortOrder, 0),
+            note: normalizeText(record.note),
+            isActive: true
+          }
+          : null;
+
+
+      if (!categoryGroupPayload && !categoryPayload && !subCategoryPayload) {
         warnings.push(`${record.__rowNumber}行目：既存カテゴリー「${categoryName}」と重複するためスキップします。`);
         skippedItems.push({ rowNumber: record.__rowNumber, reason: `カテゴリー重複: ${categoryName}` });
         return;
@@ -596,8 +709,8 @@ export const buildMasterCsvPreview = ({
 
       importableItems.push({
         __rowNumber: record.__rowNumber,
-        importAction: shouldUpdateCategory || shouldUpdateGroup ? 'update' : 'create',
-        importActionLabel: shouldUpdateCategory || shouldUpdateGroup ? '既存更新' : '新規追加',
+        importAction: shouldUpdateCategory || shouldUpdateGroup || shouldUpdateSubCategory ? 'update' : 'create',
+        importActionLabel: shouldUpdateCategory || shouldUpdateGroup || shouldUpdateSubCategory ? '既存更新' : '新規追加',
         smaregiCategoryGroupId,
         categoryGroupName,
         matchedCategoryGroupId: matchedGroup?.id || '',
@@ -605,11 +718,17 @@ export const buildMasterCsvPreview = ({
         smaregiCategoryId,
         categoryId: smaregiCategoryId,
         categoryName,
-        categoryPayload
+        categoryPayload,
+        smaregiSubCategoryId,
+        subCategoryId: smaregiSubCategoryId,
+        subCategoryName,
+        matchedSubCategoryId: matchedSubCategory?.id || '',
+        subCategoryPayload
       });
 
       if (groupNameKey) existingGroupNames.add(groupNameKey);
       if (categoryNameKey) existingCategoryNames.add(categoryNameKey);
+      if (subCategoryNameKey) existingSubCategoryNames.add(subCategoryNameKey);
     }
   });
 
