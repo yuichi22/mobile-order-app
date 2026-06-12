@@ -26,7 +26,7 @@ import {
   Package,
   ShoppingBag
 } from 'lucide-react';
-import { collection, onSnapshot, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer } from 'firebase/firestore';
 import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
@@ -1049,6 +1049,49 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   const products = productMaster?.products || [];
   const productGroups = productMaster?.productGroups || [];
   const [productCsvExporting, setProductCsvExporting] = useState(false);
+  const [productCsvTotalCount, setProductCsvTotalCount] = useState(null);
+  const [productCsvCountLoading, setProductCsvCountLoading] = useState(false);
+
+  useEffect(() => {
+    const normalizedStoreId = String(storeId || '').trim();
+
+    if (!normalizedStoreId) {
+      setProductCsvTotalCount(null);
+      setProductCsvCountLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadProductCsvTotalCount = async () => {
+      setProductCsvCountLoading(true);
+
+      try {
+        const countSnapshot = await getCountFromServer(
+          collection(db, 'stores', normalizedStoreId, 'products')
+        );
+
+        if (!cancelled) {
+          setProductCsvTotalCount(countSnapshot.data().count || 0);
+        }
+      } catch (error) {
+        console.error('[CsvExportWorkflowPanel] product count fetch failed', error);
+        if (!cancelled) {
+          setProductCsvTotalCount(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setProductCsvCountLoading(false);
+        }
+      }
+    };
+
+    loadProductCsvTotalCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
 
   const handleExportSupplierCsv = () => {
     downloadCsvFile(
@@ -1179,7 +1222,9 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
       title: '商品CSV出力',
       description: '商品CSV取込と同じ項目で出力します。商品側仕入先が空の場合はブランド仕入先名を補完します。',
       meta: 'barcode / brandName / supplierName',
-      count: products.length,
+      count: productCsvTotalCount ?? products.length,
+      countLoading: productCsvCountLoading,
+      countLabel: '出力対象',
       onClick: handleExportProductCsv,
       primary: true
     }
@@ -1217,7 +1262,9 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
             </div>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">{card.description}</p>
             <div className="mt-3 text-xs font-bold text-slate-400">
-              現在 {Number(card.count || 0).toLocaleString()} 件
+              {card.countLoading
+                ? `${card.countLabel || '現在'} 読み込み中...`
+                : `${card.countLabel || '現在'} ${Number(card.count || 0).toLocaleString()} 件`}
             </div>
           </button>
         ))}
