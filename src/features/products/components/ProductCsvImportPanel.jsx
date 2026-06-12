@@ -458,17 +458,17 @@ const ProductCsvMappingModal = ({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
-      <div data-ui-id="商品CSV_IMPORT_FIXED_MODE_NOTICE" className="mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
-          <span>取込モード</span>
-          <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">新規追加・既存更新</span>
-          <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">判定キー：バーコード優先</span>
-        </div>
-        <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
-          バーコードが一致する既存商品はCSV内容で更新し、未登録の商品は新規追加します。
-        </p>
-      </div>
       <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <div data-ui-id="商品CSV_IMPORT_FIXED_MODE_NOTICE" className="mx-6 mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
+            <span>取込モード</span>
+            <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">新規追加・既存更新</span>
+            <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">判定キー：バーコード優先</span>
+          </div>
+          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+            バーコードが一致する既存商品はCSV内容で更新し、未登録の商品は新規追加します。
+          </p>
+        </div>
         <div className="border-b border-slate-100 bg-sky-50/80 px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
