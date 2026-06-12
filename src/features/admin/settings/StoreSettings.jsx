@@ -430,7 +430,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
       { key: 'subCategoryId', label: 'サブカテゴリーID' },
       { key: 'subCategoryName', label: 'サブカテゴリー名' },
       { key: 'sortOrder', label: '並び順' },
-      { key: 'departmentId', label: '部門ID' },
       { key: 'note', label: 'メモ' }
     ],
     sampleRows: [
@@ -442,7 +441,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-001',
         subCategoryName: 'プレート',
         sortOrder: '10',
-        departmentId: 'retail',
         note: '生活雑貨 > 食器 > プレート'
       },
       {
@@ -453,7 +451,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-002',
         subCategoryName: 'ボウル',
         sortOrder: '20',
-        departmentId: 'retail',
         note: '生活雑貨 > 食器 > ボウル'
       },
       {
@@ -464,7 +461,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-003',
         subCategoryName: 'カップ',
         sortOrder: '30',
-        departmentId: 'retail',
         note: '生活雑貨 > 食器 > カップ'
       },
       {
@@ -475,7 +471,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-004',
         subCategoryName: '調理道具',
         sortOrder: '40',
-        departmentId: 'retail',
         note: '生活雑貨 > キッチン > 調理道具'
       },
       {
@@ -486,7 +481,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-005',
         subCategoryName: '保存容器',
         sortOrder: '50',
-        departmentId: 'retail',
         note: '生活雑貨 > キッチン > 保存容器'
       },
       {
@@ -497,7 +491,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-006',
         subCategoryName: '花器',
         sortOrder: '60',
-        departmentId: 'retail',
         note: '生活雑貨 > インテリア > 花器'
       },
       {
@@ -508,7 +501,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-007',
         subCategoryName: '照明',
         sortOrder: '70',
-        departmentId: 'retail',
         note: '生活雑貨 > インテリア > 照明'
       },
       {
@@ -519,7 +511,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-008',
         subCategoryName: 'シャツ',
         sortOrder: '80',
-        departmentId: 'retail',
         note: 'アパレル > トップス > シャツ'
       },
       {
@@ -530,7 +521,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-009',
         subCategoryName: 'ニット',
         sortOrder: '90',
-        departmentId: 'retail',
         note: 'アパレル > トップス > ニット'
       },
       {
@@ -541,7 +531,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-010',
         subCategoryName: 'パンツ',
         sortOrder: '100',
-        departmentId: 'retail',
         note: 'アパレル > ボトムス > パンツ'
       },
       {
@@ -552,7 +541,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-011',
         subCategoryName: 'スカート',
         sortOrder: '110',
-        departmentId: 'retail',
         note: 'アパレル > ボトムス > スカート'
       },
       {
@@ -563,7 +551,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-012',
         subCategoryName: '帽子',
         sortOrder: '120',
-        departmentId: 'retail',
         note: 'アパレル > 服飾小物 > 帽子'
       },
       {
@@ -574,7 +561,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-013',
         subCategoryName: 'バッグ',
         sortOrder: '130',
-        departmentId: 'retail',
         note: 'アパレル > 服飾小物 > バッグ'
       },
       {
@@ -585,7 +571,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-014',
         subCategoryName: 'テーブル',
         sortOrder: '140',
-        departmentId: 'retail',
         note: 'アウトドア > キャンプ用品 > テーブル'
       },
       {
@@ -596,7 +581,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-015',
         subCategoryName: 'チェア',
         sortOrder: '150',
-        departmentId: 'retail',
         note: 'アウトドア > キャンプ用品 > チェア'
       },
       {
@@ -607,7 +591,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-016',
         subCategoryName: '水筒',
         sortOrder: '160',
-        departmentId: 'retail',
         note: 'アウトドア > ボトル > 水筒'
       },
       {
@@ -618,7 +601,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-017',
         subCategoryName: 'タンブラー',
         sortOrder: '170',
-        departmentId: 'retail',
         note: 'アウトドア > ボトル > タンブラー'
       },
       {
@@ -629,7 +611,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-018',
         subCategoryName: 'ジュース',
         sortOrder: '180',
-        departmentId: 'retail',
         note: '食品 > ドリンク > ジュース'
       },
       {
@@ -640,7 +621,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-019',
         subCategoryName: 'コーヒー',
         sortOrder: '190',
-        departmentId: 'retail',
         note: '食品 > ドリンク > コーヒー'
       },
       {
@@ -651,7 +631,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryId: 'SUBCAT-020',
         subCategoryName: 'チョコレート',
         sortOrder: '200',
-        departmentId: 'retail',
         note: '食品 > お菓子 > チョコレート'
       }
     ]

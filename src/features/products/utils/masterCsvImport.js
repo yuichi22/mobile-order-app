@@ -31,7 +31,6 @@ export const MASTER_CSV_FIELD_OPTIONS = {
     { id: 'subCategoryId', label: 'サブカテゴリーID' },
     { id: 'subCategoryName', label: 'サブカテゴリー名' },
     { id: 'sortOrder', label: '並び順' },
-    { id: 'departmentId', label: '部門ID' },
     { id: 'note', label: 'メモ' }
   ]
 };
@@ -85,7 +84,6 @@ const MASTER_CSV_HEADER_ALIASES = {
       'Product Category'
     ],
     smaregiCategoryId: [
-      '部門ID',
       '部門コード',
       'カテゴリーID',
       'カテゴリーコード',
@@ -98,7 +96,6 @@ const MASTER_CSV_HEADER_ALIASES = {
     smaregiSubCategoryId: ['サブカテゴリーID', 'サブカテゴリーコード', 'subCategoryId', 'sub_category_id', 'subCategoryCode'],
     subCategoryName: ['サブカテゴリー名', 'サブカテゴリー', '小カテゴリー', '小分類', 'subCategoryName', 'sub_category_name', 'Shopify Sub Category'],
     sortOrder: ['表示順', '並び順', 'sortOrder', 'order'],
-    departmentId: ['部門ID', 'departmentId'],
     note: ['メモ', '備考', 'note']
   }
 };
@@ -606,7 +603,7 @@ export const buildMasterCsvPreview = ({
           externalCategoryGroupId: smaregiCategoryGroupId,
           name: categoryGroupName || matchedGroup.name || '',
           sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedGroup.sortOrder ?? 0,
-          departmentId: normalizeText(record.departmentId) || matchedGroup.departmentId || 'retail',
+          departmentId: matchedGroup.departmentId || 'retail',
           isActive: true
         }
         : shouldCreateGroup
@@ -616,7 +613,7 @@ export const buildMasterCsvPreview = ({
             externalCategoryGroupId: smaregiCategoryGroupId,
             name: categoryGroupName,
             sortOrder: normalizeNumber(record.sortOrder, 0) ?? 0,
-            departmentId: normalizeText(record.departmentId) || 'retail',
+            departmentId: 'retail',
             isActive: true
           }
           : null;
@@ -634,7 +631,7 @@ export const buildMasterCsvPreview = ({
           smaregiCategoryGroupId,
           categoryGroupExternalId: smaregiCategoryGroupId,
           sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedCategory.sortOrder ?? 0,
-          departmentId: normalizeText(record.departmentId) || matchedCategory.departmentId || 'retail',
+          departmentId: matchedCategory.departmentId || 'retail',
           note: normalizeText(record.note) || matchedCategory.note || '',
           isActive: true
         }
@@ -650,7 +647,7 @@ export const buildMasterCsvPreview = ({
             smaregiCategoryGroupId,
             categoryGroupExternalId: smaregiCategoryGroupId,
             sortOrder: normalizeNumber(record.sortOrder, 0) ?? 0,
-            departmentId: normalizeText(record.departmentId) || 'retail',
+            departmentId: 'retail',
             note: normalizeText(record.note),
             isActive: true
           }
