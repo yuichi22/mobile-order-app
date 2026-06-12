@@ -1207,6 +1207,7 @@ const CsvTemplateWorkflowPanel = () => (
 const CsvImportWorkflowPanel = ({
   storeId,
   productMaster,
+  defaultTaxRate = 10,
   onSaved
 }) => (
   <div className="space-y-5">
@@ -1296,7 +1297,7 @@ const CsvImportWorkflowPanel = ({
         productCategories={productMaster?.productCategories || []}
         productCategoryGroups={productMaster?.productCategoryGroups || []}
         productSubCategories={productMaster?.productSubCategories || []}
-        defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+        defaultTaxRate={defaultTaxRate}
         brands={productMaster?.brands || []}
         suppliers={productMaster?.suppliers || []}
         onSaveProduct={productMaster?.saveProduct}
@@ -1341,6 +1342,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
           <CsvImportWorkflowPanel
             storeId={storeId}
             productMaster={productMaster}
+        defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
             onSaved={onSaved}
           />
         );
@@ -2593,7 +2595,7 @@ export const StoreSettings = ({
               onExternalKeywordChange={onPosProductKeywordChange}
               shopifySettings={productMaster?.shopifySettings}
               onSaveShopifySettings={productMaster?.saveShopifySettings}
-              defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+              defaultTaxRate={defaultTaxRate}
             />
           )}
 
