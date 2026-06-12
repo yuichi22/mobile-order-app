@@ -289,7 +289,7 @@ const CsvImportStepCard = ({
   number,
   title,
   description,
-  status = '準備中',
+  status = '',
   children
 }) => (
   <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
@@ -303,9 +303,11 @@ const CsvImportStepCard = ({
           <p className="mt-1 text-sm font-bold leading-relaxed text-slate-500">{description}</p>
         </div>
       </div>
+      {status ? (
       <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
         {status}
       </span>
+      ) : null}
     </div>
     <div className="p-5">
       {children || (
