@@ -141,6 +141,8 @@ export const blankCategory = {
   sortOrder: 0,
   departmentId: 'retail',
   color: '#64748b',
+  taxRateType: 'inherit',
+  taxRate: null,
   isActive: true
 };
 
@@ -148,6 +150,8 @@ export const blankGroup = {
   name: '',
   sortOrder: 0,
   departmentId: 'retail',
+  taxRateType: 'inherit',
+  taxRate: null,
   isActive: true
 };
 
@@ -231,14 +235,67 @@ const normalizeProductPayload = (draft) => ({
   groupCode: String(draft.groupCode || '').trim()
 });
 
-const normalizeSimplePayload = (draft, fallback = {}) => ({
-  ...fallback,
-  ...draft,
-  name: String(draft.name || '').trim(),
-  kana: String(draft.kana || '').trim(),
-  note: String(draft.note || '').trim(),
-  isActive: draft.isActive !== false
-});
+const normalizeSimplePayload = (draft, fallback = {}) => {
+  const hasTaxRateType = draft.taxRateType !== undefined || fallback.taxRateType !== undefined;
+  const taxRateType = hasTaxRateType
+    ? normalizeMasterTaxRateType(draft.taxRateType ?? fallback.taxRateType)
+    : undefined;
+
+  return {
+    ...fallback,
+    ...draft,
+    name: String(draft.name || '').trim(),
+    kana: String(draft.kana || '').trim(),
+    note: String(draft.note || '').trim(),
+    ...(hasTaxRateType ? {
+      taxRateType,
+      taxRate: resolveMasterTaxRate(taxRateType, draft.taxRate ?? fallback.taxRate)
+    } : {}),
+    isActive: draft.isActive !== false
+  };
+};
+
+const normalizeMasterTaxRateType = (value) => (
+  ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : 'inherit'
+);
+
+const resolveMasterTaxRate = (taxRateType, value) => {
+  const normalizedType = normalizeMasterTaxRateType(taxRateType);
+  if (normalizedType === 'standard') return 10;
+  if (normalizedType === 'reduced') return 8;
+  if (normalizedType === 'taxFree') return 0;
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const MASTER_TAX_RATE_OPTIONS = [
+  { id: 'inherit', label: '標準税率を使用', rate: null },
+  { id: 'standard', label: '10% 標準税率', rate: 10 },
+  { id: 'reduced', label: '8% 軽減税率', rate: 8 },
+  { id: 'taxFree', label: '0% 非課税 / 対象外', rate: 0 }
+];
+
+const getMasterTaxRateOptions = (defaultTaxRate = 10) => {
+  const normalizedDefault = Number(defaultTaxRate) === 8 ? 8 : 10;
+
+  return MASTER_TAX_RATE_OPTIONS
+    .map((option) => (
+      option.id === 'inherit'
+        ? { ...option, label: `標準税率を使用（${normalizedDefault}%）` }
+        : option
+    ))
+    .filter((option) => option.id === 'inherit' || option.rate !== normalizedDefault);
+};
+
+const formatMasterTaxRateLabel = (item = {}, defaultTaxRate = 10) => {
+  const normalizedDefault = Number(defaultTaxRate) === 8 ? 8 : 10;
+  const taxRateType = normalizeMasterTaxRateType(item.taxRateType);
+  if (taxRateType === 'standard') return '10%';
+  if (taxRateType === 'reduced') return '8%';
+  if (taxRateType === 'taxFree') return '0%';
+  return `標準税率（${normalizedDefault}%）`;
+};
 
 const classNames = (...values) => values.filter(Boolean).join(' ');
 
@@ -2554,6 +2611,10 @@ export const SimpleMasterPanel = ({
         ...(draft.sortOrder !== undefined ? { sortOrder: normalizeNumberOrNull(draft.sortOrder) ?? 0 } : {}),
         ...(draft.departmentId !== undefined ? { departmentId: draft.departmentId || 'retail' } : {}),
         ...(draft.color !== undefined ? { color: draft.color || '#64748b' } : {}),
+        ...(draft.taxRateType !== undefined ? {
+          taxRateType: normalizeMasterTaxRateType(draft.taxRateType),
+          taxRate: resolveMasterTaxRate(draft.taxRateType, draft.taxRate)
+        } : {}),
         ...(draft.allowedCategoryGroupNames !== undefined ? {
           allowedCategoryGroupNames: Array.isArray(draft.allowedCategoryGroupNames)
             ? draft.allowedCategoryGroupNames.map((name) => String(name || '').trim()).filter(Boolean)
@@ -2667,7 +2728,10 @@ export const SimpleMasterPanel = ({
 
     return (
       <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-slate-400">
-        {item.groupName || productCategoryGroups.find((group) => group.id === item.groupId)?.name || item.supplierName || item.kana || item.contactName || item.paymentTerms || item.brandProfile || item.note || item.id}
+        {[
+          item.groupName || productCategoryGroups.find((group) => group.id === item.groupId)?.name || item.supplierName || item.kana || item.contactName || item.paymentTerms || item.brandProfile || item.note || item.id,
+          item.taxRateType !== undefined ? `税率: ${formatMasterTaxRateLabel(item)}` : ''
+        ].filter(Boolean).join(' / ')}
       </div>
     );
   };
@@ -2900,7 +2964,32 @@ export const SimpleMasterPanel = ({
 
         <div className="space-y-4">
           {fields.map((field) => (
-            field.type === 'categoryGroupMultiSelect' ? (
+            field.type === 'taxRateSelect' ? (
+              <label key={field.id} className="block">
+                <FieldLabel>{field.label}</FieldLabel>
+                <select
+                  value={normalizeMasterTaxRateType(draft[field.id])}
+                  disabled={!canEdit}
+                  onChange={(event) => {
+                    const nextType = normalizeMasterTaxRateType(event.target.value);
+                    setDraft((current) => ({
+                      ...current,
+                      [field.id]: nextType,
+                      taxRate: resolveMasterTaxRate(nextType, current.taxRate)
+                    }));
+                    onSaved?.();
+                  }}
+                  className="mt-1 h-11 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none transition focus:border-orange-300 disabled:bg-slate-50 disabled:text-slate-400"
+                >
+                  {getMasterTaxRateOptions().map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+                  標準税率を使用する場合は、税・価格設定の標準税率に追従します。例外だけ 8% / 10% / 0% を指定します。
+                </p>
+              </label>
+            ) : field.type === 'categoryGroupMultiSelect' ? (
               <div key={field.id} className="space-y-2">
                 <FieldLabel>{field.label}</FieldLabel>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -2952,7 +3041,7 @@ export const SimpleMasterPanel = ({
                 createFields={[
                   { id: 'name', label: 'カテゴリー名' }
                 ]}
-                createInitialValue={{ name: '', sortOrder: 0, isActive: true }}
+                createInitialValue={{ name: '', sortOrder: 0, taxRateType: 'inherit', taxRate: null, isActive: true }}
                 onCreate={reset}
                 getOptionLabel={(option) => {
                   const groupName = option.groupName || productCategoryGroups.find((group) => group.id === option.groupId)?.name || '';
@@ -2986,7 +3075,8 @@ export const SimpleMasterPanel = ({
                 onCreateSave={onSaveCategoryGroup}
                 createFields={[
                   { id: 'name', label: 'グループ名' },
-                  { id: 'sortOrder', label: '並び順', type: 'number' }
+                  { id: 'sortOrder', label: '並び順', type: 'number' },
+                  { id: 'taxRateType', label: '税率', type: 'taxRateSelect' }
                 ]}
                 createInitialValue={{ name: '', sortOrder: 0, isActive: true }}
                 onCreate={reset}
@@ -3489,6 +3579,7 @@ const ProductMasterSettings = ({
                 { id: 'name', label: 'カテゴリー名' },
                 { id: 'groupId', label: 'グループID' },
                 { id: 'sortOrder', label: '並び順', type: 'number' },
+                  { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
                 { id: 'color', label: 'カラー' }
               ]}
               onSave={onSaveCategory}
@@ -3508,6 +3599,7 @@ const ProductMasterSettings = ({
                 { id: 'categoryName', label: '親カテゴリー名' },
                 { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
                 { id: 'sortOrder', label: '並び順', type: 'number' },
+                  { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
                 { id: 'color', label: 'カラー' }
               ]}
               onSave={() => undefined}
@@ -3523,7 +3615,8 @@ const ProductMasterSettings = ({
               items={filteredGroups}
               fields={[
                 { id: 'name', label: 'グループ名' },
-                { id: 'sortOrder', label: '並び順', type: 'number' }
+                { id: 'sortOrder', label: '並び順', type: 'number' },
+                  { id: 'taxRateType', label: '税率', type: 'taxRateSelect' }
               ]}
               onSave={onSaveCategoryGroup}
               onDelete={onDeleteCategoryGroup}
