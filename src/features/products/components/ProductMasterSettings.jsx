@@ -3570,7 +3570,7 @@ const ProductMasterSettings = ({
             </>
           )}
 
-          {false && activeTab === 'categories' && (
+          {activeTab === 'products' && (
             <SimpleMasterPanel
               label="カテゴリー"
               blank={blankCategory}
