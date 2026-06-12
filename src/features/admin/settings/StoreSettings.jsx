@@ -286,7 +286,8 @@ const POS_DUMMY_PAGES = {
   taxPrice: {
     title: '税・価格設定',
     eyebrow: 'Tax / Price Settings',
-    description: '消費税率、税抜価格基準、Shopifyへ同期する価格方式を管理します。'
+    description: '消費税率、税抜価格基準、Shopifyへ同期する価格方式を管理します。',
+    tabs: []
   }
 };
 
