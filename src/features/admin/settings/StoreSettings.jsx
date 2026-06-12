@@ -26,7 +26,7 @@ import {
   Package,
   ShoppingBag
 } from 'lucide-react';
-import { collection, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
@@ -114,6 +114,7 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
   { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
+  { id: 'taxPrice', mode: 'shared', group: '共通', label: '税・価格設定', icon: Percent, desc: '税率・税抜価格基準・Shopify価格同期方式' },
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
 ];
 
@@ -355,6 +356,338 @@ const EcIntegrationPanel = ({
   };
 
   return <EcIntegrationComingSoonPanel title={labels[activeTab] || 'EC'} />;
+};
+
+
+
+const DEFAULT_TAX_PRICE_SETTINGS = {
+  priceBase: 'taxExcluded',
+  defaultTaxRate: 10,
+  reducedTaxRate: 8,
+  roundingMode: 'floor',
+  categoryTaxMode: 'categoryDefault',
+  productTaxOverrideEnabled: true,
+  shopifyPriceSyncMode: 'taxIncluded',
+  taxRates: [
+    {
+      id: 'standard',
+      label: '標準税率',
+      rate: 10,
+      description: '物販・店内飲食など通常税率の商品に使用します。',
+      isActive: true,
+      isDefault: true
+    },
+    {
+      id: 'reduced',
+      label: '軽減税率',
+      rate: 8,
+      description: '食品・テイクアウトなど軽減税率対象の商品に使用します。',
+      isActive: true,
+      isDefault: false
+    },
+    {
+      id: 'taxFree',
+      label: '非課税 / 対象外',
+      rate: 0,
+      description: '非課税・対象外・調整用の商品に使用します。',
+      isActive: true,
+      isDefault: false
+    }
+  ]
+};
+
+const mergeTaxPriceSettings = (source = {}) => {
+  const baseTaxRates = DEFAULT_TAX_PRICE_SETTINGS.taxRates.map((defaultRate) => {
+    const current = Array.isArray(source.taxRates)
+      ? source.taxRates.find((rate) => rate.id === defaultRate.id)
+      : null;
+
+    return {
+      ...defaultRate,
+      ...(current || {}),
+      rate: Number.isFinite(Number(current?.rate)) ? Number(current.rate) : defaultRate.rate,
+      isActive: current?.isActive === false ? false : true,
+      isDefault: Boolean(current?.isDefault ?? defaultRate.isDefault)
+    };
+  });
+
+  const defaultTaxRate = Number.isFinite(Number(source.defaultTaxRate))
+    ? Number(source.defaultTaxRate)
+    : DEFAULT_TAX_PRICE_SETTINGS.defaultTaxRate;
+
+  return {
+    ...DEFAULT_TAX_PRICE_SETTINGS,
+    ...source,
+    priceBase: source.priceBase === 'taxIncluded' ? 'taxIncluded' : 'taxExcluded',
+    defaultTaxRate,
+    reducedTaxRate: Number.isFinite(Number(source.reducedTaxRate))
+      ? Number(source.reducedTaxRate)
+      : DEFAULT_TAX_PRICE_SETTINGS.reducedTaxRate,
+    roundingMode: ['floor', 'round', 'ceil'].includes(source.roundingMode)
+      ? source.roundingMode
+      : DEFAULT_TAX_PRICE_SETTINGS.roundingMode,
+    categoryTaxMode: source.categoryTaxMode === 'productOnly' ? 'productOnly' : 'categoryDefault',
+    productTaxOverrideEnabled: source.productTaxOverrideEnabled !== false,
+    shopifyPriceSyncMode: source.shopifyPriceSyncMode === 'taxExcluded' ? 'taxExcluded' : 'taxIncluded',
+    taxRates: baseTaxRates.map((rate) => ({
+      ...rate,
+      isDefault: Number(rate.rate) === defaultTaxRate
+    }))
+  };
+};
+
+const TaxPriceSettings = ({ storeId, onSaved }) => {
+  const [settings, setSettings] = useState(() => mergeTaxPriceSettings());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!storeId) {
+      setSettings(mergeTaxPriceSettings());
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    const taxPriceRef = doc(db, 'stores', storeId, 'settings', 'taxPrice');
+
+    return onSnapshot(
+      taxPriceRef,
+      (snapshot) => {
+        setSettings(mergeTaxPriceSettings(snapshot.exists() ? snapshot.data() : {}));
+        setLoading(false);
+      },
+      (error) => {
+        console.error('[tax price settings subscription error]', error);
+        setSettings(mergeTaxPriceSettings());
+        setLoading(false);
+      }
+    );
+  }, [storeId]);
+
+  const updateSetting = (key, value) => {
+    setSettings((current) => mergeTaxPriceSettings({
+      ...current,
+      [key]: value
+    }));
+  };
+
+  const updateTaxRate = (taxRateId, patch) => {
+    setSettings((current) => mergeTaxPriceSettings({
+      ...current,
+      taxRates: current.taxRates.map((taxRate) => (
+        taxRate.id === taxRateId ? { ...taxRate, ...patch } : taxRate
+      ))
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!storeId) return;
+
+    setSaving(true);
+
+    try {
+      const normalized = mergeTaxPriceSettings(settings);
+      await setDoc(
+        doc(db, 'stores', storeId, 'settings', 'taxPrice'),
+        {
+          ...normalized,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      if (typeof onSaved === 'function') {
+        onSaved('税・価格設定を保存しました。');
+      }
+    } catch (error) {
+      console.error('[tax price settings save error]', error);
+      window.alert(`税・価格設定の保存に失敗しました。\n${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <LoadingSpinner />
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax / Price</p>
+            <h3 className="mt-2 text-2xl font-black text-slate-900">税・価格設定</h3>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+              Akuto POSの商品価格は税抜を基準にします。税率はカテゴリー側で初期値を持たせ、商品ごとに必要な場合だけ上書きできる設計にします。
+              Shopifyへ同期する価格は、税込・税抜のどちらで送るかをここで固定します。
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? '保存中...' : '保存する'}
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-500">Price Base</p>
+            <h4 className="mt-2 text-lg font-black text-slate-900">商品価格の基準</h4>
+            <div className="mt-4 rounded-2xl border-2 border-blue-300 bg-white p-4">
+              <p className="text-base font-black text-blue-700">税抜価格</p>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+                CSV取込・商品マスター・原価計算は税抜を基準にします。
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Default Tax</p>
+            <h4 className="mt-2 text-lg font-black text-slate-900">標準の税率</h4>
+            <select
+              value={String(settings.defaultTaxRate)}
+              onChange={(event) => updateSetting('defaultTaxRate', Number(event.target.value))}
+              className="mt-4 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+            >
+              <option value="10">10% 標準税率</option>
+              <option value="8">8% 軽減税率</option>
+              <option value="0">0% 非課税 / 対象外</option>
+            </select>
+            <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+              カテゴリーに税率がない場合の初期値です。
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Rounding</p>
+            <h4 className="mt-2 text-lg font-black text-slate-900">消費税端数処理</h4>
+            <select
+              value={settings.roundingMode}
+              onChange={(event) => updateSetting('roundingMode', event.target.value)}
+              className="mt-4 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+            >
+              <option value="floor">切り捨て</option>
+              <option value="round">四捨五入</option>
+              <option value="ceil">切り上げ</option>
+            </select>
+            <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+              税抜価格から税込価格を計算する時に使用します。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax Rates</p>
+          <h3 className="mt-2 text-xl font-black text-slate-900">使用する税率</h3>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+            酒税などの個別税は現時点では商品価格に含めて扱い、消費税率としては 10% / 8% / 0% の3系統で運用します。
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {settings.taxRates.map((taxRate) => (
+            <div key={taxRate.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-black text-slate-900">{taxRate.label}</p>
+                  <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">{taxRate.description}</p>
+                </div>
+                {taxRate.isDefault ? (
+                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-600">標準</span>
+                ) : null}
+              </div>
+
+              <label className="mt-4 block">
+                <span className="text-xs font-black text-slate-500">税率</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={taxRate.rate}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    onChange={(event) => updateTaxRate(taxRate.id, { rate: Number(event.target.value) })}
+                    className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                  />
+                  <span className="text-sm font-black text-slate-500">%</span>
+                </div>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => updateTaxRate(taxRate.id, { isActive: !taxRate.isActive })}
+                className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  taxRate.isActive
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                {taxRate.isActive ? '使用する' : '使用しない'}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Shopify Price Sync</p>
+          <h3 className="mt-2 text-xl font-black text-slate-900">Shopifyへ同期する価格</h3>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+            Akuto POS側は税抜価格を正として保持し、Shopifyに送る時だけ税込または税抜に変換します。この設定だけではShopifyへの書き込みは行いません。
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {[
+            {
+              id: 'taxIncluded',
+              title: '税込価格で同期',
+              description: 'EC表示価格を税込に揃えたい場合。日本国内向けのShopify運用ではこちらを標準にします。'
+            },
+            {
+              id: 'taxExcluded',
+              title: '税抜価格で同期',
+              description: 'Shopify側で税計算・税込表示を制御する場合。外部EC側の設定確認が必要です。'
+            }
+          ].map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => updateSetting('shopifyPriceSyncMode', option.id)}
+              className={`rounded-3xl border-2 p-5 text-left transition ${
+                settings.shopifyPriceSyncMode === option.id
+                  ? 'border-blue-400 bg-blue-50 shadow-lg shadow-blue-500/10'
+                  : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+              }`}
+            >
+              <p className="text-base font-black text-slate-900">{option.title}</p>
+              <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">{option.description}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-5">
+        <p className="text-sm font-black text-amber-900">次フェーズ</p>
+        <p className="mt-1 text-sm font-bold leading-relaxed text-amber-800">
+          カテゴリー階層にデフォルト税率を持たせ、商品CSV取込時は「商品CSVの税率」→「カテゴリー税率」→「この画面の標準税率」の順に決定します。
+        </p>
+      </div>
+    </section>
+  );
 };
 
 
@@ -2128,6 +2461,13 @@ export const StoreSettings = ({
               onSelectStep={handleOwnerGuideSelect}
               isModalOpen={isOwnerGuideModalOpen}
               onCloseModal={handleOwnerGuideClose}
+            />
+          )}
+
+          {activeSubTab === 'taxPrice' && canAccessSettingsSection(normalizedRole, 'basic') && (
+            <TaxPriceSettings
+              storeId={storeId}
+              onSaved={showSaveComplete}
             />
           )}
 
