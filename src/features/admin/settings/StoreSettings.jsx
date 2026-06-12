@@ -443,7 +443,216 @@ const CSV_TEMPLATE_DEFINITIONS = [
         subCategoryName: 'プレート',
         sortOrder: '10',
         departmentId: 'retail',
-        note: 'サンプル'
+        note: '生活雑貨 > 食器 > プレート'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-001',
+        categoryName: '食器',
+        subCategoryId: 'SUBCAT-002',
+        subCategoryName: 'ボウル',
+        sortOrder: '20',
+        departmentId: 'retail',
+        note: '生活雑貨 > 食器 > ボウル'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-001',
+        categoryName: '食器',
+        subCategoryId: 'SUBCAT-003',
+        subCategoryName: 'カップ',
+        sortOrder: '30',
+        departmentId: 'retail',
+        note: '生活雑貨 > 食器 > カップ'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-002',
+        categoryName: 'キッチン',
+        subCategoryId: 'SUBCAT-004',
+        subCategoryName: '調理道具',
+        sortOrder: '40',
+        departmentId: 'retail',
+        note: '生活雑貨 > キッチン > 調理道具'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-002',
+        categoryName: 'キッチン',
+        subCategoryId: 'SUBCAT-005',
+        subCategoryName: '保存容器',
+        sortOrder: '50',
+        departmentId: 'retail',
+        note: '生活雑貨 > キッチン > 保存容器'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-003',
+        categoryName: 'インテリア',
+        subCategoryId: 'SUBCAT-006',
+        subCategoryName: '花器',
+        sortOrder: '60',
+        departmentId: 'retail',
+        note: '生活雑貨 > インテリア > 花器'
+      },
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-003',
+        categoryName: 'インテリア',
+        subCategoryId: 'SUBCAT-007',
+        subCategoryName: '照明',
+        sortOrder: '70',
+        departmentId: 'retail',
+        note: '生活雑貨 > インテリア > 照明'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-004',
+        categoryName: 'トップス',
+        subCategoryId: 'SUBCAT-008',
+        subCategoryName: 'シャツ',
+        sortOrder: '80',
+        departmentId: 'retail',
+        note: 'アパレル > トップス > シャツ'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-004',
+        categoryName: 'トップス',
+        subCategoryId: 'SUBCAT-009',
+        subCategoryName: 'ニット',
+        sortOrder: '90',
+        departmentId: 'retail',
+        note: 'アパレル > トップス > ニット'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-005',
+        categoryName: 'ボトムス',
+        subCategoryId: 'SUBCAT-010',
+        subCategoryName: 'パンツ',
+        sortOrder: '100',
+        departmentId: 'retail',
+        note: 'アパレル > ボトムス > パンツ'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-005',
+        categoryName: 'ボトムス',
+        subCategoryId: 'SUBCAT-011',
+        subCategoryName: 'スカート',
+        sortOrder: '110',
+        departmentId: 'retail',
+        note: 'アパレル > ボトムス > スカート'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-006',
+        categoryName: '服飾小物',
+        subCategoryId: 'SUBCAT-012',
+        subCategoryName: '帽子',
+        sortOrder: '120',
+        departmentId: 'retail',
+        note: 'アパレル > 服飾小物 > 帽子'
+      },
+      {
+        categoryGroupId: 'CG-002',
+        categoryGroupName: 'アパレル',
+        categoryId: 'CAT-006',
+        categoryName: '服飾小物',
+        subCategoryId: 'SUBCAT-013',
+        subCategoryName: 'バッグ',
+        sortOrder: '130',
+        departmentId: 'retail',
+        note: 'アパレル > 服飾小物 > バッグ'
+      },
+      {
+        categoryGroupId: 'CG-003',
+        categoryGroupName: 'アウトドア',
+        categoryId: 'CAT-007',
+        categoryName: 'キャンプ用品',
+        subCategoryId: 'SUBCAT-014',
+        subCategoryName: 'テーブル',
+        sortOrder: '140',
+        departmentId: 'retail',
+        note: 'アウトドア > キャンプ用品 > テーブル'
+      },
+      {
+        categoryGroupId: 'CG-003',
+        categoryGroupName: 'アウトドア',
+        categoryId: 'CAT-007',
+        categoryName: 'キャンプ用品',
+        subCategoryId: 'SUBCAT-015',
+        subCategoryName: 'チェア',
+        sortOrder: '150',
+        departmentId: 'retail',
+        note: 'アウトドア > キャンプ用品 > チェア'
+      },
+      {
+        categoryGroupId: 'CG-003',
+        categoryGroupName: 'アウトドア',
+        categoryId: 'CAT-008',
+        categoryName: 'ボトル',
+        subCategoryId: 'SUBCAT-016',
+        subCategoryName: '水筒',
+        sortOrder: '160',
+        departmentId: 'retail',
+        note: 'アウトドア > ボトル > 水筒'
+      },
+      {
+        categoryGroupId: 'CG-003',
+        categoryGroupName: 'アウトドア',
+        categoryId: 'CAT-008',
+        categoryName: 'ボトル',
+        subCategoryId: 'SUBCAT-017',
+        subCategoryName: 'タンブラー',
+        sortOrder: '170',
+        departmentId: 'retail',
+        note: 'アウトドア > ボトル > タンブラー'
+      },
+      {
+        categoryGroupId: 'CG-004',
+        categoryGroupName: '食品',
+        categoryId: 'CAT-009',
+        categoryName: 'ドリンク',
+        subCategoryId: 'SUBCAT-018',
+        subCategoryName: 'ジュース',
+        sortOrder: '180',
+        departmentId: 'retail',
+        note: '食品 > ドリンク > ジュース'
+      },
+      {
+        categoryGroupId: 'CG-004',
+        categoryGroupName: '食品',
+        categoryId: 'CAT-009',
+        categoryName: 'ドリンク',
+        subCategoryId: 'SUBCAT-019',
+        subCategoryName: 'コーヒー',
+        sortOrder: '190',
+        departmentId: 'retail',
+        note: '食品 > ドリンク > コーヒー'
+      },
+      {
+        categoryGroupId: 'CG-004',
+        categoryGroupName: '食品',
+        categoryId: 'CAT-010',
+        categoryName: 'お菓子',
+        subCategoryId: 'SUBCAT-020',
+        subCategoryName: 'チョコレート',
+        sortOrder: '200',
+        departmentId: 'retail',
+        note: '食品 > お菓子 > チョコレート'
       }
     ]
   },
@@ -568,6 +777,9 @@ const expandTemplateSampleRows = (template) => {
   const sampleRows = Array.isArray(template?.sampleRows) ? template.sampleRows : [];
   const columns = Array.isArray(template?.columns) ? template.columns : [];
   if (!sampleRows.length || !columns.length) return sampleRows;
+  if (sampleRows.length >= CSV_TEMPLATE_SAMPLE_ROW_COUNT) {
+    return sampleRows.slice(0, CSV_TEMPLATE_SAMPLE_ROW_COUNT);
+  }
 
   return Array.from({ length: CSV_TEMPLATE_SAMPLE_ROW_COUNT }, (_, index) => {
     const baseRow = sampleRows[index % sampleRows.length] || {};
