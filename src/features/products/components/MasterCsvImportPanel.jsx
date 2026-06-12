@@ -12,6 +12,7 @@ const IMPORT_LABELS = {
     title: '仕入先CSV取込',
     requiredLabel: '仕入先名',
     previewColumns: [
+      ['処理', 'importActionLabel'],
       ['仕入先ID', 'supplierId'],
       ['仕入先名', 'name'],
       ['担当者', 'contactName'],
@@ -35,6 +36,7 @@ const IMPORT_LABELS = {
     title: 'カテゴリー / カテゴリーグループCSV取込',
     requiredLabel: 'カテゴリー名',
     previewColumns: [
+      ['処理', 'importActionLabel'],
       ['グループID', 'categoryGroupId'],
       ['グループ名', 'categoryGroupName'],
       ['カテゴリーID', 'categoryId'],
@@ -51,16 +53,15 @@ const normalizeNumberOrNull = (value) => {
 };
 
 const normalizeSupplierPayload = (item) => ({
-  ...item,
+  ...(item.id ? { id: String(item.id).trim() } : {}),
   name: String(item.name || '').trim(),
   kana: String(item.kana || '').trim(),
+  smaregiSupplierId: String(item.smaregiSupplierId || item.supplierId || item.supplierCode || '').trim(),
+  supplierExternalId: String(item.supplierExternalId || item.smaregiSupplierId || item.supplierId || item.supplierCode || '').trim(),
+  supplierCode: String(item.supplierCode || item.supplierId || item.smaregiSupplierId || item.supplierExternalId || '').trim(),
   contactName: String(item.contactName || '').trim(),
   tel: String(item.tel || '').trim(),
   fax: String(item.fax || '').trim(),
-  email: String(item.email || '').trim(),
-  address: String(item.address || '').trim(),
-  smaregiSupplierId: String(item.smaregiSupplierId || '').trim(),
-  supplierExternalId: String(item.supplierExternalId || item.smaregiSupplierId || '').trim(),
   backorderValidDays: normalizeNumberOrNull(item.backorderValidDays),
   orderListPrice: normalizeNumberOrNull(item.orderListPrice),
   defaultCostRate: normalizeNumberOrNull(item.defaultCostRate),
@@ -272,7 +273,7 @@ const MasterCsvImportPanel = ({
       brands,
       productCategories,
       productCategoryGroups,
-      duplicateHandlingMode: type === 'brands' ? brandDuplicateMode : 'skip'
+      duplicateHandlingMode: brandDuplicateMode
     });
 
     setPreview(nextPreview);
@@ -343,8 +344,8 @@ const MasterCsvImportPanel = ({
       if (type === 'suppliers') {
         if (typeof onSaveSupplier !== 'function') throw new Error('仕入先保存処理が未接続です。');
         for (const item of preview.importableItems) {
-          const { __rowNumber, ...payload } = item;
-          await onSaveSupplier(normalizeSupplierPayload(payload));
+          const payload = normalizeSupplierPayload(item);
+          await onSaveSupplier(payload);
           savedCount += 1;
         }
       }
@@ -352,8 +353,8 @@ const MasterCsvImportPanel = ({
       if (type === 'brands') {
         if (typeof onSaveBrand !== 'function') throw new Error('ブランド保存処理が未接続です。');
         for (const item of preview.importableItems) {
-          const { __rowNumber, ...payload } = item;
-          await onSaveBrand(normalizeBrandPayload(payload));
+          const payload = normalizeBrandPayload(item);
+          await onSaveBrand(payload);
           savedCount += 1;
         }
       }
@@ -436,6 +437,7 @@ const MasterCsvImportPanel = ({
     }
   };
 
+  const duplicateModeEnabled = ['suppliers', 'brands', 'categories'].includes(type);
   const updateCount = preview?.importableItems?.filter((item) => item.importAction === 'update').length || 0;
   const createCount = preview?.importableItems?.filter((item) => item.importAction !== 'update').length || 0;
 
@@ -494,9 +496,9 @@ const MasterCsvImportPanel = ({
         </div>
       )}
 
-      {type === 'brands' && (
+      {['suppliers', 'brands', 'categories'].includes(type) && (
         <div className="mt-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
-          <div className="text-xs font-black text-slate-700">既存ブランドの扱い</div>
+          <div className="text-xs font-black text-slate-700">取込モード</div>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
@@ -509,7 +511,7 @@ const MasterCsvImportPanel = ({
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               ].join(' ')}
             >
-              既存はスキップ
+              新規のみ追加
             </button>
             <button
               type="button"
@@ -522,18 +524,18 @@ const MasterCsvImportPanel = ({
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               ].join(' ')}
             >
-              既存を更新
+              新規追加・既存更新
             </button>
           </div>
           <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
-            既存更新は brandId / brandCode / ブランド名で既存ブランドを探し、仕入先・メモ等をmerge更新します。doc IDは変更しません。
+            新規のみ追加は既存データを変更しません。新規追加・既存更新は新規を追加し、既存はCSV内容でmerge更新します。
           </p>
         </div>
       )}
 
       {(fileName || preview) && (
         <p className="mt-3 text-xs font-bold text-slate-500">
-          {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableItems?.length || 0).toLocaleString()}件{type === 'brands' ? ` / 新規 ${createCount.toLocaleString()}件 / 更新 ${updateCount.toLocaleString()}件` : ''} / スキップ {Number(preview?.skippedItems?.length || 0).toLocaleString()}件
+          {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableItems?.length || 0).toLocaleString()}件{duplicateModeEnabled ? ` / 新規 ${createCount.toLocaleString()}件 / 更新 ${updateCount.toLocaleString()}件` : ''} / スキップ {Number(preview?.skippedItems?.length || 0).toLocaleString()}件
         </p>
       )}
 

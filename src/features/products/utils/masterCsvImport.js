@@ -238,12 +238,32 @@ const findSupplier = (suppliers, supplierSmaregiId, supplierName) => {
     const matchedById = (suppliers || []).find((supplier) => (
       normalizeText(supplier.smaregiSupplierId) === normalizedId ||
       normalizeText(supplier.supplierExternalId) === normalizedId ||
-      normalizeText(supplier.externalSupplierId) === normalizedId
+      normalizeText(supplier.externalSupplierId) === normalizedId ||
+      normalizeText(supplier.supplierCode) === normalizedId ||
+      normalizeText(supplier.id) === normalizedId
     ));
     if (matchedById) return matchedById;
   }
 
   return findByName(suppliers, supplierName);
+};
+
+const findCategory = (categories, categoryExternalId, categoryName) => {
+  const normalizedId = normalizeText(categoryExternalId);
+
+  if (normalizedId) {
+    const matchedById = (categories || []).find((category) => (
+      normalizeText(category.smaregiCategoryId) === normalizedId ||
+      normalizeText(category.categoryExternalId) === normalizedId ||
+      normalizeText(category.externalCategoryId) === normalizedId ||
+      normalizeText(category.categoryCode) === normalizedId ||
+      normalizeText(category.id) === normalizedId
+    ));
+
+    if (matchedById) return matchedById;
+  }
+
+  return findByName(categories, categoryName);
 };
 
 export const buildMasterCsvPreview = ({
@@ -281,7 +301,29 @@ export const buildMasterCsvPreview = ({
   }
 
   const existingSupplierNames = new Set((suppliers || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
-  const existingSupplierIds = new Set((suppliers || []).map((item) => normalizeText(item.smaregiSupplierId || item.supplierExternalId || item.externalSupplierId)).filter(Boolean));
+  const existingSupplierIds = new Set((suppliers || []).map((item) => normalizeText(item.smaregiSupplierId || item.supplierExternalId || item.externalSupplierId || item.supplierCode || item.id)).filter(Boolean));
+  const existingSuppliersById = new Map();
+  const existingSuppliersByName = new Map();
+
+  (suppliers || []).forEach((supplier) => {
+    [
+      supplier.smaregiSupplierId,
+      supplier.supplierExternalId,
+      supplier.externalSupplierId,
+      supplier.supplierCode,
+      supplier.id
+    ].forEach((supplierIdCandidate) => {
+      const normalizedSupplierId = normalizeText(supplierIdCandidate);
+      if (normalizedSupplierId && !existingSuppliersById.has(normalizedSupplierId)) {
+        existingSuppliersById.set(normalizedSupplierId, supplier);
+      }
+    });
+
+    const normalizedSupplierName = normalizeMasterName(supplier.name || supplier.supplierName);
+    if (normalizedSupplierName && !existingSuppliersByName.has(normalizedSupplierName)) {
+      existingSuppliersByName.set(normalizedSupplierName, supplier);
+    }
+  });
   const existingBrandNames = new Set((brands || []).map((item) => normalizeMasterName(item.name)).filter(Boolean));
   const existingBrandIds = new Set((brands || []).map((item) => normalizeText(item.smaregiBrandId || item.brandExternalId || item.externalBrandId || item.brandCode || item.id)).filter(Boolean));
   const existingBrandsById = new Map();
@@ -326,20 +368,33 @@ export const buildMasterCsvPreview = ({
         return;
       }
 
-      if (smaregiSupplierId && existingSupplierIds.has(smaregiSupplierId)) {
-        warnings.push(`${record.__rowNumber}行目：既存仕入先ID「${smaregiSupplierId}」と重複するためスキップします。`);
-        skippedItems.push({ rowNumber: record.__rowNumber, reason: `仕入先ID重複: ${smaregiSupplierId}` });
-        return;
-      }
+      const normalizedSupplierName = normalizeMasterName(name);
+      const matchedExistingSupplier = (
+        (smaregiSupplierId && existingSuppliersById.get(smaregiSupplierId))
+        || existingSuppliersByName.get(normalizedSupplierName)
+        || null
+      );
 
-      if (existingSupplierNames.has(normalizeMasterName(name))) {
-        warnings.push(`${record.__rowNumber}行目：既存仕入先名「${name}」と重複するためスキップします。`);
-        skippedItems.push({ rowNumber: record.__rowNumber, reason: `仕入先名重複: ${name}` });
+      if (matchedExistingSupplier && duplicateHandlingMode !== 'update') {
+        const reason = smaregiSupplierId && existingSuppliersById.get(smaregiSupplierId)
+          ? `仕入先ID重複: ${smaregiSupplierId}`
+          : `仕入先名重複: ${name}`;
+        warnings.push(`${record.__rowNumber}行目：既存仕入先「${name}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason });
         return;
       }
 
       importableItems.push({
         __rowNumber: record.__rowNumber,
+        ...(matchedExistingSupplier ? {
+          id: matchedExistingSupplier.id,
+          importAction: 'update',
+          importActionLabel: '既存更新'
+        } : {
+          importAction: 'create',
+          importActionLabel: '新規追加'
+        }),
+        supplierId: smaregiSupplierId,
         smaregiSupplierId,
         supplierExternalId: smaregiSupplierId,
         name,
@@ -354,7 +409,13 @@ export const buildMasterCsvPreview = ({
       });
 
       if (smaregiSupplierId) existingSupplierIds.add(smaregiSupplierId);
-      existingSupplierNames.add(normalizeMasterName(name));
+      if (smaregiSupplierId && !existingSuppliersById.has(smaregiSupplierId)) {
+        existingSuppliersById.set(smaregiSupplierId, { id: '', name, smaregiSupplierId });
+      }
+      existingSupplierNames.add(normalizedSupplierName);
+      if (normalizedSupplierName && !existingSuppliersByName.has(normalizedSupplierName)) {
+        existingSuppliersByName.set(normalizedSupplierName, { id: '', name, smaregiSupplierId });
+      }
       return;
     }
 
@@ -455,14 +516,24 @@ export const buildMasterCsvPreview = ({
       }
 
       const matchedGroup = findCategoryGroup(productCategoryGroups, smaregiCategoryGroupId, categoryGroupName);
+      const matchedCategory = findCategory(productCategories, smaregiCategoryId, categoryName);
       const shouldCreateGroup = !!categoryGroupName && !matchedGroup && !existingGroupNames.has(groupNameKey);
+      const shouldUpdateGroup = !!categoryGroupName && !!matchedGroup?.id && duplicateHandlingMode === 'update';
+      const shouldCreateCategory = !matchedCategory && !existingCategoryNames.has(categoryNameKey);
+      const shouldUpdateCategory = !!matchedCategory?.id && duplicateHandlingMode === 'update';
 
-      importableItems.push({
-        __rowNumber: record.__rowNumber,
-        smaregiCategoryGroupId,
-        categoryGroupName,
-        matchedCategoryGroupId: matchedGroup?.id || '',
-        categoryGroupPayload: shouldCreateGroup
+      const categoryGroupPayload = shouldUpdateGroup
+        ? {
+          id: matchedGroup.id,
+          smaregiCategoryGroupId,
+          categoryGroupExternalId: smaregiCategoryGroupId,
+          externalCategoryGroupId: smaregiCategoryGroupId,
+          name: categoryGroupName || matchedGroup.name || '',
+          sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedGroup.sortOrder ?? 0,
+          departmentId: normalizeText(record.departmentId) || matchedGroup.departmentId || 'retail',
+          isActive: true
+        }
+        : shouldCreateGroup
           ? {
             smaregiCategoryGroupId,
             categoryGroupExternalId: smaregiCategoryGroupId,
@@ -472,12 +543,28 @@ export const buildMasterCsvPreview = ({
             departmentId: normalizeText(record.departmentId) || 'retail',
             isActive: true
           }
-          : null,
-        smaregiCategoryId,
-        categoryName,
-        categoryPayload: existingCategoryNames.has(categoryNameKey)
-          ? null
-          : {
+          : null;
+
+      const categoryPayload = shouldUpdateCategory
+        ? {
+          id: matchedCategory.id,
+          smaregiCategoryId,
+          categoryExternalId: smaregiCategoryId,
+          externalCategoryId: smaregiCategoryId,
+          name: categoryName || matchedCategory.name || '',
+          groupId: matchedGroup?.id || matchedCategory.groupId || '',
+          groupName: matchedGroup?.name || categoryGroupName || matchedCategory.groupName || '',
+          categoryGroupName: matchedGroup?.name || categoryGroupName || matchedCategory.categoryGroupName || '',
+          smaregiCategoryGroupId,
+          categoryGroupExternalId: smaregiCategoryGroupId,
+          sortOrder: normalizeNumber(record.sortOrder, null) ?? matchedCategory.sortOrder ?? 0,
+          departmentId: normalizeText(record.departmentId) || matchedCategory.departmentId || 'retail',
+          color: normalizeText(record.color) || matchedCategory.color || '#64748b',
+          note: normalizeText(record.note) || matchedCategory.note || '',
+          isActive: true
+        }
+        : shouldCreateCategory
+          ? {
             smaregiCategoryId,
             categoryExternalId: smaregiCategoryId,
             externalCategoryId: smaregiCategoryId,
@@ -493,6 +580,26 @@ export const buildMasterCsvPreview = ({
             note: normalizeText(record.note),
             isActive: true
           }
+          : null;
+
+      if (!categoryGroupPayload && !categoryPayload) {
+        warnings.push(`${record.__rowNumber}行目：既存カテゴリー「${categoryName}」と重複するためスキップします。`);
+        skippedItems.push({ rowNumber: record.__rowNumber, reason: `カテゴリー重複: ${categoryName}` });
+        return;
+      }
+
+      importableItems.push({
+        __rowNumber: record.__rowNumber,
+        importAction: shouldUpdateCategory || shouldUpdateGroup ? 'update' : 'create',
+        importActionLabel: shouldUpdateCategory || shouldUpdateGroup ? '既存更新' : '新規追加',
+        smaregiCategoryGroupId,
+        categoryGroupName,
+        matchedCategoryGroupId: matchedGroup?.id || '',
+        categoryGroupPayload,
+        smaregiCategoryId,
+        categoryId: smaregiCategoryId,
+        categoryName,
+        categoryPayload
       });
 
       if (groupNameKey) existingGroupNames.add(groupNameKey);
