@@ -442,7 +442,7 @@ const mergeTaxPriceSettings = (source = {}) => {
   };
 };
 
-const TaxPriceSettings = ({ storeId, onSaved }) => {
+const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
   const [settings, setSettings] = useState(() => mergeTaxPriceSettings());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -532,7 +532,7 @@ const TaxPriceSettings = ({ storeId, onSaved }) => {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax / Price</p>
             <h3 className="mt-2 text-2xl font-black text-slate-900">税・価格設定</h3>
             <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
-              Akuto POSの商品価格は税抜を基準にします。税率はカテゴリー側で初期値を持たせ、商品ごとに必要な場合だけ上書きできる設計にします。
+              Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
               Shopifyへ同期する価格は、税込・税抜のどちらで送るかをここで固定します。
             </p>
           </div>
@@ -688,11 +688,108 @@ const TaxPriceSettings = ({ storeId, onSaved }) => {
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-5">
-        <p className="text-sm font-black text-amber-900">次フェーズ</p>
-        <p className="mt-1 text-sm font-bold leading-relaxed text-amber-800">
-          カテゴリー階層にデフォルト税率を持たせ、商品CSV取込時は「商品CSVの税率」→「カテゴリー税率」→「この画面の標準税率」の順に決定します。
-        </p>
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-5">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Category Tax Rules</p>
+          <h3 className="mt-2 text-xl font-black text-slate-900">カテゴリー別税率</h3>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+            カテゴリーグループ、カテゴリー、サブカテゴリーごとに税率を設定します。保存すると、対象配下の商品 taxRate と参考税込価格を全上書きします。
+          </p>
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-3">
+          <SimpleMasterPanel
+            label="カテゴリーグループ"
+            blank={blankGroup}
+            items={productMaster?.productCategoryGroups || []}
+            fields={[
+              { id: 'name', label: 'グループ名' },
+              { id: 'sortOrder', label: '並び順', type: 'number' },
+              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' }
+            ]}
+            onSave={productMaster?.saveCategoryGroup}
+            onDelete={productMaster?.deleteCategoryGroup}
+            onSaved={onSaved}
+            defaultTaxRate={settings.defaultTaxRate}
+            storeId={storeId}
+            products={productMaster?.products || []}
+            cascadeTaxLevel="group"
+            productCategories={productMaster?.productCategories || []}
+            productCategoryGroups={productMaster?.productCategoryGroups || []}
+            productSubCategories={productMaster?.productSubCategories || []}
+          />
+
+          <SimpleMasterPanel
+            label="カテゴリー"
+            blank={blankCategory}
+            items={productMaster?.productCategories || []}
+            fields={[
+              { id: 'name', label: 'カテゴリー名' },
+              { id: 'groupId', label: 'カテゴリーグループ', type: 'categoryGroupSelect' },
+              { id: 'sortOrder', label: '並び順', type: 'number' },
+              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
+              { id: 'color', label: 'カラー' }
+            ]}
+            onSave={productMaster?.saveCategory}
+            onDelete={productMaster?.deleteCategory}
+            onSaved={onSaved}
+            defaultTaxRate={settings.defaultTaxRate}
+            storeId={storeId}
+            products={productMaster?.products || []}
+            cascadeTaxLevel="category"
+            productCategories={productMaster?.productCategories || []}
+            productCategoryGroups={productMaster?.productCategoryGroups || []}
+            productSubCategories={productMaster?.productSubCategories || []}
+            onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+          />
+
+          <SimpleMasterPanel
+            label="サブカテゴリー"
+            blank={{
+              ...blankCategory,
+              categoryId: '',
+              categoryName: '',
+              categoryGroupName: '',
+              subCategoryName: '',
+              taxRateType: 'inherit',
+              taxRate: null
+            }}
+            items={productMaster?.productSubCategories || []}
+            fields={[
+              { id: 'name', label: 'サブカテゴリー名' },
+              { id: 'categoryId', label: '親カテゴリー', type: 'categorySelect' },
+              { id: 'categoryName', label: '親カテゴリー名' },
+              { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
+              { id: 'sortOrder', label: '並び順', type: 'number' },
+              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
+              { id: 'color', label: 'カラー' }
+            ]}
+            onSave={(payload) => {
+              const { color, categoryColor, subCategoryColor, ...cleanSubCategoryPayload } = payload;
+              const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === cleanSubCategoryPayload.categoryId);
+              const matchedGroup = (productMaster?.productCategoryGroups || []).find((group) => group.id === matchedCategory?.groupId);
+
+              return productMaster?.saveSubCategory?.({
+                ...cleanSubCategoryPayload,
+                categoryName: matchedCategory?.name || cleanSubCategoryPayload.categoryName || '',
+                categoryGroupId: matchedCategory?.groupId || cleanSubCategoryPayload.categoryGroupId || '',
+                categoryGroupName: matchedGroup?.name || cleanSubCategoryPayload.categoryGroupName || '',
+                groupId: matchedCategory?.groupId || cleanSubCategoryPayload.groupId || '',
+                groupName: matchedGroup?.name || cleanSubCategoryPayload.groupName || '',
+                subCategoryName: cleanSubCategoryPayload.name || cleanSubCategoryPayload.subCategoryName || ''
+              });
+            }}
+            onDelete={productMaster?.deleteSubCategory}
+            onSaved={onSaved}
+            defaultTaxRate={settings.defaultTaxRate}
+            storeId={storeId}
+            products={productMaster?.products || []}
+            cascadeTaxLevel="subCategory"
+            productCategories={productMaster?.productCategories || []}
+            productCategoryGroups={productMaster?.productCategoryGroups || []}
+            productSubCategories={productMaster?.productSubCategories || []}
+          />
+        </div>
       </div>
     </section>
   );
@@ -2513,6 +2610,7 @@ export const StoreSettings = ({
           {activeSubTab === 'taxPrice' && canAccessSettingsSection(normalizedRole, 'basic') && (
             <TaxPriceSettings
               storeId={storeId}
+              productMaster={productMaster}
               onSaved={showSaveComplete}
             />
           )}
