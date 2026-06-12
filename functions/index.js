@@ -3117,6 +3117,34 @@ const normalizeShopifyMoney = (value) => {
   return String(Math.round(amount));
 };
 
+const normalizeShopifyPriceSyncMode = (value = '') => (
+  value === 'taxExcluded' ? 'taxExcluded' : 'taxIncluded'
+);
+
+const resolveShopifySyncPriceValue = (product = {}, priceSyncMode = 'taxIncluded') => {
+  const mode = normalizeShopifyPriceSyncMode(priceSyncMode);
+
+  if (mode === 'taxExcluded') {
+    return product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? 0;
+  }
+
+  return product.priceTaxIncluded ?? product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? 0;
+};
+
+const buildShopifySyncPriceSnapshot = (product = {}, priceSyncMode = 'taxIncluded') => {
+  const mode = normalizeShopifyPriceSyncMode(priceSyncMode);
+  const rawPrice = resolveShopifySyncPriceValue(product, mode);
+
+  return {
+    priceSyncMode: mode,
+    rawPrice,
+    price: normalizeShopifyMoney(rawPrice),
+    priceTaxExcluded: product.priceTaxExcluded ?? null,
+    priceTaxIncluded: product.priceTaxIncluded ?? null,
+    taxRate: product.taxRate ?? null
+  };
+};
+
 const normalizeShopifyText = (value, fallback = '') => {
   const text = String(value || '').trim();
   return text || fallback;
@@ -3252,7 +3280,7 @@ const resolveShopifyOptionValue = (product = {}, optionName = 'バリエーシ�
   return String(product.sku || product.productCode || product.id || 'Default').trim();
 };
 
-const buildShopifyProductSetInput = ({ group, products, locationId }) => {
+const buildShopifyProductSetInput = ({ group, products, locationId, priceSyncMode = 'taxIncluded' }) => {
   const optionName = resolveShopifyOptionName(products);
   const usedOptionValues = new Set();
 
@@ -3272,7 +3300,7 @@ const buildShopifyProductSetInput = ({ group, products, locationId }) => {
       ],
       sku: String(product.sku || product.productCode || '').trim(),
       barcode: String(product.barcode || '').trim(),
-      price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0),
+      price: buildShopifySyncPriceSnapshot(product, priceSyncMode).price,
       taxable: true,
       inventoryItem: {
         tracked: true
@@ -3428,6 +3456,9 @@ export const createShopifyDraftProduct = onRequest(
       const storeRef = db.collection('stores').doc(normalizedStoreId);
       const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
       const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const taxPriceSettingsSnapshot = await storeRef.collection('settings').doc('taxPrice').get();
+      const taxPriceSettings = taxPriceSettingsSnapshot.exists ? taxPriceSettingsSnapshot.data() || {} : {};
+      const priceSyncMode = normalizeShopifyPriceSyncMode(taxPriceSettings.shopifyPriceSyncMode);
 
       if (!shopifySettings.syncEnabled) {
         throw new Error('Shopify連携がOFFです。EC連携設定を確認してください。');
@@ -3501,8 +3532,15 @@ export const createShopifyDraftProduct = onRequest(
       const input = buildShopifyProductSetInput({
         group,
         products,
-        locationId
+        locationId,
+        priceSyncMode
       });
+      const priceSnapshots = products.map((product) => ({
+        productId: product.id,
+        sku: String(product.sku || product.productCode || '').trim(),
+        barcode: String(product.barcode || '').trim(),
+        ...buildShopifySyncPriceSnapshot(product, priceSyncMode)
+      }));
 
       const graphqlData = await callShopifyGraphql({
         shopDomain,
@@ -3555,11 +3593,18 @@ export const createShopifyDraftProduct = onRequest(
             updatedAt: syncedAt
           }, { merge: true });
 
+          const priceSnapshot = buildShopifySyncPriceSnapshot(product, priceSyncMode);
+
           savedVariants.push({
             productId: product.id,
             sku,
             shopifyVariantId: variant.id,
-            shopifyInventoryItemId: inventoryItemId
+            shopifyInventoryItemId: inventoryItemId,
+            priceSyncMode: priceSnapshot.priceSyncMode,
+            price: priceSnapshot.price,
+            priceTaxExcluded: priceSnapshot.priceTaxExcluded,
+            priceTaxIncluded: priceSnapshot.priceTaxIncluded,
+            taxRate: priceSnapshot.taxRate
           });
         }
 
@@ -3574,6 +3619,8 @@ export const createShopifyDraftProduct = onRequest(
           title: shopifyProduct.title || input.title,
           skuCount: products.length,
           variants: savedVariants,
+          priceSyncMode,
+          priceSnapshots,
           createdBy: authUser.uid,
           createdAt: syncedAt
         });
@@ -3587,7 +3634,9 @@ export const createShopifyDraftProduct = onRequest(
         shopifyProductHandle: shopifyProduct.handle || '',
         title: shopifyProduct.title || input.title,
         skuCount: products.length,
-        variants: savedVariants
+        variants: savedVariants,
+        priceSyncMode,
+        priceSnapshots
       });
     } catch (error) {
       console.error('[createShopifyDraftProduct] failed', error);
@@ -3634,7 +3683,7 @@ const productSetUpdateMutation = `
   }
 `;
 
-const buildShopifyProductUpdateInput = ({ group, products, existingTags = [] }) => {
+const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded' }) => {
   const optionName = resolveShopifyOptionName(products);
   const usedOptionValues = new Set();
 
@@ -3655,7 +3704,7 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [] }) 
       ],
       sku: String(product.sku || product.productCode || '').trim(),
       barcode: String(product.barcode || '').trim(),
-      price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0)
+      price: buildShopifySyncPriceSnapshot(product, priceSyncMode).price
     };
   });
 
@@ -3709,6 +3758,9 @@ export const updateShopifyProduct = onRequest(
       const storeRef = db.collection('stores').doc(normalizedStoreId);
       const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
       const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const taxPriceSettingsSnapshot = await storeRef.collection('settings').doc('taxPrice').get();
+      const taxPriceSettings = taxPriceSettingsSnapshot.exists ? taxPriceSettingsSnapshot.data() || {} : {};
+      const priceSyncMode = normalizeShopifyPriceSyncMode(taxPriceSettings.shopifyPriceSyncMode);
 
       if (!shopifySettings.syncEnabled) {
         throw new Error('Shopify連携がOFFです。EC連携設定を確認してください。');
@@ -3763,8 +3815,15 @@ export const updateShopifyProduct = onRequest(
       const input = buildShopifyProductUpdateInput({
         group,
         products,
-        existingTags
+        existingTags,
+        priceSyncMode
       });
+      const priceSnapshots = products.map((product) => ({
+        productId: product.id,
+        sku: String(product.sku || product.productCode || '').trim(),
+        barcode: String(product.barcode || '').trim(),
+        ...buildShopifySyncPriceSnapshot(product, priceSyncMode)
+      }));
 
       const graphqlData = await callShopifyGraphql({
         shopDomain,
@@ -3813,12 +3872,18 @@ export const updateShopifyProduct = onRequest(
             updatedAt: syncedAt
           }, { merge: true });
 
+          const priceSnapshot = buildShopifySyncPriceSnapshot(product, priceSyncMode);
+
           savedVariants.push({
             productId: product.id,
             sku: String(product.sku || product.productCode || '').trim(),
             shopifyVariantId: variantId,
             shopifyInventoryItemId: inventoryItemId,
-            price: normalizeShopifyMoney(product.priceTaxIncluded ?? product.price ?? 0),
+            priceSyncMode: priceSnapshot.priceSyncMode,
+            price: priceSnapshot.price,
+            priceTaxExcluded: priceSnapshot.priceTaxExcluded,
+            priceTaxIncluded: priceSnapshot.priceTaxIncluded,
+            taxRate: priceSnapshot.taxRate,
             barcode: String(product.barcode || '').trim()
           });
         }
@@ -3834,6 +3899,8 @@ export const updateShopifyProduct = onRequest(
           title: shopifyProduct.title || input.title,
           skuCount: products.length,
           variants: savedVariants,
+          priceSyncMode,
+          priceSnapshots,
           createdBy: authUser.uid,
           createdAt: syncedAt
         });
@@ -3847,7 +3914,9 @@ export const updateShopifyProduct = onRequest(
         shopifyProductHandle: shopifyProduct.handle || group.shopifyProductHandle || '',
         title: shopifyProduct.title || input.title,
         skuCount: products.length,
-        variants: savedVariants
+        variants: savedVariants,
+        priceSyncMode,
+        priceSnapshots
       });
     } catch (error) {
       console.error('[updateShopifyProduct] failed', error);
