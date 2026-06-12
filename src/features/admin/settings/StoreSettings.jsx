@@ -282,6 +282,11 @@ const POS_DUMMY_PAGES = {
       { id: 'csvExport', label: 'CSV出力', description: '登録済みデータをCSVで出力します。' },
       { id: 'templates', label: 'テンプレート', description: '取込用CSVテンプレートを確認します。' }
     ]
+  },
+  taxPrice: {
+    title: '税・価格設定',
+    eyebrow: 'Tax / Price Settings',
+    description: '消費税率、税抜価格基準、Shopifyへ同期する価格方式を管理します。'
   }
 };
 
