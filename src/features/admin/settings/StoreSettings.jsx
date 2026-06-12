@@ -517,7 +517,9 @@ const TaxPriceSettings = ({ storeId, onSaved }) => {
   if (loading) {
     return (
       <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <LoadingSpinner />
+        <div className="rounded-3xl border border-slate-100 bg-slate-50 px-5 py-8 text-center">
+          <p className="text-sm font-black text-slate-500">税・価格設定を読み込み中...</p>
+        </div>
       </section>
     );
   }
