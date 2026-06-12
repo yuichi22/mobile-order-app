@@ -5920,8 +5920,11 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     productCode: findWorkerHeaderIndex(headers, ['productCode', '商品コード']),
     barcode: findWorkerHeaderIndex(headers, ['barcode', 'バーコード', 'jan', 'JAN']),
     brand: findWorkerHeaderIndex(headers, ['brand', 'brandName', 'ブランド']),
+    categoryGroupId: findWorkerHeaderIndex(headers, ['categoryGroupId', 'カテゴリーグループID']),
     categoryGroup: findWorkerHeaderIndex(headers, ['categoryGroup', 'categoryGroupName', 'カテゴリグループ', 'カテゴリーグループ']),
+    categoryId: findWorkerHeaderIndex(headers, ['categoryId', 'カテゴリーID']),
     category: findWorkerHeaderIndex(headers, ['category', 'categoryName', 'カテゴリ', 'カテゴリー']),
+    subCategoryId: findWorkerHeaderIndex(headers, ['subCategoryId', 'サブカテゴリーID']),
     subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
     salesAreaId: findWorkerHeaderIndex(headers, ['salesAreaId', '売場ID', '販売エリアID']),
     salesAreaName: findWorkerHeaderIndex(headers, ['salesAreaName', 'salesArea', '売場', '販売エリア']),
@@ -5952,8 +5955,11 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     const productCode = getWorkerCell(row, indexes.productCode);
     const barcode = getWorkerCell(row, indexes.barcode);
     const brand = getWorkerCell(row, indexes.brand);
+    const categoryGroupId = getWorkerCell(row, indexes.categoryGroupId);
     const categoryGroup = getWorkerCell(row, indexes.categoryGroup);
+    const categoryId = getWorkerCell(row, indexes.categoryId);
     const category = getWorkerCell(row, indexes.category);
+    const subCategoryId = getWorkerCell(row, indexes.subCategoryId);
     const subCategory = getWorkerCell(row, indexes.subCategory);
     const salesAreaId = getWorkerCell(row, indexes.salesAreaId);
     const salesAreaName = getWorkerCell(row, indexes.salesAreaName);
@@ -5992,8 +5998,11 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
         sourceProductGroupId: productGroupId || '',
         role: productGroupRole || '',
         name: productGroupName || name || '',
+        categoryGroupId: categoryGroupId || '',
         categoryGroupName: categoryGroup || '',
+        categoryId: categoryId || '',
         categoryName: category || '',
+        subCategoryId: subCategoryId || '',
         subCategoryName: subCategory || '',
         salesAreaId: salesAreaId || '',
         salesAreaName: salesAreaName || '',
@@ -6035,8 +6044,11 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
       productCode,
       barcode,
       brandName: brand || '',
+      categoryGroupId: categoryGroupId || '',
       categoryGroupName: categoryGroup || '',
+      categoryId: categoryId || '',
       categoryName: category || '',
+      subCategoryId: subCategoryId || '',
       subCategoryName: subCategory || '',
       salesAreaId: salesAreaId || '',
       salesAreaName: salesAreaName || '',
@@ -6212,8 +6224,11 @@ const executeProductCsvFunctionWritesForWorker = async ({
       name: group.name || '',
       productGroupName: group.productGroupName || group.name || '',
       groupCode: group.groupCode || '',
+      categoryGroupId: group.categoryGroupId || '',
       categoryGroupName: group.categoryGroupName || '',
+      categoryId: group.categoryId || '',
       categoryName: group.categoryName || '',
+      subCategoryId: group.subCategoryId || '',
       subCategoryName: group.subCategoryName || '',
       salesAreaId: group.salesAreaId || '',
       salesAreaName: group.salesAreaName || '',
@@ -6265,11 +6280,11 @@ const executeProductCsvFunctionWritesForWorker = async ({
       brandName: product.brandName || '',
       supplierId: '',
       supplierName: '',
-      categoryGroupId: '',
+      categoryGroupId: product.categoryGroupId || '',
       categoryGroupName: product.categoryGroupName || '',
-      categoryId: '',
+      categoryId: product.categoryId || '',
       categoryName: product.categoryName || '',
-      subCategoryId: '',
+      subCategoryId: product.subCategoryId || '',
       subCategoryName: product.subCategoryName || '',
       salesAreaId: product.salesAreaId || '',
       salesAreaName: product.salesAreaName || '',

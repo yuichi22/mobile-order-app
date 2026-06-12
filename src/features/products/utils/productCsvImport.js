@@ -7,9 +7,12 @@ export const PRODUCT_CSV_FIELD_OPTIONS = [
   { id: 'productGroupRole', label: '商品グループ役割', required: false },
   { id: 'productGroupName', label: '商品グループ名', required: false },
   { id: 'groupCode', label: 'グループコード', required: false },
-  { id: 'category', label: 'カテゴリー名', required: false },
-  { id: 'subCategory', label: 'サブカテゴリー名', required: false },
+  { id: 'categoryGroupId', label: 'カテゴリーグループID', required: false },
   { id: 'categoryGroup', label: 'カテゴリーグループ名', required: false },
+  { id: 'categoryId', label: 'カテゴリーID', required: false },
+  { id: 'category', label: 'カテゴリー名', required: false },
+  { id: 'subCategoryId', label: 'サブカテゴリーID', required: false },
+  { id: 'subCategory', label: 'サブカテゴリー名', required: false },
   { id: 'salesAreaId', label: '売場ID', required: false },
   { id: 'salesAreaName', label: '売場名', required: false },
   { id: 'brand', label: 'ブランド名', required: false },
@@ -40,7 +43,10 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   productGroupRole: ['productGroupRole', '商品グループ役割', 'groupRole', 'role'],
   productGroupName: ['productGroupName', 'productGroupTitle', '商品グループ名', 'groupName', 'Product Group Name'],
   groupCode: ['groupCode', 'グループコード', 'group_code'],
+  categoryGroupId: ['categoryGroupId', 'カテゴリーグループID', 'category_group_id'],
+  categoryId: ['categoryId', 'カテゴリーID', 'category_id'],
   category: ['category', 'categoryName', 'カテゴリー', 'カテゴリー名', 'カテゴリ', '部門', '部門名', 'Type'],
+  subCategoryId: ['subCategoryId', 'サブカテゴリーID', 'sub_category_id'],
   subCategory: ['subCategory', 'subCategoryName', 'サブカテゴリー', 'サブカテゴリー名', '小カテゴリー', '小分類', 'Shopify Sub Category'],
   salesAreaId: ['salesAreaId', '売場ID', '販売エリアID', 'sales_area_id'],
   salesAreaName: ['salesAreaName', 'salesArea', '売場', '売場名', '販売エリア', '売場分類'],
@@ -181,13 +187,13 @@ const findMasterByName = (items, name) => {
   return (items || []).find((item) => normalizeMasterName(item.name) === normalizedName) || null;
 };
 
+const normalizeMasterId = (value) => String(value || '').trim();
+
 const findMasterById = (items, id) => {
   const normalizedId = normalizeMasterId(id);
   if (!normalizedId) return null;
   return (items || []).find((item) => normalizeMasterId(item.id) === normalizedId) || null;
 };
-
-const normalizeMasterId = (value) => String(value || '').trim();
 
 const getMasterGroupId = (item) => (
   normalizeMasterId(item?.categoryGroupId)
@@ -369,6 +375,9 @@ export const buildProductCsvPreview = ({
       warnings.push(`${record.__rowNumber}行目：既存バーコード「${barcode}」の商品を更新対象として取り込みます。`);
     }
 
+    const categoryGroupId = normalizeCsvText(record.categoryGroupId);
+    const categoryId = normalizeCsvText(record.categoryId);
+    const subCategoryId = normalizeCsvText(record.subCategoryId);
     const categoryName = normalizeCsvText(record.category);
     const subCategoryName = normalizeCsvText(record.subCategory);
     const salesAreaId = normalizeCsvText(record.salesAreaId);
@@ -377,9 +386,9 @@ export const buildProductCsvPreview = ({
     const brandName = normalizeCsvText(record.brand);
     const supplierName = normalizeCsvText(record.supplier);
 
-    const matchedGroup = findMasterByName(productCategoryGroups, categoryGroupName);
-    const matchedCategory = findCategoryByHierarchy(productCategories, categoryName, matchedGroup, categoryGroupName);
-    const matchedSubCategory = findSubCategoryByHierarchy(
+    const matchedGroup = findMasterById(productCategoryGroups, categoryGroupId) || findMasterByName(productCategoryGroups, categoryGroupName);
+    const matchedCategory = findMasterById(productCategories, categoryId) || findCategoryByHierarchy(productCategories, categoryName, matchedGroup, categoryGroupName);
+    const matchedSubCategory = findMasterById(productSubCategories, subCategoryId) || findSubCategoryByHierarchy(
       productSubCategories,
       subCategoryName,
       matchedCategory,
@@ -391,9 +400,9 @@ export const buildProductCsvPreview = ({
     const matchedBrand = findMasterByName(brands, brandName);
     const matchedSupplier = findMasterByName(suppliers, supplierName);
 
-    if (categoryGroupName && !matchedGroup) warnings.push(`${record.__rowNumber}行目：カテゴリーグループ「${categoryGroupName}」は未登録です。nameのみ保持します。`);
-    if (categoryName && !matchedCategory) warnings.push(`${record.__rowNumber}行目：カテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName}」は未登録です。nameのみ保持します。`);
-    if (subCategoryName && !matchedSubCategory) warnings.push(`${record.__rowNumber}行目：サブカテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName ? `${categoryName} / ` : ''}${subCategoryName}」は未登録です。nameのみ保持します。`);
+    if ((categoryGroupId || categoryGroupName) && !matchedGroup) warnings.push(`${record.__rowNumber}行目：カテゴリーグループ「${categoryGroupName || categoryGroupId}」は未登録です。入力値のみ保持します。`);
+    if ((categoryId || categoryName) && !matchedCategory) warnings.push(`${record.__rowNumber}行目：カテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName || categoryId}」は未登録です。入力値のみ保持します。`);
+    if ((subCategoryId || subCategoryName) && !matchedSubCategory) warnings.push(`${record.__rowNumber}行目：サブカテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName ? `${categoryName} / ` : ''}${subCategoryName || subCategoryId}」は未登録です。入力値のみ保持します。`);
     if ((salesAreaId || salesAreaName) && !matchedSalesArea) warnings.push(`${record.__rowNumber}行目：売場「${salesAreaName || salesAreaId}」は未登録です。入力値のみ保持します。`);
     if (brandName && !matchedBrand) warnings.push(`${record.__rowNumber}行目：ブランド「${brandName}」は未登録です。nameのみ保持します。`);
     if (supplierName && !matchedSupplier) warnings.push(`${record.__rowNumber}行目：仕入先「${supplierName}」は未登録です。nameのみ保持します。`);
@@ -407,13 +416,13 @@ export const buildProductCsvPreview = ({
       productCode: sku || normalizeCsvText(existingProduct?.productCode || existingProduct?.sku),
       name,
       barcode,
-      categoryId: matchedCategory?.id || '',
+      categoryId: matchedCategory?.id || categoryId,
       categoryName: matchedCategory?.name || categoryName,
-      subCategoryId: matchedSubCategory?.id || '',
+      subCategoryId: matchedSubCategory?.id || subCategoryId,
       subCategoryName: matchedSubCategory?.name || subCategoryName,
       salesAreaId: matchedSalesArea?.id || salesAreaId,
       salesAreaName: matchedSalesArea?.name || salesAreaName,
-      categoryGroupId: matchedGroup?.id || getMasterGroupId(matchedCategory) || '',
+      categoryGroupId: matchedGroup?.id || categoryGroupId || getMasterGroupId(matchedCategory) || '',
       categoryGroupName: matchedGroup?.name || getMasterGroupName(matchedCategory) || categoryGroupName,
       brandId: matchedBrand?.id || '',
       brandName: matchedBrand?.name || brandName,
