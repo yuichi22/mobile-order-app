@@ -1588,10 +1588,10 @@ const ProductMasterTable = ({
                           className={classNames(
                             'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
                             getGroupShopifyProductId(group)
-                              ? 'bg-emerald-50 text-emerald-600'
+                              ? 'bg-blue-50 text-blue-600'
                               : 'bg-slate-100 text-slate-400'
                           )}
-                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み' : 'ヘッダーのShopify同期から下書き作成します'}
+                          title={getGroupShopifyProductId(group) ? 'Shopify連携済み' : 'Shopify未同期です。ヘッダーのShopify同期から下書き作成します。'}
                         >
                           {getGroupShopifyProductId(group) ? '同期済み' : '未同期'}
                         </div>
