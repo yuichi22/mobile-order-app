@@ -373,7 +373,6 @@ const CsvImportWorkflowPanel = ({
       number="01"
       title="仕入先CSV取込"
       description="既存台帳の仕入先情報を、Akuto POSの仕入先マスターへ取り込みます。"
-      status="実装済み"
     >
       <MasterCsvImportPanel
         type="suppliers"
@@ -393,7 +392,6 @@ const CsvImportWorkflowPanel = ({
       number="02"
       title="ブランドCSV取込"
       description="ブランド情報をAkuto POSのブランドマスターへ取り込みます。仕入先ID/仕入先名があれば既存仕入先に紐づけます。"
-      status="実装済み"
     >
       <MasterCsvImportPanel
         type="brands"
@@ -413,7 +411,6 @@ const CsvImportWorkflowPanel = ({
       number="03"
       title="カテゴリー / カテゴリーグループCSV取込"
       description="既存台帳のカテゴリー・カテゴリーグループを、Akuto POSのカテゴリー・カテゴリーグループとして取り込みます。"
-      status="実装済み"
     >
       <MasterCsvImportPanel
         type="categories"
@@ -432,8 +429,7 @@ const CsvImportWorkflowPanel = ({
     <CsvImportStepCard
       number="04"
       title="商品CSV取込"
-      description="補助マスター登録後に商品を取り込みます。仕入先・ブランド・カテゴリーは名前一致でID紐づけします。"
-      status="実装済み"
+      description="補助マスター登録後に商品を取り込みます。バーコード一致は既存更新し、未登録の商品は新規追加します。"
     >
       <ProductCsvImportPanel
         storeId={storeId}
@@ -697,6 +693,10 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
               {page.eyebrow}
             </p>
+                <div data-ui-id="PRODUCT_CSV_FIXED_MODE_CARD_NOTICE" className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
+                  <span className="rounded-full bg-white px-2 py-1 shadow-sm">取込モード：新規追加・既存更新</span>
+                  <span className="rounded-full bg-white px-2 py-1 shadow-sm">判定キー：バーコード優先</span>
+                </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
               {page.title}
             </h1>

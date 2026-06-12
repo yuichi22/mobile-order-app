@@ -466,7 +466,7 @@ const ProductCsvMappingModal = ({
             <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">判定キー：バーコード優先</span>
           </div>
           <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
-            バーコードが一致する既存商品はCSV内容で更新し、未登録の商品は新規追加します。
+            バーコード一致は既存更新し、未登録の商品は新規追加します。
           </p>
         </div>
         <div className="border-b border-slate-100 bg-sky-50/80 px-6 py-5">
@@ -793,7 +793,7 @@ const ProductCsvImportPanel = ({
           <div>
             <div className="text-sm font-black text-slate-900">CSV取込</div>
             <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
-              CSV選択後、列の紐付けを確認してからプレビューします。既存品番・既存バーコードはスキップします。
+              CSV選択後、列の紐付けを確認してからプレビューします。バーコード一致は既存更新し、未登録の商品は新規追加します。
             </p>
           </div>
 
