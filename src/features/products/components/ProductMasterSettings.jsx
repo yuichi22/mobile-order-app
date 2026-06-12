@@ -1580,14 +1580,14 @@ const ProductMasterTable = ({
                           return (
                             <>
                               <PillToggle
-                                checked={isShopifyTarget}
+                                checked={isShopifyTarget || isShopifySynced}
                                 onChange={(value) => saveProductGroupShopifyEnabled(group, value)}
                                 disabled={savingKey === `shopify:${group.key}`}
-                                onLabel={isShopifySynced ? '連携済' : '同期対象'}
-                                offLabel="対象外"
+                                onLabel="Shopify"
+                                offLabel="Shopify"
                                 activeClassName={
                                   isShopifySynced
-                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
                                     : 'bg-slate-500 text-white shadow-sm shadow-slate-200'
                                 }
                                 inactiveClassName="bg-slate-200 text-slate-500"
@@ -1598,12 +1598,12 @@ const ProductMasterTable = ({
                                 className={classNames(
                                   'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
                                   isShopifySynced
-                                    ? 'bg-blue-50 text-blue-600'
+                                    ? 'bg-emerald-50 text-emerald-600'
                                     : 'bg-slate-100 text-slate-400'
                                 )}
-                                title={isShopifySynced ? 'Shopify連携済み' : 'Shopify未同期です。ヘッダーのShopify同期から下書き作成します。'}
+                                title={isShopifySynced ? 'Shopify連携済み' : isShopifyTarget ? 'Shopify同期対象ですが、まだShopify未同期です。' : 'Shopify未同期です。'}
                               >
-                                {isShopifySynced ? '同期済み' : '未同期'}
+                                {isShopifySynced ? 'Shopify' : '未同期'}
                               </div>
                             </>
                           );
