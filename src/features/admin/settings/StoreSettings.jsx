@@ -17,6 +17,7 @@ import {
   ScanLine,
   Settings,
   ShoppingCart,
+  Trash2,
   Store,
   Tag,
   Truck,
@@ -26,7 +27,7 @@ import {
   Package,
   ShoppingBag
 } from 'lucide-react';
-import { collection, doc, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
@@ -442,6 +443,381 @@ const mergeTaxPriceSettings = (source = {}) => {
   };
 };
 
+
+const CATEGORY_TAX_OPTIONS = [
+  { id: 'standard', label: '10% 標準税率', rate: 10 },
+  { id: 'reduced', label: '8% 軽減税率', rate: 8 },
+  { id: 'taxFree', label: '0% 非課税 / 対象外', rate: 0 }
+];
+
+const getCategoryTaxRuleValue = (item = {}) => {
+  const type = item.taxRateType || 'inherit';
+  if (['standard', 'reduced', 'taxFree'].includes(type)) return type;
+
+  const rate = Number(item.taxRate);
+  if (rate === 8) return 'reduced';
+  if (rate === 0) return 'taxFree';
+  if (rate === 10) return 'standard';
+
+  return 'standard';
+};
+
+const getCategoryTaxRuleLabel = (item = {}, defaultTaxRate = 10) => {
+  const type = item.taxRateType || 'inherit';
+  if (type === 'standard') return '10%';
+  if (type === 'reduced') return '8%';
+  if (type === 'taxFree') return '0%';
+
+  const rate = Number(item.taxRate);
+  if (Number.isFinite(rate)) return `${rate}%`;
+
+  const fallback = Number.isFinite(Number(defaultTaxRate)) ? Number(defaultTaxRate) : 10;
+  return `標準税率（${fallback}%）`;
+};
+
+const buildCategoryTaxRulePayload = (item = {}, taxRateType = 'standard') => {
+  const option = CATEGORY_TAX_OPTIONS.find((entry) => entry.id === taxRateType) || CATEGORY_TAX_OPTIONS[0];
+
+  return {
+    ...item,
+    taxRateType: option.id,
+    taxRate: option.rate
+  };
+};
+
+const buildCategoryTaxRuleResetPayload = (item = {}) => ({
+  ...item,
+  taxRateType: 'inherit',
+  taxRate: null
+});
+
+const normalizeCategoryTaxRuleRate = (value, fallback = 10) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return fallback;
+  return number;
+};
+
+const calculateCategoryTaxRuleIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded) || excluded <= 0) return null;
+
+  const rate = normalizeCategoryTaxRuleRate(taxRate, 10);
+  return Math.floor(excluded * (100 + rate) / 100);
+};
+
+const getCategoryTaxRuleMatchedProducts = ({
+  products = [],
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = ''
+}) => {
+  const id = String(masterId || '').trim();
+  const name = String(masterName || '').trim();
+
+  return (products || []).filter((product = {}) => {
+    if (!product?.id) return false;
+
+    if (cascadeTaxLevel === 'group') {
+      return (
+        (id && (product.categoryGroupId === id || product.groupId === id)) ||
+        (name && (product.categoryGroupName === name || product.groupName === name))
+      );
+    }
+
+    if (cascadeTaxLevel === 'category') {
+      return (
+        (id && (product.categoryId === id || product.categoryDocId === id)) ||
+        (name && product.categoryName === name)
+      );
+    }
+
+    if (cascadeTaxLevel === 'subCategory') {
+      return (
+        (id && (product.subCategoryId === id || product.subCategoryDocId === id)) ||
+        (name && product.subCategoryName === name)
+      );
+    }
+
+    return false;
+  });
+};
+
+const cascadeCategoryTaxRuleToProducts = async ({
+  storeId,
+  products = [],
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = '',
+  taxRate,
+  taxRateType = 'standard'
+}) => {
+  if (!storeId || !cascadeTaxLevel || !masterId) {
+    return { scanned: products.length, matched: 0, updated: 0 };
+  }
+
+  const normalizedTaxRate = normalizeCategoryTaxRuleRate(taxRate, 10);
+  const matchedProducts = getCategoryTaxRuleMatchedProducts({
+    products,
+    cascadeTaxLevel,
+    masterId,
+    masterName
+  });
+
+  let updated = 0;
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
+  for (const product of matchedProducts) {
+    const priceTaxExcluded = Number(product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? 0);
+    const priceTaxIncluded = calculateCategoryTaxRuleIncludedPrice(priceTaxExcluded, normalizedTaxRate);
+
+    batch.set(
+      doc(db, 'stores', storeId, 'products', product.id),
+      {
+        taxRate: normalizedTaxRate,
+        taxRateType,
+        priceTaxIncluded,
+        updatedAt: serverTimestamp(),
+        taxRateCascadeUpdatedAt: serverTimestamp(),
+        taxRateCascadeLevel: cascadeTaxLevel,
+        taxRateCascadeMasterId: masterId,
+        taxRateCascadeMasterName: masterName || ''
+      },
+      { merge: true }
+    );
+
+    updated += 1;
+    batchCount += 1;
+
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return {
+    scanned: products.length,
+    matched: matchedProducts.length,
+    updated
+  };
+};
+
+const CategoryTaxRulePanel = ({
+  title,
+  description,
+  items = [],
+  defaultTaxRate = 10,
+  storeId = '',
+  products = [],
+  cascadeTaxLevel = '',
+  onSave,
+  onSaved,
+  getOptionLabel = (item) => item.name || item.id,
+  getOptionSubLabel = () => '',
+  disabled = false
+}) => {
+  const activeItems = useMemo(() => (
+    (items || [])
+      .filter((item) => item?.id && item.isActive !== false)
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 999999;
+        const bSort = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 999999;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(getOptionLabel(a) || '').localeCompare(String(getOptionLabel(b) || ''), 'ja');
+      })
+  ), [items, getOptionLabel]);
+
+  const configuredItems = useMemo(() => (
+    activeItems.filter((item) => {
+      const type = item.taxRateType || 'inherit';
+      return ['standard', 'reduced', 'taxFree'].includes(type) || Number.isFinite(Number(item.taxRate));
+    })
+  ), [activeItems]);
+
+  const [selectedId, setSelectedId] = useState('');
+  const [taxRateType, setTaxRateType] = useState('standard');
+  const [savingKey, setSavingKey] = useState('');
+
+  const selectedItem = activeItems.find((item) => item.id === selectedId) || null;
+
+  useEffect(() => {
+    if (!selectedId && activeItems.length > 0) {
+      setSelectedId(activeItems[0].id);
+      setTaxRateType(getCategoryTaxRuleValue(activeItems[0]));
+    }
+  }, [activeItems, selectedId]);
+
+  const handleSelect = (value) => {
+    const item = activeItems.find((entry) => entry.id === value) || null;
+    setSelectedId(value);
+    setTaxRateType(item ? getCategoryTaxRuleValue(item) : 'standard');
+  };
+
+  const applyRule = async () => {
+    if (!selectedItem || typeof onSave !== 'function') return;
+
+    const payload = buildCategoryTaxRulePayload(selectedItem, taxRateType);
+
+    setSavingKey(`apply:${selectedItem.id}`);
+    try {
+      await onSave(payload);
+
+      const cascadeResult = await cascadeCategoryTaxRuleToProducts({
+        storeId,
+        products,
+        cascadeTaxLevel,
+        masterId: selectedItem.id,
+        masterName: getOptionLabel(selectedItem),
+        taxRate: payload.taxRate,
+        taxRateType: payload.taxRateType
+      });
+
+      if (cascadeResult.updated > 0) {
+        window.alert(`税率を配下商品 ${cascadeResult.updated.toLocaleString()} 件へ反映しました。`);
+      }
+
+      onSaved?.(`${title}を適用しました。`);
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const resetRule = async (item) => {
+    if (!item?.id || typeof onSave !== 'function') return;
+    if (!window.confirm(`${getOptionLabel(item)} の個別税率を解除し、標準税率へ戻しますか？`)) return;
+
+    const payload = buildCategoryTaxRuleResetPayload(item);
+    const fallbackTaxRate = normalizeCategoryTaxRuleRate(defaultTaxRate, 10);
+
+    setSavingKey(`reset:${item.id}`);
+    try {
+      await onSave(payload);
+
+      const cascadeResult = await cascadeCategoryTaxRuleToProducts({
+        storeId,
+        products,
+        cascadeTaxLevel,
+        masterId: item.id,
+        masterName: getOptionLabel(item),
+        taxRate: fallbackTaxRate,
+        taxRateType: 'inherit'
+      });
+
+      if (cascadeResult.updated > 0) {
+        window.alert(`標準税率を配下商品 ${cascadeResult.updated.toLocaleString()} 件へ反映しました。`);
+      }
+
+      onSaved?.(`${getOptionLabel(item)} の個別税率を解除しました。`);
+      if (selectedId === item.id) {
+        setTaxRateType('standard');
+      }
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Tax Rule</p>
+        <h4 className="mt-2 text-lg font-black text-slate-900">{title}</h4>
+        <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">{description}</p>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <label className="block">
+          <span className="text-xs font-black text-slate-500">対象</span>
+          <select
+            value={selectedId}
+            onChange={(event) => handleSelect(event.target.value)}
+            disabled={disabled || activeItems.length === 0 || Boolean(savingKey)}
+            className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {activeItems.length === 0 ? (
+              <option value="">対象がありません</option>
+            ) : null}
+            {activeItems.map((item) => {
+              const subLabel = getOptionSubLabel(item);
+              return (
+                <option key={item.id} value={item.id}>
+                  {getOptionLabel(item)}{subLabel ? ` / ${subLabel}` : ''}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-black text-slate-500">個別税率</span>
+          <select
+            value={taxRateType}
+            onChange={(event) => setTaxRateType(event.target.value)}
+            disabled={disabled || !selectedItem || Boolean(savingKey)}
+            className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {CATEGORY_TAX_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          onClick={applyRule}
+          disabled={disabled || !selectedItem || Boolean(savingKey)}
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {savingKey.startsWith('apply:') ? '適用中...' : '適用する'}
+        </button>
+      </div>
+
+      <div className="mt-6">
+        <p className="text-xs font-black text-slate-500">設定済み</p>
+        <div className="mt-2 space-y-2">
+          {configuredItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-400">
+              個別税率は未設定です。
+            </div>
+          ) : (
+            configuredItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-slate-800">{getOptionLabel(item)}</div>
+                  <div className="mt-0.5 text-xs font-bold text-slate-400">
+                    {getOptionSubLabel(item) || item.id}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+                    {getCategoryTaxRuleLabel(item, defaultTaxRate)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => resetRule(item)}
+                    disabled={Boolean(savingKey)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    title="個別税率を解除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
   const [settings, setSettings] = useState(() => mergeTaxPriceSettings());
   const [loading, setLoading] = useState(true);
@@ -698,96 +1074,65 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-3">
-          <SimpleMasterPanel
-            label="カテゴリーグループ"
-            blank={blankGroup}
+          <CategoryTaxRulePanel
+            title="カテゴリーグループの個別税率設定"
+            description="既存カテゴリーグループを選択し、個別税率を適用します。"
             items={productMaster?.productCategoryGroups || []}
-            fields={[
-              { id: 'name', label: 'グループ名' },
-              { id: 'sortOrder', label: '並び順', type: 'number' },
-              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' }
-            ]}
-            onSave={productMaster?.saveCategoryGroup}
-            onDelete={productMaster?.deleteCategoryGroup}
-            onSaved={onSaved}
             defaultTaxRate={settings.defaultTaxRate}
             storeId={storeId}
             products={productMaster?.products || []}
             cascadeTaxLevel="group"
-            productCategories={productMaster?.productCategories || []}
-            productCategoryGroups={productMaster?.productCategoryGroups || []}
-            productSubCategories={productMaster?.productSubCategories || []}
+            onSave={productMaster?.saveCategoryGroup}
+            onSaved={onSaved}
+            getOptionLabel={(item) => item.name || item.id}
+            getOptionSubLabel={(item) => item.id}
           />
 
-          <SimpleMasterPanel
-            label="カテゴリー"
-            blank={blankCategory}
+          <CategoryTaxRulePanel
+            title="カテゴリーの個別税率設定"
+            description="既存カテゴリーを選択し、個別税率を適用します。"
             items={productMaster?.productCategories || []}
-            fields={[
-              { id: 'name', label: 'カテゴリー名' },
-              { id: 'groupId', label: 'カテゴリーグループ', type: 'categoryGroupSelect' },
-              { id: 'sortOrder', label: '並び順', type: 'number' },
-              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
-              { id: 'color', label: 'カラー' }
-            ]}
-            onSave={productMaster?.saveCategory}
-            onDelete={productMaster?.deleteCategory}
-            onSaved={onSaved}
             defaultTaxRate={settings.defaultTaxRate}
             storeId={storeId}
             products={productMaster?.products || []}
             cascadeTaxLevel="category"
-            productCategories={productMaster?.productCategories || []}
-            productCategoryGroups={productMaster?.productCategoryGroups || []}
-            productSubCategories={productMaster?.productSubCategories || []}
-            onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+            onSave={productMaster?.saveCategory}
+            onSaved={onSaved}
+            getOptionLabel={(item) => item.name || item.id}
+            getOptionSubLabel={(item) => {
+              const group = (productMaster?.productCategoryGroups || []).find((entry) => entry.id === item.groupId);
+              return group?.name || item.groupName || item.id;
+            }}
           />
 
-          <SimpleMasterPanel
-            label="サブカテゴリー"
-            blank={{
-              ...blankCategory,
-              categoryId: '',
-              categoryName: '',
-              categoryGroupName: '',
-              subCategoryName: '',
-              taxRateType: 'inherit',
-              taxRate: null
-            }}
+          <CategoryTaxRulePanel
+            title="サブカテゴリーの個別税率設定"
+            description="既存サブカテゴリーを選択し、個別税率を適用します。"
             items={productMaster?.productSubCategories || []}
-            fields={[
-              { id: 'name', label: 'サブカテゴリー名' },
-              { id: 'categoryId', label: '親カテゴリー', type: 'categorySelect' },
-              { id: 'categoryName', label: '親カテゴリー名' },
-              { id: 'categoryGroupName', label: 'カテゴリーグループ名' },
-              { id: 'sortOrder', label: '並び順', type: 'number' },
-              { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
-              { id: 'color', label: 'カラー' }
-            ]}
-            onSave={(payload) => {
-              const { color, categoryColor, subCategoryColor, ...cleanSubCategoryPayload } = payload;
-              const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === cleanSubCategoryPayload.categoryId);
-              const matchedGroup = (productMaster?.productCategoryGroups || []).find((group) => group.id === matchedCategory?.groupId);
-
-              return productMaster?.saveSubCategory?.({
-                ...cleanSubCategoryPayload,
-                categoryName: matchedCategory?.name || cleanSubCategoryPayload.categoryName || '',
-                categoryGroupId: matchedCategory?.groupId || cleanSubCategoryPayload.categoryGroupId || '',
-                categoryGroupName: matchedGroup?.name || cleanSubCategoryPayload.categoryGroupName || '',
-                groupId: matchedCategory?.groupId || cleanSubCategoryPayload.groupId || '',
-                groupName: matchedGroup?.name || cleanSubCategoryPayload.groupName || '',
-                subCategoryName: cleanSubCategoryPayload.name || cleanSubCategoryPayload.subCategoryName || ''
-              });
-            }}
-            onDelete={productMaster?.deleteSubCategory}
-            onSaved={onSaved}
             defaultTaxRate={settings.defaultTaxRate}
             storeId={storeId}
             products={productMaster?.products || []}
             cascadeTaxLevel="subCategory"
-            productCategories={productMaster?.productCategories || []}
-            productCategoryGroups={productMaster?.productCategoryGroups || []}
-            productSubCategories={productMaster?.productSubCategories || []}
+            onSave={(payload) => {
+              const matchedCategory = (productMaster?.productCategories || []).find((category) => category.id === payload.categoryId);
+              const matchedGroup = (productMaster?.productCategoryGroups || []).find((group) => group.id === matchedCategory?.groupId);
+
+              return productMaster?.saveSubCategory?.({
+                ...payload,
+                categoryName: matchedCategory?.name || payload.categoryName || '',
+                categoryGroupId: matchedCategory?.groupId || payload.categoryGroupId || '',
+                categoryGroupName: matchedGroup?.name || payload.categoryGroupName || '',
+                groupId: matchedCategory?.groupId || payload.groupId || '',
+                groupName: matchedGroup?.name || payload.groupName || '',
+                subCategoryName: payload.name || payload.subCategoryName || ''
+              });
+            }}
+            onSaved={onSaved}
+            getOptionLabel={(item) => item.name || item.subCategoryName || item.id}
+            getOptionSubLabel={(item) => {
+              const category = (productMaster?.productCategories || []).find((entry) => entry.id === item.categoryId);
+              return category?.name || item.categoryName || item.id;
+            }}
           />
         </div>
       </div>
