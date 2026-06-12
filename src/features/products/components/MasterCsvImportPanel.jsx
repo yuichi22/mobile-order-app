@@ -144,9 +144,6 @@ const MasterCsvMappingModal = ({
     }));
   };
 
-  const updateCount = preview?.importableItems?.filter((item) => item.importAction === 'update').length || 0;
-  const createCount = preview?.importableItems?.filter((item) => item.importAction !== 'update').length || 0;
-
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
       <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
@@ -438,6 +435,9 @@ const MasterCsvImportPanel = ({
       setSaving(false);
     }
   };
+
+  const updateCount = preview?.importableItems?.filter((item) => item.importAction === 'update').length || 0;
+  const createCount = preview?.importableItems?.filter((item) => item.importAction !== 'update').length || 0;
 
   return (
     <div className="rounded-3xl border-2 border-blue-100 bg-blue-50/60 p-4">
