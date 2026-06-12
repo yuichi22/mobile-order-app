@@ -431,6 +431,10 @@ const CsvImportWorkflowPanel = ({
       title="商品CSV取込"
       description="補助マスター登録後に商品を取り込みます。バーコード一致は既存更新し、未登録の商品は新規追加します。"
     >
+      <div data-ui-id="PRODUCT_CSV_FIXED_MODE_CARD_NOTICE" className="mb-4 flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
+        <span className="rounded-full bg-white px-2 py-1 shadow-sm">取込モード：新規追加・既存更新</span>
+        <span className="rounded-full bg-white px-2 py-1 shadow-sm">判定キー：バーコード優先</span>
+      </div>
       <ProductCsvImportPanel
         storeId={storeId}
         products={productMaster?.products || []}
@@ -693,10 +697,6 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
               {page.eyebrow}
             </p>
-                <div data-ui-id="PRODUCT_CSV_FIXED_MODE_CARD_NOTICE" className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
-                  <span className="rounded-full bg-white px-2 py-1 shadow-sm">取込モード：新規追加・既存更新</span>
-                  <span className="rounded-full bg-white px-2 py-1 shadow-sm">判定キー：バーコード優先</span>
-                </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
               {page.title}
             </h1>
