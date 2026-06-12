@@ -1310,7 +1310,7 @@ const CsvImportWorkflowPanel = ({
 );
 
 
-const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
+const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10, onSaved }) => {
   const page = POS_DUMMY_PAGES[item?.id] || {
     title: item?.label || '準備中',
     eyebrow: 'Coming Soon',
@@ -1342,7 +1342,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
           <CsvImportWorkflowPanel
             storeId={storeId}
             productMaster={productMaster}
-            defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+            defaultTaxRate={defaultTaxRate}
             onSaved={onSaved}
           />
         );
@@ -2609,6 +2609,7 @@ export const StoreSettings = ({
                 item={activeMenuItem}
                 productMaster={productMaster}
                 storeId={storeId}
+                defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
                 onSaved={showSaveComplete}
               />
             )}
