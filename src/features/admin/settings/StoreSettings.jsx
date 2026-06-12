@@ -497,6 +497,87 @@ const CSV_TEMPLATE_DEFINITIONS = [
   }
 ];
 
+
+const CSV_TEMPLATE_SAMPLE_ROW_COUNT = 20;
+
+const padTemplateSampleIndex = (index, width = 3) => String(index + 1).padStart(width, '0');
+
+const replaceTrailingTemplateNumber = (value, index, width = 3) => {
+  const source = String(value || '');
+  const suffix = padTemplateSampleIndex(index, width);
+  if (!source) return source;
+  if (/\d+$/.test(source)) {
+    return source.replace(/\d+$/, suffix);
+  }
+  return `${source}-${suffix}`;
+};
+
+const buildTemplateSampleValue = (key, value, index) => {
+  if (index === 0 || value === null || value === undefined || value === '') {
+    return value;
+  }
+
+  const source = String(value);
+  const suffix = padTemplateSampleIndex(index);
+
+  if (key === 'barcode') {
+    return `49000000${String(index + 1).padStart(5, '0')}`;
+  }
+
+  if ([
+    'supplierId',
+    'brandId',
+    'categoryGroupId',
+    'categoryId',
+    'subCategoryId',
+    'productCode',
+    'sku'
+  ].includes(key)) {
+    return replaceTrailingTemplateNumber(source, index);
+  }
+
+  if ([
+    'name',
+    'supplierName',
+    'brandName',
+    'categoryGroupName',
+    'categoryName',
+    'subCategoryName'
+  ].includes(key)) {
+    return `${source} ${suffix}`;
+  }
+
+  if (key === 'sortOrder') {
+    const base = Number(source);
+    return Number.isFinite(base) ? String(base + index * 10) : String((index + 1) * 10);
+  }
+
+  if (key === 'stockQuantity') {
+    const base = Number(source);
+    return Number.isFinite(base) ? String(base + index) : String(index + 1);
+  }
+
+  if (key === 'note') {
+    return `${source} ${suffix}`;
+  }
+
+  return value;
+};
+
+const expandTemplateSampleRows = (template) => {
+  const sampleRows = Array.isArray(template?.sampleRows) ? template.sampleRows : [];
+  const columns = Array.isArray(template?.columns) ? template.columns : [];
+  if (!sampleRows.length || !columns.length) return sampleRows;
+
+  return Array.from({ length: CSV_TEMPLATE_SAMPLE_ROW_COUNT }, (_, index) => {
+    const baseRow = sampleRows[index % sampleRows.length] || {};
+    return columns.reduce((row, column) => {
+      row[column.key] = buildTemplateSampleValue(column.key, baseRow[column.key], index);
+      return row;
+    }, {});
+  });
+};
+
 const escapeTemplateCsvValue = (value) => {
   const normalized = value === null || value === undefined ? '' : String(value);
   if (/[",\n\r]/.test(normalized)) {
@@ -507,9 +588,10 @@ const escapeTemplateCsvValue = (value) => {
 
 const buildTemplateCsvText = (template, withSampleRows = false) => {
   const header = template.columns.map((column) => escapeTemplateCsvValue(column.label)).join(',');
-  const rows = withSampleRows
-    ? template.sampleRows.map((row) => template.columns.map((column) => escapeTemplateCsvValue(row[column.key])).join(','))
-    : [];
+  const sampleRows = withSampleRows ? expandTemplateSampleRows(template) : [];
+  const rows = sampleRows.map((row) => (
+    template.columns.map((column) => escapeTemplateCsvValue(row[column.key])).join(',')
+  ));
   return [header, ...rows].join('\n');
 };
 
