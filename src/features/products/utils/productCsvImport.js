@@ -39,7 +39,8 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   groupCode: ['groupCode', 'グループコード', 'group_code'],
   category: ['category', 'カテゴリー', 'カテゴリ', '部門', '部門名', 'Type'],
   subCategory: ['subCategory', 'subCategoryName', 'サブカテゴリー', 'サブカテゴリー名', '小カテゴリー', '小分類', 'Shopify Sub Category'],
-  salesArea: ['salesArea', 'salesAreaName', '売場', '売場名', '販売エリア', '売場分類'],
+  salesAreaId: ['salesAreaId', '売場ID', '販売エリアID', 'sales_area_id'],
+  salesAreaName: ['salesAreaName', 'salesArea', '売場', '売場名', '販売エリア', '売場分類'],
   categoryGroup: ['categoryGroup', 'category_group', 'カテゴリーグループ', '部門グループ', '部門グループ名', 'Product Category'],
   brand: ['brand', 'ブランド', 'Vendor'],
   supplier: ['supplier', '仕入先', '仕入先名'],
@@ -175,6 +176,12 @@ const findMasterByName = (items, name) => {
   const normalizedName = normalizeMasterName(name);
   if (!normalizedName) return null;
   return (items || []).find((item) => normalizeMasterName(item.name) === normalizedName) || null;
+};
+
+const findMasterById = (items, id) => {
+  const normalizedId = normalizeMasterId(id);
+  if (!normalizedId) return null;
+  return (items || []).find((item) => normalizeMasterId(item.id) === normalizedId) || null;
 };
 
 const normalizeMasterId = (value) => String(value || '').trim();
@@ -361,7 +368,8 @@ export const buildProductCsvPreview = ({
 
     const categoryName = normalizeCsvText(record.category);
     const subCategoryName = normalizeCsvText(record.subCategory);
-    const salesAreaName = normalizeCsvText(record.salesArea);
+    const salesAreaId = normalizeCsvText(record.salesAreaId);
+    const salesAreaName = normalizeCsvText(record.salesAreaName || record.salesArea);
     const categoryGroupName = normalizeCsvText(record.categoryGroup);
     const brandName = normalizeCsvText(record.brand);
     const supplierName = normalizeCsvText(record.supplier);
@@ -376,14 +384,14 @@ export const buildProductCsvPreview = ({
       categoryName,
       categoryGroupName
     );
-    const matchedSalesArea = findMasterByName(productSalesAreas, salesAreaName);
+    const matchedSalesArea = findMasterById(productSalesAreas, salesAreaId) || findMasterByName(productSalesAreas, salesAreaName);
     const matchedBrand = findMasterByName(brands, brandName);
     const matchedSupplier = findMasterByName(suppliers, supplierName);
 
     if (categoryGroupName && !matchedGroup) warnings.push(`${record.__rowNumber}行目：カテゴリーグループ「${categoryGroupName}」は未登録です。nameのみ保持します。`);
     if (categoryName && !matchedCategory) warnings.push(`${record.__rowNumber}行目：カテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName}」は未登録です。nameのみ保持します。`);
     if (subCategoryName && !matchedSubCategory) warnings.push(`${record.__rowNumber}行目：サブカテゴリー「${categoryGroupName ? `${categoryGroupName} / ` : ''}${categoryName ? `${categoryName} / ` : ''}${subCategoryName}」は未登録です。nameのみ保持します。`);
-    if (salesAreaName && !matchedSalesArea) warnings.push(`${record.__rowNumber}行目：売場「${salesAreaName}」は未登録です。nameのみ保持します。`);
+    if ((salesAreaId || salesAreaName) && !matchedSalesArea) warnings.push(`${record.__rowNumber}行目：売場「${salesAreaName || salesAreaId}」は未登録です。入力値のみ保持します。`);
     if (brandName && !matchedBrand) warnings.push(`${record.__rowNumber}行目：ブランド「${brandName}」は未登録です。nameのみ保持します。`);
     if (supplierName && !matchedSupplier) warnings.push(`${record.__rowNumber}行目：仕入先「${supplierName}」は未登録です。nameのみ保持します。`);
 
@@ -400,7 +408,7 @@ export const buildProductCsvPreview = ({
       categoryName: matchedCategory?.name || categoryName,
       subCategoryId: matchedSubCategory?.id || '',
       subCategoryName: matchedSubCategory?.name || subCategoryName,
-      salesAreaId: matchedSalesArea?.id || '',
+      salesAreaId: matchedSalesArea?.id || salesAreaId,
       salesAreaName: matchedSalesArea?.name || salesAreaName,
       categoryGroupId: matchedGroup?.id || getMasterGroupId(matchedCategory) || '',
       categoryGroupName: matchedGroup?.name || getMasterGroupName(matchedCategory) || categoryGroupName,

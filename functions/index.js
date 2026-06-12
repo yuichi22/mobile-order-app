@@ -5923,7 +5923,8 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     categoryGroup: findWorkerHeaderIndex(headers, ['categoryGroup', 'categoryGroupName', 'カテゴリグループ', 'カテゴリーグループ']),
     category: findWorkerHeaderIndex(headers, ['category', 'categoryName', 'カテゴリ', 'カテゴリー']),
     subCategory: findWorkerHeaderIndex(headers, ['subCategory', 'subCategoryName', 'サブカテゴリ', 'サブカテゴリー']),
-    salesAreaName: findWorkerHeaderIndex(headers, ['salesAreaName', '売場', '販売エリア']),
+    salesAreaId: findWorkerHeaderIndex(headers, ['salesAreaId', '売場ID', '販売エリアID']),
+    salesAreaName: findWorkerHeaderIndex(headers, ['salesAreaName', 'salesArea', '売場', '販売エリア']),
     size: findWorkerHeaderIndex(headers, ['size', 'サイズ']),
     colorName: findWorkerHeaderIndex(headers, ['colorName', 'color', 'カラー', '色']),
     priceTaxIncluded: findWorkerHeaderIndex(headers, ['priceTaxIncluded', '税込価格', '税込売価']),
@@ -5954,6 +5955,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     const categoryGroup = getWorkerCell(row, indexes.categoryGroup);
     const category = getWorkerCell(row, indexes.category);
     const subCategory = getWorkerCell(row, indexes.subCategory);
+    const salesAreaId = getWorkerCell(row, indexes.salesAreaId);
     const salesAreaName = getWorkerCell(row, indexes.salesAreaName);
     const size = getWorkerCell(row, indexes.size);
     const colorName = getWorkerCell(row, indexes.colorName);
@@ -5993,6 +5995,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
         categoryGroupName: categoryGroup || '',
         categoryName: category || '',
         subCategoryName: subCategory || '',
+        salesAreaId: salesAreaId || '',
         salesAreaName: salesAreaName || '',
         brandName: brand || '',
         productCount: 0,
@@ -6035,6 +6038,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
       categoryGroupName: categoryGroup || '',
       categoryName: category || '',
       subCategoryName: subCategory || '',
+      salesAreaId: salesAreaId || '',
       salesAreaName: salesAreaName || '',
       size,
       colorName,
@@ -6211,6 +6215,7 @@ const executeProductCsvFunctionWritesForWorker = async ({
       categoryGroupName: group.categoryGroupName || '',
       categoryName: group.categoryName || '',
       subCategoryName: group.subCategoryName || '',
+      salesAreaId: group.salesAreaId || '',
       salesAreaName: group.salesAreaName || '',
       brandName: group.brandName || '',
       productCount: Number(group.productCount || 0),
@@ -6266,7 +6271,7 @@ const executeProductCsvFunctionWritesForWorker = async ({
       categoryName: product.categoryName || '',
       subCategoryId: '',
       subCategoryName: product.subCategoryName || '',
-      salesAreaId: '',
+      salesAreaId: product.salesAreaId || '',
       salesAreaName: product.salesAreaName || '',
       departmentId: '',
       groupCode: product.groupCode || '',
