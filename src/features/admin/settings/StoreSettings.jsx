@@ -1270,13 +1270,15 @@ const buildProductExportRows = ({
   brands = [],
   suppliers = [],
   categories = [],
-  categoryGroups = []
+  categoryGroups = [],
+  subCategories = []
 }) => {
   const groupsById = new Map(productGroups.map((group) => [group.id, group]));
   const brandsById = new Map(brands.map((brand) => [brand.id, brand]));
   const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const categoryGroupsById = new Map(categoryGroups.map((group) => [group.id, group]));
+  const subCategoriesById = new Map(subCategories.map((subCategory) => [subCategory.id, subCategory]));
 
   return products
     .map((product) => {
@@ -1285,7 +1287,8 @@ const buildProductExportRows = ({
       const productSupplier = suppliersById.get(product.supplierId || '') || null;
       const brandSupplier = suppliersById.get(brand?.supplierId || '') || null;
       const category = categoriesById.get(product.categoryId || group?.categoryId || '') || null;
-      const categoryGroup = categoryGroupsById.get(product.categoryGroupId || group?.categoryGroupId || category?.groupId || category?.categoryGroupId || '') || null;
+      const subCategory = subCategoriesById.get(product.subCategoryId || group?.subCategoryId || '') || null;
+      const categoryGroup = categoryGroupsById.get(product.categoryGroupId || group?.categoryGroupId || category?.groupId || category?.categoryGroupId || subCategory?.categoryGroupId || subCategory?.groupId || '') || null;
 
       const supplierName = product.supplierName
         || productSupplier?.name
@@ -1307,7 +1310,8 @@ const buildProductExportRows = ({
         supplierName,
         categoryGroupName: product.categoryGroupName || group?.categoryGroupName || categoryGroup?.name || categoryGroup?.groupName || '',
         categoryName: product.categoryName || group?.categoryName || category?.name || category?.categoryName || '',
-        subCategoryName: product.subCategoryName || '',
+        subCategoryId: product.subCategoryId || group?.subCategoryId || subCategory?.id || '',
+        subCategoryName: product.subCategoryName || group?.subCategoryName || subCategory?.name || subCategory?.subCategoryName || '',
         colorName: product.colorName || product.color || '',
         size: product.size || product.sizeName || '',
         priceTaxIncluded: product.priceTaxIncluded ?? product.price ?? product.salesPrice ?? '',
@@ -1441,6 +1445,7 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
           'supplierName',
           'categoryGroupName',
           'categoryName',
+          'subCategoryId',
           'subCategoryName',
           'colorName',
           'size',
@@ -1456,7 +1461,8 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
           brands,
           suppliers,
           categories: productCategories,
-          categoryGroups: productCategoryGroups
+          categoryGroups: productCategoryGroups,
+          subCategories: productSubCategories
         })
       );
     } catch (error) {
