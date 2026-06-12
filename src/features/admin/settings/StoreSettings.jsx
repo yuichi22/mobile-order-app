@@ -2552,7 +2552,10 @@ export const StoreSettings = ({
               onExternalKeywordChange={onPosProductKeywordChange}
               shopifySettings={productMaster?.shopifySettings}
               onSaveShopifySettings={productMaster?.saveShopifySettings}
-            />
+                          defaultTaxRate={Number(settings?.taxRate) === 8 ? 8 : 10}
+              onSaveSubCategory={productMaster?.saveSubCategory}
+              onDeleteSubCategory={productMaster?.deleteSubCategory}
+/>
           )}
 
           {settingsMode === 'pos'

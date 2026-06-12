@@ -422,7 +422,8 @@ const ProductMasterTable = ({
   onDeleteProduct,
   onCreateShopifyDraftProduct,
   onUpdateShopifyProduct,
-  onSaved
+  onSaved,
+  defaultTaxRate = 10
 }) => {
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
@@ -1513,7 +1514,8 @@ const ProductMasterTable = ({
 export const ShopifySettingsPanel = ({
   settings,
   onSave,
-  onSaved
+  onSaved,
+  defaultTaxRate = 10
 }) => {
   const [draft, setDraft] = useState({
     shopDomain: '',
@@ -2730,7 +2732,7 @@ export const SimpleMasterPanel = ({
       <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-slate-400">
         {[
           item.groupName || productCategoryGroups.find((group) => group.id === item.groupId)?.name || item.supplierName || item.kana || item.contactName || item.paymentTerms || item.brandProfile || item.note || item.id,
-          item.taxRateType !== undefined ? `税率: ${formatMasterTaxRateLabel(item)}` : ''
+          item.taxRateType !== undefined ? `税率: ${formatMasterTaxRateLabel(item, defaultTaxRate)}` : ''
         ].filter(Boolean).join(' / ')}
       </div>
     );
@@ -2981,7 +2983,7 @@ export const SimpleMasterPanel = ({
                   }}
                   className="mt-1 h-11 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none transition focus:border-orange-300 disabled:bg-slate-50 disabled:text-slate-400"
                 >
-                  {getMasterTaxRateOptions().map((option) => (
+                  {getMasterTaxRateOptions(defaultTaxRate).map((option) => (
                     <option key={option.id} value={option.id}>{option.label}</option>
                   ))}
                 </select>
@@ -3406,6 +3408,8 @@ const ProductMasterSettings = ({
   onDeleteCategory,
   onSaveCategoryGroup,
   onDeleteCategoryGroup,
+  onSaveSubCategory,
+  onDeleteSubCategory,
   onSaveBrand,
   onDeleteBrand,
   onSaveSupplier,
@@ -3604,8 +3608,8 @@ const ProductMasterSettings = ({
                     { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
                     { id: 'color', label: 'カラー' }
                   ]}
-                  onSave={() => undefined}
-                  onDelete={() => undefined}
+                  onSave={onSaveSubCategory}
+                  onDelete={onDeleteSubCategory}
                   onSaved={onSaved}
                   productCategories={productCategories}
                   productCategoryGroups={productCategoryGroups}
@@ -3682,8 +3686,8 @@ const ProductMasterSettings = ({
                   { id: 'taxRateType', label: '税率', type: 'taxRateSelect' },
                 { id: 'color', label: 'カラー' }
               ]}
-              onSave={() => undefined}
-              onDelete={() => undefined}
+              onSave={onSaveSubCategory}
+              onDelete={onDeleteSubCategory}
               onSaved={onSaved}
             />
           )}
