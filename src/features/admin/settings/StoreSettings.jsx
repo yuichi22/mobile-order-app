@@ -357,6 +357,232 @@ const EcIntegrationPanel = ({
   return <EcIntegrationComingSoonPanel title={labels[activeTab] || 'EC'} />;
 };
 
+
+const CSV_TEMPLATE_DEFINITIONS = [
+  {
+    id: 'suppliers',
+    title: '仕入先CSVテンプレート',
+    description: '仕入先マスターを登録・更新するためのCSVです。',
+    filename: 'akuto-suppliers-template',
+    columns: [
+      { key: 'supplierId', label: '仕入先ID' },
+      { key: 'name', label: '仕入先名' },
+      { key: 'contactName', label: '担当者' },
+      { key: 'tel', label: '電話番号' },
+      { key: 'fax', label: 'FAX番号' },
+      { key: 'email', label: 'メールアドレス' },
+      { key: 'address', label: '住所' },
+      { key: 'backorderValidDays', label: '受注残有効日数' },
+      { key: 'orderListPrice', label: '発注上代' },
+      { key: 'defaultCostRate', label: '掛率' },
+      { key: 'note', label: 'メモ' }
+    ],
+    sampleRows: [
+      {
+        supplierId: 'SUP-001',
+        name: 'サンプル仕入先',
+        contactName: '山田太郎',
+        tel: '0852-00-0000',
+        fax: '0852-00-0001',
+        email: 'sample@example.com',
+        address: '島根県松江市',
+        backorderValidDays: '30',
+        orderListPrice: '1000',
+        defaultCostRate: '60',
+        note: 'サンプル'
+      }
+    ]
+  },
+  {
+    id: 'brands',
+    title: 'ブランドCSVテンプレート',
+    description: 'ブランドマスターを登録・更新し、仕入先IDまたは仕入先名で仕入先に紐づけます。',
+    filename: 'akuto-brands-template',
+    columns: [
+      { key: 'brandId', label: 'ブランドID' },
+      { key: 'name', label: 'ブランド名' },
+      { key: 'stocktakingTypeCode', label: '棚卸区分コード' },
+      { key: 'supplierId', label: '仕入先ID' },
+      { key: 'supplierName', label: '仕入先名' },
+      { key: 'note', label: 'メモ' }
+    ],
+    sampleRows: [
+      {
+        brandId: 'BR-001',
+        name: 'サンプルブランド',
+        stocktakingTypeCode: '',
+        supplierId: 'SUP-001',
+        supplierName: 'サンプル仕入先',
+        note: 'サンプル'
+      }
+    ]
+  },
+  {
+    id: 'categories',
+    title: 'カテゴリーCSVテンプレート',
+    description: 'カテゴリーグループとカテゴリーをまとめて登録・更新するためのCSVです。',
+    filename: 'akuto-categories-template',
+    columns: [
+      { key: 'categoryGroupId', label: 'カテゴリーグループID' },
+      { key: 'categoryGroupName', label: 'カテゴリーグループ名' },
+      { key: 'categoryId', label: 'カテゴリーID' },
+      { key: 'categoryName', label: 'カテゴリー名' },
+      { key: 'sortOrder', label: '並び順' },
+      { key: 'departmentId', label: '部門ID' },
+      { key: 'color', label: 'カラー' },
+      { key: 'note', label: 'メモ' }
+    ],
+    sampleRows: [
+      {
+        categoryGroupId: 'CG-001',
+        categoryGroupName: '生活雑貨',
+        categoryId: 'CAT-001',
+        categoryName: '食器',
+        sortOrder: '10',
+        departmentId: 'retail',
+        color: '#64748b',
+        note: 'サンプル'
+      }
+    ]
+  },
+  {
+    id: 'products',
+    title: '商品CSVテンプレート',
+    description: '商品マスターを登録・更新するためのCSVです。バーコード一致は既存更新し、未登録の商品は新規追加します。',
+    filename: 'akuto-products-template',
+    columns: [
+      { key: 'barcode', label: 'バーコード' },
+      { key: 'productCode', label: '品番' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'name', label: '商品名' },
+      { key: 'size', label: 'サイズ' },
+      { key: 'color', label: 'カラー' },
+      { key: 'categoryGroupName', label: 'カテゴリーグループ名' },
+      { key: 'categoryName', label: 'カテゴリー名' },
+      { key: 'brandName', label: 'ブランド名' },
+      { key: 'supplierName', label: '仕入先名' },
+      { key: 'costPrice', label: '原価' },
+      { key: 'price', label: '販売価格' },
+      { key: 'taxRate', label: '税率' },
+      { key: 'stockQuantity', label: '在庫数' },
+      { key: 'unit', label: '単位' },
+      { key: 'note', label: 'メモ' },
+      { key: 'isActive', label: '有効' }
+    ],
+    sampleRows: [
+      {
+        barcode: '4900000000001',
+        productCode: 'AKUTO-SAMPLE-001',
+        sku: 'AKUTO-SAMPLE-001',
+        name: 'サンプル商品',
+        size: 'M',
+        color: 'WHITE',
+        categoryGroupName: '生活雑貨',
+        categoryName: '食器',
+        brandName: 'サンプルブランド',
+        supplierName: 'サンプル仕入先',
+        costPrice: '600',
+        price: '1000',
+        taxRate: '10',
+        stockQuantity: '10',
+        unit: '点',
+        note: 'サンプル',
+        isActive: 'TRUE'
+      }
+    ]
+  }
+];
+
+const escapeTemplateCsvValue = (value) => {
+  const normalized = value === null || value === undefined ? '' : String(value);
+  if (/[",\n\r]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+  return normalized;
+};
+
+const buildTemplateCsvText = (template, withSampleRows = false) => {
+  const header = template.columns.map((column) => escapeTemplateCsvValue(column.label)).join(',');
+  const rows = withSampleRows
+    ? template.sampleRows.map((row) => template.columns.map((column) => escapeTemplateCsvValue(row[column.key])).join(','))
+    : [];
+  return [header, ...rows].join('\n');
+};
+
+const downloadCsvTemplate = (template, withSampleRows = false) => {
+  const csvText = buildTemplateCsvText(template, withSampleRows);
+  const blob = new Blob(['\ufeff', csvText], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${template.filename}${withSampleRows ? '-sample' : ''}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+};
+
+const CsvTemplateWorkflowPanel = () => (
+  <div className="space-y-4">
+    <div className="rounded-[2rem] border border-blue-100 bg-blue-50 px-5 py-4">
+      <p className="text-sm font-black text-blue-700">CSVテンプレート</p>
+      <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+        取込用CSVのヘッダーをダウンロードできます。初回作成時はサンプル付き、実運用では空テンプレートを使ってください。
+      </p>
+    </div>
+
+    <div className="grid gap-4 lg:grid-cols-2">
+      {CSV_TEMPLATE_DEFINITIONS.map((template) => (
+        <div key={template.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="text-base font-black text-slate-900">{template.title}</h4>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">{template.description}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {template.id === 'products' && (
+              <>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">新規追加・既存更新</span>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">バーコード優先</span>
+              </>
+            )}
+            {template.id !== 'products' && (
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">新規のみ追加 / 新規追加・既存更新</span>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="text-xs font-black text-slate-500">列項目</p>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+              {template.columns.map((column) => column.label).join(' / ')}
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => downloadCsvTemplate(template, false)}
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-700"
+            >
+              空テンプレート
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadCsvTemplate(template, true)}
+              className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-blue-500"
+            >
+              サンプル付き
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+
 const CsvImportWorkflowPanel = ({
   storeId,
   productMaster,
@@ -832,7 +1058,9 @@ const TimeSettings = ({
           onSave={onSavePeriods}
           onSaved={onSaved}
         />
-      ) : (
+      ) : activeCsvTab === 'templates' ? (
+            <CsvTemplateWorkflowPanel />
+          ) : (
         <BusinessSettings
           settings={businessSettings}
           onSave={updateBusinessSettings}
