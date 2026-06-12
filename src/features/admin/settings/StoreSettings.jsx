@@ -1342,7 +1342,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, onSaved }) => {
           <CsvImportWorkflowPanel
             storeId={storeId}
             productMaster={productMaster}
-        defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+            defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
             onSaved={onSaved}
           />
         );
@@ -2595,7 +2595,7 @@ export const StoreSettings = ({
               onExternalKeywordChange={onPosProductKeywordChange}
               shopifySettings={productMaster?.shopifySettings}
               onSaveShopifySettings={productMaster?.saveShopifySettings}
-              defaultTaxRate={defaultTaxRate}
+              defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
             />
           )}
 
