@@ -335,6 +335,17 @@ const resolveProductCsvTaxRate = ({
   return Number(defaultTaxRate) === 8 ? 8 : 10;
 };
 
+
+const calculateProductCsvTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded)) return null;
+
+  const rate = Number(taxRate);
+  const normalizedRate = Number.isFinite(rate) ? Math.max(rate, 0) : 10;
+
+  return Math.floor(excluded * (100 + normalizedRate) / 100);
+};
+
 export const buildProductCsvRecordsFromMapping = (rows, mappingDraft = []) => {
   const records = rows.slice(1).map((row, rowIndex) => {
     const record = { __rowNumber: rowIndex + 2 };
@@ -460,6 +471,19 @@ export const buildProductCsvPreview = ({
 
     const orderLot = normalizeCsvNumber(record.orderLot, 0);
 
+    const resolvedTaxRate = resolveProductCsvTaxRate({
+      record,
+      matchedSubCategory,
+      matchedCategory,
+      matchedGroup,
+      defaultTaxRate
+    });
+    const resolvedPriceTaxExcluded = normalizeCsvNumber(record.priceTaxExcluded, 0);
+    const resolvedPriceTaxIncluded = normalizeCsvNumber(
+      record.priceTaxIncluded,
+      calculateProductCsvTaxIncludedPrice(resolvedPriceTaxExcluded, resolvedTaxRate)
+    );
+
     importableProducts.push({
       __rowNumber: record.__rowNumber,
       id: existingProduct?.id || '',
@@ -481,16 +505,10 @@ export const buildProductCsvPreview = ({
       supplierName: matchedSupplier?.name || supplierName,
       size: normalizeCsvText(record.size),
       colorName: normalizeCsvText(record.colorName),
-      priceTaxExcluded: normalizeCsvNumber(record.priceTaxExcluded, 0),
-      priceTaxIncluded: normalizeCsvNumber(record.priceTaxIncluded, null),
+      priceTaxExcluded: resolvedPriceTaxExcluded,
+      priceTaxIncluded: resolvedPriceTaxIncluded,
       costTaxExcluded: normalizeCsvNumber(record.costTaxExcluded, 0),
-      taxRate: resolveProductCsvTaxRate({
-        record,
-        matchedSubCategory,
-        matchedCategory,
-        matchedGroup,
-        defaultTaxRate
-      }),
+      taxRate: resolvedTaxRate,
       inventoryQuantity: normalizeCsvNumber(record.inventoryQuantity, 0),
       reorderPoint: normalizeCsvNumber(record.reorderPoint, 0),
       reorderQuantity: normalizeCsvNumber(record.reorderQuantity, 0),

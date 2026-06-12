@@ -410,6 +410,17 @@ const isSavedProductVisibleInSnapshot = (product = {}, saved = {}) => (
   ))
 );
 
+
+const calculateProductMasterTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded)) return '';
+
+  const rate = Number(taxRate);
+  const normalizedRate = Number.isFinite(rate) ? Math.max(rate, 0) : 10;
+
+  return Math.floor(excluded * (100 + normalizedRate) / 100);
+};
+
 const ProductMasterTable = ({
   products,
   productCategories,
@@ -1236,8 +1247,11 @@ const ProductMasterTable = ({
           </div>
 
           <div>
-            <FieldLabel>価格</FieldLabel>
+            <FieldLabel>税抜売価</FieldLabel>
             <TableTextInput type="number" value={row.priceTaxExcluded} onChange={(value) => update({ priceTaxExcluded: value })} placeholder="税抜売価" className="text-right" />
+            <div className="mt-1 text-right text-[11px] font-bold text-slate-400">
+              税込参考: {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, row.taxRate ?? 10) || 0).toLocaleString()}
+            </div>
           </div>
 
           <div>

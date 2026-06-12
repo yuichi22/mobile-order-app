@@ -5765,6 +5765,17 @@ const getWorkerCell = (row = [], index = -1) => {
 };
 
 
+
+const calculateWorkerTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded)) return null;
+
+  const rate = Number(taxRate);
+  const normalizedRate = Number.isFinite(rate) ? Math.max(rate, 0) : 10;
+
+  return Math.floor(excluded * (100 + normalizedRate) / 100);
+};
+
 const normalizeWorkerTaxRateType = (value) => (
   ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : ''
 );
@@ -6342,6 +6353,18 @@ const executeProductCsvFunctionWritesForWorker = async ({
       product.colorName
     ]);
 
+    const resolvedTaxRate = resolveWorkerProductTaxRate({
+      product,
+      productCategoryGroups,
+      productCategories,
+      productSubCategories,
+      defaultTaxRate
+    });
+    const resolvedPriceTaxIncluded = product.priceTaxIncluded ?? calculateWorkerTaxIncludedPrice(
+      product.priceTaxExcluded ?? 0,
+      resolvedTaxRate
+    );
+
     const productData = {
       name: product.name || '',
       sku: product.sku || '',
@@ -6368,14 +6391,8 @@ const executeProductCsvFunctionWritesForWorker = async ({
       size: product.size || '',
       colorName: product.colorName || '',
       priceTaxExcluded: product.priceTaxExcluded ?? 0,
-      priceTaxIncluded: product.priceTaxIncluded ?? null,
-      taxRate: resolveWorkerProductTaxRate({
-        product,
-        productCategoryGroups,
-        productCategories,
-        productSubCategories,
-        defaultTaxRate
-      }),
+      priceTaxIncluded: resolvedPriceTaxIncluded,
+      taxRate: resolvedTaxRate,
       taxRateType: '',
       inventoryQuantity: product.inventoryQuantity ?? 0,
       costTaxIncluded: null,

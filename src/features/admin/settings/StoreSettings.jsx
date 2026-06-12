@@ -1880,6 +1880,17 @@ const buildCategoryExportRows = (categories = [], categoryGroups = [], subCatego
     ));
 };
 
+
+const calculateCsvTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) => {
+  const excluded = Number(priceTaxExcluded);
+  if (!Number.isFinite(excluded)) return '';
+
+  const rate = Number(taxRate);
+  const normalizedRate = Number.isFinite(rate) ? Math.max(rate, 0) : 10;
+
+  return Math.floor(excluded * (100 + normalizedRate) / 100);
+};
+
 const buildProductExportRows = ({
   products = [],
   productGroups = [],
@@ -1935,7 +1946,10 @@ const buildProductExportRows = ({
         colorName: product.colorName || product.color || '',
         size: product.size || product.sizeName || '',
         priceTaxExcluded: product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? '',
-        priceTaxIncluded: product.priceTaxIncluded ?? '',
+        priceTaxIncluded: product.priceTaxIncluded ?? calculateCsvTaxIncludedPrice(
+          product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? '',
+          product.taxRate ?? product.tax ?? 10
+        ),
         taxRate: product.taxRate ?? product.tax ?? '',
         inventoryQuantity: product.inventoryQuantity ?? product.stockQuantity ?? product.stock ?? '',
         shopifyCreateEnabled: product.shopifyCreateEnabled === true || group?.shopifyCreateEnabled === true ? 'TRUE' : 'FALSE'
