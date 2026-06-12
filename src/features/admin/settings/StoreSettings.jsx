@@ -542,6 +542,80 @@ const getCategoryTaxRuleMatchedProducts = ({
   });
 };
 
+const buildCategoryTaxRuleProductQuerySpecs = ({
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = ''
+}) => {
+  const id = String(masterId || '').trim();
+  const name = String(masterName || '').trim();
+
+  if (cascadeTaxLevel === 'group') {
+    return [
+      id ? ['categoryGroupId', id] : null,
+      id ? ['groupId', id] : null,
+      name ? ['categoryGroupName', name] : null,
+      name ? ['groupName', name] : null
+    ].filter(Boolean);
+  }
+
+  if (cascadeTaxLevel === 'category') {
+    return [
+      id ? ['categoryId', id] : null,
+      id ? ['categoryDocId', id] : null,
+      name ? ['categoryName', name] : null
+    ].filter(Boolean);
+  }
+
+  if (cascadeTaxLevel === 'subCategory') {
+    return [
+      id ? ['subCategoryId', id] : null,
+      id ? ['subCategoryDocId', id] : null,
+      name ? ['subCategoryName', name] : null
+    ].filter(Boolean);
+  }
+
+  return [];
+};
+
+const fetchCategoryTaxRuleMatchedProducts = async ({
+  storeId,
+  products = [],
+  cascadeTaxLevel = '',
+  masterId = '',
+  masterName = ''
+}) => {
+  const specs = buildCategoryTaxRuleProductQuerySpecs({
+    cascadeTaxLevel,
+    masterId,
+    masterName
+  });
+
+  const matchedMap = new Map();
+  const productsRef = collection(db, 'stores', storeId, 'products');
+
+  for (const [field, value] of specs) {
+    const snapshot = await getDocs(query(productsRef, where(field, '==', value)));
+    snapshot.forEach((productDoc) => {
+      matchedMap.set(productDoc.id, {
+        id: productDoc.id,
+        ...productDoc.data()
+      });
+    });
+  }
+
+  if (matchedMap.size > 0) {
+    return Array.from(matchedMap.values());
+  }
+
+  return getCategoryTaxRuleMatchedProducts({
+    products,
+    cascadeTaxLevel,
+    masterId,
+    masterName
+  });
+};
+
 const cascadeCategoryTaxRuleToProducts = async ({
   storeId,
   products = [],
@@ -556,7 +630,8 @@ const cascadeCategoryTaxRuleToProducts = async ({
   }
 
   const normalizedTaxRate = normalizeCategoryTaxRuleRate(taxRate, 10);
-  const matchedProducts = getCategoryTaxRuleMatchedProducts({
+  const matchedProducts = await fetchCategoryTaxRuleMatchedProducts({
+    storeId,
     products,
     cascadeTaxLevel,
     masterId,
