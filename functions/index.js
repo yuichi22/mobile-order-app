@@ -6008,7 +6008,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     size: findWorkerHeaderIndex(headers, ['size', 'サイズ']),
     colorName: findWorkerHeaderIndex(headers, ['colorName', 'color', 'カラー', '色']),
     priceTaxExcluded: findWorkerHeaderIndex(headers, ['priceTaxExcluded', '税抜価格', '税抜売価']),
-    priceTaxIncluded: findWorkerHeaderIndex(headers, ['priceTaxIncluded', '税込価格', '税込売価']),
+    priceTaxIncluded: -1,
     taxRate: findWorkerHeaderIndex(headers, ['taxRate', '税率']),
     inventoryQuantity: findWorkerHeaderIndex(headers, ['inventoryQuantity', 'stock', 'stockQty', 'quantity', '在庫', '在庫数']),
     shopifyCreateEnabled: findWorkerHeaderIndex(headers, ['shopifyCreateEnabled', 'Shopify作成']),
@@ -6044,7 +6044,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     const colorName = getWorkerCell(row, indexes.colorName);
     const genericPriceRaw = getWorkerCell(row, indexes.price);
     const priceTaxExcludedRaw = getWorkerCell(row, indexes.priceTaxExcluded) || genericPriceRaw;
-    const priceTaxIncludedRaw = getWorkerCell(row, indexes.priceTaxIncluded);
+    const priceTaxIncludedRaw = '';
     const taxRateRaw = getWorkerCell(row, indexes.taxRate);
     const inventoryQuantityRaw = getWorkerCell(row, indexes.inventoryQuantity);
     const shopifyCreateEnabled = getWorkerCell(row, indexes.shopifyCreateEnabled);
@@ -6098,7 +6098,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
       }
     }
 
-    const priceTaxIncluded = toWorkerNumberOrNull(priceTaxIncludedRaw);
+    const priceTaxIncluded = null;
     const priceTaxExcluded = toWorkerNumberOrNull(priceTaxExcludedRaw);
     const taxRate = toWorkerNumberOrNull(taxRateRaw);
     const inventoryQuantity = toWorkerNumberOrNull(inventoryQuantityRaw);
@@ -6360,7 +6360,7 @@ const executeProductCsvFunctionWritesForWorker = async ({
       productSubCategories,
       defaultTaxRate
     });
-    const resolvedPriceTaxIncluded = product.priceTaxIncluded ?? calculateWorkerTaxIncludedPrice(
+    const resolvedPriceTaxIncluded = calculateWorkerTaxIncludedPrice(
       product.priceTaxExcluded ?? 0,
       resolvedTaxRate
     );

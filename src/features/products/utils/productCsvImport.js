@@ -20,7 +20,6 @@ export const PRODUCT_CSV_FIELD_OPTIONS = [
   { id: 'size', label: 'サイズ', required: false },
   { id: 'colorName', label: '色 / カラー', required: false },
   { id: 'priceTaxExcluded', label: '売価（税抜）', required: false },
-  { id: 'priceTaxIncluded', label: '売価（税込・参考）', required: false },
   { id: 'costTaxExcluded', label: '原価（税抜）', required: false },
   { id: 'taxRate', label: '税率', required: false },
   { id: 'inventoryQuantity', label: '在庫数', required: false },
@@ -57,7 +56,7 @@ const PRODUCT_CSV_HEADER_ALIASES = {
   size: ['size', 'サイズ', 'Option1 Value', 'Option2 Value'],
   colorName: ['colorName', 'color', '色', 'カラー', 'Option2 Value', 'Option3 Value'],
   priceTaxExcluded: ['priceTaxExcluded', 'price', 'sellPrice', 'sellingPrice', '売価', '販売価格', '税抜価格', '税抜売価', 'Variant Price'],
-  priceTaxIncluded: ['priceTaxIncluded', '税込価格', '税込売価'],
+  priceTaxIncluded: [],
   costTaxExcluded: ['costTaxExcluded', 'cost', '原価', '税抜原価', 'Variant Cost'],
   taxRate: ['taxRate', '税率'],
   inventoryQuantity: ['inventoryQuantity', '在庫数', '在庫', 'quantity', 'Variant Inventory Qty'],
@@ -479,9 +478,9 @@ export const buildProductCsvPreview = ({
       defaultTaxRate
     });
     const resolvedPriceTaxExcluded = normalizeCsvNumber(record.priceTaxExcluded, 0);
-    const resolvedPriceTaxIncluded = normalizeCsvNumber(
-      record.priceTaxIncluded,
-      calculateProductCsvTaxIncludedPrice(resolvedPriceTaxExcluded, resolvedTaxRate)
+    const resolvedPriceTaxIncluded = calculateProductCsvTaxIncludedPrice(
+      resolvedPriceTaxExcluded,
+      resolvedTaxRate
     );
 
     importableProducts.push({

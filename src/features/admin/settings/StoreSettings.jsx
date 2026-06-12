@@ -995,7 +995,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
       { key: 'supplierName', label: '仕入先名' },
       { key: 'costPrice', label: '原価' },
       { key: 'priceTaxExcluded', label: '売価（税抜）' },
-      { key: 'priceTaxIncluded', label: '売価（税込・参考）' },
       { key: 'taxRate', label: '税率' },
       { key: 'stockQuantity', label: '在庫数' },
       { key: 'unit', label: '単位' },
@@ -1017,8 +1016,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
         supplierName: 'サンプル仕入先',
         costPrice: '600',
         priceTaxExcluded: '1000',
-
-        priceTaxIncluded: '',
         taxRate: '10',
         stockQuantity: '10',
         unit: '点',
