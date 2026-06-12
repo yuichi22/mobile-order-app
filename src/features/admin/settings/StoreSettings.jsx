@@ -419,8 +419,8 @@ const CSV_TEMPLATE_DEFINITIONS = [
   },
   {
     id: 'categories',
-    title: 'カテゴリー / サブカテゴリーCSVテンプレート',
-    description: 'カテゴリーグループ・カテゴリー・サブカテゴリーをまとめて登録・更新するためのCSVです。',
+    title: 'カテゴリー階層CSVテンプレート',
+    description: 'カテゴリーグループ・カテゴリー・サブカテゴリーを1本で登録・更新するためのCSVです。',
     filename: 'akuto-categories-template',
     columns: [
       { key: 'categoryGroupId', label: 'カテゴリーグループID' },
@@ -647,8 +647,8 @@ const CsvImportWorkflowPanel = ({
 
     <CsvImportStepCard
       number="03"
-      title="カテゴリー / サブカテゴリー / カテゴリーグループCSV取込"
-      description="既存台帳のカテゴリーグループ・カテゴリー・サブカテゴリーを、Akuto POSの商品カテゴリー階層として取り込みます。"
+      title="カテゴリー階層CSV取込"
+      description="カテゴリーグループ・カテゴリー・サブカテゴリーを1本のCSVで取り込みます。"
     >
       <MasterCsvImportPanel
         type="categories"
@@ -1396,13 +1396,6 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
     );
   };
 
-  const handleExportCategoryGroupCsv = () => {
-    downloadCsvFile(
-      `akuto-category-groups-export-${formatDateStamp()}.csv`,
-      ['categoryGroupId', 'categoryGroupName', 'displayOrder', 'note', 'isActive'],
-      buildCategoryGroupExportRows(productCategoryGroups)
-    );
-  };
 
   const handleExportCategoryCsv = () => {
     downloadCsvFile(
@@ -1491,17 +1484,9 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
       onClick: handleExportBrandCsv
     },
     {
-      id: 'categoryGroups',
-      title: 'カテゴリーグループCSV出力',
-      description: 'カテゴリーグループをCSVで出力します。',
-      meta: 'categoryGroupName',
-      count: productCategoryGroups.length,
-      onClick: handleExportCategoryGroupCsv
-    },
-    {
       id: 'categories',
-      title: 'カテゴリーCSV出力',
-      description: 'カテゴリーグループ・カテゴリー・サブカテゴリーの階層をCSVで出力します。',
+      title: 'カテゴリー階層CSV出力',
+      description: 'カテゴリーグループ・カテゴリー・サブカテゴリーを1本のCSVで出力します。',
       meta: 'categoryGroupName / categoryName / subCategoryName',
       count: productCategories.length + productSubCategories.length,
       onClick: handleExportCategoryCsv
@@ -1525,7 +1510,7 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
         <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Export</p>
         <h2 className="text-2xl font-black tracking-tight text-slate-900">CSV出力</h2>
         <p className="text-sm leading-relaxed text-slate-500">
-          取込と同じ項目で現在のマスターをCSV出力します。ブランドCSVは仕入先紐付け列を含み、商品CSVは仕入先が商品側に無い場合にブランド側の仕入先名を補完します。
+          取込と同じ項目で現在のマスターをCSV出力します。カテゴリー階層CSVはカテゴリーグループ・カテゴリー・サブカテゴリーを1本にまとめ、商品CSVは仕入先が商品側に無い場合にブランド側の仕入先名を補完します。
         </p>
       </div>
 
