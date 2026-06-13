@@ -3157,24 +3157,19 @@ const normalizeShopifyTag = (value = '') => (
     .trim()
 );
 
-const buildMergedShopifyTags = (...tagGroups) => {
-  const tagMap = new Map();
+const buildMergedShopifyTags = (...values) => {
+  const seen = new Set();
 
-  for (const tagGroup of tagGroups) {
-    const tags = Array.isArray(tagGroup) ? tagGroup : [tagGroup];
-
-    for (const tag of tags) {
-      const normalized = normalizeShopifyTag(tag);
-      if (!normalized) continue;
-
-      const key = normalized.toLocaleLowerCase();
-      if (!tagMap.has(key)) {
-        tagMap.set(key, normalized);
-      }
-    }
-  }
-
-  return Array.from(tagMap.values());
+  return values
+    .flat()
+    .map((value) => normalizeShopifyText(value, ''))
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 };
 
 const getShopifyProductTags = async ({ shopDomain, accessToken, productId }) => {
@@ -3270,6 +3265,70 @@ const resolveShopifyOptionName = (products = []) => {
 
 const resolveShopifyOptionValue = (product = {}, optionName = 'バリエーション') => {
   const size = String(product.size || '').trim();
+
+const resolveUniqueShopifyOptionValue = (product = {}, optionName = 'バリエーション', index = 0, usedOptionValues = new Set()) => {
+  const rawBase = normalizeShopifyText(resolveShopifyOptionValue(product, optionName), '');
+  const sku = normalizeShopifyText(product.sku || product.productCode, '');
+  const productId = normalizeShopifyText(product.id, '');
+  const fallback = sku || productId || `variant-${index + 1}`;
+
+  const candidates = [
+    rawBase,
+    rawBase && sku ? `${rawBase} / ${sku}` : '',
+    sku,
+    productId,
+    `${fallback} ${index + 1}`
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const key = candidate.toLowerCase();
+    if (!usedOptionValues.has(key)) {
+      usedOptionValues.add(key);
+      return candidate;
+    }
+  }
+
+  const finalValue = `${fallback} ${index + 1}`;
+  usedOptionValues.add(finalValue.toLowerCase());
+  return finalValue;
+};
+
+const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエーション') => {
+  const seenSkus = new Map();
+  const seenBarcodes = new Map();
+  const usedOptionValues = new Set();
+  const duplicated = [];
+
+  products.forEach((product, index) => {
+    const label = product.name || product.productGroupName || product.sku || product.productCode || product.id || `商品${index + 1}`;
+    const sku = String(product.sku || product.productCode || '').trim();
+    const barcode = String(product.barcode || '').trim();
+
+    if (sku) {
+      const skuKey = sku.toLowerCase();
+      if (seenSkus.has(skuKey)) {
+        duplicated.push(`SKU重複: ${sku}（${seenSkus.get(skuKey)} / ${label}）`);
+      } else {
+        seenSkus.set(skuKey, label);
+      }
+    }
+
+    if (barcode) {
+      const barcodeKey = barcode.toLowerCase();
+      if (seenBarcodes.has(barcodeKey)) {
+        duplicated.push(`JAN重複: ${barcode}（${seenBarcodes.get(barcodeKey)} / ${label}）`);
+      } else {
+        seenBarcodes.set(barcodeKey, label);
+      }
+    }
+
+    resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
+  });
+
+  if (duplicated.length > 0) {
+    throw new Error(`Shopify同期前チェックで重複があります。\n${duplicated.join('\n')}`);
+  }
+};
   const color = String(product.colorName || '').trim();
 
   if (optionName === 'サイズ' && size) return size;
@@ -3285,11 +3344,7 @@ const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncl
   const usedOptionValues = new Set();
 
   const variants = products.map((product, index) => {
-    const baseOptionValue = resolveShopifyOptionValue(product, optionName);
-    const optionValue = usedOptionValues.has(baseOptionValue)
-      ? `${baseOptionValue} ${index + 1}`
-      : baseOptionValue;
-    usedOptionValues.add(optionValue);
+    const optionValue = resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
 
     return {
       optionValues: [
@@ -3516,6 +3571,8 @@ export const createShopifyDraftProduct = onRequest(
         throw new Error('SKU未入力の商品があります。');
       }
 
+      assertUniqueShopifyInputValues(products, resolveShopifyOptionName(products));
+
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
       const input = buildShopifyProductSetInput({
         group,
@@ -3675,11 +3732,7 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], pr
   const usedOptionValues = new Set();
 
   const variants = products.map((product, index) => {
-    const baseOptionValue = resolveShopifyOptionValue(product, optionName);
-    const optionValue = usedOptionValues.has(baseOptionValue)
-      ? `${baseOptionValue} ${index + 1}`
-      : baseOptionValue;
-    usedOptionValues.add(optionValue);
+    const optionValue = resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
 
     return {
       id: String(product.shopifyVariantId || '').trim(),
@@ -3792,6 +3845,8 @@ export const updateShopifyProduct = onRequest(
       if (invalidSku) {
         throw new Error('SKU未入力の商品があります。');
       }
+
+      assertUniqueShopifyInputValues(products, resolveShopifyOptionName(products));
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
       const existingTags = await getShopifyProductTags({
