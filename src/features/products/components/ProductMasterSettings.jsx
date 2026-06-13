@@ -807,13 +807,24 @@ const ProductMasterTable = ({
 
 
   const updateDraft = (productId, patch) => {
-    setDraftRows((current) => ({
-      ...current,
-      [productId]: {
-        ...(current[productId] || products.find((product) => product.id === productId) || {}),
-        ...patch
+    setDraftRows((current) => {
+      const currentDraft = current[productId];
+      const savedProduct = products.find((product) => product.id === productId) || {};
+      const baseDraft = { ...(currentDraft || savedProduct) };
+
+      if (!currentDraft) {
+        delete baseDraft.shopifyCreateEnabled;
+        delete baseDraft.shopifyEnabled;
       }
-    }));
+
+      return {
+        ...current,
+        [productId]: {
+          ...baseDraft,
+          ...patch
+        }
+      };
+    });
   };
 
   const updateNewRow = (patch) => {
