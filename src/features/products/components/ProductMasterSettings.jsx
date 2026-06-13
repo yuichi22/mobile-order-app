@@ -593,6 +593,8 @@ const ProductMasterTable = ({
   onDeleteProduct,
   onCreateShopifyDraftProduct,
   onUpdateShopifyProduct,
+  onSaveBrand,
+  onSaveSupplier,
   onSaved
 }) => {
   const [draftRows, setDraftRows] = useState({});
@@ -652,6 +654,48 @@ const ProductMasterTable = ({
       .filter((item) => String(item?.name || '').trim())
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
   );
+
+  const supplierCreateFields = [
+    { id: 'name', label: '仕入先名' },
+    { id: 'contactName', label: '担当者' },
+    { id: 'tel', label: '電話番号' },
+    { id: 'email', label: 'メール' },
+    { id: 'address', label: '住所' },
+    { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
+    {
+      id: 'paymentTerms',
+      label: '支払いサイト',
+      type: 'select',
+      placeholder: '支払いサイトを選択',
+      options: [
+        { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
+        { value: 'COD', label: 'COD' }
+      ]
+    }
+  ];
+
+  const supplierCreateInitialValue = {
+    name: '',
+    contactName: '',
+    tel: '',
+    email: '',
+    address: '',
+    defaultCostRate: '',
+    paymentTerms: '月末締め翌月末払い',
+    isActive: true
+  };
+
+  const getBrandSupplierName = (brand) => {
+    const supplier = suppliers.find((supplierItem) => supplierItem.id === brand?.supplierId) || null;
+    return brand?.supplierName || supplier?.name || '';
+  };
+
+  const buildBrandPatch = (brand) => ({
+    brandId: brand?.id || '',
+    brandName: brand?.name || '',
+    supplierId: brand?.supplierId || '',
+    supplierName: getBrandSupplierName(brand)
+  });
 
   const getGroupProductGroupId = (group) => (
     String(
@@ -1726,20 +1770,26 @@ const ProductMasterTable = ({
         key={rowKey}
         className={classNames(
           'rounded-xl border p-2 shadow-sm',
-          isNew ? 'border-orange-100 bg-orange-50/60 shadow-orange-100/50' : 'border-slate-200 bg-white'
+          isNew
+            ? 'border-orange-300 bg-gradient-to-r from-orange-100 via-amber-50 to-orange-50 shadow-lg shadow-orange-200/60 ring-2 ring-orange-200/70'
+            : 'border-slate-200 bg-white'
         )}
       >
         {isNew && options.showNewHeader !== false && (
-          <div className="mb-2 rounded-lg border border-orange-100 bg-white/80 px-3 py-2">
+          <div className="mb-2 rounded-lg border border-orange-200 bg-white/95 px-3 py-2 shadow-sm">
             <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
               <div className="min-w-0">
                 <div className="grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
                   <div>
-                    <FieldLabel>ブランド</FieldLabel>
-                    <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
-                      <option value="">ブランド</option>
-                      {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-                    </TableSelect>
+                    <ProductBrandModalSelect
+                      value={row.brandId}
+                      brands={brands}
+                      suppliers={suppliers}
+                      onSaveBrand={onSaveBrand}
+                      onSaveSupplier={onSaveSupplier}
+                      onChange={(value, brand) => update(buildBrandPatch(brand))}
+                      compact
+                    />
                   </div>
 
                   <div>
@@ -2029,15 +2079,15 @@ const ProductMasterTable = ({
                       <div className="min-w-0">
                         <div className="grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
                           <div>
-                            <FieldLabel>ブランド</FieldLabel>
-                            <TableSelect
+                            <ProductBrandModalSelect
                               value={primaryDraft.brandId || ''}
-                              onChange={(value) => updatePrimary({ brandId: value })}
-                              alertWhenEmpty
-                            >
-                              <option value="">ブランド</option>
-                              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-                            </TableSelect>
+                              brands={brands}
+                              suppliers={suppliers}
+                              onSaveBrand={onSaveBrand}
+                              onSaveSupplier={onSaveSupplier}
+                              onChange={(value, brand) => updatePrimary(buildBrandPatch(brand))}
+                              compact
+                            />
                           </div>
 
                           <div>
@@ -2695,6 +2745,32 @@ const PosModalSelect = ({
   };
 
   const renderCreateInput = (field) => {
+    if (field.type === 'modalSelect') {
+      return (
+        <PosModalSelect
+          key={field.id}
+          label={field.label}
+          value={createDraft[field.id]}
+          options={field.options || []}
+          placeholder={field.placeholder || '選択してください'}
+          searchPlaceholder={field.searchPlaceholder || '検索'}
+          createLabel={field.createLabel || '新規作成'}
+          onCreateSave={field.onCreateSave}
+          createFields={field.createFields || []}
+          createInitialValue={field.createInitialValue || {}}
+          getOptionLabel={field.getOptionLabel}
+          getOptionSubLabel={field.getOptionSubLabel}
+          onChange={(value, option) => {
+            setCreateDraft((current) => ({
+              ...current,
+              [field.id]: value,
+              ...(typeof field.buildPatch === 'function' ? field.buildPatch(option) : {})
+            }));
+          }}
+        />
+      );
+    }
+
     if (field.type === 'select') {
       return (
         <label key={field.id} className="block">
@@ -2896,6 +2972,60 @@ const PosModalSelect = ({
     </div>
   );
 };
+
+
+const ProductBrandModalSelect = ({
+  value,
+  onChange,
+  brands = [],
+  suppliers = [],
+  onSaveBrand,
+  onSaveSupplier,
+  compact = false
+}) => (
+  <PosModalSelect
+    label="ブランド"
+    value={value}
+    options={brands}
+    placeholder="ブランドを選択"
+    searchPlaceholder="ブランド名・仕入先・IDで検索"
+    createLabel="ブランドを新規作成"
+    onCreateSave={onSaveBrand}
+    createFields={[
+      { id: 'name', label: 'ブランド名' },
+      { id: 'kana', label: 'かな' },
+      {
+        id: 'supplierId',
+        label: '仕入先',
+        type: 'modalSelect',
+        options: suppliers,
+        placeholder: '仕入先を選択',
+        searchPlaceholder: '仕入先名・IDで検索',
+        createLabel: '仕入先を新規作成',
+        onCreateSave: onSaveSupplier,
+        createFields: supplierCreateFields,
+        createInitialValue: supplierCreateInitialValue,
+        getOptionLabel: (option) => option.name || option.id,
+        getOptionSubLabel: (option) => option.smaregiSupplierId || option.supplierSmaregiId || option.contactName || option.tel || option.id,
+        buildPatch: (supplier) => ({
+          supplierName: supplier?.name || ''
+        })
+      },
+      { id: 'note', label: 'メモ', type: 'textarea', rows: 4 }
+    ]}
+    createInitialValue={{ name: '', kana: '', supplierId: '', supplierName: '', note: '', isActive: true }}
+    getOptionLabel={(option) => option.name || option.id}
+    getOptionSubLabel={(option) => {
+      const supplier = suppliers.find((supplierItem) => supplierItem.id === option?.supplierId) || null;
+      return [
+        option?.kana,
+        option?.supplierName || supplier?.name ? `仕入先: ${option?.supplierName || supplier?.name}` : '',
+        option?.id
+      ].filter(Boolean).join(' / ');
+    }}
+    onChange={onChange}
+  />
+);
 
 const SimpleToggle = ({ label, checked, onChange, disabled = false }) => (
   <button
@@ -4373,6 +4503,8 @@ const ProductMasterSettings = ({
                 onDeleteProduct={onDeleteProduct}
                 onCreateShopifyDraftProduct={onCreateShopifyDraftProduct}
                 onUpdateShopifyProduct={onUpdateShopifyProduct}
+                onSaveBrand={onSaveBrand}
+                onSaveSupplier={onSaveSupplier}
                 onSaved={onSaved}
               />
             </>
