@@ -1392,21 +1392,41 @@ const ProductMasterTable = ({
       >
         {isNew && (
           <div className="mb-2 rounded-lg border border-orange-100 bg-white/80 px-3 py-2">
-            <div className="grid grid-cols-[minmax(140px,1fr)_minmax(220px,1.65fr)_minmax(160px,1fr)_86px_104px] gap-2">
-              <div>
-                <FieldLabel>ブランド</FieldLabel>
-                <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
-                  <option value="">ブランド</option>
-                  {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-                </TableSelect>
+            <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
+              <div className="min-w-0">
+                <div className="grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
+                  <div>
+                    <FieldLabel>ブランド</FieldLabel>
+                    <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
+                      <option value="">ブランド</option>
+                      {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                    </TableSelect>
+                  </div>
+
+                  <div>
+                    <FieldLabel>商品名</FieldLabel>
+                    <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
+                  </div>
+                </div>
+
+                <div className="mt-1.5 grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
+                  <div className="flex h-8 min-w-0 items-center justify-center rounded-lg bg-orange-50 px-2 text-xs font-black text-orange-600">
+                    新規商品
+                  </div>
+
+                  <div className="flex min-w-0 items-center justify-start">
+                    <PillToggle
+                      checked={row.labelEnabled}
+                      onChange={(value) => update({ labelEnabled: value })}
+                      onLabel="ラベル"
+                      offLabel="ラベル"
+                      className="!h-8 !min-w-[72px] !px-3 text-[11px]"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <FieldLabel>商品名</FieldLabel>
-                <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
-              </div>
-
-              <div className="lg:col-span-3">
+              <div className="min-w-0">
                 <ProductClassificationControl
                   value={row}
                   onChange={update}
@@ -1417,24 +1437,12 @@ const ProductMasterTable = ({
                 />
               </div>
 
-              <div>
-                <FieldLabel>ラベル</FieldLabel>
-                <PillToggle
-                  checked={row.labelEnabled}
-                  onChange={(value) => update({ labelEnabled: value })}
-                  onLabel="ラベル"
-                  offLabel="ラベル"
-                  className="!h-8 !min-w-[72px] !px-3 text-[11px]"
-                />
-              </div>
-
-              <div>
-                <FieldLabel>操作</FieldLabel>
+              <div className="flex h-[4.5rem] w-[300px] self-end items-end justify-self-end">
                 <button
                   type="button"
                   onClick={saveNew}
                   disabled={isSaving}
-                  className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
+                  className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
                   保存
