@@ -1668,7 +1668,7 @@ const ProductMasterTable = ({
                         />
                       </div>
 
-                      <div className="grid h-[4.5rem] w-[300px] grid-cols-3 grid-rows-2 gap-1 justify-self-end">
+                      <div className="grid h-[4.5rem] w-[300px] self-end grid-cols-3 grid-rows-2 gap-1 justify-self-end">
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
                           const draftProducts = group.products
