@@ -851,10 +851,7 @@ const ProductMasterTable = ({
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        (
-          group.products.some((product) => draftRows[product.id])
-          || Boolean(group.shopifyCreateEnabled || group.shopifyEnabled)
-        )
+        group.products.some((product) => draftRows[product.id])
         && groupHasDraftShopifyTarget(group)
         && !getGroupShopifyProductId(group)
       ))
