@@ -1612,9 +1612,9 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(420px,2.35fr)_minmax(360px,2.3fr)_92px_104px_minmax(120px,0.65fr)] gap-2 xl:gap-2.5">
+                    <div className="grid grid-cols-[minmax(640px,3.3fr)_minmax(360px,1.9fr)_92px_minmax(230px,1.05fr)] gap-2 xl:gap-2.5">
                       <div className="min-w-0">
-                        <div className="grid grid-cols-[minmax(140px,1fr)_minmax(250px,1.8fr)] gap-2">
+                        <div className="grid grid-cols-[minmax(210px,1.15fr)_minmax(390px,2fr)] gap-2">
                           <div>
                             <FieldLabel>ブランド</FieldLabel>
                             <TableSelect
@@ -1732,11 +1732,16 @@ const ProductMasterTable = ({
                         })()}
                       </div>
 
-                      <div className="flex h-8 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
-                        EC
+                      <div className="grid h-[4.5rem] grid-cols-3 grid-rows-2 gap-1">
+                        {['BASE', 'STORES', 'EC', 'EC', 'EC', 'EC'].map((label, index) => (
+                          <div
+                            key={`${group.key}-ec-slot-${index}`}
+                            className="flex items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white/50 px-1 text-[9px] font-black uppercase tracking-[0.08em] text-slate-300"
+                          >
+                            {label}
+                          </div>
+                        ))}
                       </div>
-
-                      <div className="h-8 rounded-lg border border-dashed border-slate-200 bg-white/40" aria-hidden="true" />
                     </div>
 
                   );
