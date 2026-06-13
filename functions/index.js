@@ -3304,14 +3304,12 @@ const resolveUniqueShopifyOptionValue = (product = {}, optionName = 'バリエ�
 
 const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエーション') => {
   const seenBarcodes = new Map();
-  const seenShopifyVariantIds = new Map();
   const usedOptionValues = new Set();
   const duplicated = [];
 
   products.forEach((product, index) => {
     const label = product.name || product.productGroupName || product.sku || product.productCode || product.id || `商品${index + 1}`;
     const barcode = String(product.barcode || '').trim();
-    const shopifyVariantId = String(product.shopifyVariantId || '').trim();
 
     if (barcode) {
       const barcodeKey = barcode.toLowerCase();
@@ -3319,15 +3317,6 @@ const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエ�
         duplicated.push(`JAN重複: ${barcode}（${seenBarcodes.get(barcodeKey)} / ${label}）`);
       } else {
         seenBarcodes.set(barcodeKey, label);
-      }
-    }
-
-    if (shopifyVariantId) {
-      const variantKey = shopifyVariantId.toLowerCase();
-      if (seenShopifyVariantIds.has(variantKey)) {
-        duplicated.push(`Shopify variant ID重複: ${shopifyVariantId}（${seenShopifyVariantIds.get(variantKey)} / ${label}）`);
-      } else {
-        seenShopifyVariantIds.set(variantKey, label);
       }
     }
 
@@ -3730,12 +3719,19 @@ const productSetUpdateMutation = `
 const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded' }) => {
   const optionName = resolveShopifyOptionName(products);
   const usedOptionValues = new Set();
+  const usedShopifyVariantIds = new Set();
 
   const variants = products.map((product, index) => {
     const optionValue = resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
+    const shopifyVariantId = String(product.shopifyVariantId || '').trim();
+    const shouldUseShopifyVariantId = shopifyVariantId && !usedShopifyVariantIds.has(shopifyVariantId.toLowerCase());
+
+    if (shopifyVariantId) {
+      usedShopifyVariantIds.add(shopifyVariantId.toLowerCase());
+    }
 
     return {
-      id: String(product.shopifyVariantId || '').trim(),
+      ...(shouldUseShopifyVariantId ? { id: shopifyVariantId } : {}),
       optionValues: [
         {
           optionName,
