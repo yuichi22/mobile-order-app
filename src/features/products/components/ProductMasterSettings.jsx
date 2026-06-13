@@ -1532,14 +1532,6 @@ const ProductMasterTable = ({
           </div>
         </div>
 
-        {!isNew && (
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black text-slate-400">
-            <span>
-              {row.productGroupRole === 'primary' ? 'Primary SKU' : 'Variant SKU'} / Group: {row.productGroupName || row.name || '未設定'}
-            </span>
-            <span>ID: {row.id?.slice(0, 8) || '-'}</span>
-          </div>
-        )}
       </div>
     );
   };
