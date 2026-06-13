@@ -867,9 +867,10 @@ const ProductMasterTable = ({
       ))
   ), [draftRows, groupedProducts]);
 
-  const editedProductRows = useMemo(() => (
-    Object.values(draftRows || {}).filter((row) => row?.id)
-  ), [draftRows]);
+  const editedProductRows = useMemo(() => {
+    const existingProductIds = new Set((products || []).map((product) => product.id));
+    return Object.values(draftRows || {}).filter((row) => row?.id && existingProductIds.has(row.id));
+  }, [draftRows, products]);
 
   const editedProductRowCount = editedProductRows.length;
 
@@ -877,6 +878,24 @@ const ProductMasterTable = ({
     editedProductRows.filter((row) => Number(row.stockInQuantityDraft || 0) > 0)
   ), [editedProductRows]);
 
+
+  const clearProductDraftState = (productId) => {
+    if (!productId) return;
+
+    setDraftRows((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, productId)) return current;
+      const next = { ...current };
+      delete next[productId];
+      return next;
+    });
+
+    setRecentlySavedRows((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, productId)) return current;
+      const next = { ...current };
+      delete next[productId];
+      return next;
+    });
+  };
 
   const updateDraft = (productId, patch) => {
     setDraftRows((current) => {
@@ -1586,6 +1605,8 @@ const ProductMasterTable = ({
   const deleteProduct = async (product) => {
     if (!product?.id) return;
     if (!window.confirm(`${product.name || '商品'}を削除しますか？`)) return;
+    clearProductDraftState(product.id);
+
     await onDeleteProduct(product.id);
     onSaved?.();
   };
