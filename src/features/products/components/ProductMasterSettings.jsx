@@ -590,7 +590,8 @@ const ProductMasterTable = ({
   onDeleteProduct,
   onCreateShopifyDraftProduct,
   onUpdateShopifyProduct,
-  onSaved}) => {
+  onSaved
+}) => {
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [newRow, setNewRow] = useState({ ...blankProduct });
@@ -4057,6 +4058,7 @@ export const SimpleMasterPanel = ({
 const ProductMasterSettings = ({
   storeId,
   products = [],
+  productGroups = [],
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
@@ -4083,8 +4085,7 @@ const ProductMasterSettings = ({
   onSaved,
   defaultTaxRate = 10,
   externalKeyword,
-  onExternalKeywordChange
-}) => {
+  onExternalKeywordChange}) => {
   const [activeTab, setActiveTab] = useState('products');
   const [internalKeyword, setInternalKeyword] = useState('');
   const keyword = typeof externalKeyword === 'string' ? externalKeyword : internalKeyword;
