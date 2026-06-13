@@ -594,6 +594,7 @@ const ProductMasterTable = ({
 }) => {
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
+  const [pendingShopifySyncProductIds, setPendingShopifySyncProductIds] = useState(() => new Set());
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [newSkuRows, setNewSkuRows] = useState([]);
   const [savingKey, setSavingKey] = useState('');
@@ -851,21 +852,21 @@ const ProductMasterTable = ({
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id] || recentlySavedRows[product.id])
+        group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
         && groupHasDraftShopifyTarget(group)
         && !getGroupShopifyProductId(group)
       ))
-  ), [draftRows, recentlySavedRows, groupedProducts]);
+  ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
 
   const editedSyncedShopifyGroups = useMemo(() => (
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id] || recentlySavedRows[product.id])
+        group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
         && groupHasDraftShopifyTarget(group)
         && Boolean(getGroupShopifyProductId(group))
       ))
-  ), [draftRows, recentlySavedRows, groupedProducts]);
+  ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
 
   const editedProductRows = useMemo(() => {
     const existingProductIds = new Set((products || []).map((product) => product.id));
@@ -879,8 +880,35 @@ const ProductMasterTable = ({
   ), [editedProductRows]);
 
 
+  const markPendingShopifySyncProducts = (productIds = []) => {
+    const normalizedIds = productIds.map((id) => String(id || '').trim()).filter(Boolean);
+    if (normalizedIds.length === 0) return;
+
+    setPendingShopifySyncProductIds((current) => {
+      const next = new Set(current);
+      normalizedIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const clearPendingShopifySyncProducts = (productIds = []) => {
+    const normalizedIds = productIds.map((id) => String(id || '').trim()).filter(Boolean);
+    if (normalizedIds.length === 0) return;
+
+    setPendingShopifySyncProductIds((current) => {
+      let changed = false;
+      const next = new Set(current);
+      normalizedIds.forEach((id) => {
+        if (next.delete(id)) changed = true;
+      });
+      return changed ? next : current;
+    });
+  };
+
   const clearProductDraftState = (productId) => {
     if (!productId) return;
+
+    clearPendingShopifySyncProducts([productId]);
 
     setDraftRows((current) => {
       if (!Object.prototype.hasOwnProperty.call(current, productId)) return current;
@@ -1506,6 +1534,7 @@ const ProductMasterTable = ({
           skipExistingConfirm: true,
           suppressSuccessAlert: true
         });
+        clearPendingShopifySyncProducts((savedGroup.products || []).map((product) => product.id));
       }
 
       for (const group of editedSyncedShopifyGroups) {
@@ -1520,6 +1549,7 @@ const ProductMasterTable = ({
         await updateShopifyProductForGroup(savedGroup, {
           suppressSuccessAlert: true
         });
+        clearPendingShopifySyncProducts((savedGroup.products || []).map((product) => product.id));
       }
 
       alert(`Shopify同期が完了しました。下書き作成: ${editedShopifyGroups.length}件 / 更新: ${editedSyncedShopifyGroups.length}件`);
@@ -1540,6 +1570,8 @@ const ProductMasterTable = ({
     setSavingKey(`shopify:${group.key}`);
 
     try {
+      const savedProductIds = [];
+
       for (const product of group.products) {
         const draft = getDraft(product);
         const payload = buildProductSavePayload({
@@ -1552,6 +1584,13 @@ const ProductMasterTable = ({
         });
         await onSaveProduct(payload);
         rememberSavedProduct(payload);
+        savedProductIds.push(product.id);
+      }
+
+      if (enabled) {
+        markPendingShopifySyncProducts(savedProductIds);
+      } else {
+        clearPendingShopifySyncProducts(savedProductIds);
       }
 
       setDraftRows((current) => {
