@@ -1612,29 +1612,56 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(140px,1fr)_minmax(260px,1.8fr)_minmax(180px,1.15fr)_82px_92px_98px_104px] gap-2 xl:gap-2.5">
-                      <div>
-                        <FieldLabel>ブランド</FieldLabel>
-                        <TableSelect
-                          value={primaryDraft.brandId || ''}
-                          onChange={(value) => updatePrimary({ brandId: value })}
-                          alertWhenEmpty
-                        >
-                          <option value="">ブランド</option>
-                          {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-                        </TableSelect>
+                    <div className="grid grid-cols-[minmax(420px,2.8fr)_minmax(180px,1.15fr)_92px_104px_minmax(120px,0.8fr)] gap-2 xl:gap-2.5">
+                      <div className="min-w-0">
+                        <div className="grid grid-cols-[minmax(140px,1fr)_minmax(250px,1.8fr)] gap-2">
+                          <div>
+                            <FieldLabel>ブランド</FieldLabel>
+                            <TableSelect
+                              value={primaryDraft.brandId || ''}
+                              onChange={(value) => updatePrimary({ brandId: value })}
+                              alertWhenEmpty
+                            >
+                              <option value="">ブランド</option>
+                              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                            </TableSelect>
+                          </div>
+
+                          <div>
+                            <FieldLabel>商品名</FieldLabel>
+                            <TableTextInput
+                              value={primaryDraft.name || ''}
+                              onChange={(value) => updatePrimary({ name: value })}
+                              placeholder="商品名"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => addSkuToProductGroup(primaryProduct)}
+                            disabled={!primaryProduct}
+                            className="inline-flex h-8 min-w-[104px] items-center justify-center rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                          >
+                            +SKU追加
+                          </button>
+
+                          <div className="flex h-8 min-w-[64px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
+                            {group.products.length.toLocaleString()} SKU
+                          </div>
+
+                          <PillToggle
+                            checked={Boolean(primaryDraft.labelEnabled)}
+                            onChange={(value) => updatePrimary({ labelEnabled: value })}
+                            onLabel="ラベル"
+                            offLabel="ラベル"
+                            className="!h-8 !min-w-[72px] !px-3 text-[11px]"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <FieldLabel>商品名</FieldLabel>
-                        <TableTextInput
-                          value={primaryDraft.name || ''}
-                          onChange={(value) => updatePrimary({ name: value })}
-                          placeholder="商品名"
-                        />
-                      </div>
-
-                      <div className="lg:col-span-3">
+                      <div className="min-w-0">
                         <ProductClassificationControl
                           value={primaryDraft}
                           onChange={updatePrimary}
@@ -1646,18 +1673,6 @@ const ProductMasterTable = ({
                       </div>
 
                       <div>
-                        <FieldLabel>ラベル</FieldLabel>
-                        <PillToggle
-                          checked={Boolean(primaryDraft.labelEnabled)}
-                          onChange={(value) => updatePrimary({ labelEnabled: value })}
-                          onLabel="ラベル"
-                          offLabel="ラベル"
-                          className="!h-8 !min-w-[72px] !px-3 text-[11px]"
-                        />
-                      </div>
-
-                      <div>
-                        <FieldLabel>Shopify</FieldLabel>
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
                           const draftProducts = group.products
@@ -1717,26 +1732,13 @@ const ProductMasterTable = ({
                         })()}
                       </div>
 
-                      <div>
-                        <FieldLabel>SKU</FieldLabel>
-                        <button
-                          type="button"
-                          onClick={() => addSkuToProductGroup(primaryProduct)}
-                          disabled={!primaryProduct}
-                          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                        >
-                          +SKU追加
-                        </button>
+                      <div className="flex h-8 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
+                        EC
                       </div>
 
-                      <div>
-                        <FieldLabel>グループ</FieldLabel>
-                        <div className="flex h-8 items-center justify-center rounded-md bg-blue-50 px-2 text-xs font-black text-blue-600">
-                          {group.products.length.toLocaleString()} SKU
-                        </div>
-                      </div>
-
+                      <div className="h-8 rounded-lg border border-dashed border-slate-200 bg-white/40" aria-hidden="true" />
                     </div>
+
                   );
                 })()}
               </div>
