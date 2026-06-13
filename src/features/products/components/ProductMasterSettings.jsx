@@ -851,9 +851,24 @@ const ProductMasterTable = ({
   const groupHasPendingShopifySync = (group) =>
     group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
 
-  const groupHasSavedUnsyncedShopifyReservation = (group) =>
-    !getGroupShopifyProductId(group)
-    && Boolean(group.shopifyCreateEnabled || group.shopifyEnabled || group.products.some((product) => product.shopifyCreateEnabled || product.shopifyEnabled));
+  const groupHasSavedUnsyncedShopifyReservation = (group) => {
+    if (getGroupShopifyProductId(group)) return false;
+
+    const hasExplicitDraftOff = (group.products || []).some((product) => {
+      const draft = draftRows[product.id];
+      if (!draft) return false;
+      if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled') && draft.shopifyCreateEnabled === false) return true;
+      if (Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled') && draft.shopifyEnabled === false) return true;
+      return false;
+    });
+
+    if (hasExplicitDraftOff) return false;
+
+    return Boolean(
+      group.shopifyCreateEnabled ||
+      (group.products || []).some((product) => product.shopifyCreateEnabled === true)
+    );
+  };
 
   const groupHasShopifySyncTarget = (group) =>
     groupHasPendingShopifySync(group)
@@ -2063,7 +2078,7 @@ const ProductMasterTable = ({
                           );
                           const savedShopifyTarget = hasSavedShopifyFlag
                             ? group.products.some((product) => Boolean(product.shopifyCreateEnabled || product.shopifyEnabled))
-                            : Boolean(group.shopifyCreateEnabled || group.shopifyEnabled || isShopifySynced);
+                            : Boolean(group.shopifyCreateEnabled || isShopifySynced);
                           const draftShopifyTarget = draftProducts.some((draft) => {
                             if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
                               return Boolean(draft.shopifyCreateEnabled);
