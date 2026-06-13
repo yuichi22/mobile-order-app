@@ -1714,7 +1714,7 @@ const ProductMasterTable = ({
                                   ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
                                   : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
                               }
-                              inactiveClassName="bg-slate-100 text-slate-400"
+                              inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
                               className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
                               title={
                                 isShopifyActive && !isShopifyPending
