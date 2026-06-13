@@ -1771,7 +1771,7 @@ const ProductMasterTable = ({
         className={classNames(
           'rounded-xl border p-2 shadow-sm',
           isNew
-            ? 'border-orange-300 bg-gradient-to-r from-orange-100 via-amber-50 to-orange-50 shadow-lg shadow-orange-200/60 ring-2 ring-orange-200/70'
+            ? 'border-orange-200 bg-orange-50/60 shadow-sm'
             : 'border-slate-200 bg-white'
         )}
       >
