@@ -2644,6 +2644,7 @@ const PosModalSelect = ({
   createFields = [],
   createInitialValue = {},
   disabled = false,
+  compact = false,
   getOptionLabel = (option) => option?.name || option?.label || option?.id || '',
   getOptionSubLabel = (option) => option?.kana || option?.supplierName || option?.contactName || option?.id || ''
 }) => {
@@ -2950,22 +2951,30 @@ const PosModalSelect = ({
 
   return (
     <div className="block">
-      <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+      {!compact && (
+        <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+      )}
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
         className={classNames(
-          'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left text-sm font-bold outline-none transition focus:border-orange-400',
+          compact
+            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-2.5 text-left text-sm font-black shadow-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
+            : 'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left text-sm font-bold outline-none transition focus:border-orange-400',
           disabled
-            ? 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
-            : 'border-slate-100 bg-white text-slate-700 hover:border-orange-200'
+            ? compact
+              ? 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
+              : 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
+            : compact
+              ? 'border-slate-200 bg-white text-slate-800 hover:border-orange-200'
+              : 'border-slate-100 bg-white text-slate-700 hover:border-orange-200'
         )}
       >
         <span className={selectedOption ? 'truncate text-slate-800' : 'truncate text-slate-400'}>
           {selectedOption ? getOptionLabel(selectedOption) : placeholder}
         </span>
-        <ChevronDown size={16} className="shrink-0 text-slate-400" />
+        <ChevronDown size={compact ? 14 : 16} className="shrink-0 text-slate-400" />
       </button>
 
       {modalNode && createPortal(modalNode, document.body)}
@@ -3024,6 +3033,7 @@ const ProductBrandModalSelect = ({
       ].filter(Boolean).join(' / ');
     }}
     onChange={onChange}
+    compact={compact}
   />
 );
 
