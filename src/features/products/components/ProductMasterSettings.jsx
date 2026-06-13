@@ -986,6 +986,10 @@ const ProductMasterTable = ({
 
     setSavingKey('__new__');
 
+    const newProductGroupId = primaryGroupDraft.productGroupId
+      || `product_group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const newGroupCode = primaryGroupDraft.groupCode || newProductGroupId;
+
     try {
       for (const [index, row] of targetRows.entries()) {
         const mergedDraft = {
@@ -999,6 +1003,8 @@ const ProductMasterTable = ({
           categoryGroupId: primaryGroupDraft.categoryGroupId || row.categoryGroupId || '',
           categoryId: primaryGroupDraft.categoryId || row.categoryId || '',
           subCategoryId: primaryGroupDraft.subCategoryId || row.subCategoryId || '',
+          productGroupId: newProductGroupId,
+          groupCode: newGroupCode,
           productGroupName: primaryGroupDraft.name || row.productGroupName || row.name || '',
           productGroupRole: index === 0 ? 'primary' : 'variant',
           shopifyCreateEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled),
