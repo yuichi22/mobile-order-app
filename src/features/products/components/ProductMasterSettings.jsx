@@ -851,14 +851,23 @@ const ProductMasterTable = ({
   const groupHasPendingShopifySync = (group) =>
     group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
 
+  const groupHasSavedUnsyncedShopifyReservation = (group) =>
+    !getGroupShopifyProductId(group)
+    && Boolean(group.shopifyCreateEnabled || group.shopifyEnabled || group.products.some((product) => product.shopifyCreateEnabled || product.shopifyEnabled));
+
   const groupHasShopifySyncTarget = (group) =>
-    groupHasPendingShopifySync(group) || groupHasDraftShopifyTarget(group);
+    groupHasPendingShopifySync(group)
+    || groupHasDraftShopifyTarget(group)
+    || groupHasSavedUnsyncedShopifyReservation(group);
 
   const editedShopifyGroups = useMemo(() => (
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
+        (
+          group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
+          || groupHasSavedUnsyncedShopifyReservation(group)
+        )
         && groupHasShopifySyncTarget(group)
         && !getGroupShopifyProductId(group)
       ))
@@ -2065,9 +2074,10 @@ const ProductMasterTable = ({
                             return false;
                           });
                           const isPendingShopifySync = group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
-                          const isShopifyTarget = isPendingShopifySync || (hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget);
-                          const isShopifyActive = isShopifyTarget && isShopifySynced && !isPendingShopifySync;
-                          const isShopifyPending = isPendingShopifySync || (isShopifyTarget && (!isShopifySynced || hasShopifyDraft));
+                          const isSavedUnsyncedShopifyReservation = groupHasSavedUnsyncedShopifyReservation(group);
+                          const isShopifyTarget = isPendingShopifySync || isSavedUnsyncedShopifyReservation || (hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget);
+                          const isShopifyActive = isShopifyTarget && isShopifySynced && !isPendingShopifySync && !isSavedUnsyncedShopifyReservation;
+                          const isShopifyPending = isPendingShopifySync || isSavedUnsyncedShopifyReservation || (isShopifyTarget && (!isShopifySynced || hasShopifyDraft));
 
                           return (
                             <PillToggle
