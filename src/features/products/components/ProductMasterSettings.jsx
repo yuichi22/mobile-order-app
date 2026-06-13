@@ -565,6 +565,7 @@ const ProductMasterTable = ({
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [newRow, setNewRow] = useState({ ...blankProduct });
+  const [newSkuRows, setNewSkuRows] = useState([]);
   const [savingKey, setSavingKey] = useState('');
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
@@ -584,7 +585,6 @@ const ProductMasterTable = ({
           changed = true;
         }
       });
-  const [newSkuRows, setNewSkuRows] = useState([]);
 
 
       return changed ? next : current;
