@@ -1612,7 +1612,7 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(420px,2.8fr)_minmax(180px,1.15fr)_92px_104px_minmax(120px,0.8fr)] gap-2 xl:gap-2.5">
+                    <div className="grid grid-cols-[minmax(420px,2.35fr)_minmax(360px,2.3fr)_92px_104px_minmax(120px,0.65fr)] gap-2 xl:gap-2.5">
                       <div className="min-w-0">
                         <div className="grid grid-cols-[minmax(140px,1fr)_minmax(250px,1.8fr)] gap-2">
                           <div>
