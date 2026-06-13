@@ -793,9 +793,8 @@ const ProductMasterTable = ({
     }
 
     return [...groups.values()]
-      .map((group) => ({
-        ...group,
-        products: [...group.products].sort((a, b) => {
+      .map((group) => {
+        const sortedProducts = [...group.products].sort((a, b) => {
           const aPrimary = a.productGroupRole === 'primary' ? 0 : 1;
           const bPrimary = b.productGroupRole === 'primary' ? 0 : 1;
           if (aPrimary !== bPrimary) return aPrimary - bPrimary;
@@ -804,19 +803,23 @@ const ProductMasterTable = ({
           if (bySize !== 0) return bySize;
 
           return String(a.sku || a.productCode || '').localeCompare(String(b.sku || b.productCode || ''), 'ja');
-        })
-      }))
+        });
+
+        const sortTimestamp = Math.max(
+          getProductMasterTimestampMs(group.createdAt),
+          getProductMasterTimestampMs(group.updatedAt),
+          ...sortedProducts.map(getProductMasterSortTimestamp)
+        );
+
+        return {
+          ...group,
+          products: sortedProducts,
+          sortTimestamp
+        };
+      })
       .sort((a, b) => {
-        const bTimestamp = Math.max(
-          getProductMasterTimestampMs(b.createdAt),
-          getProductMasterTimestampMs(b.updatedAt),
-          ...(b.products || []).map(getProductMasterSortTimestamp)
-        );
-        const aTimestamp = Math.max(
-          getProductMasterTimestampMs(a.createdAt),
-          getProductMasterTimestampMs(a.updatedAt),
-          ...(a.products || []).map(getProductMasterSortTimestamp)
-        );
+        const bTimestamp = Number(b.sortTimestamp || 0);
+        const aTimestamp = Number(a.sortTimestamp || 0);
 
         if (bTimestamp !== aTimestamp) return bTimestamp - aTimestamp;
 
@@ -875,29 +878,39 @@ const ProductMasterTable = ({
     || groupHasDraftShopifyTarget(group)
     || groupHasSavedUnsyncedShopifyReservation(group);
 
-  const editedShopifyGroups = useMemo(() => (
-    groupedProducts
-      .map((group) => getWorkingGroup(group))
-      .filter((group) => (
-        (
-          group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
-          || groupHasSavedUnsyncedShopifyReservation(group)
-        )
-        && groupHasShopifySyncTarget(group)
-        && !getGroupShopifyProductId(group)
-      ))
-  ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
+  const shopifySyncTargetGroups = useMemo(() => {
+    const createTargets = [];
+    const updateTargets = [];
 
-  const editedSyncedShopifyGroups = useMemo(() => (
-    groupedProducts
-      .map((group) => getWorkingGroup(group))
-      .filter((group) => (
-        group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
-        && groupHasShopifySyncTarget(group)
-        && Boolean(getGroupShopifyProductId(group))
-      ))
-  ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
+    for (const group of groupedProducts) {
+      const workingGroup = getWorkingGroup(group);
+      const hasDraftOrPendingTarget = workingGroup.products.some((product) => (
+        draftRows[product.id] || pendingShopifySyncProductIds.has(product.id)
+      ));
+      const hasSavedUnsyncedReservation = groupHasSavedUnsyncedShopifyReservation(workingGroup);
 
+      if (
+        !(hasDraftOrPendingTarget || hasSavedUnsyncedReservation) ||
+        !groupHasShopifySyncTarget(workingGroup)
+      ) {
+        continue;
+      }
+
+      if (getGroupShopifyProductId(workingGroup)) {
+        updateTargets.push(workingGroup);
+      } else {
+        createTargets.push(workingGroup);
+      }
+    }
+
+    return {
+      createTargets,
+      updateTargets
+    };
+  }, [draftRows, pendingShopifySyncProductIds, groupedProducts]);
+
+  const editedShopifyGroups = shopifySyncTargetGroups.createTargets;
+  const editedSyncedShopifyGroups = shopifySyncTargetGroups.updateTargets;
   const shopifySyncTargetGroupCount = editedShopifyGroups.length + editedSyncedShopifyGroups.length;
 
   const editedProductRows = useMemo(() => {
