@@ -541,6 +541,9 @@ const StatusPill = ({ product }) => {
 
 const FieldLabel = () => null;
 
+const PRODUCT_MASTER_INITIAL_GROUP_LIMIT = 80;
+const PRODUCT_MASTER_GROUP_LIMIT_STEP = 80;
+
 const PRODUCT_SAVED_ROW_COMPARE_FIELDS = [
   'name',
   'sku',
@@ -595,6 +598,7 @@ const ProductMasterTable = ({
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [pendingShopifySyncProductIds, setPendingShopifySyncProductIds] = useState(() => new Set());
+  const [visibleProductGroupLimit, setVisibleProductGroupLimit] = useState(PRODUCT_MASTER_INITIAL_GROUP_LIMIT);
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [newSkuRows, setNewSkuRows] = useState([]);
   const [savingKey, setSavingKey] = useState('');
@@ -827,6 +831,17 @@ const ProductMasterTable = ({
         if (byName !== 0) return byName;
         return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
       });
+  }, [products, productGroups]);
+
+  const visibleProductGroups = useMemo(
+    () => groupedProducts.slice(0, visibleProductGroupLimit),
+    [groupedProducts, visibleProductGroupLimit]
+  );
+
+  const hasMoreProductGroups = visibleProductGroupLimit < groupedProducts.length;
+
+  useEffect(() => {
+    setVisibleProductGroupLimit(PRODUCT_MASTER_INITIAL_GROUP_LIMIT);
   }, [products, productGroups]);
 
 
@@ -1998,7 +2013,7 @@ const ProductMasterTable = ({
             }
           ))}
 
-          {(products || []).length > 0 && groupedProducts.map((group) => (
+          {(products || []).length > 0 && visibleProductGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
                 {(() => {
@@ -2157,6 +2172,18 @@ const ProductMasterTable = ({
               </div>
             </div>
           ))}
+
+          {hasMoreProductGroups && (
+            <div className="flex justify-center py-4">
+              <button
+                type="button"
+                onClick={() => setVisibleProductGroupLimit((current) => current + PRODUCT_MASTER_GROUP_LIMIT_STEP)}
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-sm transition hover:bg-slate-700"
+              >
+                さらに表示（{Math.min(visibleProductGroupLimit, groupedProducts.length).toLocaleString()} / {groupedProducts.length.toLocaleString()}）
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
