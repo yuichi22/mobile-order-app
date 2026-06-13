@@ -851,21 +851,21 @@ const ProductMasterTable = ({
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id])
+        group.products.some((product) => draftRows[product.id] || recentlySavedRows[product.id])
         && groupHasDraftShopifyTarget(group)
         && !getGroupShopifyProductId(group)
       ))
-  ), [draftRows, groupedProducts]);
+  ), [draftRows, recentlySavedRows, groupedProducts]);
 
   const editedSyncedShopifyGroups = useMemo(() => (
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id])
+        group.products.some((product) => draftRows[product.id] || recentlySavedRows[product.id])
         && groupHasDraftShopifyTarget(group)
         && Boolean(getGroupShopifyProductId(group))
       ))
-  ), [draftRows, groupedProducts]);
+  ), [draftRows, recentlySavedRows, groupedProducts]);
 
   const editedProductRows = useMemo(() => {
     const existingProductIds = new Set((products || []).map((product) => product.id));
