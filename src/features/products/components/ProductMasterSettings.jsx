@@ -1597,17 +1597,19 @@ const ProductMasterTable = ({
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
                           const isShopifyTarget = group.products.some((product) => Boolean(getDraft(product).shopifyCreateEnabled));
+                          const isShopifyActive = isShopifyTarget && isShopifySynced;
+                          const isShopifyPending = isShopifyTarget && !isShopifySynced;
 
                           return (
                             <>
                               <PillToggle
-                                checked={isShopifyTarget || isShopifySynced}
+                                checked={isShopifyTarget}
                                 onChange={(value) => updateProductGroupShopifyDraft(group, value)}
                                 disabled={savingKey === `shopify:${group.key}`}
                                 onLabel="Shopify"
                                 offLabel="Shopify"
                                 activeClassName={
-                                  isShopifySynced
+                                  isShopifyActive
                                     ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
                                     : 'bg-slate-500 text-white shadow-sm shadow-slate-200'
                                 }
@@ -1618,13 +1620,21 @@ const ProductMasterTable = ({
                               <div
                                 className={classNames(
                                   'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
-                                  isShopifySynced
+                                  isShopifyActive
                                     ? 'bg-emerald-50 text-emerald-600'
-                                    : 'bg-slate-100 text-slate-400'
+                                    : isShopifyPending
+                                      ? 'bg-slate-200 text-slate-700'
+                                      : 'bg-slate-100 text-slate-400'
                                 )}
-                                title={isShopifySynced ? 'Shopify連携済み' : isShopifyTarget ? 'Shopify同期対象ですが、まだShopify未同期です。' : 'Shopify未同期です。'}
+                                title={
+                                  isShopifyActive
+                                    ? 'Shopify連携済みです。OFFにするとShopify IDは残したまま同期対象から外します。'
+                                    : isShopifyPending
+                                      ? 'Shopify同期対象です。Shopify同期ボタンから下書き作成または更新を実行します。'
+                                      : 'Shopify IDは残したまま同期対象外です。ONにするとShopify同期対象になります。'
+                                }
                               >
-                                {isShopifySynced ? 'Shopify' : '未同期'}
+                                {isShopifyActive ? 'Shopify' : isShopifyPending ? '同期待ち' : '非同期'}
                               </div>
                             </>
                           );
