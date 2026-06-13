@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
+import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { TAX_ROUNDING_MODES, normalizeTaxRounding } from '../../../shared/utils/tax';
 
 export const isValidStoreId = (storeId) => Boolean(storeId && typeof storeId === 'string');
@@ -47,7 +48,14 @@ const storeSettingsDocRef = (storeId, docName) => doc(db, 'stores', storeId, 'se
 const storeRootDocRef = (storeId) => doc(db, 'stores', storeId);
 
 export const subscribeToMenuItems = (storeId, onData, onError) => (
-  onSnapshot(storeCollectionRef(storeId, 'menuItems'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
+  onSnapshot(
+    storeCollectionRef(storeId, 'menuItems'),
+    (snapshot) => {
+      const items = mapCollectionSnapshot(snapshot).map((item) => decorateMenuItemAvailability(item));
+      onData(items);
+    },
+    onError
+  )
 );
 
 export const saveMenuItem = async (storeId, itemData) => {

@@ -136,7 +136,8 @@ const MetaChips = ({ item }) => {
     && Number.isFinite(Number(item.remainingQuantity));
 
   if (!item.isSoldOut && hasRemainingQuantity) {
-    badges.push({
+    chips.push({
+      key: 'remaining',
       label: Number(item.remainingQuantity) > 0
         ? `残り ${Number(item.remainingQuantity)} 点`
         : '売り切れ',

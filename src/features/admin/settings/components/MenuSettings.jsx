@@ -579,6 +579,11 @@ const MenuSettings = ({
     try {
       const normalizedLimit = Number(editingItem.orderLimitPerOrder);
       const normalizedLimitedQuantity = Number(editingItem.limitedQuantity);
+      const hasLimitedQuantity = Number.isFinite(normalizedLimitedQuantity) && normalizedLimitedQuantity > 0;
+      const currentSoldQuantity = Math.max(Number(editingItem.soldQuantity || 0), 0);
+      const currentRemainingQuantity = Number.isFinite(Number(editingItem.remainingQuantity))
+        ? Math.max(Number(editingItem.remainingQuantity), 0)
+        : Math.max(normalizedLimitedQuantity - currentSoldQuantity, 0);
       const normalizedCrossSellPrice = Number(editingItem.crossSellPrice);
       const normalizedCostPrice = Number(editingItem.costPrice);
       const normalizedTakeoutPrice = Math.max(Number(editingItem.takeoutPrice) || 0, 0);
@@ -617,7 +622,12 @@ const MenuSettings = ({
         allergens: editingItem.allergens || [],
         kitchenName: String(editingItem.kitchenName || '').trim(),
         orderLimitPerOrder: normalizedLimit > 0 ? normalizedLimit : null,
-        limitedQuantity: normalizedLimitedQuantity > 0 ? normalizedLimitedQuantity : null,
+        limitedQuantity: hasLimitedQuantity ? normalizedLimitedQuantity : null,
+        soldQuantity: hasLimitedQuantity ? currentSoldQuantity : 0,
+        remainingQuantity: hasLimitedQuantity ? currentRemainingQuantity : null,
+        isSoldOut: hasLimitedQuantity ? currentRemainingQuantity <= 0 || editingItem.isSoldOut === true : editingItem.isSoldOut === true,
+        dailySoldCount: hasLimitedQuantity ? Math.max(Number(editingItem.dailySoldCount || 0), 0) : 0,
+        dailySoldDate: hasLimitedQuantity ? editingItem.dailySoldDate || null : null,
         allowsTakeout: editingItem.allowsTakeout !== false,
         photoLabelText: String(editingItem.photoLabelText || '').trim(),
         photoLabelColor: editingItem.photoLabelColor || '#F97316',
