@@ -867,6 +867,7 @@ const ProductMasterTable = ({
       String(row.reorderQuantity || '').trim() ||
       String(row.stockInQuantityDraft || '').trim() ||
       Boolean(row.labelEnabled) ||
+      Boolean(row.shopifyCreateEnabled || row.shopifyEnabled) ||
       Boolean(row.salesAreaId) ||
       Boolean(row.categoryGroupId) ||
       Boolean(row.categoryId) ||
@@ -906,7 +907,9 @@ const ProductMasterTable = ({
       reorderLot: '',
       reorderPoint: '',
       reorderQuantity: '',
-      stockInQuantityDraft: ''
+      stockInQuantityDraft: '',
+      shopifyCreateEnabled: false,
+      shopifyEnabled: false
     });
     setNewSkuRows([]);
   };
@@ -997,7 +1000,9 @@ const ProductMasterTable = ({
           categoryId: primaryGroupDraft.categoryId || row.categoryId || '',
           subCategoryId: primaryGroupDraft.subCategoryId || row.subCategoryId || '',
           productGroupName: primaryGroupDraft.name || row.productGroupName || row.name || '',
-          productGroupRole: index === 0 ? 'primary' : 'variant'
+          productGroupRole: index === 0 ? 'primary' : 'variant',
+          shopifyCreateEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled),
+          shopifyEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled)
         };
 
         await onSaveProduct(buildProductSavePayload(mergedDraft));
@@ -1578,7 +1583,20 @@ const ProductMasterTable = ({
               </div>
 
               <div className="grid h-[4.5rem] w-[300px] self-end grid-cols-3 grid-rows-2 gap-1 justify-self-end">
-                {['Shopify', 'BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
+                <PillToggle
+                  checked={Boolean(row.shopifyCreateEnabled || row.shopifyEnabled)}
+                  onChange={(value) => update({
+                    shopifyCreateEnabled: value,
+                    shopifyEnabled: value
+                  })}
+                  onLabel="Shopify"
+                  offLabel="Shopify"
+                  className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
+                  activeClassName="border border-slate-600 bg-slate-600 text-white shadow-sm shadow-slate-200"
+                  inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
+                />
+
+                {['BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
                   <div
                     key={`new-ec-placeholder-${label}`}
                     className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black text-slate-300"
