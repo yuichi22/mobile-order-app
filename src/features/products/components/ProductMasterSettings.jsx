@@ -1728,15 +1728,13 @@ const ProductMasterTable = ({
                         })()}
 
                         {['BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
-                          <button
+                          <div
                             key={`${group.key}-ec-placeholder-${label}`}
-                            type="button"
-                            disabled
-                            className="inline-flex h-8 w-full items-center justify-center truncate rounded-full bg-slate-100 px-2 text-[10px] font-black text-slate-400 opacity-80"
+                            className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black text-slate-300"
                             title={`${label}連携は今後追加予定です`}
                           >
                             {label}
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
