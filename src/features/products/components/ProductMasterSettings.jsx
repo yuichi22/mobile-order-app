@@ -851,7 +851,10 @@ const ProductMasterTable = ({
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
-        group.products.some((product) => draftRows[product.id])
+        (
+          group.products.some((product) => draftRows[product.id])
+          || Boolean(group.shopifyCreateEnabled || group.shopifyEnabled)
+        )
         && groupHasDraftShopifyTarget(group)
         && !getGroupShopifyProductId(group)
       ))
@@ -1984,11 +1987,9 @@ const ProductMasterTable = ({
                               Object.prototype.hasOwnProperty.call(product, 'shopifyCreateEnabled') ||
                               Object.prototype.hasOwnProperty.call(product, 'shopifyEnabled')
                           );
-                          const savedShopifyTarget = isShopifySynced
-                            ? hasSavedShopifyFlag
-                              ? group.products.some((product) => Boolean(product.shopifyCreateEnabled || product.shopifyEnabled))
-                              : true
-                            : false;
+                          const savedShopifyTarget = hasSavedShopifyFlag
+                            ? group.products.some((product) => Boolean(product.shopifyCreateEnabled || product.shopifyEnabled))
+                            : Boolean(group.shopifyCreateEnabled || group.shopifyEnabled || isShopifySynced);
                           const draftShopifyTarget = draftProducts.some((draft) => {
                             if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
                               return Boolean(draft.shopifyCreateEnabled);
@@ -4085,7 +4086,8 @@ const ProductMasterSettings = ({
   onSaved,
   defaultTaxRate = 10,
   externalKeyword,
-  onExternalKeywordChange}) => {
+  onExternalKeywordChange
+}) => {
   const [activeTab, setActiveTab] = useState('products');
   const [internalKeyword, setInternalKeyword] = useState('');
   const keyword = typeof externalKeyword === 'string' ? externalKeyword : internalKeyword;
