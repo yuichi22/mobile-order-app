@@ -1596,17 +1596,34 @@ const ProductMasterTable = ({
                         <FieldLabel>Shopify</FieldLabel>
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
-                          const hasShopifyDraft = group.products.some((product) => Object.prototype.hasOwnProperty.call(draftRows, product.id));
-                          const isShopifyTarget = group.products.some((product) => {
-                            const draft = getDraft(product);
+                          const draftProducts = group.products
+                            .map((product) => draftRows[product.id])
+                            .filter(Boolean);
+                          const hasShopifyDraft = draftProducts.some(
+                            (draft) =>
+                              Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled') ||
+                              Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled')
+                          );
+                          const hasSavedShopifyFlag = group.products.some(
+                            (product) =>
+                              Object.prototype.hasOwnProperty.call(product, 'shopifyCreateEnabled') ||
+                              Object.prototype.hasOwnProperty.call(product, 'shopifyEnabled')
+                          );
+                          const savedShopifyTarget = isShopifySynced
+                            ? hasSavedShopifyFlag
+                              ? group.products.some((product) => Boolean(product.shopifyCreateEnabled || product.shopifyEnabled))
+                              : true
+                            : false;
+                          const draftShopifyTarget = draftProducts.some((draft) => {
                             if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
                               return Boolean(draft.shopifyCreateEnabled);
                             }
                             if (Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled')) {
                               return Boolean(draft.shopifyEnabled);
                             }
-                            return isShopifySynced;
+                            return false;
                           });
+                          const isShopifyTarget = hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget;
                           const isShopifyActive = isShopifyTarget && isShopifySynced;
                           const isShopifyPending = isShopifyTarget && (!isShopifySynced || hasShopifyDraft);
 
