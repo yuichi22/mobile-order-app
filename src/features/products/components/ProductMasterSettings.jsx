@@ -868,6 +868,8 @@ const ProductMasterTable = ({
       ))
   ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
 
+  const shopifySyncTargetGroupCount = editedShopifyGroups.length + editedSyncedShopifyGroups.length;
+
   const editedProductRows = useMemo(() => {
     const existingProductIds = new Set((products || []).map((product) => product.id));
     return Object.values(draftRows || {}).filter((row) => row?.id && existingProductIds.has(row.id));
@@ -1474,8 +1476,8 @@ const ProductMasterTable = ({
   };
 
   const syncEditedShopifyGroups = async () => {
-    if (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0) {
-      alert('Shopify同期対象の編集済み商品はありません。商品を編集してから実行してください。');
+    if (shopifySyncTargetGroupCount === 0) {
+      alert('Shopify同期対象の商品はありません。Shopify同期ONにして保存してから実行してください。');
       return;
     }
 
@@ -1903,18 +1905,18 @@ const ProductMasterTable = ({
           <button
             type="button"
             onClick={syncEditedShopifyGroups}
-            disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0)}
+            disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || shopifySyncTargetGroupCount === 0}
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-              editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0
+              shopifySyncTargetGroupCount > 0
                 ? 'bg-slate-900 text-white hover:bg-slate-700'
                 : 'bg-slate-100 text-slate-400'
             )}
-            title={editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0 ? `下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : '編集済みのShopify同期対象はありません'}
+            title={shopifySyncTargetGroupCount > 0 ? `下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : '編集済みのShopify同期対象はありません'}
           >
             {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
             Shopify同期
-            {editedShopifyGroups.length > 0 || editedSyncedShopifyGroups.length > 0 ? `(${editedShopifyGroups.length + editedSyncedShopifyGroups.length})` : ''}
+            {shopifySyncTargetGroupCount > 0 ? `(${editedShopifyGroups.length + editedSyncedShopifyGroups.length})` : ''}
           </button>
         </div>
       </div>
