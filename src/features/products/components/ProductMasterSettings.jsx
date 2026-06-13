@@ -754,12 +754,33 @@ const ProductMasterTable = ({
   }, [products]);
 
 
+  const getDraftShopifyTarget = (product) => {
+    const draft = draftRows[product.id];
+
+    if (!draft) {
+      return Boolean(product.shopifyCreateEnabled || product.shopifyEnabled);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
+      return Boolean(draft.shopifyCreateEnabled);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled')) {
+      return Boolean(draft.shopifyEnabled);
+    }
+
+    return Boolean(product.shopifyCreateEnabled || product.shopifyEnabled);
+  };
+
+  const groupHasDraftShopifyTarget = (group) =>
+    group.products.some((product) => getDraftShopifyTarget(product));
+
   const editedShopifyGroups = useMemo(() => (
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
         group.products.some((product) => draftRows[product.id])
-        && group.products.some((product) => product.shopifyCreateEnabled)
+        && groupHasDraftShopifyTarget(group)
         && !getGroupShopifyProductId(group)
       ))
   ), [draftRows, groupedProducts]);
@@ -769,6 +790,7 @@ const ProductMasterTable = ({
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
         group.products.some((product) => draftRows[product.id])
+        && groupHasDraftShopifyTarget(group)
         && Boolean(getGroupShopifyProductId(group))
       ))
   ), [draftRows, groupedProducts]);
