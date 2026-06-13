@@ -196,6 +196,33 @@ const formatDateText = (value) => {
   return date.toLocaleDateString('ja-JP');
 };
 
+const formatProductMasterDateTimeText = (value) => {
+  if (!value) return '-';
+  const date = value?.toDate ? value.toDate() : value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const getProductMasterTimestampMs = (value) => {
+  if (!value) return 0;
+  const date = value?.toDate ? value.toDate() : value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isFinite(time) ? time : 0;
+};
+
+const getProductMasterSortTimestamp = (product) => Math.max(
+  getProductMasterTimestampMs(product.createdAt),
+  getProductMasterTimestampMs(product.created_at),
+  getProductMasterTimestampMs(product.updatedAt),
+  getProductMasterTimestampMs(product.updated_at)
+);
+
 const normalizeProductPayload = (draft) => ({
   ...draft,
   name: String(draft.name || '').trim(),
@@ -751,6 +778,11 @@ const ProductMasterTable = ({
         })
       }))
       .sort((a, b) => {
+        const bTimestamp = Math.max(...(b.products || []).map(getProductMasterSortTimestamp));
+        const aTimestamp = Math.max(...(a.products || []).map(getProductMasterSortTimestamp));
+
+        if (bTimestamp !== aTimestamp) return bTimestamp - aTimestamp;
+
         const byName = String(a.name || '').localeCompare(String(b.name || ''), 'ja');
         if (byName !== 0) return byName;
         return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
@@ -1527,6 +1559,7 @@ const ProductMasterTable = ({
     const rowKey = options.rowKey || (isNew ? '__new__' : row.id);
     const update = isNew ? (options.onNewSkuChange || updateNewRow) : (patch) => updateDraft(row.id, patch);
     const isSaving = savingKey === rowKey;
+    const registeredAtText = formatProductMasterDateTimeText(row.createdAt || row.created_at);
 
     return (
       <div
@@ -1578,6 +1611,9 @@ const ProductMasterTable = ({
                       offLabel="ラベル"
                       className="!h-8 !min-w-[72px] !px-3 text-[11px]"
                     />
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-400">
+                      登録 {isNew ? '未登録' : registeredAtText}
+                    </span>
                   </div>
                 </div>
               </div>
