@@ -3280,7 +3280,7 @@ const resolveShopifyOptionValue = (product = {}, optionName = 'バリエーシ�
   return String(product.sku || product.productCode || product.id || 'Default').trim();
 };
 
-const buildShopifyProductSetInput = ({ group, products, locationId, priceSyncMode = 'taxIncluded' }) => {
+const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded' }) => {
   const optionName = resolveShopifyOptionName(products);
   const usedOptionValues = new Set();
 
@@ -3305,13 +3305,6 @@ const buildShopifyProductSetInput = ({ group, products, locationId, priceSyncMod
       inventoryItem: {
         tracked: true
       },
-      inventoryQuantities: [
-        {
-          locationId,
-          name: 'available',
-          quantity: Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0)
-        }
-      ],
       metafields: [
         {
           namespace: 'akuto',
@@ -3464,11 +3457,6 @@ export const createShopifyDraftProduct = onRequest(
         throw new Error('Shopify連携がOFFです。EC連携設定を確認してください。');
       }
 
-      const locationId = String(shopifySettings.locationId || '').trim();
-      if (!locationId) {
-        throw new Error('Shopify locationId が未設定です。');
-      }
-
       const groupRef = storeRef.collection('productGroups').doc(normalizedProductGroupId);
       const groupSnapshot = await groupRef.get();
 
@@ -3532,7 +3520,6 @@ export const createShopifyDraftProduct = onRequest(
       const input = buildShopifyProductSetInput({
         group,
         products,
-        locationId,
         priceSyncMode
       });
       const priceSnapshots = products.map((product) => ({
