@@ -3842,7 +3842,8 @@ export const updateShopifyProduct = onRequest(
         throw new Error('SKU未入力の商品があります。');
       }
 
-      assertUniqueShopifyInputValues(products, resolveShopifyOptionName(products));
+      const optionName = resolveShopifyOptionName(products);
+      assertUniqueShopifyInputValues(products, optionName);
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
       const existingTags = await getShopifyProductTags({
