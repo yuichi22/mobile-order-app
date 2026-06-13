@@ -749,7 +749,7 @@ const ProductMasterTable = ({
         categoryId: product.categoryId || savedProductGroup?.categoryId || '',
         categoryGroupId: product.categoryGroupId || savedProductGroup?.categoryGroupId || '',
         shopifyEnabled: Boolean(product.shopifyEnabled || savedProductGroup?.shopifyEnabled),
-        shopifyCreateEnabled: Boolean(product.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled),
+        shopifyCreateEnabled: Boolean(product.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled),
         shopifyProductId: product.shopifyProductId || savedProductGroup?.shopifyProductId || '',
         createdAt: product.createdAt || product.created_at || savedProductGroup?.createdAt || savedProductGroup?.created_at || null,
         updatedAt: product.updatedAt || product.updated_at || savedProductGroup?.updatedAt || savedProductGroup?.updated_at || null
@@ -767,7 +767,7 @@ const ProductMasterTable = ({
           subCategoryName: productWithGroup.subCategoryName || '',
           salesAreaName: productWithGroup.salesAreaName || '',
           shopifyEnabled: Boolean(savedProductGroup?.shopifyEnabled || productWithGroup.shopifyEnabled),
-          shopifyCreateEnabled: Boolean(savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled || productWithGroup.shopifyCreateEnabled),
+          shopifyCreateEnabled: Boolean(savedProductGroup?.shopifyCreateEnabled || productWithGroup.shopifyCreateEnabled),
           shopifyProductId: savedProductGroup?.shopifyProductId || productWithGroup.shopifyProductId || '',
           createdAt: savedProductGroup?.createdAt || savedProductGroup?.created_at || productWithGroup.createdAt || null,
           updatedAt: savedProductGroup?.updatedAt || savedProductGroup?.updated_at || productWithGroup.updatedAt || null,
@@ -778,7 +778,7 @@ const ProductMasterTable = ({
       const group = groups.get(key);
       group.products.push(productWithGroup);
       group.shopifyEnabled = Boolean(group.shopifyEnabled || productWithGroup.shopifyEnabled || savedProductGroup?.shopifyEnabled);
-      group.shopifyCreateEnabled = Boolean(group.shopifyCreateEnabled || productWithGroup.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled);
+      group.shopifyCreateEnabled = Boolean(group.shopifyCreateEnabled || productWithGroup.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled);
       group.shopifyProductId = group.shopifyProductId || productWithGroup.shopifyProductId || savedProductGroup?.shopifyProductId || '';
       group.createdAt = group.createdAt || savedProductGroup?.createdAt || savedProductGroup?.created_at || productWithGroup.createdAt || null;
       group.updatedAt = group.updatedAt || savedProductGroup?.updatedAt || savedProductGroup?.updated_at || productWithGroup.updatedAt || null;
