@@ -124,6 +124,7 @@ const blankProduct = {
   reorderQuantity: '',
   labelEnabled: false,
   shopifyCreateEnabled: false,
+  shopifyEnabled: false,
   isActive: true,
   isArchived: false,
   shopifyProductId: '',
@@ -223,7 +224,8 @@ const normalizeProductPayload = (draft) => ({
   reorderPoint: normalizeNumberOrNull(draft.reorderPoint),
   reorderQuantity: normalizeNumberOrNull(draft.reorderQuantity),
   labelEnabled: Boolean(draft.labelEnabled),
-  shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled),
+  shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled || draft.shopifyEnabled),
+  shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled),
   isActive: draft.isActive !== false,
   isArchived: Boolean(draft.isArchived),
   shopifyProductId: String(draft.shopifyProductId || '').trim(),
@@ -933,7 +935,9 @@ const ProductMasterTable = ({
       categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId || '',
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
-      supplierName: matchedSupplier?.name || matchedBrand?.supplierName || draft.supplierName || ''
+      supplierName: matchedSupplier?.name || matchedBrand?.supplierName || draft.supplierName || '',
+      shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled || draft.shopifyEnabled),
+      shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled)
     });
   };
 
@@ -1051,7 +1055,8 @@ const ProductMasterTable = ({
     reorderPoint: source.reorderPoint ?? '',
     reorderQuantity: source.reorderQuantity ?? '',
     labelEnabled: Boolean(source.labelEnabled),
-    shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled),
+    shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled || source.shopifyEnabled),
+    shopifyEnabled: Boolean(source.shopifyEnabled || source.shopifyCreateEnabled),
     isActive: source.isActive !== false,
     isArchived: false,
     productGroupId: source.productGroupId || '',
