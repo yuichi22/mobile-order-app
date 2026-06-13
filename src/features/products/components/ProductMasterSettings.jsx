@@ -1769,10 +1769,14 @@ const ProductMasterTable = ({
       <div
         key={rowKey}
         className={classNames(
-          'rounded-xl border p-2 shadow-sm',
-          isNew
-            ? 'border-orange-200 bg-orange-50/60 shadow-sm'
-            : 'border-slate-200 bg-white'
+          options.embeddedNewGroup
+            ? 'rounded-xl border border-transparent bg-transparent p-0'
+            : 'rounded-xl border p-2 shadow-sm',
+          !options.embeddedNewGroup && (
+            isNew
+              ? 'border-orange-200 bg-orange-50/60 shadow-sm'
+              : 'border-slate-200 bg-white'
+          )
         )}
       >
         {isNew && options.showNewHeader !== false && (
@@ -2040,28 +2044,39 @@ const ProductMasterTable = ({
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
-          {renderEditableRow(newRow, { isNew: true })}
-          {newSkuRows.map((row, index) => renderEditableRow(
-            {
-              ...newRow,
-              ...row,
-              name: newRow.name,
-              brandId: newRow.brandId,
-              brandName: newRow.brandName,
-              labelEnabled: newRow.labelEnabled,
-              salesAreaId: newRow.salesAreaId,
-              categoryGroupId: newRow.categoryGroupId,
-              categoryId: newRow.categoryId,
-              subCategoryId: newRow.subCategoryId
-            },
-            {
+          <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm">
+            {renderEditableRow(newRow, {
               isNew: true,
-              rowKey: row.id || `__new_sku_${index}`,
-              onNewSkuChange: (patch) => updateNewSkuRow(index, patch),
-              onRemoveNewSku: () => removeNewSkuRow(index),
-              showNewHeader: false
-            }
-          ))}
+              embeddedNewGroup: true
+            })}
+
+            {newSkuRows.length > 0 && (
+              <div className="mt-2 space-y-2 border-t border-orange-100 pt-2">
+                {newSkuRows.map((row, index) => renderEditableRow(
+                  {
+                    ...newRow,
+                    ...row,
+                    name: newRow.name,
+                    brandId: newRow.brandId,
+                    brandName: newRow.brandName,
+                    labelEnabled: newRow.labelEnabled,
+                    salesAreaId: newRow.salesAreaId,
+                    categoryGroupId: newRow.categoryGroupId,
+                    categoryId: newRow.categoryId,
+                    subCategoryId: newRow.subCategoryId
+                  },
+                  {
+                    isNew: true,
+                    embeddedNewGroup: true,
+                    rowKey: row.id || `__new_sku_${index}`,
+                    onNewSkuChange: (patch) => updateNewSkuRow(index, patch),
+                    onRemoveNewSku: () => removeNewSkuRow(index),
+                    showNewHeader: false
+                  }
+                ))}
+              </div>
+            )}
+          </div>
 
           {(products || []).length > 0 && visibleProductGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
