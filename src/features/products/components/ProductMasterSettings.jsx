@@ -1637,27 +1637,31 @@ const ProductMasterTable = ({
                           </div>
                         </div>
 
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => addSkuToProductGroup(primaryProduct)}
-                            disabled={!primaryProduct}
-                            className="inline-flex h-8 min-w-[104px] items-center justify-center rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                          >
-                            +SKU追加
-                          </button>
+                        <div className="mt-1.5 grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => addSkuToProductGroup(primaryProduct)}
+                              disabled={!primaryProduct}
+                              className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-slate-900 px-2 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                            >
+                              +SKU追加
+                            </button>
 
-                          <div className="flex h-8 min-w-[64px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
-                            {group.products.length.toLocaleString()} SKU
+                            <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
+                              {group.products.length.toLocaleString()} SKU
+                            </div>
                           </div>
 
-                          <PillToggle
-                            checked={Boolean(primaryDraft.labelEnabled)}
-                            onChange={(value) => updatePrimary({ labelEnabled: value })}
-                            onLabel="ラベル"
-                            offLabel="ラベル"
-                            className="!h-8 !min-w-[72px] !px-3 text-[11px]"
-                          />
+                          <div className="flex min-w-0 items-center justify-start">
+                            <PillToggle
+                              checked={Boolean(primaryDraft.labelEnabled)}
+                              onChange={(value) => updatePrimary({ labelEnabled: value })}
+                              onLabel="ラベル"
+                              offLabel="ラベル"
+                              className="!h-8 !min-w-[72px] !px-3 text-[11px]"
+                            />
+                          </div>
                         </div>
                       </div>
 
