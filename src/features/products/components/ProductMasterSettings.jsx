@@ -1273,6 +1273,27 @@ const ProductMasterTable = ({
     }
   };
 
+  const updateProductGroupShopifyDraft = (group, enabled) => {
+    setDraftRows((current) => {
+      const next = { ...current };
+
+      for (const product of group.products || []) {
+        const base = next[product.id] || { ...product };
+        next[product.id] = {
+          ...base,
+          id: product.id,
+          productGroupId: product.productGroupId,
+          productGroupRole: product.productGroupRole,
+          shopifyCreateEnabled: Boolean(enabled),
+          shopifyEnabled: Boolean(enabled)
+        };
+      }
+
+      return next;
+    });
+  };
+
+
   const deleteProduct = async (product) => {
     if (!product?.id) return;
     if (!window.confirm(`${product.name || '商品'}を削除しますか？`)) return;
@@ -1575,13 +1596,13 @@ const ProductMasterTable = ({
                         <FieldLabel>Shopify</FieldLabel>
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
-                          const isShopifyTarget = group.products.some((product) => product.shopifyCreateEnabled);
+                          const isShopifyTarget = group.products.some((product) => Boolean(getDraft(product).shopifyCreateEnabled));
 
                           return (
                             <>
                               <PillToggle
                                 checked={isShopifyTarget || isShopifySynced}
-                                onChange={(value) => saveProductGroupShopifyEnabled(group, value)}
+                                onChange={(value) => updateProductGroupShopifyDraft(group, value)}
                                 disabled={savingKey === `shopify:${group.key}`}
                                 onLabel="Shopify"
                                 offLabel="Shopify"
