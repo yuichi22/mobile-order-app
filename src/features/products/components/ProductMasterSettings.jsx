@@ -579,6 +579,7 @@ const calculateProductMasterTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) 
 
 const ProductMasterTable = ({
   products,
+  productGroups = [],
   productCategories,
   productCategoryGroups,
   productSubCategories = [],
@@ -589,8 +590,7 @@ const ProductMasterTable = ({
   onDeleteProduct,
   onCreateShopifyDraftProduct,
   onUpdateShopifyProduct,
-  onSaved
-}) => {
+  onSaved}) => {
   const [draftRows, setDraftRows] = useState({});
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [newRow, setNewRow] = useState({ ...blankProduct });
@@ -735,31 +735,58 @@ const ProductMasterTable = ({
   );
 
   const groupedProducts = useMemo(() => {
+    const productGroupById = new Map((productGroups || []).map((group) => [group.id, group]));
     const groups = new Map();
 
     for (const product of products || []) {
-      const key = getProductGroupSortKey(product);
+      const savedProductGroup = productGroupById.get(product.productGroupId || product.groupId || '');
+      const productWithGroup = {
+        ...product,
+        productGroupName: product.productGroupName || savedProductGroup?.name || savedProductGroup?.baseProductName || '',
+        brandId: product.brandId || savedProductGroup?.brandId || '',
+        categoryId: product.categoryId || savedProductGroup?.categoryId || '',
+        categoryGroupId: product.categoryGroupId || savedProductGroup?.categoryGroupId || '',
+        shopifyEnabled: Boolean(product.shopifyEnabled || savedProductGroup?.shopifyEnabled),
+        shopifyCreateEnabled: Boolean(product.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled),
+        shopifyProductId: product.shopifyProductId || savedProductGroup?.shopifyProductId || '',
+        createdAt: product.createdAt || product.created_at || savedProductGroup?.createdAt || savedProductGroup?.created_at || null,
+        updatedAt: product.updatedAt || product.updated_at || savedProductGroup?.updatedAt || savedProductGroup?.updated_at || null
+      };
+
+      const key = getProductGroupSortKey(productWithGroup);
+
       if (!groups.has(key)) {
         groups.set(key, {
           key,
-          name: product.productGroupName || product.name || '名称未設定',
-          brandName: product.brandName || '',
-          categoryName: product.categoryName || '',
-          subCategoryName: product.subCategoryName || '',
-          salesAreaName: product.salesAreaName || '',
+          id: savedProductGroup?.id || key,
+          name: productWithGroup.productGroupName || productWithGroup.name || savedProductGroup?.name || '名称未設定',
+          brandName: productWithGroup.brandName || savedProductGroup?.brandName || '',
+          categoryName: productWithGroup.categoryName || savedProductGroup?.categoryName || '',
+          subCategoryName: productWithGroup.subCategoryName || '',
+          salesAreaName: productWithGroup.salesAreaName || '',
+          shopifyEnabled: Boolean(savedProductGroup?.shopifyEnabled || productWithGroup.shopifyEnabled),
+          shopifyCreateEnabled: Boolean(savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled || productWithGroup.shopifyCreateEnabled),
+          shopifyProductId: savedProductGroup?.shopifyProductId || productWithGroup.shopifyProductId || '',
+          createdAt: savedProductGroup?.createdAt || savedProductGroup?.created_at || productWithGroup.createdAt || null,
+          updatedAt: savedProductGroup?.updatedAt || savedProductGroup?.updated_at || productWithGroup.updatedAt || null,
           products: []
         });
       }
 
       const group = groups.get(key);
-      group.products.push(product);
+      group.products.push(productWithGroup);
+      group.shopifyEnabled = Boolean(group.shopifyEnabled || productWithGroup.shopifyEnabled || savedProductGroup?.shopifyEnabled);
+      group.shopifyCreateEnabled = Boolean(group.shopifyCreateEnabled || productWithGroup.shopifyCreateEnabled || savedProductGroup?.shopifyCreateEnabled || savedProductGroup?.shopifyEnabled);
+      group.shopifyProductId = group.shopifyProductId || productWithGroup.shopifyProductId || savedProductGroup?.shopifyProductId || '';
+      group.createdAt = group.createdAt || savedProductGroup?.createdAt || savedProductGroup?.created_at || productWithGroup.createdAt || null;
+      group.updatedAt = group.updatedAt || savedProductGroup?.updatedAt || savedProductGroup?.updated_at || productWithGroup.updatedAt || null;
 
-      if (product.productGroupRole === 'primary') {
-        group.name = product.productGroupName || product.name || group.name;
-        group.brandName = product.brandName || group.brandName;
-        group.categoryName = product.categoryName || group.categoryName;
-        group.subCategoryName = product.subCategoryName || group.subCategoryName;
-        group.salesAreaName = product.salesAreaName || group.salesAreaName;
+      if (productWithGroup.productGroupRole === 'primary') {
+        group.name = productWithGroup.productGroupName || productWithGroup.name || group.name;
+        group.brandName = productWithGroup.brandName || group.brandName;
+        group.categoryName = productWithGroup.categoryName || group.categoryName;
+        group.subCategoryName = productWithGroup.subCategoryName || group.subCategoryName;
+        group.salesAreaName = productWithGroup.salesAreaName || group.salesAreaName;
       }
     }
 
@@ -778,8 +805,16 @@ const ProductMasterTable = ({
         })
       }))
       .sort((a, b) => {
-        const bTimestamp = Math.max(...(b.products || []).map(getProductMasterSortTimestamp));
-        const aTimestamp = Math.max(...(a.products || []).map(getProductMasterSortTimestamp));
+        const bTimestamp = Math.max(
+          getProductMasterTimestampMs(b.createdAt),
+          getProductMasterTimestampMs(b.updatedAt),
+          ...(b.products || []).map(getProductMasterSortTimestamp)
+        );
+        const aTimestamp = Math.max(
+          getProductMasterTimestampMs(a.createdAt),
+          getProductMasterTimestampMs(a.updatedAt),
+          ...(a.products || []).map(getProductMasterSortTimestamp)
+        );
 
         if (bTimestamp !== aTimestamp) return bTimestamp - aTimestamp;
 
@@ -787,7 +822,7 @@ const ProductMasterTable = ({
         if (byName !== 0) return byName;
         return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
       });
-  }, [products]);
+  }, [products, productGroups]);
 
 
   const getDraftShopifyTarget = (product) => {
@@ -1859,6 +1894,7 @@ const ProductMasterTable = ({
                 {(() => {
                   const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
                   const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
+                  const groupRegisteredAtText = formatProductMasterDateTimeText(primaryProduct?.createdAt || primaryProduct?.created_at || group.createdAt || group.created_at);
                   const updatePrimary = primaryProduct
                     ? (patch) => updateDraft(primaryProduct.id, patch)
                     : () => {};
@@ -1913,6 +1949,9 @@ const ProductMasterTable = ({
                               offLabel="ラベル"
                               className="!h-8 !min-w-[72px] !px-3 text-[11px]"
                             />
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-400">
+                              登録 {groupRegisteredAtText}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -4185,6 +4224,7 @@ const ProductMasterSettings = ({
 
               <ProductMasterTable
                 products={displayedProducts}
+                productGroups={productGroups}
                 productCategories={productCategories}
                 productCategoryGroups={productCategoryGroups}
                 productSubCategories={productSubCategories}

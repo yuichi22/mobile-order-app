@@ -32,10 +32,10 @@ const subscribeToLimitedStoreCollection = (
   collectionName,
   onData,
   onError,
-  { limitCount = 200, orderField = 'name' } = {}
+  { limitCount = 200, orderField = 'name', orderDirection = 'asc' } = {}
 ) => {
   const baseRef = storeCollectionRef(storeId, collectionName);
-  const limitedQuery = query(baseRef, orderBy(orderField), limit(limitCount));
+  const limitedQuery = query(baseRef, orderBy(orderField, orderDirection), limit(limitCount));
 
   return onSnapshot(
     limitedQuery,
@@ -223,7 +223,8 @@ export const subscribeToProductMasterItems = (storeId, onData, onError) => (
     onError,
     {
       limitCount: PRODUCT_MASTER_INITIAL_LIMIT,
-      orderField: 'name'
+      orderField: 'updatedAt',
+      orderDirection: 'desc'
     }
   )
 );
@@ -236,7 +237,8 @@ export const subscribeToProductGroups = (storeId, onData, onError) => (
     onError,
     {
       limitCount: PRODUCT_GROUP_INITIAL_LIMIT,
-      orderField: 'name'
+      orderField: 'updatedAt',
+      orderDirection: 'desc'
     }
   )
 );
