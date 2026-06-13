@@ -2039,11 +2039,6 @@ const ProductMasterTable = ({
 
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
-          <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div>グループ見出し：ブランド / 商品名 / カテゴリー / Shopify / BASE / STORES / 楽天 / Amazon。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
-            <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
-          </div>
-
           <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm">
             {renderEditableRow(newRow, {
               isNew: true,
