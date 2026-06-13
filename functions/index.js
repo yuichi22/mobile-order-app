@@ -3881,68 +3881,92 @@ export const updateShopifyProduct = onRequest(
       const variantsById = new Map(
         shopifyVariants.map((variant) => [String(variant.id || '').trim(), variant])
       );
+      const variantsByBarcode = new Map(
+        shopifyVariants
+          .map((variant) => [String(variant.barcode || '').trim(), variant])
+          .filter(([barcode]) => barcode)
+      );
+      const variantsByOptionValue = new Map(
+        shopifyVariants
+          .map((variant) => [
+            String(variant.selectedOptions?.[0]?.value || variant.title || '').trim().toLowerCase(),
+            variant
+          ])
+          .filter(([optionValue]) => optionValue)
+      );
 
       const syncedAt = FieldValue.serverTimestamp();
       const savedVariants = [];
+      const batch = db.batch();
 
-      await db.runTransaction(async (transaction) => {
-        transaction.set(groupRef, {
+      batch.set(groupRef, {
+        shopifyProductId: shopifyProduct.id,
+        shopifyProductHandle: shopifyProduct.handle || group.shopifyProductHandle || '',
+        shopifySyncStatus: 'updated',
+        shopifyLastSyncedAt: syncedAt,
+        updatedAt: syncedAt
+      }, { merge: true });
+
+      for (const product of products) {
+        const currentVariantId = String(product.shopifyVariantId || '').trim();
+        const barcode = String(product.barcode || '').trim();
+        const optionValue = resolveShopifyOptionValue(product, optionName);
+        const normalizedOptionValue = String(optionValue || '').trim().toLowerCase();
+
+        const variant = (
+          variantsById.get(currentVariantId) ||
+          variantsByBarcode.get(barcode) ||
+          variantsByOptionValue.get(normalizedOptionValue)
+        );
+
+        if (!variant) {
+          continue;
+        }
+
+        const resolvedVariantId = String(variant.id || currentVariantId).trim();
+        const inventoryItemId = variant?.inventoryItem?.id || product.shopifyInventoryItemId || '';
+        const matchedBy = variantsById.get(currentVariantId)
+          ? 'variantId'
+          : (variantsByBarcode.get(barcode) ? 'barcode' : 'optionValue');
+
+        batch.set(productsRef.doc(product.id), {
           shopifyProductId: shopifyProduct.id,
-          shopifyProductHandle: shopifyProduct.handle || group.shopifyProductHandle || '',
+          shopifyVariantId: resolvedVariantId,
+          shopifyInventoryItemId: inventoryItemId,
           shopifySyncStatus: 'updated',
           shopifyLastSyncedAt: syncedAt,
           updatedAt: syncedAt
         }, { merge: true });
 
-        for (const product of products) {
-          const variantId = String(product.shopifyVariantId || '').trim();
-          const variant = variantsById.get(variantId);
-
-          const productRef = storeRef.collection('products').doc(product.id);
-          const inventoryItemId = variant?.inventoryItem?.id || product.shopifyInventoryItemId || '';
-
-          transaction.set(productRef, {
-            shopifyProductId: shopifyProduct.id,
-            shopifyVariantId: variantId,
-            shopifyInventoryItemId: inventoryItemId,
-            shopifySyncStatus: 'updated',
-            shopifyLastSyncedAt: syncedAt,
-            updatedAt: syncedAt
-          }, { merge: true });
-
-          const priceSnapshot = buildShopifySyncPriceSnapshot(product, priceSyncMode);
-
-          savedVariants.push({
-            productId: product.id,
-            sku: String(product.sku || product.productCode || '').trim(),
-            shopifyVariantId: variantId,
-            shopifyInventoryItemId: inventoryItemId,
-            priceSyncMode: priceSnapshot.priceSyncMode,
-            price: priceSnapshot.price,
-            priceTaxExcluded: priceSnapshot.priceTaxExcluded,
-            priceTaxIncluded: priceSnapshot.priceTaxIncluded,
-            taxRate: priceSnapshot.taxRate,
-            barcode: String(product.barcode || '').trim()
-          });
-        }
-
-        const logRef = storeRef.collection('shopifySyncLogs').doc();
-        transaction.set(logRef, {
-          action: products.length > 1 ? 'updateShopifyProductMultiSku' : 'updateShopifyProduct',
-          status: 'success',
-          productGroupId: normalizedProductGroupId,
-          productIds: products.map((product) => product.id),
-          shopifyProductId: shopifyProduct.id,
-          shopifyProductHandle: shopifyProduct.handle || group.shopifyProductHandle || '',
-          title: shopifyProduct.title || input.title,
-          skuCount: products.length,
-          variants: savedVariants,
-          priceSyncMode,
-          priceSnapshots,
-          createdBy: authUser.uid,
-          createdAt: syncedAt
+        const priceSnapshot = buildShopifySyncPriceSnapshot(product, priceSyncMode);
+        savedVariants.push({
+          productId: product.id,
+          sku: String(product.sku || product.productCode || '').trim(),
+          barcode,
+          shopifyVariantId: resolvedVariantId,
+          shopifyInventoryItemId: inventoryItemId,
+          matchedBy,
+          ...priceSnapshot
         });
+      }
+
+      const logRef = storeRef.collection('shopifySyncLogs').doc();
+      batch.set(logRef, {
+        action: products.length > 1 ? 'updateShopifyProductMultiSku' : 'updateShopifyProduct',
+        productGroupId: group.id,
+        productIds: products.map((product) => product.id),
+        shopifyProductId: shopifyProduct.id,
+        shopifyProductHandle: shopifyProduct.handle || group.shopifyProductHandle || '',
+        title: shopifyProduct.title || input.title,
+        variantCount: savedVariants.length,
+        variants: savedVariants,
+        priceSyncMode,
+        priceSnapshots,
+        createdAt: syncedAt,
+        updatedAt: syncedAt
       });
+
+      await batch.commit();
 
       return sendJson(res, 200, {
         ok: true,
