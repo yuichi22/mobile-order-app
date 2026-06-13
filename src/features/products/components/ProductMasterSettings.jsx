@@ -1483,7 +1483,7 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>在庫数</FieldLabel>
-            <div className="flex h-8 items-center justify-end rounded-md border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700">
+            <div className="flex h-9 items-center justify-end rounded-lg border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700">
               {Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
             </div>
           </div>
@@ -1492,7 +1492,7 @@ const ProductMasterTable = ({
             <FieldLabel>入庫履歴</FieldLabel>
             <button
               type="button"
-              className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200"
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200"
               title="入庫履歴を表示"
             >
               {Number(row.lastStockInQuantity || 0) > 0 ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()}` : '入庫: 未登録'}
@@ -1510,7 +1510,7 @@ const ProductMasterTable = ({
             />
           </div>
 
-          <div>
+          <div className="flex h-9 items-center justify-center">
             <FieldLabel>{isNew ? '保存' : '削除'}</FieldLabel>
             {isNew ? (
               <div
@@ -1587,7 +1587,7 @@ const ProductMasterTable = ({
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
+            <div className="flex h-9 items-center justify-center">グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
