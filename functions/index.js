@@ -3803,6 +3803,7 @@ export const updateShopifyProduct = onRequest(
       }
 
       const groupRef = storeRef.collection('productGroups').doc(normalizedProductGroupId);
+      const productsRef = storeRef.collection('products');
       const groupSnapshot = await groupRef.get();
 
       if (!groupSnapshot.exists) {
