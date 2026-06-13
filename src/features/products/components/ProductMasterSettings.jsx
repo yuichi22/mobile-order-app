@@ -434,7 +434,7 @@ const TableTextInput = ({ value, onChange, type = 'text', className = '', placeh
     placeholder={placeholder}
     inputMode={type === 'number' ? 'decimal' : undefined}
     className={classNames(
-      'h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+      'h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
       className
     )}
   />
@@ -448,7 +448,7 @@ const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty
       value={value || ''}
       onChange={(event) => onChange(event.target.value)}
       className={classNames(
-        'h-8 w-full rounded-md border px-2 text-sm font-black shadow-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
+        'h-9 w-full rounded-lg border px-2.5 text-sm font-black shadow-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
         alertWhenEmpty && isEmpty
           ? 'border-orange-200 bg-orange-50 text-orange-700'
           : 'border-slate-200 bg-white text-slate-800',
@@ -485,7 +485,7 @@ const PillToggle = ({
     type="button"
     onClick={() => onChange(!checked)}
     className={classNames(
-      'inline-flex h-8 min-w-[122px] items-center justify-center whitespace-nowrap rounded-full px-5 text-xs font-black transition active:scale-95',
+      'inline-flex h-8 min-w-[108px] items-center justify-center whitespace-nowrap rounded-full px-4 text-xs font-black transition active:scale-95',
       checked ? activeClassName : inactiveClassName,
       className
     )}
@@ -1381,7 +1381,7 @@ const ProductMasterTable = ({
       >
         {isNew && (
           <div className="mb-2 rounded-lg border border-orange-100 bg-white/80 px-3 py-2">
-            <div className="grid grid-cols-[minmax(130px,1fr)_minmax(180px,1.6fr)_minmax(140px,1fr)_80px_96px] gap-2">
+            <div className="grid grid-cols-[minmax(140px,1fr)_minmax(220px,1.65fr)_minmax(160px,1fr)_86px_104px] gap-2">
               <div>
                 <FieldLabel>ブランド</FieldLabel>
                 <TableSelect value={row.brandId} onChange={(value) => update({ brandId: value })} alertWhenEmpty>
@@ -1423,7 +1423,7 @@ const ProductMasterTable = ({
                   type="button"
                   onClick={saveNew}
                   disabled={isSaving}
-                  className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
+                  className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 text-xs font-black text-white disabled:opacity-60"
                 >
                   {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
                   保存
@@ -1433,7 +1433,7 @@ const ProductMasterTable = ({
           </div>
         )}
 
-        <div className="grid grid-cols-[minmax(110px,1fr)_minmax(132px,1.05fr)_64px_64px_82px_58px_64px_64px_76px_150px_64px_40px] gap-1.5">
+        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(148px,1.05fr)_72px_76px_92px_66px_74px_74px_84px_170px_72px_44px] gap-2">
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
@@ -1545,8 +1545,8 @@ const ProductMasterTable = ({
   };
 
   return (
-    <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
+    <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-base font-black text-slate-900">商品マスター</h3>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
@@ -1592,8 +1592,8 @@ const ProductMasterTable = ({
         </div>
       </div>
 
-      <div className="overflow-x-auto bg-sky-100/60 p-4">
-        <div className="min-w-[1290px] space-y-3">
+      <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
+        <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
             <div>グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
@@ -1612,7 +1612,7 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(130px,1fr)_minmax(220px,1.7fr)_minmax(150px,1.1fr)_76px_88px_92px_96px] gap-2">
+                    <div className="grid grid-cols-[minmax(140px,1fr)_minmax(260px,1.8fr)_minmax(180px,1.15fr)_82px_92px_98px_104px] gap-2 xl:gap-2.5">
                       <div>
                         <FieldLabel>ブランド</FieldLabel>
                         <TableSelect
@@ -1741,7 +1741,7 @@ const ProductMasterTable = ({
                 })()}
               </div>
 
-              <div className="space-y-2 bg-slate-50/60 p-2">
+              <div className="space-y-2 bg-slate-50/60 p-2.5">
                 {group.products.map((product) => renderEditableRow(getDraft(product)))}
               </div>
             </div>
