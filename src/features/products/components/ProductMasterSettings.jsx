@@ -251,7 +251,7 @@ const normalizeProductPayload = (draft) => ({
   reorderPoint: normalizeNumberOrNull(draft.reorderPoint),
   reorderQuantity: normalizeNumberOrNull(draft.reorderQuantity),
   labelEnabled: Boolean(draft.labelEnabled),
-  shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled || draft.shopifyEnabled),
+  shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled),
   shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled),
   isActive: draft.isActive !== false,
   isArchived: Boolean(draft.isArchived),
@@ -865,7 +865,7 @@ const ProductMasterTable = ({
     if (hasExplicitDraftOff) return false;
 
     return Boolean(
-      group.shopifyCreateEnabled ||
+      group.shopifyCreateEnabled === true ||
       (group.products || []).some((product) => product.shopifyCreateEnabled === true)
     );
   };
@@ -1083,7 +1083,7 @@ const ProductMasterTable = ({
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
       supplierName: matchedSupplier?.name || matchedBrand?.supplierName || draft.supplierName || '',
-      shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled || draft.shopifyEnabled),
+      shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled),
       shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled)
     });
   };
@@ -1158,7 +1158,7 @@ const ProductMasterTable = ({
           groupCode: newGroupCode,
           productGroupName: primaryGroupDraft.name || row.productGroupName || row.name || '',
           productGroupRole: index === 0 ? 'primary' : 'variant',
-          shopifyCreateEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled),
+          shopifyCreateEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled),
           shopifyEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled)
         };
 
@@ -1202,7 +1202,7 @@ const ProductMasterTable = ({
     reorderPoint: source.reorderPoint ?? '',
     reorderQuantity: source.reorderQuantity ?? '',
     labelEnabled: Boolean(source.labelEnabled),
-    shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled || source.shopifyEnabled),
+    shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled),
     shopifyEnabled: Boolean(source.shopifyEnabled || source.shopifyCreateEnabled),
     isActive: source.isActive !== false,
     isArchived: false,
