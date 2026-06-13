@@ -1462,7 +1462,7 @@ const ProductMasterTable = ({
             <FieldLabel>税抜売価</FieldLabel>
             <TableTextInput type="number" value={row.priceTaxExcluded} onChange={(value) => update({ priceTaxExcluded: value })} placeholder="税抜売価" className="text-right" />
             <div className="mt-1 text-right text-[11px] font-bold text-slate-400">
-              税込参考: {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, row.taxRate ?? 10) || 0).toLocaleString()}
+              税込 {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, row.taxRate ?? 10) || 0).toLocaleString()}
             </div>
           </div>
 
@@ -1587,7 +1587,7 @@ const ProductMasterTable = ({
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           <div className="rounded-xl bg-white/60 px-3 py-2 text-[11px] font-black tracking-widest text-slate-400">
-            <div className="flex h-9 items-center justify-center">グループ見出し：ブランド / 商品名 / カテゴリー / ラベル / Shopify状態 / +SKU追加 / 保存。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
+            <div>グループ見出し：ブランド / 商品名 / カテゴリー / Shopify / BASE / STORES / 楽天 / Amazon。右上の更新で変更・入庫を反映し、Shopify同期で下書き作成・既存商品更新を実行します。</div>
             <div className="mt-1">SKU行：品番 / バーコード / サイズ / 色 / 価格 / LOT / 発注点 / 発注数 / 在庫数 / 入庫履歴 / 入庫数 / 削除</div>
           </div>
 
@@ -1604,7 +1604,7 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(560px,2.8fr)_minmax(360px,1.9fr)_92px_204px] gap-2 xl:gap-2.5">
+                    <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
                       <div className="min-w-0">
                         <div className="grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
                           <div>
@@ -1668,7 +1668,7 @@ const ProductMasterTable = ({
                         />
                       </div>
 
-                      <div>
+                      <div className="grid h-[4.5rem] w-[300px] grid-cols-3 grid-rows-2 gap-1 justify-self-end">
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
                           const draftProducts = group.products
@@ -1714,8 +1714,8 @@ const ProductMasterTable = ({
                                   ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
                                   : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
                               }
-                              inactiveClassName="bg-slate-200 text-slate-500"
-                              className="!h-8 !min-w-[86px] !px-3 text-[11px]"
+                              inactiveClassName="bg-slate-100 text-slate-400"
+                              className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
                               title={
                                 isShopifyActive && !isShopifyPending
                                   ? 'Shopify連携済みです。OFFにするとShopify IDは残したまま同期対象から外します。'
@@ -1726,16 +1726,17 @@ const ProductMasterTable = ({
                             />
                           );
                         })()}
-                      </div>
 
-                      <div className="grid h-[4.5rem] w-[204px] grid-cols-3 grid-rows-2 gap-1 justify-self-end">
-                        {['BASE', 'STORES', 'EC', 'EC', 'EC', 'EC'].map((label, index) => (
-                          <div
-                            key={`${group.key}-ec-slot-${index}`}
-                            className="flex min-w-0 items-center justify-center truncate rounded-lg border border-dashed border-slate-200 bg-white/50 px-1 text-[9px] font-black uppercase tracking-[0.04em] text-slate-300"
+                        {['BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
+                          <button
+                            key={`${group.key}-ec-placeholder-${label}`}
+                            type="button"
+                            disabled
+                            className="inline-flex h-8 w-full items-center justify-center truncate rounded-full bg-slate-100 px-2 text-[10px] font-black text-slate-400 opacity-80"
+                            title={`${label}連携は今後追加予定です`}
                           >
                             {label}
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
