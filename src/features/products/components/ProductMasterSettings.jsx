@@ -280,6 +280,7 @@ const normalizeProductPayload = (draft) => ({
   reorderLot: normalizeNumberOrNull(draft.reorderLot || draft.orderLot),
   reorderPoint: normalizeNumberOrNull(draft.reorderPoint),
   reorderQuantity: normalizeNumberOrNull(draft.reorderQuantity),
+  stockInQuantityDraft: normalizeNumberOrNull(draft.stockInQuantityDraft),
   labelEnabled: Boolean(draft.labelEnabled),
   shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled),
   shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled),
