@@ -3131,9 +3131,48 @@ const resolveShopifySyncPriceValue = (product = {}, priceSyncMode = 'taxIncluded
   return product.priceTaxIncluded ?? product.priceTaxExcluded ?? product.price ?? product.salesPrice ?? 0;
 };
 
+const calculateTaxIncludedPrice = (taxExcluded, taxRate = 10) => {
+  const excluded = Number(taxExcluded);
+  const rate = Number(taxRate);
+
+  if (!Number.isFinite(excluded) || excluded <= 0) return null;
+  if (!Number.isFinite(rate) || rate < 0) return Math.round(excluded);
+
+  return Math.round(excluded * (1 + rate / 100));
+};
+
+const resolveShopifyEffectivePriceValue = (product = {}, priceSyncMode = 'taxIncluded') => {
+  const mode = normalizeShopifyPriceSyncMode(priceSyncMode);
+
+  if (mode === 'taxExcluded') {
+    return product.priceTaxExcluded ?? product.price ?? 0;
+  }
+
+  const taxIncluded = Number(product.priceTaxIncluded);
+  const taxExcluded = Number(product.priceTaxExcluded);
+  const taxRate = Number(product.taxRate ?? 10);
+
+  const recalculatedTaxIncluded = calculateTaxIncludedPrice(taxExcluded, taxRate);
+
+  if (
+    recalculatedTaxIncluded !== null &&
+    Number.isFinite(taxIncluded) &&
+    taxIncluded > 0 &&
+    Math.abs(recalculatedTaxIncluded - taxIncluded) > 1
+  ) {
+    return recalculatedTaxIncluded;
+  }
+
+  if (recalculatedTaxIncluded !== null && (!Number.isFinite(taxIncluded) || taxIncluded <= 0)) {
+    return recalculatedTaxIncluded;
+  }
+
+  return product.priceTaxIncluded ?? product.price ?? 0;
+};
+
 const buildShopifySyncPriceSnapshot = (product = {}, priceSyncMode = 'taxIncluded') => {
   const mode = normalizeShopifyPriceSyncMode(priceSyncMode);
-  const rawPrice = resolveShopifySyncPriceValue(product, mode);
+  const rawPrice = resolveShopifyEffectivePriceValue(product, mode);
 
   return {
     priceSyncMode: mode,
@@ -3143,6 +3182,14 @@ const buildShopifySyncPriceSnapshot = (product = {}, priceSyncMode = 'taxInclude
     priceTaxIncluded: product.priceTaxIncluded ?? null,
     taxRate: product.taxRate ?? null
   };
+};
+
+const resolveShopifyProductTitle = (group = {}, products = []) => {
+  const primaryProduct = products.find((product) => product.productGroupRole === 'primary') || products[0] || {};
+  return normalizeShopifyText(
+    primaryProduct.name || primaryProduct.productGroupName || group.name,
+    group.baseProductName || group.name || 'Akuto Product'
+  );
 };
 
 const normalizeShopifyText = (value, fallback = '') => {
@@ -3370,7 +3417,7 @@ const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncl
   const tags = buildMergedShopifyTags(group.categoryName, group.subCategoryName, 'akuto-sync');
 
   return {
-    title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
+    title: resolveShopifyProductTitle(group, products),
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
@@ -3750,7 +3797,7 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], pr
 
   return {
     id: String(group.shopifyProductId || '').trim(),
-    title: normalizeShopifyText(group.name, group.baseProductName || 'Akuto Product'),
+    title: resolveShopifyProductTitle(group, products),
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
