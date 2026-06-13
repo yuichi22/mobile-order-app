@@ -3265,6 +3265,15 @@ const resolveShopifyOptionName = (products = []) => {
 
 const resolveShopifyOptionValue = (product = {}, optionName = 'バリエーション') => {
   const size = String(product.size || '').trim();
+  const color = String(product.colorName || '').trim();
+
+  if (optionName === 'サイズ' && size) return size;
+  if (optionName === 'カラー' && color) return color;
+  if (size && color) return `${size} / ${color}`;
+  if (size) return size;
+  if (color) return color;
+  return String(product.sku || product.productCode || product.id || 'Default').trim();
+};
 
 const resolveUniqueShopifyOptionValue = (product = {}, optionName = 'バリエーション', index = 0, usedOptionValues = new Set()) => {
   const rawBase = normalizeShopifyText(resolveShopifyOptionValue(product, optionName), '');
@@ -3328,15 +3337,6 @@ const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエ�
   if (duplicated.length > 0) {
     throw new Error(`Shopify同期前チェックで重複があります。\n${duplicated.join('\n')}`);
   }
-};
-  const color = String(product.colorName || '').trim();
-
-  if (optionName === 'サイズ' && size) return size;
-  if (optionName === 'カラー' && color) return color;
-  if (size && color) return `${size} / ${color}`;
-  if (size) return size;
-  if (color) return color;
-  return String(product.sku || product.productCode || product.id || 'Default').trim();
 };
 
 const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded' }) => {
