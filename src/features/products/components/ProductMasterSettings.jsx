@@ -1175,6 +1175,42 @@ const ProductMasterTable = ({
     }
   };
 
+  const saveDraftRowsForGroup = async (group) => {
+    const rows = (group.products || [])
+      .map((product) => draftRows[product.id])
+      .filter((row) => row?.id);
+
+    if (rows.length === 0) return [];
+
+    const savedRows = [];
+
+    for (const row of rows) {
+      const payload = buildProductSavePayload(row);
+      await onSaveProduct(payload);
+      rememberSavedProduct(payload);
+      savedRows.push(payload);
+    }
+
+    setDraftRows((current) => {
+      const next = { ...current };
+      for (const row of rows) {
+        delete next[row.id];
+      }
+      return next;
+    });
+
+    return savedRows;
+  };
+
+  const buildGroupWithSavedDraftRows = (group, savedRows = []) => {
+    const savedRowsById = new Map(savedRows.map((row) => [row.id, row]));
+
+    return {
+      ...group,
+      products: (group.products || []).map((product) => savedRowsById.get(product.id) || getDraft(product))
+    };
+  };
+
   const syncEditedShopifyGroups = async () => {
     if (editedShopifyGroups.length === 0 && editedSyncedShopifyGroups.length === 0) {
       alert('Shopify同期対象の編集済み商品はありません。商品を編集してから実行してください。');
@@ -1228,7 +1264,10 @@ const ProductMasterTable = ({
         const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
 
         await saveProductGroupHeader(originalGroup, primaryDraft, { suppressSuccessAlert: true });
-        await createShopifyDraftForGroup(getWorkingGroup(originalGroup), {
+        const savedRows = await saveDraftRowsForGroup(originalGroup);
+        const savedGroup = buildGroupWithSavedDraftRows(originalGroup, savedRows);
+
+        await createShopifyDraftForGroup(savedGroup, {
           skipMissingConfirm: true,
           skipExistingConfirm: true,
           suppressSuccessAlert: true
@@ -1241,7 +1280,10 @@ const ProductMasterTable = ({
         const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
 
         await saveProductGroupHeader(originalGroup, primaryDraft, { suppressSuccessAlert: true });
-        await updateShopifyProductForGroup(getWorkingGroup(originalGroup), {
+        const savedRows = await saveDraftRowsForGroup(originalGroup);
+        const savedGroup = buildGroupWithSavedDraftRows(originalGroup, savedRows);
+
+        await updateShopifyProductForGroup(savedGroup, {
           suppressSuccessAlert: true
         });
       }
@@ -1570,7 +1612,7 @@ const ProductMasterTable = ({
                     : () => {};
 
                   return (
-                    <div className="grid grid-cols-[minmax(130px,1fr)_minmax(220px,1.7fr)_minmax(150px,1.1fr)_76px_88px_92px_96px_96px] gap-2">
+                    <div className="grid grid-cols-[minmax(130px,1fr)_minmax(220px,1.7fr)_minmax(150px,1.1fr)_76px_88px_92px_96px] gap-2">
                       <div>
                         <FieldLabel>ブランド</FieldLabel>
                         <TableSelect
@@ -1694,18 +1736,6 @@ const ProductMasterTable = ({
                         </div>
                       </div>
 
-                      <div>
-                        <FieldLabel>保存</FieldLabel>
-                        <button
-                          type="button"
-                          onClick={() => saveProductGroupHeader(group, primaryDraft)}
-                          disabled={savingKey === `group:${group.key}`}
-                          className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-3 text-xs font-black text-white transition hover:bg-blue-700 disabled:opacity-60"
-                        >
-                          {savingKey === `group:${group.key}` ? <LoadingSpinner size={12} /> : <Save size={13} />}
-                          保存
-                        </button>
-                      </div>
                     </div>
                   );
                 })()}
