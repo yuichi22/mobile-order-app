@@ -1596,47 +1596,42 @@ const ProductMasterTable = ({
                         <FieldLabel>Shopify</FieldLabel>
                         {(() => {
                           const isShopifySynced = Boolean(getGroupShopifyProductId(group));
-                          const isShopifyTarget = group.products.some((product) => Boolean(getDraft(product).shopifyCreateEnabled));
+                          const hasShopifyDraft = group.products.some((product) => Object.prototype.hasOwnProperty.call(draftRows, product.id));
+                          const isShopifyTarget = group.products.some((product) => {
+                            const draft = getDraft(product);
+                            if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
+                              return Boolean(draft.shopifyCreateEnabled);
+                            }
+                            if (Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled')) {
+                              return Boolean(draft.shopifyEnabled);
+                            }
+                            return isShopifySynced;
+                          });
                           const isShopifyActive = isShopifyTarget && isShopifySynced;
-                          const isShopifyPending = isShopifyTarget && !isShopifySynced;
+                          const isShopifyPending = isShopifyTarget && (!isShopifySynced || hasShopifyDraft);
 
                           return (
-                            <>
-                              <PillToggle
-                                checked={isShopifyTarget}
-                                onChange={(value) => updateProductGroupShopifyDraft(group, value)}
-                                disabled={savingKey === `shopify:${group.key}`}
-                                onLabel="Shopify"
-                                offLabel="Shopify"
-                                activeClassName={
-                                  isShopifyActive
-                                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
-                                    : 'bg-slate-500 text-white shadow-sm shadow-slate-200'
-                                }
-                                inactiveClassName="bg-slate-200 text-slate-500"
-                                className="!h-8 !min-w-[86px] !px-3 text-[11px]"
-                              />
-
-                              <div
-                                className={classNames(
-                                  'inline-flex h-8 min-w-[88px] items-center justify-center rounded-md px-3 text-[11px] font-black',
-                                  isShopifyActive
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : isShopifyPending
-                                      ? 'bg-slate-200 text-slate-700'
-                                      : 'bg-slate-100 text-slate-400'
-                                )}
-                                title={
-                                  isShopifyActive
-                                    ? 'Shopify連携済みです。OFFにするとShopify IDは残したまま同期対象から外します。'
-                                    : isShopifyPending
-                                      ? 'Shopify同期対象です。Shopify同期ボタンから下書き作成または更新を実行します。'
-                                      : 'Shopify IDは残したまま同期対象外です。ONにするとShopify同期対象になります。'
-                                }
-                              >
-                                {isShopifyActive ? 'Shopify' : isShopifyPending ? '同期待ち' : '非同期'}
-                              </div>
-                            </>
+                            <PillToggle
+                              checked={isShopifyTarget}
+                              onChange={(value) => updateProductGroupShopifyDraft(group, value)}
+                              disabled={savingKey === `shopify:${group.key}`}
+                              onLabel="Shopify"
+                              offLabel="Shopify"
+                              activeClassName={
+                                isShopifyActive && !isShopifyPending
+                                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
+                                  : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
+                              }
+                              inactiveClassName="bg-slate-200 text-slate-500"
+                              className="!h-8 !min-w-[86px] !px-3 text-[11px]"
+                              title={
+                                isShopifyActive && !isShopifyPending
+                                  ? 'Shopify連携済みです。OFFにするとShopify IDは残したまま同期対象から外します。'
+                                  : isShopifyPending
+                                    ? 'Shopify同期対象です。Shopify同期ボタンから下書き作成または更新を実行します。'
+                                    : 'Shopify IDは残したまま同期対象外です。ONにするとShopify同期対象になります。'
+                              }
+                            />
                           );
                         })()}
                       </div>
