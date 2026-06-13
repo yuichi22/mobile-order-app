@@ -874,7 +874,7 @@ const ProductMasterTable = ({
     ));
   }, [newRow, newSkuRows]);
 
-  const newProductEntryCount = hasNewProductDraft ? Math.max(1, 1 + newSkuRows.length) : 0;
+  const newProductEntryCount = 1 + newSkuRows.length;
 
   const updateNewSkuRow = (index, patch) => {
     setNewSkuRows((current) => current.map((row, rowIndex) => (
@@ -1520,7 +1520,7 @@ const ProductMasterTable = ({
           isNew ? 'border-orange-100 bg-orange-50/60 shadow-orange-100/50' : 'border-slate-200 bg-white'
         )}
       >
-        {isNew && (
+        {isNew && options.showNewHeader !== false && (
           <div className="mb-2 rounded-lg border border-orange-100 bg-white/80 px-3 py-2">
             <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
               <div className="min-w-0">
@@ -1725,7 +1725,7 @@ const ProductMasterTable = ({
             disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedProductRowCount === 0 && !hasNewProductDraft)}
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-              editedProductRowCount > 0
+              hasNewProductDraft || editedProductRowCount > 0
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-slate-100 text-slate-400'
             )}
@@ -1783,7 +1783,8 @@ const ProductMasterTable = ({
               isNew: true,
               rowKey: row.id || `__new_sku_${index}`,
               onNewSkuChange: (patch) => updateNewSkuRow(index, patch),
-              onRemoveNewSku: () => removeNewSkuRow(index)
+              onRemoveNewSku: () => removeNewSkuRow(index),
+              showNewHeader: false
             }
           ))}
 
