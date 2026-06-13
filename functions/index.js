@@ -3303,24 +3303,15 @@ const resolveUniqueShopifyOptionValue = (product = {}, optionName = 'バリエ�
 };
 
 const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエーション') => {
-  const seenSkus = new Map();
   const seenBarcodes = new Map();
+  const seenShopifyVariantIds = new Map();
   const usedOptionValues = new Set();
   const duplicated = [];
 
   products.forEach((product, index) => {
     const label = product.name || product.productGroupName || product.sku || product.productCode || product.id || `商品${index + 1}`;
-    const sku = String(product.sku || product.productCode || '').trim();
     const barcode = String(product.barcode || '').trim();
-
-    if (sku) {
-      const skuKey = sku.toLowerCase();
-      if (seenSkus.has(skuKey)) {
-        duplicated.push(`SKU重複: ${sku}（${seenSkus.get(skuKey)} / ${label}）`);
-      } else {
-        seenSkus.set(skuKey, label);
-      }
-    }
+    const shopifyVariantId = String(product.shopifyVariantId || '').trim();
 
     if (barcode) {
       const barcodeKey = barcode.toLowerCase();
@@ -3328,6 +3319,15 @@ const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエ�
         duplicated.push(`JAN重複: ${barcode}（${seenBarcodes.get(barcodeKey)} / ${label}）`);
       } else {
         seenBarcodes.set(barcodeKey, label);
+      }
+    }
+
+    if (shopifyVariantId) {
+      const variantKey = shopifyVariantId.toLowerCase();
+      if (seenShopifyVariantIds.has(variantKey)) {
+        duplicated.push(`Shopify variant ID重複: ${shopifyVariantId}（${seenShopifyVariantIds.get(variantKey)} / ${label}）`);
+      } else {
+        seenShopifyVariantIds.set(variantKey, label);
       }
     }
 
