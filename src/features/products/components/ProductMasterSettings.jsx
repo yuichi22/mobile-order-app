@@ -1304,21 +1304,22 @@ const ProductMasterTable = ({
   };
 
   const createShopifyDraftForGroup = async (group, options = {}) => {
-    const productGroupId = getGroupProductGroupId(group);
+    const workingGroup = getWorkingGroup(group);
+    const productGroupId = getGroupProductGroupId(workingGroup);
 
     if (!productGroupId) {
       alert('商品グループIDが見つかりません。商品グループを保存してから再度お試しください。');
       return;
     }
 
-    if (!group.products?.some((product) => product.shopifyCreateEnabled)) {
-      alert('先にShopify連携をONにしてください。');
-      return;
+    if (!groupHasShopifySyncTarget(workingGroup)) {
+      alert('先にShopify連携をONにして保存してください。');
+      return undefined;
     }
 
-    if (!options.skipMissingConfirm && !confirmShopifySyncMissingFields(group)) return undefined;
+    if (!options.skipMissingConfirm && !confirmShopifySyncMissingFields(workingGroup)) return undefined;
 
-    const hadExistingShopifyProductId = Boolean(getGroupShopifyProductId(group));
+    const hadExistingShopifyProductId = Boolean(getGroupShopifyProductId(workingGroup));
 
     if (hadExistingShopifyProductId && !options.skipExistingConfirm) {
       const ok = window.confirm('この商品グループはすでにShopify商品IDがあります。重複作成せず同期済み確認だけ行いますか？');
@@ -1561,11 +1562,14 @@ const ProductMasterTable = ({
         const savedRows = await saveDraftRowsForGroup(originalGroup);
         const savedGroup = buildGroupWithSavedDraftRows(originalGroup, savedRows);
 
-        await createShopifyDraftForGroup(savedGroup, {
+        const createResult = await createShopifyDraftForGroup(savedGroup, {
           skipMissingConfirm: true,
           skipExistingConfirm: true,
           suppressSuccessAlert: true
         });
+        if (!createResult) {
+          throw new Error(`${getGroupDisplayName(savedGroup)} のShopify下書き作成が実行されませんでした。Shopify同期ONの保存状態を確認してください。`);
+        }
         clearPendingShopifySyncProducts((savedGroup.products || []).map((product) => product.id));
       }
 
