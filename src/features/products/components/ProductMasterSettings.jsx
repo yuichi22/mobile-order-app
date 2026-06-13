@@ -848,12 +848,18 @@ const ProductMasterTable = ({
   const groupHasDraftShopifyTarget = (group) =>
     group.products.some((product) => getDraftShopifyTarget(product));
 
+  const groupHasPendingShopifySync = (group) =>
+    group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
+
+  const groupHasShopifySyncTarget = (group) =>
+    groupHasPendingShopifySync(group) || groupHasDraftShopifyTarget(group);
+
   const editedShopifyGroups = useMemo(() => (
     groupedProducts
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
         group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
-        && groupHasDraftShopifyTarget(group)
+        && groupHasShopifySyncTarget(group)
         && !getGroupShopifyProductId(group)
       ))
   ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
@@ -863,7 +869,7 @@ const ProductMasterTable = ({
       .map((group) => getWorkingGroup(group))
       .filter((group) => (
         group.products.some((product) => draftRows[product.id] || pendingShopifySyncProductIds.has(product.id))
-        && groupHasDraftShopifyTarget(group)
+        && groupHasShopifySyncTarget(group)
         && Boolean(getGroupShopifyProductId(group))
       ))
   ), [draftRows, pendingShopifySyncProductIds, groupedProducts]);
@@ -1912,11 +1918,11 @@ const ProductMasterTable = ({
                 ? 'bg-slate-900 text-white hover:bg-slate-700'
                 : 'bg-slate-100 text-slate-400'
             )}
-            title={shopifySyncTargetGroupCount > 0 ? `下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : '編集済みのShopify同期対象はありません'}
+            title={shopifySyncTargetGroupCount > 0 ? `Shopify同期対象 ${shopifySyncTargetGroupCount}件 / 下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : 'Shopify同期対象はありません。Shopify ONにして保存してください。'}
           >
             {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
             Shopify同期
-            {shopifySyncTargetGroupCount > 0 ? `(${editedShopifyGroups.length + editedSyncedShopifyGroups.length})` : ''}
+            {shopifySyncTargetGroupCount > 0 ? `(${shopifySyncTargetGroupCount})` : ''}
           </button>
         </div>
       </div>
@@ -2058,9 +2064,10 @@ const ProductMasterTable = ({
                             }
                             return false;
                           });
-                          const isShopifyTarget = hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget;
-                          const isShopifyActive = isShopifyTarget && isShopifySynced;
-                          const isShopifyPending = isShopifyTarget && (!isShopifySynced || hasShopifyDraft);
+                          const isPendingShopifySync = group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
+                          const isShopifyTarget = isPendingShopifySync || (hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget);
+                          const isShopifyActive = isShopifyTarget && isShopifySynced && !isPendingShopifySync;
+                          const isShopifyPending = isPendingShopifySync || (isShopifyTarget && (!isShopifySynced || hasShopifyDraft));
 
                           return (
                             <PillToggle
