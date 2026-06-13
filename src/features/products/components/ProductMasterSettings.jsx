@@ -176,6 +176,36 @@ export const blankSupplier = {
   isActive: true
 };
 
+const supplierCreateFields = [
+  { id: 'name', label: '仕入先名' },
+  { id: 'contactName', label: '担当者' },
+  { id: 'tel', label: '電話番号' },
+  { id: 'email', label: 'メール' },
+  { id: 'address', label: '住所' },
+  { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
+  {
+    id: 'paymentTerms',
+    label: '支払いサイト',
+    type: 'select',
+    placeholder: '支払いサイトを選択',
+    options: [
+      { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
+      { value: 'COD', label: 'COD' }
+    ]
+  }
+];
+
+const supplierCreateInitialValue = {
+  name: '',
+  contactName: '',
+  tel: '',
+  email: '',
+  address: '',
+  defaultCostRate: '',
+  paymentTerms: '月末締め翌月末払い',
+  isActive: true
+};
+
 const normalizeNumberOrNull = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const number = Number(value);
@@ -654,36 +684,6 @@ const ProductMasterTable = ({
       .filter((item) => String(item?.name || '').trim())
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
   );
-
-  const supplierCreateFields = [
-    { id: 'name', label: '仕入先名' },
-    { id: 'contactName', label: '担当者' },
-    { id: 'tel', label: '電話番号' },
-    { id: 'email', label: 'メール' },
-    { id: 'address', label: '住所' },
-    { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
-    {
-      id: 'paymentTerms',
-      label: '支払いサイト',
-      type: 'select',
-      placeholder: '支払いサイトを選択',
-      options: [
-        { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
-        { value: 'COD', label: 'COD' }
-      ]
-    }
-  ];
-
-  const supplierCreateInitialValue = {
-    name: '',
-    contactName: '',
-    tel: '',
-    email: '',
-    address: '',
-    defaultCostRate: '',
-    paymentTerms: '月末締め翌月末払い',
-    isActive: true
-  };
 
   const getBrandSupplierName = (brand) => {
     const supplier = suppliers.find((supplierItem) => supplierItem.id === brand?.supplierId) || null;
