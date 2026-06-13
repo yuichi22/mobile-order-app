@@ -584,6 +584,8 @@ const ProductMasterTable = ({
           changed = true;
         }
       });
+  const [newSkuRows, setNewSkuRows] = useState([]);
+
 
       return changed ? next : current;
     });
@@ -834,6 +836,85 @@ const ProductMasterTable = ({
     }));
   };
 
+  const buildEmptyNewSkuRow = () => ({
+    id: `__new_sku_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    sku: '',
+    productCode: '',
+    barcode: '',
+    size: '',
+    colorName: '',
+    priceTaxExcluded: '',
+    taxRate: newRow.taxRate ?? 10,
+    orderLot: '',
+    reorderLot: '',
+    reorderPoint: '',
+    reorderQuantity: '',
+    stockInQuantityDraft: ''
+  });
+
+  const hasNewProductDraft = useMemo(() => {
+    const rows = [newRow, ...newSkuRows];
+    return rows.some((row) => (
+      String(row.brandId || '').trim() ||
+      String(row.name || '').trim() ||
+      String(row.sku || row.productCode || '').trim() ||
+      String(row.barcode || '').trim() ||
+      String(row.size || '').trim() ||
+      String(row.colorName || '').trim() ||
+      String(row.priceTaxExcluded || '').trim() ||
+      String(row.orderLot ?? row.reorderLot ?? '').trim() ||
+      String(row.reorderPoint || '').trim() ||
+      String(row.reorderQuantity || '').trim() ||
+      String(row.stockInQuantityDraft || '').trim() ||
+      Boolean(row.labelEnabled) ||
+      Boolean(row.salesAreaId) ||
+      Boolean(row.categoryGroupId) ||
+      Boolean(row.categoryId) ||
+      Boolean(row.subCategoryId)
+    ));
+  }, [newRow, newSkuRows]);
+
+  const newProductEntryCount = hasNewProductDraft ? Math.max(1, 1 + newSkuRows.length) : 0;
+
+  const updateNewSkuRow = (index, patch) => {
+    setNewSkuRows((current) => current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, ...patch } : row
+    )));
+  };
+
+  const addNewSkuRow = () => {
+    setNewSkuRows((current) => [...current, buildEmptyNewSkuRow()]);
+  };
+
+  const clearNewProductEntry = () => {
+    setNewRow({
+      brandId: '',
+      name: '',
+      labelEnabled: false,
+      salesAreaId: '',
+      categoryGroupId: '',
+      categoryId: '',
+      subCategoryId: '',
+      sku: '',
+      productCode: '',
+      barcode: '',
+      size: '',
+      colorName: '',
+      priceTaxExcluded: '',
+      taxRate: 10,
+      orderLot: '',
+      reorderLot: '',
+      reorderPoint: '',
+      reorderQuantity: '',
+      stockInQuantityDraft: ''
+    });
+    setNewSkuRows([]);
+  };
+
+  const removeNewSkuRow = (index) => {
+    setNewSkuRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
   const buildProductSavePayload = (draft) => {
     const matchedBrand = brands.find((brand) => brand.id === draft.brandId);
     const matchedCategory = productCategories.find((category) => category.id === draft.categoryId);
@@ -878,18 +959,57 @@ const ProductMasterTable = ({
   };
 
   const saveNew = async () => {
-    if (!String(newRow.name || '').trim()) {
-      alert('商品名を入力してください');
+    if (!hasNewProductDraft) return;
+
+    const newProductRowsToSave = [newRow, ...newSkuRows];
+    const primaryGroupDraft = newRow;
+    const targetRows = newProductRowsToSave.filter((row, index) => (
+      index === 0 ||
+      String(row.sku || row.productCode || '').trim() ||
+      String(row.barcode || '').trim() ||
+      String(row.size || '').trim() ||
+      String(row.colorName || '').trim() ||
+      String(row.priceTaxExcluded || '').trim() ||
+      String(row.orderLot ?? row.reorderLot ?? '').trim() ||
+      String(row.reorderPoint || '').trim() ||
+      String(row.reorderQuantity || '').trim() ||
+      String(row.stockInQuantityDraft || '').trim()
+    ));
+
+    if (!String(primaryGroupDraft.name || '').trim()) {
+      alert('新規登録する商品名を入力してください。');
       return;
     }
 
     setSavingKey('__new__');
+
     try {
-      await onSaveProduct(buildProductSavePayload(newRow));
-      setNewRow({ ...blankProduct });
+      for (const [index, row] of targetRows.entries()) {
+        const mergedDraft = {
+          ...primaryGroupDraft,
+          ...row,
+          brandId: primaryGroupDraft.brandId || row.brandId || '',
+          brandName: primaryGroupDraft.brandName || row.brandName || '',
+          name: primaryGroupDraft.name || row.name || '',
+          labelEnabled: Boolean(primaryGroupDraft.labelEnabled),
+          salesAreaId: primaryGroupDraft.salesAreaId || row.salesAreaId || '',
+          categoryGroupId: primaryGroupDraft.categoryGroupId || row.categoryGroupId || '',
+          categoryId: primaryGroupDraft.categoryId || row.categoryId || '',
+          subCategoryId: primaryGroupDraft.subCategoryId || row.subCategoryId || '',
+          productGroupName: primaryGroupDraft.name || row.productGroupName || row.name || '',
+          productGroupRole: index === 0 ? 'primary' : 'variant'
+        };
+
+        await onSaveProduct(buildProductSavePayload(mergedDraft));
+      }
+
+      clearNewProductEntry();
       onSaved?.();
+    } catch (error) {
+      console.error('failed to save new product rows', error);
+      alert(`新規商品登録に失敗しました: ${error?.message || error}`);
     } finally {
-      setSavingKey('');
+      setSavingKey(null);
     }
   };
 
@@ -1369,6 +1489,16 @@ const ProductMasterTable = ({
   };
 
 
+  const saveProductMasterChanges = async () => {
+    if (hasNewProductDraft) {
+      await saveNew();
+    }
+
+    if (editedProductRowCount > 0) {
+      await saveEditedProductRows();
+    }
+  };
+
   const deleteProduct = async (product) => {
     if (!product?.id) return;
     if (!window.confirm(`${product.name || '商品'}を削除しますか？`)) return;
@@ -1378,8 +1508,8 @@ const ProductMasterTable = ({
 
   const renderEditableRow = (row, options = {}) => {
     const isNew = options.isNew === true;
-    const rowKey = isNew ? '__new__' : row.id;
-    const update = isNew ? updateNewRow : (patch) => updateDraft(row.id, patch);
+    const rowKey = options.rowKey || (isNew ? '__new__' : row.id);
+    const update = isNew ? (options.onNewSkuChange || updateNewRow) : (patch) => updateDraft(row.id, patch);
     const isSaving = savingKey === rowKey;
 
     return (
@@ -1410,8 +1540,18 @@ const ProductMasterTable = ({
                 </div>
 
                 <div className="mt-1.5 grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
-                  <div className="flex h-8 min-w-0 items-center justify-center rounded-lg bg-orange-50 px-2 text-xs font-black text-orange-600">
-                    新規商品
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={addNewSkuRow}
+                      className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-slate-900 px-2 text-xs font-black text-white transition hover:bg-slate-700"
+                    >
+                      +SKU追加
+                    </button>
+
+                    <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
+                      {newProductEntryCount.toLocaleString()} SKU
+                    </div>
                   </div>
 
                   <div className="flex min-w-0 items-center justify-start">
@@ -1437,15 +1577,24 @@ const ProductMasterTable = ({
                 />
               </div>
 
-              <div className="flex h-[4.5rem] w-[300px] self-end items-end justify-self-end">
+              <div className="grid h-[4.5rem] w-[300px] self-end grid-cols-3 grid-rows-2 gap-1 justify-self-end">
+                {['Shopify', 'BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
+                  <div
+                    key={`new-ec-placeholder-${label}`}
+                    className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black text-slate-300"
+                    title={`${label}連携は保存後に利用できます`}
+                  >
+                    {label}
+                  </div>
+                ))}
+
                 <button
                   type="button"
-                  onClick={saveNew}
-                  disabled={isSaving}
-                  className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={clearNewProductEntry}
+                  className="inline-flex h-8 w-full items-center justify-center rounded-full bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                  title="新規入力をクリア"
                 >
-                  {isSaving ? <LoadingSpinner size={12} /> : <Save size={13} />}
-                  保存
+                  <Trash2 size={13} />
                 </button>
               </div>
             </div>
@@ -1530,14 +1679,16 @@ const ProductMasterTable = ({
           </div>
 
           <div className="flex h-9 items-center justify-center">
-            <FieldLabel>{isNew ? '保存' : '削除'}</FieldLabel>
+            <FieldLabel>削除</FieldLabel>
             {isNew ? (
-              <div
-                className="flex h-8 w-full items-center justify-center rounded-md bg-slate-50 text-[10px] font-black text-slate-300"
-                title="新規商品の保存は上段の保存ボタンで行います"
+              <button
+                type="button"
+                onClick={options.onRemoveNewSku || clearNewProductEntry}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                title={options.onRemoveNewSku ? 'この新規SKU行を削除' : '新規入力をクリア'}
               >
-                上段
-              </div>
+                <Trash2 size={13} />
+              </button>
             ) : (
               <button
                 type="button"
@@ -1570,19 +1721,23 @@ const ProductMasterTable = ({
           </div>
           <button
             type="button"
-            onClick={saveEditedProductRows}
-            disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || editedProductRowCount === 0}
+            onClick={saveProductMasterChanges}
+            disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedProductRowCount === 0 && !hasNewProductDraft)}
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
               editedProductRowCount > 0
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-slate-100 text-slate-400'
             )}
-            title={editedProductRowCount > 0 ? `商品マスター更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件` : '変更された商品はありません'}
+            title={hasNewProductDraft || editedProductRowCount > 0 ? `新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件` : '変更された商品はありません'}
           >
             {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
-            更新
-            {editedProductRowCount > 0 ? `(${editedProductRowCount})` : ''}
+            {hasNewProductDraft && editedProductRowCount > 0
+              ? '新規登録・更新'
+              : hasNewProductDraft
+                ? '新規登録'
+                : '更新'}
+            {hasNewProductDraft || editedProductRowCount > 0 ? `(${newProductEntryCount + editedProductRowCount})` : ''}
           </button>
           <button
             type="button"
@@ -1611,6 +1766,26 @@ const ProductMasterTable = ({
           </div>
 
           {renderEditableRow(newRow, { isNew: true })}
+          {newSkuRows.map((row, index) => renderEditableRow(
+            {
+              ...newRow,
+              ...row,
+              name: newRow.name,
+              brandId: newRow.brandId,
+              brandName: newRow.brandName,
+              labelEnabled: newRow.labelEnabled,
+              salesAreaId: newRow.salesAreaId,
+              categoryGroupId: newRow.categoryGroupId,
+              categoryId: newRow.categoryId,
+              subCategoryId: newRow.subCategoryId
+            },
+            {
+              isNew: true,
+              rowKey: row.id || `__new_sku_${index}`,
+              onNewSkuChange: (patch) => updateNewSkuRow(index, patch),
+              onRemoveNewSku: () => removeNewSkuRow(index)
+            }
+          ))}
 
           {(products || []).length > 0 && groupedProducts.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
