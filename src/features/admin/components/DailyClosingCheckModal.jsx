@@ -335,6 +335,7 @@ const DailyClosingCheckModal = ({
     if (target.type === 'qr') setQrActualAmountInput(nextValue);
     if (target.type === 'changeFund') setChangeFundAmountInput(nextValue);
 
+    setNumericModal(null);
   };
 
   const handleSaveChangeFund = async () => {
