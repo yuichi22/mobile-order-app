@@ -13,13 +13,6 @@ import {
   subscribeToStocktakeItems
 } from '../services/stocktakeDataService';
 
-const getTimestampMillis = (value) => {
-  if (!value) return 0;
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value.seconds === 'number') return value.seconds * 1000;
-  return 0;
-};
-
 const LOCATION_THEME = {
   warehouse: {
     label: '倉庫',
@@ -135,7 +128,8 @@ const StocktakePage = ({ storeId }) => {
   const [transferMessage, setTransferMessage] = useState('');
   const [recountSaving, setRecountSaving] = useState(false);
   const [recountMessage, setRecountMessage] = useState('');
-  const [historyLimit, setHistoryLimit] = useState(50);
+  const [localHistory, setLocalHistory] = useState([]);
+  const [historyShowAll, setHistoryShowAll] = useState(false);
   const hasDetectedRef = useRef(false);
 
   useEffect(() => {
@@ -199,6 +193,8 @@ const StocktakePage = ({ storeId }) => {
 
   const handleSelectLocation = (location) => {
     resetScanState();
+    setLocalHistory([]);
+    setHistoryShowAll(false);
     setView(location);
   };
 
@@ -277,6 +273,23 @@ const StocktakePage = ({ storeId }) => {
 
       setSaveMessage(`保存しました(追加: ${quantity}個)`);
       setQuantityInput('');
+      setLocalHistory((prev) => [
+        {
+          id: `${scannedProduct.id}_${Date.now()}`,
+          productId: scannedProduct.id,
+          name: scannedProduct.name || '名称未設定',
+          sku: scannedProduct.sku || scannedProduct.productCode || '',
+          barcode: scannedProduct.barcode || '',
+          size: scannedProduct.size || '',
+          colorName: scannedProduct.colorName || '',
+          priceTaxExcluded: scannedProduct.priceTaxExcluded ?? scannedProduct.price ?? null,
+          priceTaxIncluded: scannedProduct.priceTaxIncluded ?? null,
+          location: view,
+          countedQuantity: quantity,
+          countedAt: Date.now()
+        },
+        ...prev
+      ]);
     } catch (error) {
       console.error('failed to save stocktake count', error);
       setSaveError(`保存に失敗しました: ${error?.message || error}`);
@@ -418,13 +431,8 @@ const StocktakePage = ({ storeId }) => {
 
   const theme = LOCATION_THEME[view];
   const ThemeIcon = theme.icon;
-  const historyTimestampField = view === 'warehouse' ? 'warehouseCountedAt' : 'storefrontConfirmedAt';
-  const historyQuantityField = view === 'warehouse' ? 'warehouseQuantity' : 'storefrontShelfQuantity';
-  const historyItems = displayItems
-    .filter((item) => Boolean(item[historyTimestampField]))
-    .sort((a, b) => getTimestampMillis(b[historyTimestampField]) - getTimestampMillis(a[historyTimestampField]));
-  const visibleHistoryItems = historyItems.slice(0, historyLimit);
-  const hasMoreHistory = historyItems.length > historyLimit;
+  const visibleHistoryItems = historyShowAll ? localHistory : localHistory.slice(0, 50);
+  const hasMoreHistory = !historyShowAll && localHistory.length > 50;
   const existingCountForLocation = view === 'warehouse'
     ? Number(existingItem?.warehouseQuantity || 0)
     : Number(existingItem?.storefrontShelfQuantity || 0);
@@ -648,7 +656,7 @@ const StocktakePage = ({ storeId }) => {
           <div className="flex items-center gap-2">
             <History size={16} className="text-slate-400" />
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-              カウント履歴 ({historyItems.length})
+              カウント履歴 ({localHistory.length})
             </p>
           </div>
 
@@ -658,25 +666,35 @@ const StocktakePage = ({ storeId }) => {
             </div>
           ) : (
             <div className="mt-2 space-y-2">
-              {visibleHistoryItems.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-sm font-black text-slate-900">{item.name || '名称未設定'}</p>
+              {visibleHistoryItems.map((entry) => (
+                <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-black text-slate-900">{entry.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => setLocalHistory((prev) => prev.filter((h) => h.id !== entry.id))}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                      aria-label="履歴から削除"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    品番: {item.sku || '-'} / バーコード: {item.barcode || '-'}
+                    品番: {entry.sku || '-'} / バーコード: {entry.barcode || '-'}
                   </p>
-                  {(item.size || item.colorName) && (
+                  {(entry.size || entry.colorName) && (
                     <p className="mt-1 text-xs font-bold text-slate-500">
-                      {item.size ? `サイズ: ${item.size}` : ''}
-                      {item.size && item.colorName ? ' / ' : ''}
-                      {item.colorName ? `色: ${item.colorName}` : ''}
+                      {entry.size ? `サイズ: ${entry.size}` : ''}
+                      {entry.size && entry.colorName ? ' / ' : ''}
+                      {entry.colorName ? `色: ${entry.colorName}` : ''}
                     </p>
                   )}
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    価格: {item.priceTaxExcluded != null ? `¥${Number(item.priceTaxExcluded).toLocaleString()}` : '-'}
-                    {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : '-'})
+                    価格: {entry.priceTaxExcluded != null ? `¥${Number(entry.priceTaxExcluded).toLocaleString()}` : '-'}
+                    {' '}(税込 {entry.priceTaxIncluded != null ? `¥${Number(entry.priceTaxIncluded).toLocaleString()}` : '-'})
                   </p>
                   <p className={`mt-1 text-xs font-black ${theme.textClass}`}>
-                    カウント数: {Number(item[historyQuantityField] || 0).toLocaleString()}
+                    今回カウント: {Number(entry.countedQuantity).toLocaleString()}個
                   </p>
                 </div>
               ))}
@@ -686,7 +704,7 @@ const StocktakePage = ({ storeId }) => {
           {hasMoreHistory && (
             <button
               type="button"
-              onClick={() => setHistoryLimit((prev) => prev + 50)}
+              onClick={() => setHistoryShowAll(true)}
               className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
             >
               続きを見る
