@@ -11,6 +11,7 @@ import {
   saveProductCategoryGroup,
   saveProductSubCategory,
   saveProductSalesArea,
+  saveProductSalesAreaWithCascade,
   saveProductGroup,
   saveProductMasterItem,
   saveShopifySettings,
@@ -152,7 +153,7 @@ export const useProductMasterData = (storeId) => {
 
   const saveSalesArea = async (itemData) => {
     if (!hasStoreId) return undefined;
-    return await saveProductSalesArea(storeId, itemData);
+    return await saveProductSalesAreaWithCascade(storeId, itemData);
   };
 
   const deleteSalesArea = async (salesAreaId) => {
