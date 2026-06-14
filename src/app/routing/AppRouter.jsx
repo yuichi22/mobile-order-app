@@ -290,7 +290,7 @@ const AppRouter = () => {
   }
 
   if (location.pathname === '/stocktake') {
-    if (!currentUser) {
+    if (!currentUser || currentUser.isAnonymous) {
       const redirectPath = `${location.pathname}${location.search || ''}`;
 
       return (

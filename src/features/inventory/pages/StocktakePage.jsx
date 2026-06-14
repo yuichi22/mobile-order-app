@@ -63,6 +63,7 @@ const StocktakePage = ({ storeId }) => {
           <p className="mt-1 text-sm font-bold text-slate-500">
             バーコードをスキャンして商品を呼び出します。
           </p>
+          <p className="mt-1 text-xs font-bold text-slate-300">storeId: {storeId || '(なし)'}</p>
         </div>
 
         {activeStocktake === undefined ? (
