@@ -658,6 +658,7 @@ const ProductMasterTable = ({
   const [inventoryAdjustHistoryRecords, setInventoryAdjustHistoryRecords] = useState([]);
   const [inventoryAdjustHistoryLoading, setInventoryAdjustHistoryLoading] = useState(false);
   const [inventoryAdjustHistoryError, setInventoryAdjustHistoryError] = useState('');
+  const [pendingSkuFocusProductId, setPendingSkuFocusProductId] = useState(null);
   const newProductNameInputRef = useRef(null);
   const newProductClassificationRef = useRef(null);
   const newProductSkuInputRef = useRef(null);
@@ -682,6 +683,18 @@ const ProductMasterTable = ({
       return changed ? next : current;
     });
   }, [products]);
+
+  useEffect(() => {
+    if (!pendingSkuFocusProductId) return;
+
+    const el = newEntrySkuFieldRefs.current[`product:${pendingSkuFocusProductId}:sku`];
+    if (!el) return;
+
+    el.focus();
+    const len = el.value.length;
+    el.setSelectionRange(len, len);
+    setPendingSkuFocusProductId(null);
+  }, [products, pendingSkuFocusProductId]);
 
   const buildOptimisticSavedProductPayload = (payload = {}) => {
     const stockInQuantity = Math.max(Number(payload.stockInQuantityDraft || 0), 0);
@@ -1320,7 +1333,7 @@ const ProductMasterTable = ({
     ]);
 
     requestAnimationFrame(() => {
-      const el = newEntrySkuFieldRefs.current[`${nextSkuRowIndex}:sku`];
+      const el = newEntrySkuFieldRefs.current[`new-entry:${nextSkuRowIndex}:sku`];
       if (el) {
         el.focus();
         const len = el.value.length;
@@ -1469,7 +1482,7 @@ const ProductMasterTable = ({
     }
   };
 
-  const createSkuDraftFromProduct = (source) => ({
+  const createSkuDraftFromProduct = (source, variantSource = source) => ({
     ...blankProduct,
     name: source.name || '',
     brandId: source.brandId || '',
@@ -1484,17 +1497,17 @@ const ProductMasterTable = ({
     supplierName: source.supplierName || '',
     departmentId: source.departmentId || 'retail',
     productType: source.productType || 'retail',
-    priceTaxIncluded: source.priceTaxIncluded ?? '',
-    priceTaxExcluded: source.priceTaxExcluded ?? '',
-    taxRateType: source.taxRateType || 'standard',
-    taxRate: source.taxRate ?? 10,
-    costTaxExcluded: source.costTaxExcluded ?? '',
-    costTaxIncluded: source.costTaxIncluded ?? '',
-    supplierCostRate: source.supplierCostRate ?? '',
-    orderLot: source.orderLot ?? source.reorderLot ?? '',
-    reorderLot: source.reorderLot ?? source.orderLot ?? '',
-    reorderPoint: source.reorderPoint ?? '',
-    reorderQuantity: source.reorderQuantity ?? '',
+    priceTaxIncluded: variantSource.priceTaxIncluded ?? '',
+    priceTaxExcluded: variantSource.priceTaxExcluded ?? '',
+    taxRateType: variantSource.taxRateType || source.taxRateType || 'standard',
+    taxRate: variantSource.taxRate ?? source.taxRate ?? 10,
+    costTaxExcluded: variantSource.costTaxExcluded ?? '',
+    costTaxIncluded: variantSource.costTaxIncluded ?? '',
+    supplierCostRate: variantSource.supplierCostRate ?? source.supplierCostRate ?? '',
+    orderLot: variantSource.orderLot ?? variantSource.reorderLot ?? '',
+    reorderLot: variantSource.reorderLot ?? variantSource.orderLot ?? '',
+    reorderPoint: variantSource.reorderPoint ?? '',
+    reorderQuantity: variantSource.reorderQuantity ?? '',
     labelEnabled: Boolean(source.labelEnabled),
     shopifyCreateEnabled: Boolean(source.shopifyCreateEnabled),
     shopifyEnabled: Boolean(source.shopifyEnabled || source.shopifyCreateEnabled),
@@ -1503,29 +1516,33 @@ const ProductMasterTable = ({
     productGroupId: source.productGroupId || '',
     productGroupRole: 'variant',
     productGroupName: source.productGroupName || source.name || '',
-    sku: '',
-    productCode: '',
+    sku: variantSource.sku || variantSource.productCode || '',
+    productCode: variantSource.sku || variantSource.productCode || '',
     barcode: '',
-    size: '',
-    colorName: '',
+    size: variantSource.size || '',
+    colorName: variantSource.colorName || '',
     stockInQuantityDraft: ''
   });
 
-  const addSkuToProductGroup = async (source) => {
-    if (!source?.id) return;
+  const addSkuToProductGroup = async (group) => {
+    const groupProducts = group?.products || [];
+    const primaryProduct = groupProducts.find((product) => product.productGroupRole === 'primary') || groupProducts[0];
 
-    if (!source.productGroupId) {
+    if (!primaryProduct?.id) return;
+
+    if (!primaryProduct.productGroupId) {
       alert('商品グループがまだ作成されていません。先にこの商品を保存してください。');
       return;
     }
 
-    const nextSku = createSkuDraftFromProduct(source);
-    setSavingKey(`sku:${source.id}`);
+    const lastProduct = groupProducts[groupProducts.length - 1] || primaryProduct;
+    const nextSku = createSkuDraftFromProduct(primaryProduct, lastProduct);
+    setSavingKey(`sku:${primaryProduct.id}`);
 
     try {
       const savedId = await onSaveProduct(buildProductSavePayload(nextSku));
+      setPendingSkuFocusProductId(savedId);
       onSaved?.();
-      alert('SKUを追加しました。追加されたSKU行に品番・バーコード・サイズ・色を入力してください。');
       return savedId;
     } catch (error) {
       console.error('failed to add SKU', error);
@@ -2077,22 +2094,26 @@ const ProductMasterTable = ({
     const registeredAtText = formatProductMasterDateTimeText(row.createdAt || row.created_at);
     const skuRowIndex = options.skuRowIndex ?? 0;
 
+    const skuGroupKey = options.skuGroupKey || 'new-entry';
+
     const registerSkuFieldRef = (fieldName) => (el) => {
-      if (!isNew) return;
-      const key = `${skuRowIndex}:${fieldName}`;
+      const key = `${skuGroupKey}:${skuRowIndex}:${fieldName}`;
+      const productKey = row.id ? `product:${row.id}:${fieldName}` : null;
+
       if (el) {
         newEntrySkuFieldRefs.current[key] = el;
+        if (productKey) newEntrySkuFieldRefs.current[productKey] = el;
       } else {
         delete newEntrySkuFieldRefs.current[key];
+        if (productKey) delete newEntrySkuFieldRefs.current[productKey];
       }
     };
 
     const handleSkuFieldKeyDown = (fieldName) => (event) => {
-      if (!isNew) return;
       if (event.key !== 'Enter') return;
       event.preventDefault();
 
-      const nextEl = newEntrySkuFieldRefs.current[`${skuRowIndex + 1}:${fieldName}`];
+      const nextEl = newEntrySkuFieldRefs.current[`${skuGroupKey}:${skuRowIndex + 1}:${fieldName}`];
       if (!nextEl) return;
 
       nextEl.focus();
@@ -2105,8 +2126,6 @@ const ProductMasterTable = ({
     };
 
     const handleSkuFieldFocus = (fieldName) => (event) => {
-      if (!isNew) return;
-
       if (fieldName === 'sku') {
         const len = event.target.value.length;
         event.target.setSelectionRange(len, len);
@@ -2864,7 +2883,7 @@ const ProductMasterTable = ({
                           <div className="flex min-w-0 items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => addSkuToProductGroup(primaryProduct)}
+                              onClick={() => addSkuToProductGroup(group)}
                               disabled={!primaryProduct}
                               className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-slate-900 px-2 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
                             >
@@ -2978,7 +2997,10 @@ const ProductMasterTable = ({
               </div>
 
               <div className="space-y-2 bg-slate-50/60 p-2.5">
-                {group.products.map((product) => renderEditableRow(getDraft(product)))}
+                {group.products.map((product, productIndex) => renderEditableRow(getDraft(product), {
+                  skuGroupKey: group.key,
+                  skuRowIndex: productIndex
+                }))}
               </div>
             </div>
           ))}
