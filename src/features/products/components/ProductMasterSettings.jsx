@@ -659,15 +659,39 @@ const ProductMasterTable = ({
     });
   }, [products]);
 
+  const buildOptimisticSavedProductPayload = (payload = {}) => {
+    const stockInQuantity = Math.max(Number(payload.stockInQuantityDraft || 0), 0);
+
+    if (stockInQuantity <= 0) {
+      return {
+        ...payload,
+        stockInQuantityDraft: ''
+      };
+    }
+
+    const currentInventoryQuantity = Math.max(Number(payload.inventoryQuantity ?? payload.quantity ?? 0), 0);
+    const nextInventoryQuantity = currentInventoryQuantity + stockInQuantity;
+
+    return {
+      ...payload,
+      inventoryQuantity: nextInventoryQuantity,
+      quantity: nextInventoryQuantity,
+      lastStockInQuantity: stockInQuantity,
+      stockInQuantityDraft: ''
+    };
+  };
+
   const rememberSavedProduct = (payload) => {
     if (!payload?.id) return;
+
+    const optimisticPayload = buildOptimisticSavedProductPayload(payload);
 
     setRecentlySavedRows((current) => ({
       ...current,
       [payload.id]: {
         ...(products.find((product) => product.id === payload.id) || {}),
         ...(current[payload.id] || {}),
-        ...payload
+        ...optimisticPayload
       }
     }));
   };
