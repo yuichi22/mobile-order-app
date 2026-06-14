@@ -659,6 +659,7 @@ const ProductMasterTable = ({
   const [inventoryAdjustHistoryLoading, setInventoryAdjustHistoryLoading] = useState(false);
   const [inventoryAdjustHistoryError, setInventoryAdjustHistoryError] = useState('');
   const [pendingSkuFocusProductId, setPendingSkuFocusProductId] = useState(null);
+  const [lastAddedSkuProductId, setLastAddedSkuProductId] = useState({});
   const newProductNameInputRef = useRef(null);
   const newProductClassificationRef = useRef(null);
   const newProductSkuInputRef = useRef(null);
@@ -1549,7 +1550,12 @@ const ProductMasterTable = ({
       return;
     }
 
-    const lastProduct = groupProducts.reduce((latest, product) => {
+    const trackedLastProductId = lastAddedSkuProductId[group.key];
+    const trackedLastProduct = trackedLastProductId
+      ? groupProducts.find((product) => product.id === trackedLastProductId)
+      : null;
+
+    const lastProduct = trackedLastProduct || groupProducts.reduce((latest, product) => {
       if (!latest) return product;
       return getProductMasterSortTimestamp(product) >= getProductMasterSortTimestamp(latest) ? product : latest;
     }, null) || primaryProduct;
@@ -1559,6 +1565,10 @@ const ProductMasterTable = ({
     try {
       const savedId = await onSaveProduct(buildProductSavePayload(nextSku));
       setPendingSkuFocusProductId(savedId);
+      setLastAddedSkuProductId((current) => ({
+        ...current,
+        [group.key]: savedId
+      }));
       onSaved?.();
       return savedId;
     } catch (error) {
