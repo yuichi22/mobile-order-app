@@ -1559,7 +1559,8 @@ const ProductMasterTable = ({
       if (!latest) return product;
       return getProductMasterSortTimestamp(product) >= getProductMasterSortTimestamp(latest) ? product : latest;
     }, null) || primaryProduct;
-    const nextSku = createSkuDraftFromProduct(primaryProduct, lastProduct);
+
+    const nextSku = createSkuDraftFromProduct(getDraft(primaryProduct), getDraft(lastProduct));
     setSavingKey(`sku:${primaryProduct.id}`);
 
     try {
