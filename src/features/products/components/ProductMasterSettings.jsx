@@ -2009,8 +2009,57 @@ const ProductMasterTable = ({
     );
   };
 
+  const productMasterActionToastVisible = hasNewProductDraft || editedProductRowCount > 0 || shopifySyncTargetGroupCount > 0;
+
+  const productMasterActionToast = (
+    typeof document !== 'undefined' && productMasterActionToastVisible
+      ? createPortal((
+        <div className="fixed top-4 right-4 z-[9999] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-2xl shadow-slate-300/60 backdrop-blur">
+          <div className="min-w-0 pr-1">
+            <div className="text-xs font-black text-slate-900">
+              {hasNewProductDraft || editedProductRowCount > 0 ? '未保存の変更があります' : 'Shopify同期対象があります'}
+            </div>
+            <div className="mt-0.5 text-[11px] font-bold text-slate-500">
+              {hasNewProductDraft || editedProductRowCount > 0
+                ? `新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件`
+                : `Shopify同期 ${shopifySyncTargetGroupCount}件`}
+            </div>
+          </div>
+
+          {(hasNewProductDraft || editedProductRowCount > 0) && (
+            <button
+              type="button"
+              onClick={saveProductMasterChanges}
+              disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件`}
+            >
+              {productMasterBulkSaving ? <LoadingSpinner size={13} /> : null}
+              更新
+            </button>
+          )}
+
+          {shopifySyncTargetGroupCount > 0 && (
+            <button
+              type="button"
+              onClick={syncEditedShopifyGroups}
+              disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`Shopify同期対象 ${shopifySyncTargetGroupCount}件 / 下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件`}
+            >
+              {shopifyBulkSyncing ? <LoadingSpinner size={13} /> : null}
+              Shopify同期
+              {shopifySyncTargetGroupCount > 0 ? `(${shopifySyncTargetGroupCount})` : ''}
+            </button>
+          )}
+        </div>
+      ), document.body)
+      : null
+  );
+
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
+      {productMasterActionToast}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-base font-black text-slate-900">商品マスター</h3>
