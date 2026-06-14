@@ -997,10 +997,106 @@ const ProductMasterTable = ({
   const editedSyncedShopifyGroups = shopifySyncTargetGroups.updateTargets;
   const shopifySyncTargetGroupCount = editedShopifyGroups.length + editedSyncedShopifyGroups.length;
 
-  const editedProductRows = useMemo(() => {
-    const existingProductIds = new Set((products || []).map((product) => product.id));
-    return Object.values(draftRows || {}).filter((row) => row?.id && existingProductIds.has(row.id));
-  }, [draftRows, products]);
+  const productByIdMap = useMemo(
+    () => new Map((products || []).filter((product) => product?.id).map((product) => [product.id, product])),
+    [products]
+  );
+
+  const normalizeComparableText = (value) => String(value ?? '').trim();
+
+  const normalizeComparableNumber = (value) => {
+    const normalized = normalizeNumberOrNull(value);
+    return normalized === null ? '' : String(normalized);
+  };
+
+  const normalizeComparableBoolean = (value) => Boolean(value);
+
+  const getComparableProductFieldValue = (row = {}, field) => {
+    switch (field) {
+      case 'skuCode':
+        return normalizeComparableText(row.sku || row.productCode);
+      case 'orderLotValue':
+        return normalizeComparableNumber(row.orderLot ?? row.reorderLot);
+      case 'priceTaxExcluded':
+      case 'reorderPoint':
+      case 'reorderQuantity':
+        return normalizeComparableNumber(row[field]);
+      case 'labelEnabled':
+      case 'shopifyEnabled':
+      case 'shopifyCreateEnabled':
+        return normalizeComparableBoolean(row[field]);
+      default:
+        return normalizeComparableText(row[field]);
+    }
+  };
+
+  const getProductDraftChangedFields = (draft = {}, original = {}) => {
+    const comparableFields = [
+      'name',
+      'brandId',
+      'brandName',
+      'supplierId',
+      'supplierName',
+      'salesAreaId',
+      'categoryGroupId',
+      'categoryId',
+      'subCategoryId',
+      'skuCode',
+      'barcode',
+      'size',
+      'colorName',
+      'priceTaxExcluded',
+      'orderLotValue',
+      'reorderPoint',
+      'reorderQuantity',
+      'labelEnabled',
+      'shopifyEnabled',
+      'shopifyCreateEnabled'
+    ];
+
+    const changedFields = comparableFields.filter((field) => (
+      getComparableProductFieldValue(draft, field) !== getComparableProductFieldValue(original, field)
+    ));
+
+    const stockInQuantity = Math.max(Number(draft.stockInQuantityDraft || 0), 0);
+    if (stockInQuantity > 0) {
+      changedFields.push('stockInQuantityDraft');
+    }
+
+    return changedFields;
+  };
+
+  const isShopifySyncOnlyDraftChange = (draft = {}, original = {}, changedFields = []) => {
+    if (changedFields.length === 0) return false;
+
+    const nonShopifyFields = changedFields.filter((field) => ![
+      'shopifyEnabled',
+      'shopifyCreateEnabled'
+    ].includes(field));
+
+    if (nonShopifyFields.length > 0) return false;
+
+    return Boolean(
+      getComparableProductFieldValue(draft, 'shopifyEnabled') ||
+      getComparableProductFieldValue(draft, 'shopifyCreateEnabled') ||
+      getComparableProductFieldValue(original, 'shopifyEnabled') ||
+      getComparableProductFieldValue(original, 'shopifyCreateEnabled')
+    );
+  };
+
+  const editedProductRows = useMemo(() => (
+    Object.values(draftRows || {}).filter((row) => {
+      if (!row?.id) return false;
+
+      const original = productByIdMap.get(row.id);
+      if (!original) return false;
+
+      const changedFields = getProductDraftChangedFields(row, original);
+      if (changedFields.length === 0) return false;
+
+      return !isShopifySyncOnlyDraftChange(row, original, changedFields);
+    })
+  ), [draftRows, productByIdMap]);
 
   const editedProductRowCount = editedProductRows.length;
 
@@ -1098,30 +1194,46 @@ const ProductMasterTable = ({
     stockInQuantityDraft: ''
   });
 
-  const hasNewProductDraft = useMemo(() => {
-    const rows = [newRow, ...newSkuRows];
-    return rows.some((row) => (
-      String(row.brandId || '').trim() ||
-      String(row.name || '').trim() ||
-      String(row.sku || row.productCode || '').trim() ||
-      String(row.barcode || '').trim() ||
-      String(row.size || '').trim() ||
-      String(row.colorName || '').trim() ||
-      String(row.priceTaxExcluded || '').trim() ||
-      String(row.orderLot ?? row.reorderLot ?? '').trim() ||
-      String(row.reorderPoint || '').trim() ||
-      String(row.reorderQuantity || '').trim() ||
-      String(row.stockInQuantityDraft || '').trim() ||
-      Boolean(row.labelEnabled) ||
-      Boolean(row.shopifyCreateEnabled || row.shopifyEnabled) ||
-      Boolean(row.salesAreaId) ||
-      Boolean(row.categoryGroupId) ||
-      Boolean(row.categoryId) ||
-      Boolean(row.subCategoryId)
-    ));
+  const hasMeaningfulNewProductRowDraft = (row = {}) => (
+    [
+      row.name,
+      row.brandId,
+      row.brandName,
+      row.supplierId,
+      row.supplierName,
+      row.salesAreaId,
+      row.categoryGroupId,
+      row.categoryId,
+      row.subCategoryId,
+      row.sku,
+      row.productCode,
+      row.barcode,
+      row.size,
+      row.colorName,
+      row.priceTaxExcluded,
+      row.orderLot,
+      row.reorderLot,
+      row.reorderPoint,
+      row.reorderQuantity,
+      row.inventoryQuantity,
+      row.quantity,
+      row.stockInQuantityDraft
+    ].some((value) => String(value ?? '').trim()) ||
+    row.shopifyCreateEnabled === true ||
+    row.shopifyEnabled === true
+  );
+
+  const newProductDraftRows = useMemo(() => {
+    if (!hasMeaningfulNewProductRowDraft(newRow)) return [];
+    return [
+      newRow,
+      ...newSkuRows.filter(hasMeaningfulNewProductRowDraft)
+    ];
   }, [newRow, newSkuRows]);
 
-  const newProductEntryCount = 1 + newSkuRows.length;
+  const hasNewProductDraft = newProductDraftRows.length > 0;
+
+  const newProductEntryCount = newProductDraftRows.length;
 
   const updateNewSkuRow = (index, patch) => {
     setNewSkuRows((current) => current.map((row, rowIndex) => (
@@ -1212,8 +1324,8 @@ const ProductMasterTable = ({
   const saveNew = async () => {
     if (!hasNewProductDraft) return;
 
-    const newProductRowsToSave = [newRow, ...newSkuRows];
-    const primaryGroupDraft = newRow;
+    const newProductRowsToSave = newProductDraftRows;
+    const primaryGroupDraft = newProductRowsToSave[0];
     const targetRows = newProductRowsToSave.filter((row, index) => (
       index === 0 ||
       String(row.sku || row.productCode || '').trim() ||
