@@ -488,13 +488,14 @@ const formatMasterTaxRateLabel = (item = {}, defaultTaxRate = 10) => {
 
 const classNames = (...values) => values.filter(Boolean).join(' ');
 
-const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown }, ref) => (
+const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown, onFocus }, ref) => (
   <input
     ref={ref}
     type={type}
     value={value ?? ''}
     onChange={(event) => onChange(event.target.value)}
     onKeyDown={onKeyDown}
+    onFocus={onFocus}
     placeholder={placeholder}
     inputMode={type === 'number' ? 'decimal' : undefined}
     className={classNames(
@@ -660,6 +661,7 @@ const ProductMasterTable = ({
   const newProductNameInputRef = useRef(null);
   const newProductClassificationRef = useRef(null);
   const newProductSkuInputRef = useRef(null);
+  const newEntrySkuFieldRefs = useRef({});
 
   const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
 
@@ -1289,7 +1291,42 @@ const ProductMasterTable = ({
   };
 
   const addNewSkuRow = () => {
-    setNewSkuRows((current) => [...current, buildEmptyNewSkuRow()]);
+    const sourceRow = newSkuRows.length > 0
+      ? newSkuRows[newSkuRows.length - 1]
+      : {
+        sku: newRow.sku,
+        productCode: newRow.productCode,
+        barcode: newRow.barcode,
+        size: newRow.size,
+        colorName: newRow.colorName,
+        priceTaxExcluded: newRow.priceTaxExcluded,
+        taxRate: newRow.taxRate ?? 10,
+        orderLot: newRow.orderLot ?? newRow.reorderLot ?? '',
+        reorderLot: newRow.reorderLot ?? newRow.orderLot ?? '',
+        reorderPoint: newRow.reorderPoint,
+        reorderQuantity: newRow.reorderQuantity,
+        stockInQuantityDraft: newRow.stockInQuantityDraft
+      };
+
+    const nextSkuRowIndex = newSkuRows.length + 1;
+
+    setNewSkuRows((current) => [
+      ...current,
+      {
+        ...sourceRow,
+        id: `__new_sku_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        barcode: ''
+      }
+    ]);
+
+    requestAnimationFrame(() => {
+      const el = newEntrySkuFieldRefs.current[`${nextSkuRowIndex}:sku`];
+      if (el) {
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      }
+    });
   };
 
   const clearNewProductEntry = () => {
@@ -2038,6 +2075,45 @@ const ProductMasterTable = ({
     const update = isNew ? (options.onNewSkuChange || updateNewRow) : (patch) => updateDraft(row.id, patch);
     const isSaving = savingKey === rowKey;
     const registeredAtText = formatProductMasterDateTimeText(row.createdAt || row.created_at);
+    const skuRowIndex = options.skuRowIndex ?? 0;
+
+    const registerSkuFieldRef = (fieldName) => (el) => {
+      if (!isNew) return;
+      const key = `${skuRowIndex}:${fieldName}`;
+      if (el) {
+        newEntrySkuFieldRefs.current[key] = el;
+      } else {
+        delete newEntrySkuFieldRefs.current[key];
+      }
+    };
+
+    const handleSkuFieldKeyDown = (fieldName) => (event) => {
+      if (!isNew) return;
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+
+      const nextEl = newEntrySkuFieldRefs.current[`${skuRowIndex + 1}:${fieldName}`];
+      if (!nextEl) return;
+
+      nextEl.focus();
+      if (fieldName === 'sku') {
+        const len = nextEl.value.length;
+        nextEl.setSelectionRange(len, len);
+      } else {
+        nextEl.select();
+      }
+    };
+
+    const handleSkuFieldFocus = (fieldName) => (event) => {
+      if (!isNew) return;
+
+      if (fieldName === 'sku') {
+        const len = event.target.value.length;
+        event.target.setSelectionRange(len, len);
+      } else {
+        event.target.select();
+      }
+    };
 
     return (
       <div
@@ -2180,31 +2256,68 @@ const ProductMasterTable = ({
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
-              ref={isNew ? newProductSkuInputRef : undefined}
+              ref={(el) => {
+                registerSkuFieldRef('sku')(el);
+                if (isNew && skuRowIndex === 0) {
+                  newProductSkuInputRef.current = el;
+                }
+              }}
               value={row.sku || row.productCode}
               onChange={(value) => update({ sku: value, productCode: value })}
+              onKeyDown={handleSkuFieldKeyDown('sku')}
+              onFocus={handleSkuFieldFocus('sku')}
               placeholder="品番"
             />
           </div>
 
           <div>
             <FieldLabel>バーコード</FieldLabel>
-            <TableTextInput value={row.barcode} onChange={(value) => update({ barcode: value })} placeholder="バーコード" />
+            <TableTextInput
+              ref={registerSkuFieldRef('barcode')}
+              value={row.barcode}
+              onChange={(value) => update({ barcode: value })}
+              onKeyDown={handleSkuFieldKeyDown('barcode')}
+              onFocus={handleSkuFieldFocus('barcode')}
+              placeholder="バーコード"
+            />
           </div>
 
           <div>
             <FieldLabel>サイズ</FieldLabel>
-            <TableTextInput value={row.size} onChange={(value) => update({ size: value })} placeholder="サイズ" />
+            <TableTextInput
+              ref={registerSkuFieldRef('size')}
+              value={row.size}
+              onChange={(value) => update({ size: value })}
+              onKeyDown={handleSkuFieldKeyDown('size')}
+              onFocus={handleSkuFieldFocus('size')}
+              placeholder="サイズ"
+            />
           </div>
 
           <div>
             <FieldLabel>色</FieldLabel>
-            <TableTextInput value={row.colorName} onChange={(value) => update({ colorName: value })} placeholder="色" />
+            <TableTextInput
+              ref={registerSkuFieldRef('colorName')}
+              value={row.colorName}
+              onChange={(value) => update({ colorName: value })}
+              onKeyDown={handleSkuFieldKeyDown('colorName')}
+              onFocus={handleSkuFieldFocus('colorName')}
+              placeholder="色"
+            />
           </div>
 
           <div>
             <FieldLabel>税抜売価</FieldLabel>
-            <TableTextInput type="number" value={row.priceTaxExcluded} onChange={(value) => update({ priceTaxExcluded: value })} placeholder="税抜売価" className="text-right" />
+            <TableTextInput
+              ref={registerSkuFieldRef('priceTaxExcluded')}
+              type="number"
+              value={row.priceTaxExcluded}
+              onChange={(value) => update({ priceTaxExcluded: value })}
+              onKeyDown={handleSkuFieldKeyDown('priceTaxExcluded')}
+              onFocus={handleSkuFieldFocus('priceTaxExcluded')}
+              placeholder="税抜売価"
+              className="text-right"
+            />
             <div className="mt-1 text-right text-[11px] font-bold text-slate-400">
               税込 {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, row.taxRate ?? 10) || 0).toLocaleString()}
             </div>
@@ -2212,17 +2325,44 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>LOT</FieldLabel>
-            <TableTextInput type="number" value={row.orderLot ?? row.reorderLot ?? ''} onChange={(value) => update({ orderLot: value, reorderLot: value })} placeholder="LOT" className="text-right" />
+            <TableTextInput
+              ref={registerSkuFieldRef('orderLot')}
+              type="number"
+              value={row.orderLot ?? row.reorderLot ?? ''}
+              onChange={(value) => update({ orderLot: value, reorderLot: value })}
+              onKeyDown={handleSkuFieldKeyDown('orderLot')}
+              onFocus={handleSkuFieldFocus('orderLot')}
+              placeholder="LOT"
+              className="text-right"
+            />
           </div>
 
           <div>
             <FieldLabel>発注点</FieldLabel>
-            <TableTextInput type="number" value={row.reorderPoint} onChange={(value) => update({ reorderPoint: value })} placeholder="発注点" className="text-right" />
+            <TableTextInput
+              ref={registerSkuFieldRef('reorderPoint')}
+              type="number"
+              value={row.reorderPoint}
+              onChange={(value) => update({ reorderPoint: value })}
+              onKeyDown={handleSkuFieldKeyDown('reorderPoint')}
+              onFocus={handleSkuFieldFocus('reorderPoint')}
+              placeholder="発注点"
+              className="text-right"
+            />
           </div>
 
           <div>
             <FieldLabel>発注数</FieldLabel>
-            <TableTextInput type="number" value={row.reorderQuantity} onChange={(value) => update({ reorderQuantity: value })} placeholder="発注数" className="text-right" />
+            <TableTextInput
+              ref={registerSkuFieldRef('reorderQuantity')}
+              type="number"
+              value={row.reorderQuantity}
+              onChange={(value) => update({ reorderQuantity: value })}
+              onKeyDown={handleSkuFieldKeyDown('reorderQuantity')}
+              onFocus={handleSkuFieldFocus('reorderQuantity')}
+              placeholder="発注数"
+              className="text-right"
+            />
           </div>
 
           <div>
@@ -2256,9 +2396,12 @@ const ProductMasterTable = ({
           <div>
             <FieldLabel>入庫数</FieldLabel>
             <TableTextInput
+              ref={registerSkuFieldRef('stockInQuantityDraft')}
               type="number"
               value={row.stockInQuantityDraft || ''}
               onChange={(value) => update({ stockInQuantityDraft: value })}
+              onKeyDown={handleSkuFieldKeyDown('stockInQuantityDraft')}
+              onFocus={handleSkuFieldFocus('stockInQuantityDraft')}
               placeholder="数"
               className="text-right"
             />
@@ -2668,6 +2811,7 @@ const ProductMasterTable = ({
                   {
                     isNew: true,
                     embeddedNewGroup: true,
+                    skuRowIndex: index + 1,
                     rowKey: row.id || `__new_sku_${index}`,
                     onNewSkuChange: (patch) => updateNewSkuRow(index, patch),
                     onRemoveNewSku: () => removeNewSkuRow(index),
