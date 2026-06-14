@@ -944,6 +944,20 @@ const ProductMasterTable = ({
     [groupedProducts, visibleProductGroupLimit]
   );
 
+  const skuFieldRowIndexByProductId = useMemo(() => {
+    const map = new Map();
+    let counter = 0;
+
+    visibleProductGroups.forEach((group) => {
+      (group.products || []).forEach((product) => {
+        map.set(product.id, counter);
+        counter += 1;
+      });
+    });
+
+    return map;
+  }, [visibleProductGroups]);
+
   const hasMoreProductGroups = visibleProductGroupLimit < groupedProducts.length;
 
   useEffect(() => {
@@ -1535,7 +1549,10 @@ const ProductMasterTable = ({
       return;
     }
 
-    const lastProduct = groupProducts[groupProducts.length - 1] || primaryProduct;
+    const lastProduct = groupProducts.reduce((latest, product) => {
+      if (!latest) return product;
+      return getProductMasterSortTimestamp(product) >= getProductMasterSortTimestamp(latest) ? product : latest;
+    }, null) || primaryProduct;
     const nextSku = createSkuDraftFromProduct(primaryProduct, lastProduct);
     setSavingKey(`sku:${primaryProduct.id}`);
 
@@ -2998,8 +3015,8 @@ const ProductMasterTable = ({
 
               <div className="space-y-2 bg-slate-50/60 p-2.5">
                 {group.products.map((product, productIndex) => renderEditableRow(getDraft(product), {
-                  skuGroupKey: group.key,
-                  skuRowIndex: productIndex
+                  skuGroupKey: 'products',
+                  skuRowIndex: skuFieldRowIndexByProductId.get(product.id) ?? productIndex
                 }))}
               </div>
             </div>
