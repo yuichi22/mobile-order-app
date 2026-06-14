@@ -2153,7 +2153,7 @@ const ProductMasterTable = ({
   const productMasterActionToast = (
     typeof document !== 'undefined' && productMasterActionToastVisible
       ? createPortal((
-        <div className="fixed top-20 right-8 z-[9999] flex max-w-[calc(100vw-4rem)] items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-2xl shadow-slate-300/60 backdrop-blur">
+        <div className="fixed bottom-6 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-2xl shadow-slate-300/60 backdrop-blur">
           <div className="min-w-0 pr-2">
             <div className="text-sm font-black text-slate-900">
               {hasNewProductDraft || editedProductRowCount > 0 ? '未保存の変更があります' : 'Shopify同期対象があります'}
