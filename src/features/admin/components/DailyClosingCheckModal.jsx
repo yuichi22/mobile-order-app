@@ -192,6 +192,7 @@ const DailyClosingCheckModal = ({
 
   const [cardActualAmountInput, setCardActualAmountInput] = useState('');
   const [qrActualAmountInput, setQrActualAmountInput] = useState('');
+  const [numericModal, setNumericModal] = useState(null);
   const [isEditingChangeFund, setIsEditingChangeFund] = useState(false);
   const [changeFundAmountInput, setChangeFundAmountInput] = useState(() => String(Number(changeFundAmount || 0) || ''));
   useEffect(() => {
