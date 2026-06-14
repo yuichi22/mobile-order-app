@@ -2009,59 +2009,55 @@ const ProductMasterTable = ({
     );
   };
 
-  const productMasterActionBar = (
-<div className="fixed bottom-4 right-4 z-[9999] flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-2xl shadow-slate-300/60 backdrop-blur">
-      <div className="rounded-2xl bg-slate-50 px-4 py-2 text-sm font-black text-slate-600">
-        {(products || []).length.toLocaleString()}件
-      </div>
-      <button
-        type="button"
-        onClick={saveProductMasterChanges}
-        disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedProductRowCount === 0 && !hasNewProductDraft)}
-        className={classNames(
-          'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-          hasNewProductDraft || editedProductRowCount > 0
-            ? 'bg-blue-600 text-white hover:bg-blue-700'
-            : 'bg-slate-100 text-slate-400'
-        )}
-        title={hasNewProductDraft || editedProductRowCount > 0 ? `新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件` : '変更された商品はありません'}
-      >
-        {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
-        {hasNewProductDraft && editedProductRowCount > 0
-          ? '新規登録・更新'
-          : hasNewProductDraft
-            ? '新規登録'
-            : '更新'}
-        {hasNewProductDraft || editedProductRowCount > 0 ? `(${newProductEntryCount + editedProductRowCount})` : ''}
-      </button>
-      <button
-        type="button"
-        onClick={syncEditedShopifyGroups}
-        disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || shopifySyncTargetGroupCount === 0}
-        className={classNames(
-          'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-          shopifySyncTargetGroupCount > 0
-            ? 'bg-slate-900 text-white hover:bg-slate-700'
-            : 'bg-slate-100 text-slate-400'
-        )}
-        title={shopifySyncTargetGroupCount > 0 ? `Shopify同期対象 ${shopifySyncTargetGroupCount}件 / 下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : 'Shopify同期対象はありません。Shopify ONにして保存してください。'}
-      >
-        {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
-        Shopify同期
-        {shopifySyncTargetGroupCount > 0 ? `(${shopifySyncTargetGroupCount})` : ''}
-      </button>
-    </div>
-  );
-
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
-      {createPortal(productMasterActionBar, document.body)}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-base font-black text-slate-900">商品マスター</h3>
           <p className="mt-0.5 text-[11px] font-bold text-slate-400">
             商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
           </p>
+        </div>
+        <div className="fixed bottom-4 right-4 z-50 flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-2xl shadow-slate-300/60 backdrop-blur">
+          <div className="rounded-2xl bg-slate-50 px-4 py-2 text-sm font-black text-slate-600">
+            {(products || []).length.toLocaleString()}件
+          </div>
+          <button
+            type="button"
+            onClick={saveProductMasterChanges}
+            disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null || (editedProductRowCount === 0 && !hasNewProductDraft)}
+            className={classNames(
+              'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+              hasNewProductDraft || editedProductRowCount > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-slate-100 text-slate-400'
+            )}
+            title={hasNewProductDraft || editedProductRowCount > 0 ? `新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件` : '変更された商品はありません'}
+          >
+            {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
+            {hasNewProductDraft && editedProductRowCount > 0
+              ? '新規登録・更新'
+              : hasNewProductDraft
+                ? '新規登録'
+                : '更新'}
+            {hasNewProductDraft || editedProductRowCount > 0 ? `(${newProductEntryCount + editedProductRowCount})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={syncEditedShopifyGroups}
+            disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null || shopifySyncTargetGroupCount === 0}
+            className={classNames(
+              'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+              shopifySyncTargetGroupCount > 0
+                ? 'bg-slate-900 text-white hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-400'
+            )}
+            title={shopifySyncTargetGroupCount > 0 ? `Shopify同期対象 ${shopifySyncTargetGroupCount}件 / 下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件` : 'Shopify同期対象はありません。Shopify ONにして保存してください。'}
+          >
+            {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
+            Shopify同期
+            {shopifySyncTargetGroupCount > 0 ? `(${shopifySyncTargetGroupCount})` : ''}
+          </button>
         </div>
       </div>
 
