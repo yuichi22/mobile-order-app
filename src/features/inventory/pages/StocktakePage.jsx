@@ -334,9 +334,12 @@ const StocktakePage = ({ storeId }) => {
       setTransferQuantityInput('');
     } catch (error) {
       console.error('failed to record transfer', error);
+      const warehouseCount = Number(existingItem?.warehouseQuantity || 0);
       const msg = error?.message === 'warehouse_not_counted'
         ? 'この商品は倉庫でカウントされていません。先に倉庫でカウントしてください。'
-        : `出庫の記録に失敗しました: ${error?.message || error}`;
+        : error?.message === 'transfer_exceeds_warehouse'
+          ? `倉庫のカウント数(${warehouseCount.toLocaleString()}個)を超えて出庫することはできません。`
+          : `出庫の記録に失敗しました: ${error?.message || error}`;
       setTransferError(msg);
     } finally {
       setTransferSaving(false);

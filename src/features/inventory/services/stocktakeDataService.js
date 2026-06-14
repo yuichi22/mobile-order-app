@@ -184,6 +184,12 @@ export const recordWarehouseToStorefrontTransfer = async (storeId, stocktakeId, 
     throw new Error('warehouse_not_counted');
   }
 
+  // 出庫数が倉庫カウント済み数(出庫済み分を差し引いた残り)を超えていたら弾く。
+  const warehouseQuantity = Number(current.warehouseQuantity || 0);
+  if (moveQuantity > warehouseQuantity) {
+    throw new Error('transfer_exceeds_warehouse');
+  }
+
   const isStorefrontConfirmed = Boolean(current.storefrontConfirmedAt);
 
   if (isStorefrontConfirmed) {
