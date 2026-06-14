@@ -242,7 +242,6 @@ const DailyClosingCheckModal = ({
 
     setChangeFundAmountInput(String(Number(changeFundAmount || 0) || ''));
     setIsEditingChangeFund(false);
-    setNumericModal(null);
   }, [isOpen, closedDailyData, discountList, changeFundAmount]);
 
   const actualCashAmount = useMemo(() => (
@@ -335,7 +334,6 @@ const DailyClosingCheckModal = ({
     if (target.type === 'qr') setQrActualAmountInput(nextValue);
     if (target.type === 'changeFund') setChangeFundAmountInput(nextValue);
 
-    setNumericModal(null);
   };
 
   const handleSaveChangeFund = async () => {
