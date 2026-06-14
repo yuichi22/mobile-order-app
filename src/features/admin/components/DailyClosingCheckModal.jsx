@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Banknote,
@@ -165,6 +165,7 @@ const DailyClosingCheckModal = ({
   summary,
   discountList = [],
   changeFundAmount = 0,
+  closedDailyData = null,
   onSaveChangeFundAmount,
   onClose,
   onConfirm,
@@ -193,7 +194,56 @@ const DailyClosingCheckModal = ({
   const [qrActualAmountInput, setQrActualAmountInput] = useState('');
   const [isEditingChangeFund, setIsEditingChangeFund] = useState(false);
   const [changeFundAmountInput, setChangeFundAmountInput] = useState(() => String(Number(changeFundAmount || 0) || ''));
-  const [numericModal, setNumericModal] = useState(null);
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const savedCashCheck = closedDailyData?.cashCheck || null;
+    const savedCouponCheck = closedDailyData?.couponCheck || null;
+    const savedExternalPaymentCheck = closedDailyData?.externalPaymentCheck || null;
+
+    setDenominations(
+      DENOMINATIONS.reduce((acc, item) => {
+        const savedValue = savedCashCheck?.denominations?.[item.key];
+        acc[item.key] = savedValue === undefined || savedValue === null || Number(savedValue) === 0
+          ? ''
+          : String(savedValue);
+        return acc;
+      }, {})
+    );
+
+    setCouponCounts(
+      discountList.reduce((acc, discount, index) => {
+        const id = discount.id || discount.name || `discount_${index}`;
+        const savedItem = Array.isArray(savedCouponCheck?.items)
+          ? savedCouponCheck.items.find((item) => item?.id === id)
+          : null;
+        const savedValue = savedItem?.actualCount;
+        acc[id] = savedValue === undefined || savedValue === null || Number(savedValue) === 0
+          ? ''
+          : String(savedValue);
+        return acc;
+      }, {})
+    );
+
+    const savedCardAmount = savedExternalPaymentCheck?.actualCardAmount;
+    const savedQrAmount = savedExternalPaymentCheck?.actualQrAmount;
+
+    setCardActualAmountInput(
+      savedCardAmount === undefined || savedCardAmount === null || Number(savedCardAmount) === 0
+        ? ''
+        : String(savedCardAmount)
+    );
+
+    setQrActualAmountInput(
+      savedQrAmount === undefined || savedQrAmount === null || Number(savedQrAmount) === 0
+        ? ''
+        : String(savedQrAmount)
+    );
+
+    setChangeFundAmountInput(String(Number(changeFundAmount || 0) || ''));
+    setIsEditingChangeFund(false);
+    setNumericModal(null);
+  }, [isOpen, closedDailyData, discountList, changeFundAmount]);
 
   const actualCashAmount = useMemo(() => (
     DENOMINATIONS.reduce((sum, item) => (

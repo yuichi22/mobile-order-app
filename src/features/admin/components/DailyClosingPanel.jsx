@@ -1041,6 +1041,7 @@ const handleCloseDay = async (closingCheck = {}) => {
         summary={summary}
         discountList={discountList}
         changeFundAmount={changeFundAmount}
+        closedDailyData={closedDailyData}
         onSaveChangeFundAmount={handleSaveChangeFundAmount}
         isProcessing={isClosing}
         onClose={() => {
