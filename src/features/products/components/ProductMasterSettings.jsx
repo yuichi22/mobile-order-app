@@ -636,6 +636,7 @@ const ProductMasterTable = ({
   const [newSkuRows, setNewSkuRows] = useState([]);
   const [showNewProductEntry, setShowNewProductEntry] = useState(false);
   const [savingKey, setSavingKey] = useState('');
+  const [productMasterActionToastMounted, setProductMasterActionToastMounted] = useState(false);
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
   const [productMasterBulkSaving, setProductMasterBulkSaving] = useState(false);
@@ -2150,8 +2151,23 @@ const ProductMasterTable = ({
 
   const productMasterActionToastVisible = hasNewProductDraft || editedProductRowCount > 0 || shopifySyncTargetGroupCount > 0;
 
+  useEffect(() => {
+    if (productMasterActionToastVisible) {
+      setProductMasterActionToastMounted(true);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setProductMasterActionToastMounted(false);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [productMasterActionToastVisible]);
+
+  const productMasterActionToastExiting = productMasterActionToastMounted && !productMasterActionToastVisible;
+
   const productMasterActionToast = (
-    typeof document !== 'undefined' && productMasterActionToastVisible
+    typeof document !== 'undefined' && productMasterActionToastMounted
       ? createPortal((
         <>
           <style>{`
@@ -2165,10 +2181,25 @@ const ProductMasterTable = ({
                 transform: translateY(0);
               }
             }
+
+            @keyframes productMasterActionToastSlideDown {
+              from {
+                opacity: 1;
+                transform: translateY(0);
+              }
+              to {
+                opacity: 0;
+                transform: translateY(110%);
+              }
+            }
           `}</style>
           <div
-            className="fixed bottom-0 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-t-2xl rounded-b-none border border-b-0 border-slate-200 bg-white/95 px-4 py-3 pb-4 shadow-2xl shadow-slate-300/60 backdrop-blur"
-            style={{ animation: 'productMasterActionToastSlideUp 180ms ease-out' }}
+            className="fixed bottom-0 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-t-2xl rounded-b-none border border-b-0 border-slate-200 bg-white/95 px-5 pt-4 pb-7 shadow-2xl shadow-slate-300/60 backdrop-blur"
+            style={{
+              animation: productMasterActionToastExiting
+                ? 'productMasterActionToastSlideDown 180ms ease-in forwards'
+                : 'productMasterActionToastSlideUp 180ms ease-out'
+            }}
           >
           <div className="min-w-0 pr-2">
             <div className="text-sm font-black text-slate-900">
