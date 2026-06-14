@@ -2264,10 +2264,10 @@ const ProductMasterTable = ({
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
-        <div>
-          <h3 className="text-base font-black text-slate-900">商品マスター</h3>
-          <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+      <div className="sticky top-0 z-30 flex items-stretch justify-between gap-0 overflow-hidden border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="min-w-0 px-4 py-3 xl:px-5">
+          <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
+          <p className="mt-1 text-xs font-bold text-slate-500">
             商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
           </p>
         </div>
@@ -2276,17 +2276,16 @@ const ProductMasterTable = ({
           type="button"
           onClick={() => setShowNewProductEntry((current) => !current)}
           className={classNames(
-            'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
+            'inline-flex shrink-0 items-center justify-center gap-2 self-stretch rounded-l-2xl rounded-r-none px-5 text-sm font-black shadow-sm transition',
             showNewProductEntry
               ? 'bg-orange-700 text-white shadow-orange-200/70 hover:bg-orange-800'
               : 'bg-orange-600 text-white shadow-orange-200/70 hover:bg-orange-700'
           )}
         >
           {showNewProductEntry ? <ChevronUp size={17} strokeWidth={2.6} /> : <ChevronDown size={17} strokeWidth={2.6} />}
-          {showNewProductEntry ? '新商品登録を閉じる' : '新商品登録'}
+          {showNewProductEntry ? '閉じる' : '新規登録'}
         </button>
       </div>
-
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           {newProductEntryMounted && (
