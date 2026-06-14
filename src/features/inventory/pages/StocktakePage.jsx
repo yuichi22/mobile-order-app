@@ -1,9 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, RefreshCw, X } from 'lucide-react';
+import { Camera, Check, RefreshCw, X } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import BarcodeScanner from '../components/BarcodeScanner';
-import { findProductByBarcode, subscribeToActiveStocktake } from '../services/stocktakeDataService';
+import {
+  findProductByBarcode,
+  getStocktakeItem,
+  recordStocktakeCount,
+  subscribeToActiveStocktake
+} from '../services/stocktakeDataService';
+
+const LOCATION_OPTIONS = [
+  { id: 'warehouse', label: '倉庫' },
+  { id: 'storefront', label: '店頭' }
+];
 
 const StocktakePage = ({ storeId }) => {
   const [activeStocktake, setActiveStocktake] = useState(undefined);
@@ -11,6 +21,12 @@ const StocktakePage = ({ storeId }) => {
   const [lookupState, setLookupState] = useState('idle');
   const [scannedProduct, setScannedProduct] = useState(null);
   const [scannedBarcode, setScannedBarcode] = useState('');
+  const [existingItem, setExistingItem] = useState(undefined);
+  const [selectedLocation, setSelectedLocation] = useState('warehouse');
+  const [quantityInput, setQuantityInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
   const hasDetectedRef = useRef(false);
 
   useEffect(() => {
@@ -19,12 +35,38 @@ const StocktakePage = ({ storeId }) => {
     return subscribeToActiveStocktake(storeId, setActiveStocktake, () => setActiveStocktake(null));
   }, [storeId]);
 
+  // スキャンされた商品が確定したら、現在の棚卸しカウントを取得する。
+  useEffect(() => {
+    if (lookupState !== 'found' || !storeId || !activeStocktake?.id || !scannedProduct?.id) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    getStocktakeItem(storeId, activeStocktake.id, scannedProduct.id)
+      .then((item) => {
+        if (!cancelled) setExistingItem(item || null);
+      })
+      .catch((error) => {
+        console.error('failed to load stocktake item', error);
+        if (!cancelled) setExistingItem(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupState, storeId, activeStocktake?.id, scannedProduct?.id]);
+
   const handleDetected = (code) => {
     if (hasDetectedRef.current) return;
     hasDetectedRef.current = true;
     setScanning(false);
     setScannedBarcode(code);
     setLookupState('loading');
+    setExistingItem(undefined);
+    setQuantityInput('');
+    setSaveMessage('');
+    setSaveError('');
 
     findProductByBarcode(storeId, code)
       .then((product) => {
@@ -48,12 +90,60 @@ const StocktakePage = ({ storeId }) => {
     setScannedProduct(null);
     setScannedBarcode('');
     setLookupState('idle');
+    setExistingItem(undefined);
+    setQuantityInput('');
+    setSaveMessage('');
+    setSaveError('');
     setScanning(true);
   };
 
   const cancelScanning = () => {
     setScanning(false);
   };
+
+  const handleSaveCount = async () => {
+    const quantity = Number(quantityInput);
+    if (!Number.isFinite(quantity) || quantity <= 0) return;
+    if (!storeId || !activeStocktake?.id || !scannedProduct?.id) return;
+
+    setSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+
+    try {
+      await recordStocktakeCount(storeId, activeStocktake.id, scannedProduct, {
+        location: selectedLocation,
+        quantity
+      });
+
+      setExistingItem((prev) => {
+        const base = prev || {};
+        if (selectedLocation === 'warehouse') {
+          return {
+            ...base,
+            warehouseQuantity: Number(base.warehouseQuantity || 0) + quantity
+          };
+        }
+        return {
+          ...base,
+          storefrontShelfQuantity: Number(base.storefrontShelfQuantity || 0) + quantity,
+          needsRecount: false
+        };
+      });
+
+      setSaveMessage(`保存しました(追加: ${quantity}個)`);
+      setQuantityInput('');
+    } catch (error) {
+      console.error('failed to save stocktake count', error);
+      setSaveError(`保存に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const existingCountForLocation = selectedLocation === 'warehouse'
+    ? Number(existingItem?.warehouseQuantity || 0)
+    : Number(existingItem?.storefrontShelfQuantity || 0);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4">
@@ -63,7 +153,6 @@ const StocktakePage = ({ storeId }) => {
           <p className="mt-1 text-sm font-bold text-slate-500">
             バーコードをスキャンして商品を呼び出します。
           </p>
-          <p className="mt-1 text-xs font-bold text-slate-300">storeId: {storeId || '(なし)'}</p>
         </div>
 
         {activeStocktake === undefined ? (
@@ -116,9 +205,65 @@ const StocktakePage = ({ storeId }) => {
                   {scannedProduct.colorName ? <p>色: {scannedProduct.colorName}</p> : null}
                   <p>現在の在庫数: {Number(scannedProduct.inventoryQuantity ?? scannedProduct.quantity ?? 0).toLocaleString()}</p>
                 </div>
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs font-bold text-slate-400">
-                  カウント入力はこの後のステップで追加します。
+
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">カウント場所</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {LOCATION_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedLocation(option.id)}
+                        className={`h-11 rounded-2xl text-sm font-black transition ${
+                          selectedLocation === option.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {existingItem === undefined ? (
+                    <div className="mt-3 flex items-center justify-center rounded-2xl bg-slate-50 p-3">
+                      <LoadingSpinner size={16} />
+                    </div>
+                  ) : existingCountForLocation > 0 ? (
+                    <p className="mt-3 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
+                      すでに{existingCountForLocation.toLocaleString()}個カウント済みです。追加で数える分だけ入力してください。
+                    </p>
+                  ) : null}
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      value={quantityInput}
+                      onChange={(event) => setQuantityInput(event.target.value)}
+                      placeholder="追加で数えた個数"
+                      className="h-12 flex-1 rounded-2xl border-2 border-slate-100 px-4 text-base font-black text-slate-900 outline-none transition focus:border-blue-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveCount}
+                      disabled={saving || existingItem === undefined || !quantityInput || Number(quantityInput) <= 0}
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
+                      保存
+                    </button>
+                  </div>
+
+                  {saveMessage ? (
+                    <p className="mt-2 text-xs font-bold text-emerald-600">{saveMessage}</p>
+                  ) : null}
+                  {saveError ? (
+                    <p className="mt-2 text-xs font-bold text-rose-500">{saveError}</p>
+                  ) : null}
                 </div>
+
                 <button
                   type="button"
                   onClick={startScanning}
