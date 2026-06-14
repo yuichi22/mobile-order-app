@@ -288,6 +288,13 @@ service cloud.firestore {
         allow create: if isPlatformAdmin() || isStoreManager(storeId);
         allow update, delete: if false;
       }
+      match /stocktakes/{stocktakeId} {
+        allow read, write: if isPlatformAdmin() || isStoreStaff(storeId);
+
+        match /items/{itemId} {
+          allow read, write: if isPlatformAdmin() || isStoreStaff(storeId);
+        }
+      }
 
       match /stockIns/{stockInId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
