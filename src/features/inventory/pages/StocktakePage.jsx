@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ListChecks, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Camera, Check, ListChecks, RefreshCw, Truck, X } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import BarcodeScanner from '../components/BarcodeScanner';
@@ -8,6 +8,7 @@ import {
   findProductByBarcode,
   getStocktakeItem,
   recordStocktakeCount,
+  recordWarehouseToStorefrontTransfer,
   subscribeToActiveStocktake,
   subscribeToStocktakeItems
 } from '../services/stocktakeDataService';
@@ -31,6 +32,10 @@ const StocktakePage = ({ storeId }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
+  const [transferQuantityInput, setTransferQuantityInput] = useState('');
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferMessage, setTransferMessage] = useState('');
   const [recountSaving, setRecountSaving] = useState(false);
   const [recountMessage, setRecountMessage] = useState('');
   const hasDetectedRef = useRef(false);
@@ -74,17 +79,24 @@ const StocktakePage = ({ storeId }) => {
   const displayItems = activeStocktake?.id ? stocktakeItems : [];
   const recountItems = displayItems.filter((item) => item.needsRecount);
 
+  const resetScanResultState = () => {
+    setExistingItem(undefined);
+    setQuantityInput('');
+    setSaveMessage('');
+    setSaveError('');
+    setTransferQuantityInput('');
+    setTransferMessage('');
+    setTransferError('');
+    setRecountMessage('');
+  };
+
   const handleDetected = (code) => {
     if (hasDetectedRef.current) return;
     hasDetectedRef.current = true;
     setScanning(false);
     setScannedBarcode(code);
     setLookupState('loading');
-    setExistingItem(undefined);
-    setQuantityInput('');
-    setSaveMessage('');
-    setSaveError('');
-    setRecountMessage('');
+    resetScanResultState();
 
     findProductByBarcode(storeId, code)
       .then((product) => {
@@ -108,11 +120,7 @@ const StocktakePage = ({ storeId }) => {
     setScannedProduct(null);
     setScannedBarcode('');
     setLookupState('idle');
-    setExistingItem(undefined);
-    setQuantityInput('');
-    setSaveMessage('');
-    setSaveError('');
-    setRecountMessage('');
+    resetScanResultState();
     setScanning(true);
   };
 
@@ -160,6 +168,42 @@ const StocktakePage = ({ storeId }) => {
     }
   };
 
+  const handleSaveTransfer = async () => {
+    const quantity = Number(transferQuantityInput);
+    if (!Number.isFinite(quantity) || quantity <= 0) return;
+    if (!storeId || !activeStocktake?.id || !scannedProduct?.id) return;
+
+    setTransferSaving(true);
+    setTransferError('');
+    setTransferMessage('');
+
+    try {
+      await recordWarehouseToStorefrontTransfer(storeId, activeStocktake.id, scannedProduct, quantity);
+
+      setExistingItem((prev) => {
+        const base = prev || {};
+        const wasStorefrontConfirmed = Boolean(base.storefrontConfirmedAt);
+
+        return {
+          ...base,
+          warehouseQuantity: Number(base.warehouseQuantity || 0) - quantity,
+          transferToStorefront: Number(base.transferToStorefront || 0) + quantity,
+          ...(wasStorefrontConfirmed
+            ? { storefrontShelfQuantity: Number(base.storefrontShelfQuantity || 0) + quantity }
+            : {})
+        };
+      });
+
+      setTransferMessage(`出庫しました(${quantity}個)`);
+      setTransferQuantityInput('');
+    } catch (error) {
+      console.error('failed to record transfer', error);
+      setTransferError(`出庫の記録に失敗しました: ${error?.message || error}`);
+    } finally {
+      setTransferSaving(false);
+    }
+  };
+
   const handleAddToRecount = async () => {
     if (!storeId || !activeStocktake?.id || !scannedProduct?.id) return;
 
@@ -181,6 +225,7 @@ const StocktakePage = ({ storeId }) => {
   const existingCountForLocation = selectedLocation === 'warehouse'
     ? Number(existingItem?.warehouseQuantity || 0)
     : Number(existingItem?.storefrontShelfQuantity || 0);
+  const existingTransferToStorefront = Number(existingItem?.transferToStorefront || 0);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4">
@@ -305,43 +350,100 @@ const StocktakePage = ({ storeId }) => {
                         ))}
                       </div>
 
-                      {existingItem === undefined ? (
-                        <div className="mt-3 flex items-center justify-center rounded-2xl bg-slate-50 p-3">
-                          <LoadingSpinner size={16} />
-                        </div>
-                      ) : existingCountForLocation > 0 ? (
-                        <p className="mt-3 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
-                          すでに{existingCountForLocation.toLocaleString()}個カウント済みです。追加で数える分だけ入力してください。
+                      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                        <p className="text-sm font-black text-blue-700">追加で数えた個数</p>
+                        <p className="mt-1 text-xs font-bold text-blue-400">
+                          {selectedLocation === 'warehouse' ? '倉庫での在庫カウントを加算します。' : '店頭での在庫カウントを加算し、確定します。'}
                         </p>
-                      ) : null}
 
-                      <div className="mt-3 flex items-center gap-2">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          value={quantityInput}
-                          onChange={(event) => setQuantityInput(event.target.value)}
-                          placeholder="追加で数えた個数"
-                          className="h-12 flex-1 rounded-2xl border-2 border-slate-100 px-4 text-base font-black text-slate-900 outline-none transition focus:border-blue-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSaveCount}
-                          disabled={saving || existingItem === undefined || !quantityInput || Number(quantityInput) <= 0}
-                          className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
-                          保存
-                        </button>
+                        {existingItem === undefined ? (
+                          <div className="mt-2 flex items-center justify-center rounded-2xl bg-white/60 p-3">
+                            <LoadingSpinner size={16} />
+                          </div>
+                        ) : existingCountForLocation > 0 ? (
+                          <p className="mt-2 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
+                            すでに{existingCountForLocation.toLocaleString()}個カウント済みです。追加で数える分だけ入力してください。
+                          </p>
+                        ) : null}
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            value={quantityInput}
+                            onChange={(event) => setQuantityInput(event.target.value)}
+                            placeholder="追加で数えた個数"
+                            className="h-12 flex-1 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-blue-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveCount}
+                            disabled={saving || existingItem === undefined || !quantityInput || Number(quantityInput) <= 0}
+                            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
+                            保存
+                          </button>
+                        </div>
+
+                        {saveMessage ? (
+                          <p className="mt-2 text-xs font-bold text-blue-600">{saveMessage}</p>
+                        ) : null}
+                        {saveError ? (
+                          <p className="mt-2 text-xs font-bold text-rose-500">{saveError}</p>
+                        ) : null}
                       </div>
 
-                      {saveMessage ? (
-                        <p className="mt-2 text-xs font-bold text-emerald-600">{saveMessage}</p>
-                      ) : null}
-                      {saveError ? (
-                        <p className="mt-2 text-xs font-bold text-rose-500">{saveError}</p>
-                      ) : null}
+                      {selectedLocation === 'warehouse' && (
+                        <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+                          <div className="flex items-center gap-2">
+                            <Truck size={16} className="text-amber-600" />
+                            <p className="text-sm font-black text-amber-700">出庫する個数(店頭への品出し)</p>
+                          </div>
+                          <p className="mt-1 text-xs font-bold text-amber-500">
+                            倉庫から店頭へ移動した分を入力してください。倉庫数が減り、店頭が確定済みなら店頭数に加算されます。
+                          </p>
+
+                          {existingItem === undefined ? (
+                            <div className="mt-2 flex items-center justify-center rounded-2xl bg-white/60 p-3">
+                              <LoadingSpinner size={16} />
+                            </div>
+                          ) : existingTransferToStorefront > 0 ? (
+                            <p className="mt-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold leading-relaxed text-amber-600">
+                              すでに{existingTransferToStorefront.toLocaleString()}個出庫済みです。追加で出庫する分だけ入力してください。
+                            </p>
+                          ) : null}
+
+                          <div className="mt-3 flex items-center gap-2">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              value={transferQuantityInput}
+                              onChange={(event) => setTransferQuantityInput(event.target.value)}
+                              placeholder="出庫する個数"
+                              className="h-12 flex-1 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-amber-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveTransfer}
+                              disabled={transferSaving || existingItem === undefined || !transferQuantityInput || Number(transferQuantityInput) <= 0}
+                              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {transferSaving ? <LoadingSpinner size={16} /> : <Truck size={16} />}
+                              保存
+                            </button>
+                          </div>
+
+                          {transferMessage ? (
+                            <p className="mt-2 text-xs font-bold text-amber-600">{transferMessage}</p>
+                          ) : null}
+                          {transferError ? (
+                            <p className="mt-2 text-xs font-bold text-rose-500">{transferError}</p>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
 
                     {existingItem ? (
