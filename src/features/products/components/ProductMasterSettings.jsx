@@ -962,41 +962,6 @@ const ProductMasterTable = ({
     || groupHasDraftShopifyTarget(group)
     || groupHasSavedUnsyncedShopifyReservation(group);
 
-  const shopifySyncTargetGroups = useMemo(() => {
-    const createTargets = [];
-    const updateTargets = [];
-
-    for (const group of groupedProducts) {
-      const workingGroup = getWorkingGroup(group);
-      const hasDraftOrPendingTarget = workingGroup.products.some((product) => (
-        draftRows[product.id] || pendingShopifySyncProductIds.has(product.id)
-      ));
-      const hasSavedUnsyncedReservation = groupHasSavedUnsyncedShopifyReservation(workingGroup);
-
-      if (
-        !(hasDraftOrPendingTarget || hasSavedUnsyncedReservation) ||
-        !groupHasShopifySyncTarget(workingGroup)
-      ) {
-        continue;
-      }
-
-      if (getGroupShopifyProductId(workingGroup)) {
-        updateTargets.push(workingGroup);
-      } else {
-        createTargets.push(workingGroup);
-      }
-    }
-
-    return {
-      createTargets,
-      updateTargets
-    };
-  }, [draftRows, pendingShopifySyncProductIds, groupedProducts]);
-
-  const editedShopifyGroups = shopifySyncTargetGroups.createTargets;
-  const editedSyncedShopifyGroups = shopifySyncTargetGroups.updateTargets;
-  const shopifySyncTargetGroupCount = editedShopifyGroups.length + editedSyncedShopifyGroups.length;
-
   const productByIdMap = useMemo(
     () => new Map((products || []).filter((product) => product?.id).map((product) => [product.id, product])),
     [products]
@@ -1100,9 +1065,64 @@ const ProductMasterTable = ({
 
   const editedProductRowCount = editedProductRows.length;
 
+  const shopifySyncTargetGroups = useMemo(() => {
+    const createTargets = [];
+    const updateTargets = [];
+
+    for (const group of groupedProducts) {
+      const workingGroup = getWorkingGroup(group);
+      const hasDraftOrPendingTarget = workingGroup.products.some((product) => {
+        if (pendingShopifySyncProductIds.has(product.id)) return true;
+
+        const draft = draftRows[product.id];
+        if (!draft) return false;
+
+        const original = productByIdMap.get(product.id) || product;
+        const changedFields = getProductDraftChangedFields(draft, original);
+
+        return changedFields.some((field) => field !== 'stockInQuantityDraft');
+      });
+      const hasSavedUnsyncedReservation = groupHasSavedUnsyncedShopifyReservation(workingGroup);
+
+      if (
+        !(hasDraftOrPendingTarget || hasSavedUnsyncedReservation) ||
+        !groupHasShopifySyncTarget(workingGroup)
+      ) {
+        continue;
+      }
+
+      if (getGroupShopifyProductId(workingGroup)) {
+        updateTargets.push(workingGroup);
+      } else {
+        createTargets.push(workingGroup);
+      }
+    }
+
+    return {
+      createTargets,
+      updateTargets
+    };
+  }, [draftRows, groupedProducts, pendingShopifySyncProductIds, productByIdMap]);
+
+  const editedShopifyGroups = shopifySyncTargetGroups.createTargets;
+  const editedSyncedShopifyGroups = shopifySyncTargetGroups.updateTargets;
+  const shopifySyncTargetGroupCount = editedShopifyGroups.length + editedSyncedShopifyGroups.length;
+
   const stockInTargetRows = useMemo(() => (
     editedProductRows.filter((row) => Number(row.stockInQuantityDraft || 0) > 0)
   ), [editedProductRows]);
+
+  const productFieldEditedRows = useMemo(() => (
+    editedProductRows.filter((row) => {
+      const original = productByIdMap.get(row.id);
+      if (!original) return false;
+
+      const changedFields = getProductDraftChangedFields(row, original);
+      return changedFields.some((field) => field !== 'stockInQuantityDraft');
+    })
+  ), [editedProductRows, productByIdMap]);
+
+  const productFieldEditedRowCount = productFieldEditedRows.length;
 
 
   const markPendingShopifySyncProducts = (productIds = []) => {
@@ -2133,7 +2153,7 @@ const ProductMasterTable = ({
             </div>
             <div className="mt-1 text-xs font-bold text-slate-500">
               {hasNewProductDraft || editedProductRowCount > 0
-                ? `新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件`
+                ? `新規 ${newProductEntryCount}件 / 更新 ${productFieldEditedRowCount}件 / 入庫 ${stockInTargetRows.length}件`
                 : `Shopify同期 ${shopifySyncTargetGroupCount}件`}
             </div>
           </div>
@@ -2144,7 +2164,7 @@ const ProductMasterTable = ({
               onClick={saveProductMasterChanges}
               disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              title={`新規 ${newProductEntryCount}件 / 更新 ${editedProductRowCount}件 / 入庫 ${stockInTargetRows.length}件`}
+              title={`新規 ${newProductEntryCount}件 / 更新 ${productFieldEditedRowCount}件 / 入庫 ${stockInTargetRows.length}件`}
             >
               {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
               更新
