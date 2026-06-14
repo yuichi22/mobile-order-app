@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
@@ -488,11 +488,13 @@ const formatMasterTaxRateLabel = (item = {}, defaultTaxRate = 10) => {
 
 const classNames = (...values) => values.filter(Boolean).join(' ');
 
-const TableTextInput = ({ value, onChange, type = 'text', className = '', placeholder = '' }) => (
+const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown }, ref) => (
   <input
+    ref={ref}
     type={type}
     value={value ?? ''}
     onChange={(event) => onChange(event.target.value)}
+    onKeyDown={onKeyDown}
     placeholder={placeholder}
     inputMode={type === 'number' ? 'decimal' : undefined}
     className={classNames(
@@ -500,7 +502,7 @@ const TableTextInput = ({ value, onChange, type = 'text', className = '', placeh
       className
     )}
   />
-);
+));
 
 const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty = false }) => {
   const isEmpty = !String(value || '').trim();
@@ -655,6 +657,9 @@ const ProductMasterTable = ({
   const [inventoryAdjustHistoryRecords, setInventoryAdjustHistoryRecords] = useState([]);
   const [inventoryAdjustHistoryLoading, setInventoryAdjustHistoryLoading] = useState(false);
   const [inventoryAdjustHistoryError, setInventoryAdjustHistoryError] = useState('');
+  const newProductNameInputRef = useRef(null);
+  const newProductClassificationRef = useRef(null);
+  const newProductSkuInputRef = useRef(null);
 
   const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
 
@@ -2067,7 +2072,18 @@ const ProductMasterTable = ({
 
                   <div>
                     <FieldLabel>商品名</FieldLabel>
-                    <TableTextInput value={row.name} onChange={(value) => update({ name: value })} placeholder="商品名" />
+                    <TableTextInput
+                      ref={newProductNameInputRef}
+                      value={row.name}
+                      onChange={(value) => update({ name: value })}
+                      placeholder="商品名"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Tab' && !event.shiftKey) {
+                          event.preventDefault();
+                          newProductClassificationRef.current?.openModal();
+                        }
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -2103,8 +2119,14 @@ const ProductMasterTable = ({
 
               <div className="min-w-0">
                 <ProductClassificationControl
+                  ref={newProductClassificationRef}
                   value={row}
                   onChange={update}
+                  onApply={() => {
+                    requestAnimationFrame(() => {
+                      newProductSkuInputRef.current?.focus();
+                    });
+                  }}
                   productSalesAreas={getSalesAreaOptions()}
                   productCategoryGroups={productCategoryGroups}
                   productCategories={productCategories}
@@ -2153,6 +2175,7 @@ const ProductMasterTable = ({
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
+              ref={isNew ? newProductSkuInputRef : undefined}
               value={row.sku || row.productCode}
               onChange={(value) => update({ sku: value, productCode: value })}
               placeholder="品番"
@@ -3708,14 +3731,15 @@ const ClassificationChoiceButton = ({
   </button>
 );
 
-const ProductClassificationControl = ({
+const ProductClassificationControl = forwardRef(({
   value,
   onChange,
+  onApply,
   productSalesAreas = [],
   productCategoryGroups = [],
   productCategories = [],
   productSubCategories = []
-}) => {
+}, ref) => {
   const [open, setOpen] = useState(false);
   const [modalDraft, setModalDraft] = useState(value || {});
 
@@ -3726,6 +3750,10 @@ const ProductClassificationControl = ({
     setOpen(true);
   };
 
+  useImperativeHandle(ref, () => ({
+    openModal
+  }));
+
   const closeModal = () => {
     setModalDraft({ ...(value || {}) });
     setOpen(false);
@@ -3734,6 +3762,7 @@ const ProductClassificationControl = ({
   const applyModalDraft = () => {
     onChange(modalDraft || {});
     setOpen(false);
+    onApply?.();
   };
 
   const updateModalDraft = (patch) => {
@@ -3984,7 +4013,7 @@ const ProductClassificationControl = ({
       {modalNode && createPortal(modalNode, document.body)}
     </div>
   );
-};
+});
 
 export const SimpleMasterPanel = ({
   label,
