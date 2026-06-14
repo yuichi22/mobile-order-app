@@ -7,6 +7,7 @@ import {
   Building2,
   Check,
   ChevronDown,
+  ChevronUp,
   Factory,
   FolderTree,
   Package,
@@ -635,6 +636,7 @@ const ProductMasterTable = ({
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [newSkuRows, setNewSkuRows] = useState([]);
   const [showNewProductEntry, setShowNewProductEntry] = useState(false);
+  const [newProductEntryMounted, setNewProductEntryMounted] = useState(false);
   const [savingKey, setSavingKey] = useState('');
   const [productMasterActionToastMounted, setProductMasterActionToastMounted] = useState(false);
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
@@ -2149,6 +2151,21 @@ const ProductMasterTable = ({
     );
   };
 
+  useEffect(() => {
+    if (showNewProductEntry) {
+      setNewProductEntryMounted(true);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNewProductEntryMounted(false);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showNewProductEntry]);
+
+  const newProductEntryExiting = newProductEntryMounted && !showNewProductEntry;
+
   const productMasterActionToastVisible = hasNewProductDraft || editedProductRowCount > 0 || shopifySyncTargetGroupCount > 0;
 
   useEffect(() => {
@@ -2261,19 +2278,53 @@ const ProductMasterTable = ({
           className={classNames(
             'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
             showNewProductEntry
-              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-              : 'bg-slate-900 text-white hover:bg-slate-700'
+              ? 'bg-orange-700 text-white shadow-orange-200/70 hover:bg-orange-800'
+              : 'bg-orange-600 text-white shadow-orange-200/70 hover:bg-orange-700'
           )}
         >
-          <span>{showNewProductEntry ? '▲' : '▼'}</span>
+          {showNewProductEntry ? <ChevronUp size={17} strokeWidth={2.6} /> : <ChevronDown size={17} strokeWidth={2.6} />}
           {showNewProductEntry ? '新商品登録を閉じる' : '新商品登録'}
         </button>
       </div>
 
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
-          {showNewProductEntry && (
-            <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm">
+          {newProductEntryMounted && (
+            <div
+              className="overflow-hidden rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm"
+              style={{
+                animation: newProductEntryExiting
+                  ? 'productMasterNewEntrySlideUp 180ms ease-in forwards'
+                  : 'productMasterNewEntrySlideDown 180ms ease-out'
+              }}
+            >
+              <style>{`
+                @keyframes productMasterNewEntrySlideDown {
+                  from {
+                    opacity: 0;
+                    transform: translateY(-12px);
+                    max-height: 0;
+                  }
+                  to {
+                    opacity: 1;
+                    transform: translateY(0);
+                    max-height: 720px;
+                  }
+                }
+
+                @keyframes productMasterNewEntrySlideUp {
+                  from {
+                    opacity: 1;
+                    transform: translateY(0);
+                    max-height: 720px;
+                  }
+                  to {
+                    opacity: 0;
+                    transform: translateY(-12px);
+                    max-height: 0;
+                  }
+                }
+              `}</style>
               {renderEditableRow(newRow, {
                 isNew: true,
                 embeddedNewGroup: true
