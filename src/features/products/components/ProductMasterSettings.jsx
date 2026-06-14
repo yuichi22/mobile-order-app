@@ -634,6 +634,7 @@ const ProductMasterTable = ({
   const [visibleProductGroupLimit, setVisibleProductGroupLimit] = useState(PRODUCT_MASTER_INITIAL_GROUP_LIMIT);
   const [newRow, setNewRow] = useState({ ...blankProduct });
   const [newSkuRows, setNewSkuRows] = useState([]);
+  const [showNewProductEntry, setShowNewProductEntry] = useState(false);
   const [savingKey, setSavingKey] = useState('');
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
@@ -1295,6 +1296,7 @@ const ProductMasterTable = ({
       shopifyEnabled: false
     });
     setNewSkuRows([]);
+    setShowNewProductEntry(false);
   };
 
   const removeNewSkuRow = (index) => {
@@ -2204,15 +2206,30 @@ const ProductMasterTable = ({
             商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowNewProductEntry((current) => !current)}
+          className={classNames(
+            'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
+            showNewProductEntry
+              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+              : 'bg-slate-900 text-white hover:bg-slate-700'
+          )}
+        >
+          <span>{showNewProductEntry ? '▲' : '▼'}</span>
+          {showNewProductEntry ? '新商品登録を閉じる' : '新商品登録'}
+        </button>
       </div>
 
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
-          <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm">
-            {renderEditableRow(newRow, {
-              isNew: true,
-              embeddedNewGroup: true
-            })}
+          {showNewProductEntry && (
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm">
+              {renderEditableRow(newRow, {
+                isNew: true,
+                embeddedNewGroup: true
+              })}
 
             {newSkuRows.length > 0 && (
               <div className="mt-2 space-y-2 border-t border-orange-100 pt-2">
@@ -2240,7 +2257,8 @@ const ProductMasterTable = ({
                 ))}
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {(products || []).length > 0 && visibleProductGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
