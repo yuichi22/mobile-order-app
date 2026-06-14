@@ -4,11 +4,13 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDocs,
   onSnapshot,
   serverTimestamp,
   setDoc,
   query,
   orderBy,
+  where,
   limit
 } from 'firebase/firestore';
 
@@ -427,6 +429,26 @@ export const saveProductMasterItem = async (storeId, itemData) => {
   }
 
   return savedProductId;
+};
+
+export const getProductStockInHistory = async (storeId, productId, { limitCount = 50 } = {}) => {
+  if (!isValidStoreId(storeId) || !productId) return [];
+
+  const historyQuery = query(
+    storeCollectionRef(storeId, 'stockIns'),
+    where('productId', '==', productId)
+  );
+
+  const snapshot = await getDocs(historyQuery);
+  const records = mapCollectionSnapshot(snapshot);
+
+  records.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bTime - aTime;
+  });
+
+  return records.slice(0, limitCount);
 };
 
 

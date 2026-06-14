@@ -21,6 +21,7 @@ import {
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import { db } from '../../../shared/api/firebase/client';
+import { getProductStockInHistory } from '../../store/services/storeDataService';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -614,6 +615,7 @@ const calculateProductMasterTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) 
 
 const ProductMasterTable = ({
   products,
+  storeId,
   productGroups = [],
   productCategories,
   productCategoryGroups,
@@ -642,6 +644,10 @@ const ProductMasterTable = ({
   const [shopifySyncingGroupId, setShopifySyncingGroupId] = useState(null);
   const [shopifyBulkSyncing, setShopifyBulkSyncing] = useState(false);
   const [productMasterBulkSaving, setProductMasterBulkSaving] = useState(false);
+  const [stockInHistoryModalRow, setStockInHistoryModalRow] = useState(null);
+  const [stockInHistoryRecords, setStockInHistoryRecords] = useState([]);
+  const [stockInHistoryLoading, setStockInHistoryLoading] = useState(false);
+  const [stockInHistoryError, setStockInHistoryError] = useState('');
 
   const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
 
@@ -1924,6 +1930,29 @@ const ProductMasterTable = ({
     onSaved?.();
   };
 
+  const openStockInHistoryModal = async (product) => {
+    setStockInHistoryModalRow(product);
+    setStockInHistoryRecords([]);
+    setStockInHistoryError('');
+    setStockInHistoryLoading(true);
+
+    try {
+      const records = await getProductStockInHistory(storeId, product.id);
+      setStockInHistoryRecords(records);
+    } catch (error) {
+      console.error('failed to load stock-in history', error);
+      setStockInHistoryError('入庫履歴の取得に失敗しました');
+    } finally {
+      setStockInHistoryLoading(false);
+    }
+  };
+
+  const closeStockInHistoryModal = () => {
+    setStockInHistoryModalRow(null);
+    setStockInHistoryRecords([]);
+    setStockInHistoryError('');
+  };
+
   const renderEditableRow = (row, options = {}) => {
     const isNew = options.isNew === true;
     const rowKey = options.rowKey || (isNew ? '__new__' : row.id);
@@ -2105,10 +2134,14 @@ const ProductMasterTable = ({
             <FieldLabel>入庫履歴</FieldLabel>
             <button
               type="button"
-              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200"
+              onClick={() => openStockInHistoryModal(row)}
+              disabled={isNew}
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               title="入庫履歴を表示"
             >
-              {Number(row.lastStockInQuantity || 0) > 0 ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()}` : '入庫: 未登録'}
+              {Number(row.lastStockInQuantity || 0) > 0
+                ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()} (${formatDateText(row.lastStockInAt)})`
+                : '入庫: 未登録'}
             </button>
           </div>
 
@@ -2261,9 +2294,75 @@ const ProductMasterTable = ({
       : null
   );
 
+  const stockInHistoryModalNode = (
+    typeof document !== 'undefined' && stockInHistoryModalRow
+      ? createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
+          <div className="flex h-[min(640px,calc(100vh-7rem))] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+                    Stock In History
+                  </p>
+                  <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                    入庫履歴
+                  </h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {stockInHistoryModalRow.name || stockInHistoryModalRow.productGroupName || stockInHistoryModalRow.sku || stockInHistoryModalRow.id}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeStockInHistoryModal}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition hover:text-slate-700"
+                  aria-label="閉じる"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {stockInHistoryLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <LoadingSpinner size={20} />
+                </div>
+              ) : stockInHistoryError ? (
+                <p className="py-10 text-center text-sm font-bold text-rose-500">{stockInHistoryError}</p>
+              ) : stockInHistoryRecords.length === 0 ? (
+                <p className="py-10 text-center text-sm font-bold text-slate-400">入庫履歴はありません</p>
+              ) : (
+                <div className="space-y-2">
+                  {stockInHistoryRecords.map((record) => (
+                    <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black text-slate-900">
+                          {formatProductMasterDateTimeText(record.createdAt)}
+                        </span>
+                        <span className="text-sm font-black text-blue-700">
+                          +{Number(record.quantity || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs font-bold text-slate-500">
+                        在庫: {Number(record.beforeQuantity || 0).toLocaleString()} → {Number(record.afterQuantity || 0).toLocaleString()}
+                        {record.note ? ` / ${record.note}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ), document.body)
+      : null
+  );
+
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
+      {stockInHistoryModalNode}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
@@ -4797,6 +4896,7 @@ const ProductMasterSettings = ({
 
               <ProductMasterTable
                 products={displayedProducts}
+                storeId={storeId}
                 productGroups={productGroups}
                 productCategories={productCategories}
                 productCategoryGroups={productCategoryGroups}
