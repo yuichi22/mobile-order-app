@@ -13,6 +13,14 @@ import {
   subscribeToStocktakeItems
 } from '../services/stocktakeDataService';
 
+const calcPriceTaxIncluded = (product) => {
+  if (product.priceTaxIncluded != null) return Number(product.priceTaxIncluded);
+  const excluded = product.priceTaxExcluded ?? product.price ?? null;
+  if (excluded == null) return null;
+  const rate = Number(product.taxRate ?? 10);
+  return Math.floor(Number(excluded) * (100 + rate) / 100);
+};
+
 const LOCATION_THEME = {
   warehouse: {
     label: '倉庫',
@@ -79,7 +87,7 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
       )}
       <p className="mt-1 text-xs font-bold text-slate-500">
         価格: {item.priceTaxExcluded != null ? `¥${Number(item.priceTaxExcluded).toLocaleString()}` : '-'}
-        {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : '-'})
+        {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : item.priceTaxExcluded != null ? `¥${Math.floor(Number(item.priceTaxExcluded) * (100 + Number(item.taxRate ?? 10)) / 100).toLocaleString()}` : '-'})
       </p>
       <p className="mt-1 text-xs font-bold text-orange-500">
         倉庫: {Number(item.warehouseQuantity || 0).toLocaleString()} / 店頭: {Number(item.storefrontShelfQuantity || 0).toLocaleString()}
@@ -193,8 +201,6 @@ const StocktakePage = ({ storeId }) => {
 
   const handleSelectLocation = (location) => {
     resetScanState();
-    setLocalHistory([]);
-    setHistoryShowAll(false);
     setView(location);
   };
 
@@ -283,7 +289,7 @@ const StocktakePage = ({ storeId }) => {
           size: scannedProduct.size || '',
           colorName: scannedProduct.colorName || '',
           priceTaxExcluded: scannedProduct.priceTaxExcluded ?? scannedProduct.price ?? null,
-          priceTaxIncluded: scannedProduct.priceTaxIncluded ?? null,
+          priceTaxIncluded: calcPriceTaxIncluded(scannedProduct),
           location: view,
           countedQuantity: quantity,
           countedAt: Date.now()
@@ -693,9 +699,16 @@ const StocktakePage = ({ storeId }) => {
                     価格: {entry.priceTaxExcluded != null ? `¥${Number(entry.priceTaxExcluded).toLocaleString()}` : '-'}
                     {' '}(税込 {entry.priceTaxIncluded != null ? `¥${Number(entry.priceTaxIncluded).toLocaleString()}` : '-'})
                   </p>
-                  <p className={`mt-1 text-xs font-black ${theme.textClass}`}>
-                    今回カウント: {Number(entry.countedQuantity).toLocaleString()}個
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black text-white ${
+                      entry.location === 'warehouse' ? 'bg-blue-500' : 'bg-emerald-500'
+                    }`}>
+                      {entry.location === 'warehouse' ? '倉庫' : '店頭'}
+                    </span>
+                    <p className="text-xs font-black text-slate-700">
+                      今回カウント: {Number(entry.countedQuantity).toLocaleString()}個
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
