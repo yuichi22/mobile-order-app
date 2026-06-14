@@ -652,24 +652,16 @@ export const saveProductSalesArea = async (storeId, itemData) => {
 };
 
 // 売場名変更時に products コレクションの salesAreaName を一括カスケード更新する。
-// 既存の名前と新しい名前が異なる場合のみ更新する。
+// salesAreaId ベースで検索するため、salesAreaName の値に依存しない。
 export const saveProductSalesAreaWithCascade = async (storeId, itemData) => {
   const newName = String(itemData.name || '').trim();
-
-  // 保存前の売場名を先に取得する(保存後は上書きされるため)。
-  let oldName = '';
-  if (itemData.id && newName) {
-    const existingSnap = await getDoc(doc(db, 'stores', storeId, 'productSalesAreas', itemData.id));
-    oldName = existingSnap.exists() ? String(existingSnap.data().name || '').trim() : '';
-  }
-
   const savedId = await saveStoreCollectionDoc(storeId, 'productSalesAreas', itemData);
 
-  if (!itemData.id || !newName || !oldName || oldName === newName) return savedId;
+  if (!itemData.id || !newName) return savedId;
 
-  // oldName を salesAreaName に持つ全商品を newName に更新する。
+  // salesAreaId が一致する全商品の salesAreaName を newName に更新する。
   const productsSnap = await getDocs(
-    query(storeCollectionRef(storeId, 'products'), where('salesAreaName', '==', oldName))
+    query(storeCollectionRef(storeId, 'products'), where('salesAreaId', '==', itemData.id))
   );
 
   if (productsSnap.empty) return savedId;
