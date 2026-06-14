@@ -1558,7 +1558,6 @@ const ProductMasterTable = ({
       });
 
       onSaved?.();
-      alert(`商品マスターを更新しました。対象: ${editedProductRows.length}件${stockInTargetRows.length > 0 ? ` / 入庫: ${stockInTargetRows.length}件` : ''}`);
     } catch (error) {
       console.error('failed to save edited product rows', error);
       alert(`商品マスター更新に失敗しました: ${error?.message || error}`);
