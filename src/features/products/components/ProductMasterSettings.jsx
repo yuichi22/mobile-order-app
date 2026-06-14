@@ -2066,6 +2066,11 @@ const ProductMasterTable = ({
                       onSaveBrand={onSaveBrand}
                       onSaveSupplier={onSaveSupplier}
                       onChange={(value, brand) => update(buildBrandPatch(brand))}
+                      onSelected={() => {
+                        requestAnimationFrame(() => {
+                          newProductNameInputRef.current?.focus();
+                        });
+                      }}
                       compact
                     />
                   </div>
@@ -3252,6 +3257,7 @@ const PosModalSelect = ({
   onCreate,
   onCreateSave,
   onCreated,
+  onSelected,
   createFields = [],
   createInitialValue = {},
   disabled = false,
@@ -3284,11 +3290,13 @@ const PosModalSelect = ({
   const selectOption = (option) => {
     onChange(option?.id || '', option || null);
     closeModal();
+    onSelected?.();
   };
 
   const clearSelection = () => {
     onChange('', null);
     closeModal();
+    onSelected?.();
   };
 
   const handleCreate = () => {
@@ -3345,6 +3353,7 @@ const PosModalSelect = ({
 
       onChange(createdOption.id, createdOption);
       closeModal();
+      onSelected?.();
       if (typeof onCreated === 'function') {
         await onCreated(createdOption, payload);
       }
@@ -3601,12 +3610,14 @@ const ProductBrandModalSelect = ({
   suppliers = [],
   onSaveBrand,
   onSaveSupplier,
+  onSelected,
   compact = false
 }) => (
   <PosModalSelect
     label="ブランド"
     value={value}
     options={brands}
+    onSelected={onSelected}
     placeholder="ブランドを選択"
     searchPlaceholder="ブランド名・仕入先・IDで検索"
     createLabel="ブランドを新規作成"
