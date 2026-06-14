@@ -28,9 +28,11 @@ const loadPlatformAdminPage = () => import('../../features/platform/pages/Platfo
 const loadPlatformSignupPage = () => import('../../features/platform/pages/PlatformSignupPage');
 const loadServePage = () => import('../../features/serve/pages/ServePage');
 const loadStaffOrderPage = () => import('../../features/staff-order/pages/StaffOrderPage');
+const loadStocktakePage = () => import('../../features/inventory/pages/StocktakePage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
 const StaffOrderPage = lazyWithRetry(loadStaffOrderPage, 'staff-order-page');
+const StocktakePage = lazyWithRetry(loadStocktakePage, 'stocktake-page');
 
 const LoginPage = lazyWithRetry(loadLoginPage, 'login-page');
 const RegisterPage = lazyWithRetry(loadRegisterPage, 'register-page');
@@ -283,6 +285,28 @@ const AppRouter = () => {
     return (
       <Suspense fallback={<RouteLoader />}>
         <StaffOrderPage storeId={activeStoreId} />
+      </Suspense>
+    );
+  }
+
+  if (location.pathname === '/stocktake') {
+    if (!currentUser) {
+      const redirectPath = `${location.pathname}${location.search || ''}`;
+
+      return (
+        <Suspense fallback={<RouteLoader />}>
+          <LoginPage redirectTo={redirectPath} />
+        </Suspense>
+      );
+    }
+
+    if (!activeStoreId) {
+      return <RouteLoader />;
+    }
+
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <StocktakePage storeId={activeStoreId} />
       </Suspense>
     );
   }

@@ -61,6 +61,7 @@ import MenuSettings from './components/MenuSettings';
 import OwnerSetupGuide from './components/OwnerSetupGuide';
 import PeriodSettings from './components/PeriodSettings';
 import QRGenerator from './components/QRGenerator';
+import StockTakingPanel from './components/StockTakingPanel';
 import StaffInviteSettings from './components/StaffInviteSettings';
 import CrossSellSettings from './components/CrossSellSettings';
 import ProductMasterSettings, {
@@ -1841,6 +1842,13 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         return <CsvTemplateWorkflowPanel />;
       }
 
+      return null;
+    }
+
+    if (item?.id === 'inventoryManagement') {
+      if (activeDummyTab === 'stockTaking') {
+        return <StockTakingPanel storeId={storeId} />;
+      }
       return null;
     }
 
