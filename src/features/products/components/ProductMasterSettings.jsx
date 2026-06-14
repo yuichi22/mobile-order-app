@@ -1080,7 +1080,12 @@ const ProductMasterTable = ({
         const original = productByIdMap.get(product.id) || product;
         const changedFields = getProductDraftChangedFields(draft, original);
 
-        return changedFields.some((field) => field !== 'stockInQuantityDraft');
+        return changedFields.some((field) => ![
+          'stockInQuantityDraft',
+          'orderLotValue',
+          'reorderPoint',
+          'reorderQuantity'
+        ].includes(field));
       });
       const hasSavedUnsyncedReservation = groupHasSavedUnsyncedShopifyReservation(workingGroup);
 
