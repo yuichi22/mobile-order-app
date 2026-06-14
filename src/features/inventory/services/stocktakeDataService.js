@@ -177,6 +177,13 @@ export const recordWarehouseToStorefrontTransfer = async (storeId, stocktakeId, 
   const snapshot = await getDoc(itemRef);
   const current = snapshot.exists() ? snapshot.data() : {};
   const base = buildItemBaseFields(product);
+
+  // 倉庫でカウントしていない商品への出庫は受け付けない。
+  const isWarehouseCounted = Boolean(current.warehouseCountedAt);
+  if (!isWarehouseCounted) {
+    throw new Error('warehouse_not_counted');
+  }
+
   const isStorefrontConfirmed = Boolean(current.storefrontConfirmedAt);
 
   if (isStorefrontConfirmed) {

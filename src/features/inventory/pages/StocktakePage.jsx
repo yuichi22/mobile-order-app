@@ -99,7 +99,7 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
           min="1"
           value={quantityInput}
           onChange={(event) => setQuantityInput(event.target.value)}
-          placeholder="店頭で数えた個数"
+          placeholder="店頭の数"
           className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
         />
         <button
@@ -334,7 +334,10 @@ const StocktakePage = ({ storeId }) => {
       setTransferQuantityInput('');
     } catch (error) {
       console.error('failed to record transfer', error);
-      setTransferError(`出庫の記録に失敗しました: ${error?.message || error}`);
+      const msg = error?.message === 'warehouse_not_counted'
+        ? 'この商品は倉庫でカウントされていません。先に倉庫でカウントしてください。'
+        : `出庫の記録に失敗しました: ${error?.message || error}`;
+      setTransferError(msg);
     } finally {
       setTransferSaving(false);
     }
@@ -417,7 +420,7 @@ const StocktakePage = ({ storeId }) => {
           </div>
 
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">数え直しリスト ({recountItems.length})</p>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">店頭の数え直しリスト ({recountItems.length})</p>
             <div className="mt-2 space-y-3">
               {recountItems.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
@@ -507,7 +510,7 @@ const StocktakePage = ({ storeId }) => {
             </div>
 
             <div className={`mt-5 rounded-2xl border p-4 ${theme.panelClass}`}>
-              <p className={`text-sm font-black ${theme.textClass}`}>追加で数えた個数</p>
+              <p className={`text-sm font-black ${theme.textClass}`}>追加する数</p>
               <p className={`mt-1 text-xs font-bold ${theme.lightTextClass}`}>
                 {view === 'warehouse' ? '倉庫での在庫カウントを加算します。' : '店頭での在庫カウントを加算し、確定します。'}
               </p>
@@ -518,7 +521,7 @@ const StocktakePage = ({ storeId }) => {
                 </div>
               ) : existingCountForLocation > 0 ? (
                 <p className="mt-2 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
-                  すでに{existingCountForLocation.toLocaleString()}個カウント済みです。追加で数える分だけ入力してください。
+                  すでに{existingCountForLocation.toLocaleString()}個カウント済みです。
                 </p>
               ) : null}
 
@@ -529,7 +532,7 @@ const StocktakePage = ({ storeId }) => {
                   min="1"
                   value={quantityInput}
                   onChange={(event) => setQuantityInput(event.target.value)}
-                  placeholder="追加で数えた個数"
+                  placeholder="追加する数"
                   className={`h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition ${theme.focusClass}`}
                 />
                 <button
@@ -555,10 +558,10 @@ const StocktakePage = ({ storeId }) => {
               <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
                 <div className="flex items-center gap-2">
                   <Truck size={16} className="text-amber-600" />
-                  <p className="text-sm font-black text-amber-700">出庫する個数(店頭への品出し)</p>
+                  <p className="text-sm font-black text-amber-700">出庫する数(店頭への品出し)</p>
                 </div>
                 <p className="mt-1 text-xs font-bold text-amber-500">
-                  倉庫から店頭へ移動した分を入力してください。倉庫数が減り、店頭が確定済みなら店頭数に加算されます。
+                  倉庫から店頭へ移動した分を入力してください。
                 </p>
 
                 {existingItem === undefined ? (
@@ -578,7 +581,7 @@ const StocktakePage = ({ storeId }) => {
                     min="1"
                     value={transferQuantityInput}
                     onChange={(event) => setTransferQuantityInput(event.target.value)}
-                    placeholder="出庫する個数"
+                    placeholder="出庫する数"
                     className="h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-amber-400"
                   />
                   <button
