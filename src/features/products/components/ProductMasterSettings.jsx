@@ -2018,7 +2018,7 @@ const ProductMasterTable = ({
             商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
           </p>
         </div>
-        <div className="sticky top-0 z-30 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg shadow-slate-200/60 backdrop-blur flex shrink-0 items-center gap-2">
+        <div className="fixed bottom-4 right-4 z-50 flex shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-2xl shadow-slate-300/60 backdrop-blur">
           <div className="rounded-2xl bg-slate-50 px-4 py-2 text-sm font-black text-slate-600">
             {(products || []).length.toLocaleString()}件
           </div>
