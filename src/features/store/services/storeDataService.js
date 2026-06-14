@@ -4,6 +4,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   serverTimestamp,
@@ -441,6 +442,74 @@ export const getProductStockInHistory = async (storeId, productId, { limitCount 
 
   const snapshot = await getDocs(historyQuery);
   const records = mapCollectionSnapshot(snapshot);
+
+  records.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bTime - aTime;
+  });
+
+  return records.slice(0, limitCount);
+};
+
+export const adjustProductInventory = async (storeId, productId, { quantity, note = '' } = {}) => {
+  if (!isValidStoreId(storeId) || !productId) {
+    throw new Error('invalid storeId or productId');
+  }
+
+  const productRef = doc(db, 'stores', storeId, 'products', productId);
+  const productSnap = await getDoc(productRef);
+
+  if (!productSnap.exists()) {
+    throw new Error('product not found');
+  }
+
+  const productData = productSnap.data();
+  const beforeQuantity = Math.max(Number(productData.inventoryQuantity ?? productData.quantity ?? 0), 0);
+  const afterQuantity = Math.max(Number(quantity ?? 0), 0);
+
+  await setDoc(productRef, {
+    inventoryQuantity: afterQuantity,
+    quantity: afterQuantity,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  await setDoc(
+    doc(db, 'stores', storeId, 'inventory', productId),
+    {
+      productId,
+      quantity: afterQuantity,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  await addDoc(storeCollectionRef(storeId, 'stockMovements'), {
+    productId,
+    productGroupId: productData.productGroupId || productData.groupId || '',
+    type: 'adjustment',
+    quantity: afterQuantity - beforeQuantity,
+    beforeQuantity,
+    afterQuantity,
+    note: note || '商品マスター在庫調整',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  return afterQuantity;
+};
+
+export const getProductInventoryAdjustmentHistory = async (storeId, productId, { limitCount = 50 } = {}) => {
+  if (!isValidStoreId(storeId) || !productId) return [];
+
+  const historyQuery = query(
+    storeCollectionRef(storeId, 'stockMovements'),
+    where('productId', '==', productId)
+  );
+
+  const snapshot = await getDocs(historyQuery);
+  const records = mapCollectionSnapshot(snapshot)
+    .filter((record) => record.type === 'adjustment');
 
   records.sort((a, b) => {
     const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;

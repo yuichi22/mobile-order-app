@@ -21,7 +21,7 @@ import {
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import { db } from '../../../shared/api/firebase/client';
-import { getProductStockInHistory } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory } from '../../store/services/storeDataService';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -648,6 +648,13 @@ const ProductMasterTable = ({
   const [stockInHistoryRecords, setStockInHistoryRecords] = useState([]);
   const [stockInHistoryLoading, setStockInHistoryLoading] = useState(false);
   const [stockInHistoryError, setStockInHistoryError] = useState('');
+  const [inventoryAdjustModalRow, setInventoryAdjustModalRow] = useState(null);
+  const [inventoryAdjustValue, setInventoryAdjustValue] = useState('');
+  const [inventoryAdjustNote, setInventoryAdjustNote] = useState('');
+  const [inventoryAdjustSaving, setInventoryAdjustSaving] = useState(false);
+  const [inventoryAdjustHistoryRecords, setInventoryAdjustHistoryRecords] = useState([]);
+  const [inventoryAdjustHistoryLoading, setInventoryAdjustHistoryLoading] = useState(false);
+  const [inventoryAdjustHistoryError, setInventoryAdjustHistoryError] = useState('');
 
   const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
 
@@ -1953,6 +1960,73 @@ const ProductMasterTable = ({
     setStockInHistoryError('');
   };
 
+  const openInventoryAdjustModal = async (product) => {
+    setInventoryAdjustModalRow(product);
+    setInventoryAdjustValue(String(Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0)));
+    setInventoryAdjustNote('');
+    setInventoryAdjustHistoryRecords([]);
+    setInventoryAdjustHistoryError('');
+    setInventoryAdjustHistoryLoading(true);
+
+    try {
+      const records = await getProductInventoryAdjustmentHistory(storeId, product.id);
+      setInventoryAdjustHistoryRecords(records);
+    } catch (error) {
+      console.error('failed to load inventory adjustment history', error);
+      setInventoryAdjustHistoryError('在庫調整履歴の取得に失敗しました');
+    } finally {
+      setInventoryAdjustHistoryLoading(false);
+    }
+  };
+
+  const closeInventoryAdjustModal = () => {
+    if (inventoryAdjustSaving) return;
+    setInventoryAdjustModalRow(null);
+    setInventoryAdjustValue('');
+    setInventoryAdjustNote('');
+    setInventoryAdjustHistoryRecords([]);
+    setInventoryAdjustHistoryError('');
+  };
+
+  const saveInventoryAdjustment = async () => {
+    if (!inventoryAdjustModalRow?.id) return;
+
+    const beforeQuantity = Math.max(Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0), 0);
+    const afterQuantity = Math.max(Number(inventoryAdjustValue || 0), 0);
+
+    if (afterQuantity === beforeQuantity) {
+      closeInventoryAdjustModal();
+      return;
+    }
+
+    setInventoryAdjustSaving(true);
+
+    try {
+      await adjustProductInventory(storeId, inventoryAdjustModalRow.id, {
+        quantity: afterQuantity,
+        note: inventoryAdjustNote.trim()
+      });
+
+      rememberSavedProduct({
+        ...inventoryAdjustModalRow,
+        inventoryQuantity: afterQuantity,
+        quantity: afterQuantity
+      });
+
+      const records = await getProductInventoryAdjustmentHistory(storeId, inventoryAdjustModalRow.id);
+      setInventoryAdjustHistoryRecords(records);
+      setInventoryAdjustModalRow((current) => (current ? { ...current, inventoryQuantity: afterQuantity, quantity: afterQuantity } : current));
+      setInventoryAdjustNote('');
+
+      onSaved?.();
+    } catch (error) {
+      console.error('failed to adjust inventory', error);
+      window.alert('在庫調整に失敗しました');
+    } finally {
+      setInventoryAdjustSaving(false);
+    }
+  };
+
   const renderEditableRow = (row, options = {}) => {
     const isNew = options.isNew === true;
     const rowKey = options.rowKey || (isNew ? '__new__' : row.id);
@@ -2125,9 +2199,15 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>在庫数</FieldLabel>
-            <div className="flex h-9 items-center justify-end rounded-lg border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700">
+            <button
+              type="button"
+              onClick={() => openInventoryAdjustModal(row)}
+              disabled={isNew}
+              className="flex h-9 w-full items-center justify-end rounded-lg border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="在庫調整"
+            >
               {Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
-            </div>
+            </button>
           </div>
 
           <div>
@@ -2359,10 +2439,124 @@ const ProductMasterTable = ({
       : null
   );
 
+  const inventoryAdjustModalNode = (
+    typeof document !== 'undefined' && inventoryAdjustModalRow
+      ? createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
+          <div className="flex h-[min(720px,calc(100vh-7rem))] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+                    Inventory Adjustment
+                  </p>
+                  <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                    在庫調整
+                  </h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {inventoryAdjustModalRow.name || inventoryAdjustModalRow.productGroupName || inventoryAdjustModalRow.sku || inventoryAdjustModalRow.id}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeInventoryAdjustModal}
+                  disabled={inventoryAdjustSaving}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="閉じる"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">現在の在庫数</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">
+                      {Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1">
+                    <label className="text-xs font-bold text-slate-500">修正後の在庫数</label>
+                    <input
+                      type="number"
+                      value={inventoryAdjustValue}
+                      onChange={(event) => setInventoryAdjustValue(event.target.value)}
+                      className="h-11 w-32 rounded-xl border-2 border-slate-200 bg-white px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-orange-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-xs font-bold text-slate-500">メモ(任意)</label>
+                  <input
+                    type="text"
+                    value={inventoryAdjustNote}
+                    onChange={(event) => setInventoryAdjustNote(event.target.value)}
+                    placeholder="調整理由など"
+                    className="mt-1 h-10 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
+                  />
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={saveInventoryAdjustment}
+                    disabled={inventoryAdjustSaving}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {inventoryAdjustSaving ? <LoadingSpinner size={14} /> : null}
+                    在庫数を更新
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">履歴</p>
+
+                {inventoryAdjustHistoryLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <LoadingSpinner size={20} />
+                  </div>
+                ) : inventoryAdjustHistoryError ? (
+                  <p className="py-10 text-center text-sm font-bold text-rose-500">{inventoryAdjustHistoryError}</p>
+                ) : inventoryAdjustHistoryRecords.length === 0 ? (
+                  <p className="py-10 text-center text-sm font-bold text-slate-400">在庫調整履歴はありません</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {inventoryAdjustHistoryRecords.map((record) => (
+                      <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-black text-slate-900">
+                            {formatProductMasterDateTimeText(record.createdAt)}
+                          </span>
+                          <span className="text-sm font-black text-slate-700">
+                            {Number(record.beforeQuantity || 0).toLocaleString()} → {Number(record.afterQuantity || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        {record.note ? (
+                          <div className="mt-1 text-xs font-bold text-slate-500">{record.note}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)
+      : null
+  );
+
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
       {stockInHistoryModalNode}
+      {inventoryAdjustModalNode}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
