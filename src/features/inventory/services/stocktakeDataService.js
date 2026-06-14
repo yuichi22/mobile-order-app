@@ -33,7 +33,11 @@ const buildItemBaseFields = (product) => ({
   name: product.name || '',
   sku: product.sku || product.productCode || '',
   barcode: product.barcode || '',
-  productGroupName: product.productGroupName || ''
+  productGroupName: product.productGroupName || '',
+  size: product.size || '',
+  colorName: product.colorName || '',
+  priceTaxExcluded: product.priceTaxExcluded ?? product.price ?? null,
+  priceTaxIncluded: product.priceTaxIncluded ?? null
 });
 
 export const getActiveStocktake = async (storeId) => {

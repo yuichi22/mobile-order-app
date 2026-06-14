@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronLeft, ListChecks, RefreshCw, Store, Truck, Warehouse, X } from 'lucide-react';
+import { Camera, Check, ChevronLeft, History, ListChecks, RefreshCw, Store, Truck, Warehouse, X } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import BarcodeScanner from '../components/BarcodeScanner';
@@ -12,6 +12,13 @@ import {
   subscribeToActiveStocktake,
   subscribeToStocktakeItems
 } from '../services/stocktakeDataService';
+
+const getTimestampMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return 0;
+};
 
 const LOCATION_THEME = {
   warehouse: {
@@ -70,6 +77,17 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
       <p className="mt-1 text-xs font-bold text-slate-500">
         品番: {item.sku || '-'} / バーコード: {item.barcode || '-'}
       </p>
+      {(item.size || item.colorName) && (
+        <p className="mt-1 text-xs font-bold text-slate-500">
+          {item.size ? `サイズ: ${item.size}` : ''}
+          {item.size && item.colorName ? ' / ' : ''}
+          {item.colorName ? `色: ${item.colorName}` : ''}
+        </p>
+      )}
+      <p className="mt-1 text-xs font-bold text-slate-500">
+        価格: {item.priceTaxExcluded != null ? `¥${Number(item.priceTaxExcluded).toLocaleString()}` : '-'}
+        {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : '-'})
+      </p>
       <p className="mt-1 text-xs font-bold text-orange-500">
         倉庫: {Number(item.warehouseQuantity || 0).toLocaleString()} / 店頭: {Number(item.storefrontShelfQuantity || 0).toLocaleString()}
       </p>
@@ -81,13 +99,13 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
           value={quantityInput}
           onChange={(event) => setQuantityInput(event.target.value)}
           placeholder="店頭で数えた個数"
-          className="h-11 flex-1 rounded-2xl border-2 border-white bg-white px-4 text-sm font-black text-slate-900 outline-none transition focus:border-emerald-400"
+          className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
         />
         <button
           type="button"
           onClick={handleSave}
           disabled={saving || !quantityInput || Number(quantityInput) <= 0}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
           カウント
@@ -117,6 +135,7 @@ const StocktakePage = ({ storeId }) => {
   const [transferMessage, setTransferMessage] = useState('');
   const [recountSaving, setRecountSaving] = useState(false);
   const [recountMessage, setRecountMessage] = useState('');
+  const [historyLimit, setHistoryLimit] = useState(50);
   const hasDetectedRef = useRef(false);
 
   useEffect(() => {
@@ -399,6 +418,13 @@ const StocktakePage = ({ storeId }) => {
 
   const theme = LOCATION_THEME[view];
   const ThemeIcon = theme.icon;
+  const historyTimestampField = view === 'warehouse' ? 'warehouseCountedAt' : 'storefrontConfirmedAt';
+  const historyQuantityField = view === 'warehouse' ? 'warehouseQuantity' : 'storefrontShelfQuantity';
+  const historyItems = displayItems
+    .filter((item) => Boolean(item[historyTimestampField]))
+    .sort((a, b) => getTimestampMillis(b[historyTimestampField]) - getTimestampMillis(a[historyTimestampField]));
+  const visibleHistoryItems = historyItems.slice(0, historyLimit);
+  const hasMoreHistory = historyItems.length > historyLimit;
   const existingCountForLocation = view === 'warehouse'
     ? Number(existingItem?.warehouseQuantity || 0)
     : Number(existingItem?.storefrontShelfQuantity || 0);
@@ -490,13 +516,13 @@ const StocktakePage = ({ storeId }) => {
                   value={quantityInput}
                   onChange={(event) => setQuantityInput(event.target.value)}
                   placeholder="追加で数えた個数"
-                  className={`h-12 flex-1 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition ${theme.focusClass}`}
+                  className={`h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition ${theme.focusClass}`}
                 />
                 <button
                   type="button"
                   onClick={handleSaveCount}
                   disabled={saving || existingItem === undefined || !quantityInput || Number(quantityInput) <= 0}
-                  className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${theme.buttonClass}`}
+                  className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${theme.buttonClass}`}
                 >
                   {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
                   カウント
@@ -539,13 +565,13 @@ const StocktakePage = ({ storeId }) => {
                     value={transferQuantityInput}
                     onChange={(event) => setTransferQuantityInput(event.target.value)}
                     placeholder="出庫する個数"
-                    className="h-12 flex-1 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-amber-400"
+                    className="h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-amber-400"
                   />
                   <button
                     type="button"
                     onClick={handleSaveTransfer}
                     disabled={transferSaving || existingItem === undefined || !transferQuantityInput || Number(transferQuantityInput) <= 0}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {transferSaving ? <LoadingSpinner size={16} /> : <Truck size={16} />}
                     出庫
@@ -617,6 +643,56 @@ const StocktakePage = ({ storeId }) => {
             </button>
           </div>
         )}
+
+        <div>
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-slate-400" />
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+              カウント履歴 ({historyItems.length})
+            </p>
+          </div>
+
+          {visibleHistoryItems.length === 0 ? (
+            <div className="mt-2 rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
+              まだカウントした商品はありません。
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {visibleHistoryItems.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-sm font-black text-slate-900">{item.name || '名称未設定'}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    品番: {item.sku || '-'} / バーコード: {item.barcode || '-'}
+                  </p>
+                  {(item.size || item.colorName) && (
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      {item.size ? `サイズ: ${item.size}` : ''}
+                      {item.size && item.colorName ? ' / ' : ''}
+                      {item.colorName ? `色: ${item.colorName}` : ''}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    価格: {item.priceTaxExcluded != null ? `¥${Number(item.priceTaxExcluded).toLocaleString()}` : '-'}
+                    {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : '-'})
+                  </p>
+                  <p className={`mt-1 text-xs font-black ${theme.textClass}`}>
+                    カウント数: {Number(item[historyQuantityField] || 0).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {hasMoreHistory && (
+            <button
+              type="button"
+              onClick={() => setHistoryLimit((prev) => prev + 50)}
+              className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+            >
+              続きを見る
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
