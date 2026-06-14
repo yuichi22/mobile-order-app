@@ -2153,7 +2153,23 @@ const ProductMasterTable = ({
   const productMasterActionToast = (
     typeof document !== 'undefined' && productMasterActionToastVisible
       ? createPortal((
-        <div className="fixed bottom-6 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-2xl shadow-slate-300/60 backdrop-blur">
+        <>
+          <style>{`
+            @keyframes productMasterActionToastSlideUp {
+              from {
+                opacity: 0;
+                transform: translateY(110%);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
+          <div
+            className="fixed bottom-0 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-t-2xl rounded-b-none border border-b-0 border-slate-200 bg-white/95 px-4 py-3 pb-4 shadow-2xl shadow-slate-300/60 backdrop-blur"
+            style={{ animation: 'productMasterActionToastSlideUp 180ms ease-out' }}
+          >
           <div className="min-w-0 pr-2">
             <div className="text-sm font-black text-slate-900">
               {hasNewProductDraft || editedProductRowCount > 0 ? '未保存の変更があります' : 'Shopify同期対象があります'}
@@ -2191,7 +2207,8 @@ const ProductMasterTable = ({
               {shopifySyncTargetGroupCount > 0 ? `(${shopifySyncTargetGroupCount})` : ''}
             </button>
           )}
-        </div>
+          </div>
+        </>
       ), document.body)
       : null
   );
