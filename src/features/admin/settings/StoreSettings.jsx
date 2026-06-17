@@ -1922,7 +1922,6 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           productCategoryGroups={productMaster?.productCategoryGroups || []}
           fields={[
             { id: 'name', label: '売場名' },
-            { id: 'displayName', label: '表示名' },
             { id: 'sortOrder', label: '並び順', type: 'number' },
             { id: 'color', label: 'カラー' },
             { id: 'allowedCategoryGroupNames', label: '紐付けカテゴリーグループ', type: 'categoryGroupMultiSelect' },
@@ -1930,7 +1929,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           onSave={(payload) =>
             productMaster?.saveSalesArea?.({
               ...payload,
-              displayName: payload.displayName || payload.name || ''
+              displayName: payload.name || ''
             })
           }
           onDelete={productMaster?.deleteSalesArea}
