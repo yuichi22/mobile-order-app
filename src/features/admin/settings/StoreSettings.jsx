@@ -1859,11 +1859,13 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         <SimpleMasterPanel
           key="product-categories-panel"
           label="カテゴリー"
+          storeId={storeId}
           blank={blankCategory}
           items={productMaster?.productCategories || []}
           productCategoryGroups={productMaster?.productCategoryGroups || []}
           productSubCategories={productMaster?.productSubCategories || []}
           onSaveCategoryGroup={productMaster?.saveCategoryGroup}
+          onSaveChildItem={productMaster?.saveSubCategory}
           fields={[
             { id: 'name', label: 'カテゴリー名' },
             { id: 'groupId', label: 'カテゴリーグループ', type: 'categoryGroupSelect' },
@@ -1914,6 +1916,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         <SimpleMasterPanel
           key="product-sales-areas-panel"
           label="売場"
+          storeId={storeId}
           blank={blankCategory}
           items={productMaster?.productSalesAreas || []}
           productCategoryGroups={productMaster?.productCategoryGroups || []}
@@ -1941,10 +1944,13 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         <SimpleMasterPanel
           key="product-category-groups-panel"
           label="カテゴリーグループ"
+          storeId={storeId}
           blank={blankGroup}
           items={productMaster?.productCategoryGroups || []}
           productCategories={productMaster?.productCategories || []}
           productSubCategories={productMaster?.productSubCategories || []}
+          productSalesAreas={productMaster?.productSalesAreas || []}
+          onSaveChildItem={productMaster?.saveCategory}
           fields={[
             { id: 'name', label: 'グループ名' },
           ]}

@@ -341,46 +341,49 @@ const hasMasterTaxRateChanged = (before = {}, after = {}) => {
   return beforeType !== afterType || beforeRate !== afterRate;
 };
 
-const getCascadeMatchedProducts = ({
-  products = [],
-  cascadeTaxLevel = '',
-  masterId = '',
-  masterName = ''
-}) => {
+// マスターのカスケード対象商品を Firestore から直接取得する。
+// メモリ上の products は updatedAt 降順 limit(200) のため全件を網羅できない。
+// 税率・名称カスケードは全件へ効かせる必要があるので、ID 一致でクエリする。
+const MASTER_PRODUCT_ID_FIELDS = {
+  group: ['categoryGroupId', 'groupId'],
+  category: ['categoryId', 'categoryDocId'],
+  subCategory: ['subCategoryId', 'subCategoryDocId'],
+  salesArea: ['salesAreaId', 'salesAreaDocId']
+};
+
+const fetchMatchedProductDocsByMasterId = async ({ storeId, cascadeLevel = '', masterId = '' }) => {
   const id = String(masterId || '').trim();
-  const name = String(masterName || '').trim();
+  const fields = MASTER_PRODUCT_ID_FIELDS[cascadeLevel] || [];
+  if (!storeId || !id || !fields.length) return [];
 
-  return (products || []).filter((product = {}) => {
-    if (!product?.id) return false;
+  const productsRef = collection(db, 'stores', storeId, 'products');
+  const byId = new Map();
 
-    if (cascadeTaxLevel === 'group') {
-      return (
-        (id && (product.categoryGroupId === id || product.groupId === id)) ||
-        (name && (product.categoryGroupName === name || product.groupName === name))
-      );
-    }
+  for (const field of fields) {
+    const snapshot = await getDocs(query(productsRef, where(field, '==', id)));
+    snapshot.forEach((productDoc) => {
+      if (!byId.has(productDoc.id)) {
+        byId.set(productDoc.id, { id: productDoc.id, ...productDoc.data() });
+      }
+    });
+  }
 
-    if (cascadeTaxLevel === 'category') {
-      return (
-        (id && (product.categoryId === id || product.categoryDocId === id)) ||
-        (name && product.categoryName === name)
-      );
-    }
+  return [...byId.values()];
+};
 
-    if (cascadeTaxLevel === 'subCategory') {
-      return (
-        (id && (product.subCategoryId === id || product.subCategoryDocId === id)) ||
-        (name && product.subCategoryName === name)
-      );
-    }
+const fetchMatchedDocsByField = async ({ storeId, collectionName, field, value }) => {
+  const v = String(value || '').trim();
+  if (!storeId || !collectionName || !field || !v) return [];
 
-    return false;
-  });
+  const snapshot = await getDocs(
+    query(collection(db, 'stores', storeId, collectionName), where(field, '==', v))
+  );
+
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 };
 
 const cascadeMasterTaxRateToProducts = async ({
   storeId,
-  products = [],
   cascadeTaxLevel = '',
   masterId = '',
   masterName = '',
@@ -388,16 +391,16 @@ const cascadeMasterTaxRateToProducts = async ({
   taxRateType
 }) => {
   if (!storeId || !cascadeTaxLevel || !masterId) {
-    return { scanned: products.length, matched: 0, updated: 0 };
+    return { scanned: 0, matched: 0, updated: 0 };
   }
 
   const normalizedTaxRate = normalizeCascadeTaxRateValue(taxRate, 10);
   const normalizedTaxRateType = normalizeMasterTaxRateType(taxRateType);
-  const matchedProducts = getCascadeMatchedProducts({
-    products,
-    cascadeTaxLevel,
-    masterId,
-    masterName
+  // メモリ配列(最大200件)ではなく Firestore から全件取得して反映する。
+  const matchedProducts = await fetchMatchedProductDocsByMasterId({
+    storeId,
+    cascadeLevel: cascadeTaxLevel,
+    masterId
   });
 
   let updated = 0;
@@ -438,10 +441,240 @@ const cascadeMasterTaxRateToProducts = async ({
   }
 
   return {
-    scanned: products.length,
+    scanned: matchedProducts.length,
     matched: matchedProducts.length,
     updated
   };
+};
+
+// カテゴリー改名時に、非正規化された categoryName を子へ反映する。
+// 対象: 子サブカテゴリー(メモリ・全件) / 商品 / 商品グループ(いずれも Firestore 全件)。
+// 値が実際に変わる行だけ書き込み、無変更の大量上書きを避ける。
+const cascadeCategoryNameToChildren = async ({
+  storeId,
+  categoryId,
+  newName,
+  productSubCategories = []
+}) => {
+  const id = String(categoryId || '').trim();
+  const nextName = String(newName || '').trim();
+  const result = { subCategories: 0, products: 0, productGroups: 0 };
+
+  if (!storeId || !id || !nextName) return result;
+
+  let batch = writeBatch(db);
+  let batchCount = 0;
+  const queueWrite = async (ref, data) => {
+    batch.set(ref, data, { merge: true });
+    batchCount += 1;
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  };
+
+  for (const subCategory of productSubCategories || []) {
+    if (!subCategory?.id) continue;
+    if (String(subCategory.categoryId || '').trim() !== id) continue;
+    if (String(subCategory.categoryName || '').trim() === nextName) continue;
+
+    await queueWrite(
+      doc(db, 'stores', storeId, 'productSubCategories', subCategory.id),
+      { categoryName: nextName, updatedAt: serverTimestamp() }
+    );
+    result.subCategories += 1;
+  }
+
+  const productDocs = await fetchMatchedProductDocsByMasterId({
+    storeId,
+    cascadeLevel: 'category',
+    masterId: id
+  });
+  for (const product of productDocs) {
+    if (String(product.categoryName || '').trim() === nextName) continue;
+
+    await queueWrite(
+      doc(db, 'stores', storeId, 'products', product.id),
+      { categoryName: nextName, updatedAt: serverTimestamp() }
+    );
+    result.products += 1;
+  }
+
+  const groupDocs = await fetchMatchedDocsByField({
+    storeId,
+    collectionName: 'productGroups',
+    field: 'categoryId',
+    value: id
+  });
+  for (const group of groupDocs) {
+    if (String(group.categoryName || '').trim() === nextName) continue;
+
+    await queueWrite(
+      doc(db, 'stores', storeId, 'productGroups', group.id),
+      { categoryName: nextName, updatedAt: serverTimestamp() }
+    );
+    result.productGroups += 1;
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return result;
+};
+
+// カテゴリーグループ改名時に、非正規化された categoryGroupName / groupName を子孫へ反映する。
+// 対象: カテゴリー・サブカテゴリー(メモリ・全件) / 商品・商品グループ(Firestore 全件)。
+// 値が実際に変わるフィールドだけ書き込み、無変更の大量上書きを避ける。
+const cascadeGroupNameToChildren = async ({
+  storeId,
+  groupId,
+  newName,
+  previousName = '',
+  productCategories = [],
+  productSubCategories = [],
+  productSalesAreas = []
+}) => {
+  const id = String(groupId || '').trim();
+  const nextName = String(newName || '').trim();
+  const prevName = String(previousName || '').trim();
+  const result = { categories: 0, subCategories: 0, products: 0, productGroups: 0, salesAreas: 0 };
+
+  if (!storeId || !id || !nextName) return result;
+
+  let batch = writeBatch(db);
+  let batchCount = 0;
+  const queueWrite = async (ref, data) => {
+    batch.set(ref, data, { merge: true });
+    batchCount += 1;
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  };
+
+  const matchesGroup = (item) => (
+    String(item.groupId || '').trim() === id || String(item.categoryGroupId || '').trim() === id
+  );
+  // ドキュメントに既に存在するグループ名フィールドだけを対象にし、無変更はスキップする。
+  const buildGroupNamePatch = (item) => {
+    const patch = {};
+    if ('categoryGroupName' in item && String(item.categoryGroupName || '').trim() !== nextName) {
+      patch.categoryGroupName = nextName;
+    }
+    if ('groupName' in item && String(item.groupName || '').trim() !== nextName) {
+      patch.groupName = nextName;
+    }
+    return patch;
+  };
+
+  for (const category of productCategories || []) {
+    if (!category?.id || !matchesGroup(category)) continue;
+    const patch = buildGroupNamePatch(category);
+    if (!Object.keys(patch).length) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'productCategories', category.id), { ...patch, updatedAt: serverTimestamp() });
+    result.categories += 1;
+  }
+
+  for (const subCategory of productSubCategories || []) {
+    if (!subCategory?.id || !matchesGroup(subCategory)) continue;
+    const patch = buildGroupNamePatch(subCategory);
+    if (!Object.keys(patch).length) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'productSubCategories', subCategory.id), { ...patch, updatedAt: serverTimestamp() });
+    result.subCategories += 1;
+  }
+
+  const productDocs = await fetchMatchedProductDocsByMasterId({ storeId, cascadeLevel: 'group', masterId: id });
+  for (const product of productDocs) {
+    const patch = buildGroupNamePatch(product);
+    if (!Object.keys(patch).length) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'products', product.id), { ...patch, updatedAt: serverTimestamp() });
+    result.products += 1;
+  }
+
+  const productGroupsById = new Map();
+  for (const field of ['categoryGroupId', 'groupId']) {
+    const docs = await fetchMatchedDocsByField({ storeId, collectionName: 'productGroups', field, value: id });
+    for (const d of docs) if (!productGroupsById.has(d.id)) productGroupsById.set(d.id, d);
+  }
+  for (const productGroup of productGroupsById.values()) {
+    const patch = buildGroupNamePatch(productGroup);
+    if (!Object.keys(patch).length) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'productGroups', productGroup.id), { ...patch, updatedAt: serverTimestamp() });
+    result.productGroups += 1;
+  }
+
+  // 売場の allowedCategoryGroupNames（グループ名の配列）バッジも旧名→新名へ置換する。
+  if (prevName && prevName !== nextName) {
+    for (const salesArea of productSalesAreas || []) {
+      if (!salesArea?.id) continue;
+      const names = Array.isArray(salesArea.allowedCategoryGroupNames) ? salesArea.allowedCategoryGroupNames : [];
+      if (!names.some((name) => String(name || '').trim() === prevName)) continue;
+      const nextNames = [...new Set(
+        names.map((name) => (String(name || '').trim() === prevName ? nextName : String(name || '').trim())).filter(Boolean)
+      )];
+      await queueWrite(doc(db, 'stores', storeId, 'productSalesAreas', salesArea.id), { allowedCategoryGroupNames: nextNames, updatedAt: serverTimestamp() });
+      result.salesAreas += 1;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return result;
+};
+
+// 売場改名時に、非正規化された salesAreaName を商品・商品グループへ反映する。
+// 売場は商品/商品グループにのみ紐付く（カテゴリー階層とは別軸）。
+// 既に salesAreaName を持つドキュメントで、値が変わる行だけ書き込む。
+const cascadeSalesAreaNameToChildren = async ({ storeId, salesAreaId, newName }) => {
+  const id = String(salesAreaId || '').trim();
+  const nextName = String(newName || '').trim();
+  const result = { products: 0, productGroups: 0 };
+
+  if (!storeId || !id || !nextName) return result;
+
+  let batch = writeBatch(db);
+  let batchCount = 0;
+  const queueWrite = async (ref, data) => {
+    batch.set(ref, data, { merge: true });
+    batchCount += 1;
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  };
+  const needsUpdate = (item) => (
+    'salesAreaName' in item && String(item.salesAreaName || '').trim() !== nextName
+  );
+
+  const productDocs = await fetchMatchedProductDocsByMasterId({ storeId, cascadeLevel: 'salesArea', masterId: id });
+  for (const product of productDocs) {
+    if (!needsUpdate(product)) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'products', product.id), { salesAreaName: nextName, updatedAt: serverTimestamp() });
+    result.products += 1;
+  }
+
+  const productGroupsById = new Map();
+  for (const field of ['salesAreaId', 'salesAreaDocId']) {
+    const docs = await fetchMatchedDocsByField({ storeId, collectionName: 'productGroups', field, value: id });
+    for (const d of docs) if (!productGroupsById.has(d.id)) productGroupsById.set(d.id, d);
+  }
+  for (const productGroup of productGroupsById.values()) {
+    if (!needsUpdate(productGroup)) continue;
+    await queueWrite(doc(db, 'stores', storeId, 'productGroups', productGroup.id), { salesAreaName: nextName, updatedAt: serverTimestamp() });
+    result.productGroups += 1;
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return result;
 };
 
 const normalizeMasterTaxRateType = (value) => (
@@ -4232,11 +4465,12 @@ export const SimpleMasterPanel = ({
   productCategories = [],
   productCategoryGroups = [],
   productSubCategories = [],
+  productSalesAreas = [],
   onSaveSupplier,
   onSaveCategoryGroup,
+  onSaveChildItem,
   defaultTaxRate = 10,
   storeId = '',
-  products = [],
   cascadeTaxLevel = ''
 }) => {
   const [draft, setDraft] = useState({ ...blank });
@@ -4390,7 +4624,6 @@ export const SimpleMasterPanel = ({
       if (shouldCascadeTaxRate) {
         const cascadeResult = await cascadeMasterTaxRateToProducts({
           storeId,
-          products,
           cascadeTaxLevel,
           masterId: editingId,
           masterName: payload.name || draft.name || selectedSnapshot?.name || '',
@@ -4400,6 +4633,89 @@ export const SimpleMasterPanel = ({
 
         if (cascadeResult.updated > 0) {
           alert(`税率を配下商品 ${cascadeResult.updated.toLocaleString()} 件へ反映しました。`);
+        }
+      }
+
+      // カテゴリー改名時は、非正規化された categoryName を子へ反映する。
+      if (label === 'カテゴリー' && editingId) {
+        const previousName = String(selectedSnapshot?.name || '').trim();
+        const nextName = String(payload.name || draft.name || '').trim();
+
+        if (storeId && nextName && previousName && previousName !== nextName) {
+          try {
+            const nameCascade = await cascadeCategoryNameToChildren({
+              storeId,
+              categoryId: editingId,
+              newName: nextName,
+              productSubCategories
+            });
+
+            const cascadedTotal = nameCascade.subCategories + nameCascade.products + nameCascade.productGroups;
+            if (cascadedTotal > 0) {
+              alert(
+                `カテゴリー名の変更を反映しました：サブカテゴリー ${nameCascade.subCategories.toLocaleString()}件 / 商品 ${nameCascade.products.toLocaleString()}件 / 商品グループ ${nameCascade.productGroups.toLocaleString()}件`
+              );
+            }
+          } catch (error) {
+            console.error('[category name cascade] failed', error);
+            alert('カテゴリー名の変更は保存しましたが、配下への反映中にエラーが発生しました。時間をおいて再度保存し直してください。');
+          }
+        }
+      }
+
+      // カテゴリーグループ改名時は、非正規化された categoryGroupName / groupName を子孫へ反映する。
+      if (label === 'カテゴリーグループ' && editingId) {
+        const previousName = String(selectedSnapshot?.name || '').trim();
+        const nextName = String(payload.name || draft.name || '').trim();
+
+        if (storeId && nextName && previousName && previousName !== nextName) {
+          try {
+            const groupCascade = await cascadeGroupNameToChildren({
+              storeId,
+              groupId: editingId,
+              newName: nextName,
+              previousName,
+              productCategories,
+              productSubCategories,
+              productSalesAreas
+            });
+
+            const cascadedTotal = groupCascade.categories + groupCascade.subCategories + groupCascade.products + groupCascade.productGroups + groupCascade.salesAreas;
+            if (cascadedTotal > 0) {
+              alert(
+                `グループ名の変更を反映しました：カテゴリー ${groupCascade.categories.toLocaleString()}件 / サブカテゴリー ${groupCascade.subCategories.toLocaleString()}件 / 商品 ${groupCascade.products.toLocaleString()}件 / 商品グループ ${groupCascade.productGroups.toLocaleString()}件 / 売場 ${groupCascade.salesAreas.toLocaleString()}件`
+              );
+            }
+          } catch (error) {
+            console.error('[group name cascade] failed', error);
+            alert('グループ名の変更は保存しましたが、配下への反映中にエラーが発生しました。時間をおいて再度保存し直してください。');
+          }
+        }
+      }
+
+      // 売場改名時は、非正規化された salesAreaName を商品・商品グループへ反映する。
+      if (label === '売場' && editingId) {
+        const previousName = String(selectedSnapshot?.name || '').trim();
+        const nextName = String(payload.name || draft.name || '').trim();
+
+        if (storeId && nextName && previousName && previousName !== nextName) {
+          try {
+            const salesAreaCascade = await cascadeSalesAreaNameToChildren({
+              storeId,
+              salesAreaId: editingId,
+              newName: nextName
+            });
+
+            const cascadedTotal = salesAreaCascade.products + salesAreaCascade.productGroups;
+            if (cascadedTotal > 0) {
+              alert(
+                `売場名の変更を反映しました：商品 ${salesAreaCascade.products.toLocaleString()}件 / 商品グループ ${salesAreaCascade.productGroups.toLocaleString()}件`
+              );
+            }
+          } catch (error) {
+            console.error('[sales area name cascade] failed', error);
+            alert('売場名の変更は保存しましたが、配下への反映中にエラーが発生しました。時間をおいて再度保存し直してください。');
+          }
         }
       }
 
@@ -4489,6 +4805,26 @@ export const SimpleMasterPanel = ({
           </div>
         );
       }
+    }
+
+    if (label === 'サブカテゴリー') {
+      const parentCategory = productCategories.find((category) => category.id === item.categoryId) || null;
+      const categoryName = parentCategory?.name || String(item.categoryName || '').trim();
+      const groupName = parentCategory?.groupName
+        || String(item.categoryGroupName || item.groupName || '').trim()
+        || productCategoryGroups.find((group) => group.id === (item.categoryGroupId || item.groupId || parentCategory?.groupId))?.name
+        || '';
+      const path = [groupName, categoryName].filter(Boolean).join(' / ');
+      const taxLabel = item.taxRateType !== undefined ? `税率: ${formatMasterTaxRateLabel(item, defaultTaxRate)}` : '';
+
+      return (
+        <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed">
+          <span className={categoryName ? 'text-slate-400' : 'text-orange-500'}>
+            親カテゴリー：{categoryName ? path : '未設定'}
+          </span>
+          {taxLabel && <span className="text-slate-400"> / {taxLabel}</span>}
+        </div>
+      );
     }
 
     return (
@@ -4600,6 +4936,119 @@ export const SimpleMasterPanel = ({
         if (aSort !== bSort) return aSort - bSort;
         return String(a.name || '').localeCompare(String(b.name || ''), 'ja');
       });
+  };
+
+  // 「含まれる〜」セクションでの子の付け替え/外し/新規作成。
+  // カテゴリーグループ編集→子カテゴリー、カテゴリー編集→子サブカテゴリーを操作する。
+  const childMasterConfig = (() => {
+    if (label === 'カテゴリーグループ') {
+      const groupName = String(draft.name || '').trim();
+      const linkPatch = {
+        groupId: editingId,
+        groupName,
+        categoryGroupId: editingId,
+        categoryGroupName: groupName
+      };
+      return {
+        collectionLabel: 'カテゴリー',
+        items: productCategories || [],
+        buildLinkPatch: () => linkPatch,
+        unlinkPatch: { groupId: '', groupName: '', categoryGroupId: '', categoryGroupName: '' },
+        isLinked: (item) => String(item.groupId || item.categoryGroupId || '').trim() === editingId,
+        buildCreatePayload: (name) => ({ name, ...linkPatch })
+      };
+    }
+
+    if (label === 'カテゴリー') {
+      const parentGroup = (productCategoryGroups || []).find(
+        (group) => group.id === (draft.groupId || draft.categoryGroupId)
+      ) || null;
+      const groupId = String(draft.groupId || draft.categoryGroupId || parentGroup?.id || '').trim();
+      const groupName = String(parentGroup?.name || draft.groupName || draft.categoryGroupName || '').trim();
+
+      const linkPatch = {
+        categoryId: editingId,
+        categoryName: String(draft.name || '').trim(),
+        categoryGroupId: groupId,
+        categoryGroupName: groupName,
+        groupId,
+        groupName
+      };
+
+      return {
+        collectionLabel: 'サブカテゴリー',
+        items: productSubCategories || [],
+        buildLinkPatch: () => linkPatch,
+        unlinkPatch: { categoryId: '', categoryName: '', categoryGroupId: '', categoryGroupName: '', groupId: '', groupName: '' },
+        isLinked: (item) => String(item.categoryId || '').trim() === editingId,
+        buildCreatePayload: (name) => ({ name, subCategoryName: name, ...linkPatch })
+      };
+    }
+
+    return null;
+  })();
+
+  const childCandidateOptions = childMasterConfig
+    ? childMasterConfig.items
+        .filter((item) => item?.id && !childMasterConfig.isLinked(item))
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'))
+    : [];
+
+  const handleLinkChild = async (childId, childOption) => {
+    if (!childMasterConfig || !onSaveChildItem || !childId || !childOption) return;
+    if (childMasterConfig.isLinked(childOption)) {
+      onSaved?.();
+      return;
+    }
+    try {
+      await onSaveChildItem({ ...childOption, id: childId, ...childMasterConfig.buildLinkPatch() });
+      onSaved?.();
+    } catch (error) {
+      console.error('[child link] failed', error);
+      alert(`紐付けに失敗しました: ${error?.message || error}`);
+    }
+  };
+
+  const handleCreateChild = async (payload) => {
+    if (!childMasterConfig || !onSaveChildItem) return undefined;
+    const name = String(payload?.name || '').trim();
+    if (!name) return undefined;
+    return await onSaveChildItem(childMasterConfig.buildCreatePayload(name));
+  };
+
+  const handleUnlinkChild = async (child) => {
+    if (!childMasterConfig || !onSaveChildItem || !child?.id) return;
+    const confirmed = window.confirm(`「${child.name}」をこの${label}から外しますか？（${childMasterConfig.collectionLabel}自体は削除されず、未割り当てになります）`);
+    if (!confirmed) return;
+    try {
+      await onSaveChildItem({ ...child, id: child.id, ...childMasterConfig.unlinkPatch });
+      onSaved?.();
+    } catch (error) {
+      console.error('[child unlink] failed', error);
+      alert(`外す処理に失敗しました: ${error?.message || error}`);
+    }
+  };
+
+  const renderChildAddControl = () => {
+    if (!childMasterConfig || !onSaveChildItem || !editingId) return null;
+    return (
+      <PosModalSelect
+        label=""
+        compact
+        value=""
+        options={childCandidateOptions}
+        disabled={!canEdit}
+        placeholder={`${childMasterConfig.collectionLabel}を追加`}
+        searchPlaceholder={`${childMasterConfig.collectionLabel}名・IDで検索`}
+        createLabel={`${childMasterConfig.collectionLabel}を新規作成`}
+        onCreateSave={handleCreateChild}
+        createFields={[{ id: 'name', label: `${childMasterConfig.collectionLabel}名` }]}
+        createInitialValue={{ name: '', sortOrder: 0, isActive: true }}
+        getOptionLabel={(option) => option.name || option.id}
+        getOptionSubLabel={(option) => option.id}
+        onChange={handleLinkChild}
+      />
+    );
   };
 
   const getEffectiveCostRateDisplay = () => {
@@ -4947,9 +5396,12 @@ export const SimpleMasterPanel = ({
                     このグループ配下のカテゴリーとサブカテゴリーを確認できます。
                   </div>
                 </div>
-                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
-                  {getChildCategoriesForDraft().length}件
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                    {getChildCategoriesForDraft().length}件
+                  </span>
+                  {canEdit && renderChildAddControl()}
+                </div>
               </div>
 
               {getChildCategoriesForDraft().length > 0 ? (
@@ -4966,9 +5418,22 @@ export const SimpleMasterPanel = ({
                           <div className="text-sm font-black text-slate-700">
                             {category.name}
                           </div>
-                          <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-400">
-                            {childSubCategories.length}件
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-400">
+                              {childSubCategories.length}件
+                            </span>
+                            {canEdit && category.id && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnlinkChild(category)}
+                                className="flex h-6 w-6 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                                title="このグループから外す"
+                                aria-label={`${category.name}をグループから外す`}
+                              >
+                                <X size={14} strokeWidth={3} />
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {childSubCategories.length > 0 ? (
@@ -5008,9 +5473,12 @@ export const SimpleMasterPanel = ({
                     このカテゴリー配下のサブカテゴリーを確認できます。
                   </div>
                 </div>
-                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
-                  {getChildSubCategoriesForDraft().length}件
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                    {getChildSubCategoriesForDraft().length}件
+                  </span>
+                  {canEdit && renderChildAddControl()}
+                </div>
               </div>
 
               {getChildSubCategoriesForDraft().length > 0 ? (
@@ -5018,9 +5486,20 @@ export const SimpleMasterPanel = ({
                   {getChildSubCategoriesForDraft().map((subCategory) => (
                     <span
                       key={subCategory.id || subCategory.name}
-                      className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-600"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-2.5 pr-1 text-[11px] font-black text-slate-600"
                     >
                       {subCategory.name}
+                      {canEdit && subCategory.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleUnlinkChild(subCategory)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                          title="このカテゴリーから外す"
+                          aria-label={`${subCategory.name}をカテゴリーから外す`}
+                        >
+                          <X size={12} strokeWidth={3} />
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
