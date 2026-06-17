@@ -6399,6 +6399,10 @@ const chunkWorkerArray = (items = [], size = 10) => {
 const collectExistingProductRefsForWorker = async ({ db, storeId, products = [] }) => {
   const productsRef = db.collection('stores').doc(storeId).collection('products');
   const keyMap = new Map();
+  // 既存商品の中で同じ値が複数docに存在する照合キーは「曖昧」として無効化する。
+  // sku / productCode はブランド名などで非ユニークになりがちで、これらで照合すると
+  // barcodeが別の新規商品でも既存docに当たって上書き＝データ消失する事故が起きるため。
+  const ambiguousKeys = new Set();
 
   const collectByField = async (fieldName) => {
     const values = Array.from(new Set(
@@ -6414,9 +6418,14 @@ const collectExistingProductRefsForWorker = async ({ db, storeId, products = [] 
         const value = String(data[fieldName] || '').trim();
         if (!value) return;
         const key = `${fieldName}:${value}`;
-        if (!keyMap.has(key)) {
-          keyMap.set(key, doc.ref);
+        if (ambiguousKeys.has(key)) return;
+        if (keyMap.has(key)) {
+          // 同一値が2件以上の既存docに該当 → 曖昧キーとして照合対象から除外（新規作成扱い）。
+          keyMap.delete(key);
+          ambiguousKeys.add(key);
+          return;
         }
+        keyMap.set(key, doc.ref);
       });
     }
   };
