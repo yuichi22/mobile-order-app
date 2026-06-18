@@ -3358,7 +3358,8 @@ export const ShopifySettingsPanel = ({
     clientId: '',
     clientSecret: '',
     locationId: '',
-    syncEnabled: false
+    syncEnabled: false,
+    inventorySyncEnabled: false
   });
   const [saving, setSaving] = useState(false);
 
@@ -3368,9 +3369,10 @@ export const ShopifySettingsPanel = ({
       clientId: settings?.clientId || '',
       clientSecret: settings?.clientSecret || '',
       locationId: settings?.locationId || '',
-      syncEnabled: Boolean(settings?.syncEnabled)
+      syncEnabled: Boolean(settings?.syncEnabled),
+      inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled)
     });
-  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled]);
+  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled]);
 
   const update = (patch) => {
     setDraft((current) => ({
@@ -3423,6 +3425,7 @@ export const ShopifySettingsPanel = ({
         clientSecret,
         locationId,
         syncEnabled: Boolean(draft.syncEnabled),
+        inventorySyncEnabled: Boolean(draft.inventorySyncEnabled),
         authMode: 'devDashboard'
       });
       onSaved?.();
@@ -3545,15 +3548,26 @@ export const ShopifySettingsPanel = ({
             </span>
           </label>
 
-          <label className="flex min-w-[180px] items-end gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
-            <input
-              type="checkbox"
-              checked={draft.syncEnabled}
-              onChange={(event) => update({ syncEnabled: event.target.checked })}
-              className="h-5 w-5 rounded border-slate-300"
-            />
-            <span className="text-sm font-black text-slate-700">同期を有効にする</span>
-          </label>
+          <div className="flex min-w-[180px] flex-col justify-end gap-2">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={draft.syncEnabled}
+                onChange={(event) => update({ syncEnabled: event.target.checked })}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              <span className="text-sm font-black text-slate-700">商品同期を有効にする</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={draft.inventorySyncEnabled}
+                onChange={(event) => update({ inventorySyncEnabled: event.target.checked })}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              <span className="text-sm font-black text-slate-700">在庫連携を有効にする</span>
+            </label>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-700">

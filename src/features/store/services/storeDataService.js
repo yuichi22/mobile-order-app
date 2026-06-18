@@ -218,6 +218,7 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
     clientSecret: String(settings.clientSecret || '').trim(),
     locationId: String(settings.locationId || '').trim(),
     syncEnabled: Boolean(settings.syncEnabled),
+    inventorySyncEnabled: Boolean(settings.inventorySyncEnabled),
     authMode: settings.authMode || 'devDashboard',
     accessToken: deleteField(),
     updatedAt: serverTimestamp()
