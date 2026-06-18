@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth';
 import {
   createShopifyDraftProductFromGroup,
   updateShopifyProductFromGroup,
+  syncShopifyProductLinks,
   deleteProductMasterDoc,
   isValidStoreId,
   saveProductBrand,
@@ -207,6 +208,13 @@ export const useProductMasterData = (storeId) => {
     return await saveShopifySettings(storeId, settings);
   };
 
+  const syncShopifyProductLinksData = async (statuses = ['ACTIVE']) => {
+    const auth = getAuth();
+    const idToken = await auth.currentUser?.getIdToken?.();
+
+    return await syncShopifyProductLinks({ storeId, statuses, idToken });
+  };
+
   return {
     products: productsState.items,
     productGroups: productGroupsState.items,
@@ -244,6 +252,7 @@ export const useProductMasterData = (storeId) => {
     deleteSupplier,
     saveShopifySettings: saveShopifySettingsData,
     createShopifyDraftProduct: createShopifyDraftProductData,
-    updateShopifyProduct: updateShopifyProductData
+    updateShopifyProduct: updateShopifyProductData,
+    syncShopifyProductLinks: syncShopifyProductLinksData
   };
 };

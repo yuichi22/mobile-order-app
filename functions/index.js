@@ -4043,6 +4043,140 @@ export const updateShopifyProduct = onRequest(
 
 
 
+// Shopify掲載商品をFirestore商品へ紐付け同期する（手動「Shopify同期」ボタン用）。
+// 指定ステータス(ACTIVE/DRAFT/ARCHIVED)のShopify商品を取得し、barcode突合(+既存variantId)で
+// shopifyProductId / shopifyVariantId / shopifyInventoryItemId / shopifyStatus を設定する。
+// ブランド/仕入先など他フィールドには触れない。
+export const syncShopifyProductLinks = onRequest(
+  { region: REGION, cors: true, timeoutSeconds: 540, memory: '1GiB' },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+
+      const authUser = await verifyRequestUser(req);
+      const { storeId, statuses } = parseJsonBody(req);
+      const normalizedStoreId = String(storeId || '').trim();
+      if (!normalizedStoreId) {
+        return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
+      }
+
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const ALLOWED = ['ACTIVE', 'DRAFT', 'ARCHIVED'];
+      const requested = Array.isArray(statuses)
+        ? statuses.map((s) => String(s || '').trim().toUpperCase()).filter((s) => ALLOWED.includes(s))
+        : [];
+      const statusScope = requested.length ? [...new Set(requested)] : ['ACTIVE'];
+
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+      const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
+      const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
+
+      const statusQuery = statusScope.length === ALLOWED.length
+        ? null
+        : statusScope.map((s) => `status:${s.toLowerCase()}`).join(' OR ');
+      const productsQuery = 'query($cursor:String,$q:String){ products(first:40, after:$cursor, query:$q){ pageInfo{ hasNextPage endCursor } nodes{ id status variants(first:100){ nodes{ id barcode inventoryItem{ id } } } } } }';
+
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const byBarcode = new Map();
+      const byVariant = new Map();
+      let cursor = null;
+
+      for (;;) {
+        let data = null;
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          try {
+            data = await callShopifyGraphql({ shopDomain, accessToken, query: productsQuery, variables: { cursor, q: statusQuery } });
+            break;
+          } catch (gqlError) {
+            if (String(gqlError.message || '').toLowerCase().includes('throttl')) {
+              await sleep(2000);
+              continue;
+            }
+            throw gqlError;
+          }
+        }
+        if (!data) throw new Error('Shopify商品の取得に失敗しました（スロットリング）。');
+
+        const connection = data.products;
+        for (const product of connection.nodes) {
+          for (const variant of product.variants.nodes) {
+            const barcode = String(variant.barcode || '').trim();
+            const inventoryItemId = variant.inventoryItem?.id || '';
+            byVariant.set(variant.id, { pid: product.id, iid: inventoryItemId, status: product.status });
+            if (barcode && !byBarcode.has(barcode)) {
+              byBarcode.set(barcode, { pid: product.id, vid: variant.id, iid: inventoryItemId, status: product.status });
+            }
+          }
+        }
+        if (!connection.pageInfo.hasNextPage) break;
+        cursor = connection.pageInfo.endCursor;
+      }
+
+      const productsSnap = await storeRef.collection('products').select('barcode', 'shopifyVariantId').get();
+      let batch = db.batch();
+      let ops = 0;
+      let linkedByBarcode = 0;
+      let linkedByVariant = 0;
+      const commitIfNeeded = async (force = false) => {
+        if (ops === 0) return;
+        if (!force && ops < 400) return;
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      };
+
+      for (const docSnap of productsSnap.docs) {
+        const data = docSnap.data() || {};
+        const barcode = String(data.barcode || '').trim();
+        const variantId = String(data.shopifyVariantId || '').trim();
+        let link = null;
+        let via = '';
+        if (barcode && byBarcode.has(barcode)) {
+          link = byBarcode.get(barcode);
+          via = 'barcode';
+        } else if (variantId && byVariant.has(variantId)) {
+          const matched = byVariant.get(variantId);
+          link = { pid: matched.pid, vid: variantId, iid: matched.iid, status: matched.status };
+          via = 'variant';
+        }
+        if (!link) continue;
+
+        batch.set(docSnap.ref, {
+          shopifyProductId: link.pid,
+          shopifyVariantId: link.vid,
+          shopifyInventoryItemId: link.iid,
+          shopifyStatus: link.status,
+          shopifyLinkedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        ops += 1;
+        if (via === 'barcode') linkedByBarcode += 1; else linkedByVariant += 1;
+        await commitIfNeeded();
+      }
+      await commitIfNeeded(true);
+
+      return sendJson(res, 200, {
+        ok: true,
+        statusScope,
+        shopifyBarcodeCount: byBarcode.size,
+        shopifyVariantCount: byVariant.size,
+        scannedProducts: productsSnap.size,
+        linked: linkedByBarcode + linkedByVariant,
+        linkedByBarcode,
+        linkedByVariant
+      });
+    } catch (error) {
+      console.error('[syncShopifyProductLinks] failed', error);
+      return sendJson(res, 400, { ok: false, error: { message: error.message || 'Shopify同期に失敗しました。' } });
+    }
+  }
+);
+
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);

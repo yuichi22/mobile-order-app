@@ -607,6 +607,41 @@ export const createShopifyDraftProductFromGroup = async ({ storeId, productGroup
 };
 
 
+export const syncShopifyProductLinks = async ({ storeId, statuses = ['ACTIVE'], idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId) {
+    throw new Error('店舗情報が不足しています。');
+  }
+  if (!token) {
+    throw new Error('ログイン状態を確認してください。');
+  }
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/syncShopifyProductLinks`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      storeId: normalizedStoreId,
+      statuses: Array.isArray(statuses) ? statuses : ['ACTIVE']
+    })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    const message = body?.error?.message || body?.message || 'Shopify同期に失敗しました。';
+    throw new Error(message);
+  }
+
+  return body;
+};
+
 
 export const updateShopifyProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
   const normalizedStoreId = String(storeId || '').trim();

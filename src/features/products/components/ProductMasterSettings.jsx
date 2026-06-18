@@ -10,6 +10,7 @@ import {
   ChevronUp,
   Factory,
   FolderTree,
+  Link,
   Package,
   Plus,
   Save,
@@ -3294,8 +3295,41 @@ export const ShopifySettingsPanel = ({
   storeId,
   settings,
   onSave,
+  onSyncProductLinks,
   onSaved
 }) => {
+  const [syncStatuses, setSyncStatuses] = useState(['ACTIVE']);
+  const [syncRunning, setSyncRunning] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [syncError, setSyncError] = useState('');
+
+  const toggleSyncStatus = (status) => {
+    setSyncStatuses((current) => (
+      current.includes(status)
+        ? current.filter((s) => s !== status)
+        : [...current, status]
+    ));
+  };
+
+  const runShopifyProductLinkSync = async () => {
+    if (!onSyncProductLinks || syncRunning) return;
+    if (syncStatuses.length === 0) {
+      setSyncError('取り込むステータスを1つ以上選んでください。');
+      return;
+    }
+    setSyncRunning(true);
+    setSyncError('');
+    setSyncResult(null);
+    try {
+      const result = await onSyncProductLinks(syncStatuses);
+      setSyncResult(result);
+    } catch (error) {
+      setSyncError(error?.message || 'Shopify同期に失敗しました。');
+    } finally {
+      setSyncRunning(false);
+    }
+  };
+
   const [shopifyPriceSyncMode, setShopifyPriceSyncMode] = useState('taxIncluded');
   const [shopifyPriceSyncLoading, setShopifyPriceSyncLoading] = useState(true);
   const [shopifyPriceSyncSaving, setShopifyPriceSyncSaving] = useState(false);
@@ -3584,6 +3618,64 @@ export const ShopifySettingsPanel = ({
             {saving ? <LoadingSpinner size={14} /> : <Save size={16} />}
             Shopify設定を保存
           </button>
+        </div>
+
+        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
+          <div className="text-sm font-black text-slate-700">Shopify掲載商品と同期</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+            CSV取込後などに実行します。Shopify上の商品を取得し、バーコードで商品マスターに突合して
+            Shopify商品ID・在庫アイテムID（在庫連携の基盤）を紐付けます。商品マスターの分類やブランド/仕入先は変更しません。
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              { id: 'ACTIVE', label: '公開中' },
+              { id: 'DRAFT', label: '下書きを含める' },
+              { id: 'ARCHIVED', label: '非公開を含める' }
+            ].map((option) => (
+              <label
+                key={option.id}
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border-2 px-3 py-1.5 text-xs font-black transition ${
+                  syncStatuses.includes(option.id)
+                    ? 'border-orange-400 bg-orange-50 text-orange-700'
+                    : 'border-slate-100 bg-slate-50 text-slate-500'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={syncStatuses.includes(option.id)}
+                  onChange={() => toggleSyncStatus(option.id)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={runShopifyProductLinkSync}
+              disabled={syncRunning || !onSyncProductLinks}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-60"
+            >
+              {syncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
+              {syncRunning ? '同期中…（数十秒かかります）' : 'Shopifyと同期する'}
+            </button>
+          </div>
+
+          {syncError && (
+            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+              {syncError}
+            </div>
+          )}
+          {syncResult?.ok && (
+            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold leading-relaxed text-emerald-700">
+              同期完了：紐付け {Number(syncResult.linked || 0).toLocaleString()}件
+              （バーコード一致 {Number(syncResult.linkedByBarcode || 0).toLocaleString()} / variantId経由 {Number(syncResult.linkedByVariant || 0).toLocaleString()}）。
+              Shopify商品バーコード {Number(syncResult.shopifyBarcodeCount || 0).toLocaleString()}件 / 商品マスター走査 {Number(syncResult.scannedProducts || 0).toLocaleString()}件。
+            </div>
+          )}
         </div>
       </div>
     </section>

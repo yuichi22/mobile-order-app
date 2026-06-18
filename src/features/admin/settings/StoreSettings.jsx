@@ -353,6 +353,7 @@ const EcIntegrationPanel = ({
         storeId={storeId}
         settings={productMaster?.shopifySettings}
         onSave={productMaster?.saveShopifySettings}
+        onSyncProductLinks={productMaster?.syncShopifyProductLinks}
         onSaved={onSaved}
       />
     );
