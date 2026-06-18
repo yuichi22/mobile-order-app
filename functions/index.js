@@ -4177,6 +4177,82 @@ export const syncShopifyProductLinks = onRequest(
 );
 
 
+// POS側の在庫変更(会計/手動調整/棚卸しfinalize)をShopifyの在庫(onHand)へ反映する。
+// inventorySyncEnabled(=prodのみON想定)かつ shopifyInventoryItemId 紐付け済みの商品のみ。
+// Firestoreの現在庫を「絶対値」でShopifyに set する(差分でなくsetで drift を防ぐ)。
+export const pushInventoryToShopify = onRequest(
+  { region: REGION, cors: true, timeoutSeconds: 120, memory: '512MiB' },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+      const authUser = await verifyRequestUser(req);
+      const { storeId, productIds } = parseJsonBody(req);
+      const normalizedStoreId = String(storeId || '').trim();
+      const ids = Array.isArray(productIds)
+        ? [...new Set(productIds.map((x) => String(x || '').trim()).filter(Boolean))]
+        : [];
+      if (!normalizedStoreId) {
+        return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
+      }
+      if (ids.length === 0) {
+        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noProductIds' });
+      }
+
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+      const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+      const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+      if (!settings.inventorySyncEnabled) {
+        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'inventorySyncDisabled' });
+      }
+      const locationId = String(settings.locationId || '').trim();
+      if (!locationId) {
+        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noLocationId' });
+      }
+      const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+
+      const setQuantities = [];
+      for (const id of ids) {
+        const snap = await storeRef.collection('products').doc(id).get();
+        if (!snap.exists) continue;
+        const product = snap.data() || {};
+        const inventoryItemId = String(product.shopifyInventoryItemId || '').trim();
+        if (!inventoryItemId) continue;
+        const quantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+        setQuantities.push({ inventoryItemId, locationId, quantity });
+      }
+      if (setQuantities.length === 0) {
+        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noLinkedItems' });
+      }
+
+      const mutation = 'mutation($input: InventorySetOnHandQuantitiesInput!){ inventorySetOnHandQuantities(input:$input){ userErrors{ field message } } }';
+      let pushed = 0;
+      const userErrors = [];
+      for (let i = 0; i < setQuantities.length; i += 250) {
+        const chunk = setQuantities.slice(i, i + 250);
+        const data = await callShopifyGraphql({
+          shopDomain,
+          accessToken,
+          query: mutation,
+          variables: { input: { reason: 'correction', setQuantities: chunk } }
+        });
+        const errs = data.inventorySetOnHandQuantities?.userErrors || [];
+        if (errs.length) userErrors.push(...errs);
+        pushed += chunk.length;
+      }
+
+      return sendJson(res, 200, { ok: true, pushed, userErrors: userErrors.slice(0, 20) });
+    } catch (error) {
+      console.error('[pushInventoryToShopify] failed', error);
+      return sendJson(res, 400, { ok: false, error: { message: error.message || 'Shopify在庫反映に失敗しました。' } });
+    }
+  }
+);
+
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);

@@ -24,6 +24,8 @@ import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
+import { pushInventoryToShopify } from '../../store/services/storeDataService';
+import { getAuth } from 'firebase/auth';
 
 const getJstBusinessDate = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -1863,6 +1865,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
       // 棚卸し進行中なら、販売した店頭在庫を棚卸しカウントへ反映する。
       // 店頭確定から1時間以内の販売は「数え直しリスト」に自動掲載される。
       if (orderRetailQuantityByProductId.size > 0) {
+        const soldProductIds = [...orderRetailQuantityByProductId.keys()];
+
         void (async () => {
           try {
             const activeStocktake = await getActiveStocktake(storeId);
@@ -1873,6 +1877,18 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
             }
           } catch (stocktakeError) {
             console.error('棚卸し連動エラー:', stocktakeError);
+          }
+        })();
+
+        // 在庫連携ON(prodのみ)なら、販売後の在庫をShopifyへ反映する(関数側でゲート)。
+        void (async () => {
+          try {
+            const idToken = await getAuth().currentUser?.getIdToken?.();
+            if (idToken) {
+              await pushInventoryToShopify({ storeId, productIds: soldProductIds, idToken });
+            }
+          } catch (shopifyError) {
+            console.error('Shopify在庫反映エラー:', shopifyError);
           }
         })();
       }

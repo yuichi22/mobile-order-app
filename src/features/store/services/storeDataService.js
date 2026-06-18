@@ -643,6 +643,34 @@ export const syncShopifyProductLinks = async ({ storeId, statuses = ['ACTIVE'], 
 };
 
 
+export const pushInventoryToShopify = async ({ storeId, productIds = [], idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const ids = Array.isArray(productIds) ? productIds.filter(Boolean) : [];
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId || ids.length === 0 || !token) return undefined;
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/pushInventoryToShopify`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ storeId: normalizedStoreId, productIds: ids })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    throw new Error(body?.error?.message || body?.message || 'Shopify在庫反映に失敗しました。');
+  }
+
+  return body;
+};
+
+
 export const updateShopifyProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
   const normalizedStoreId = String(storeId || '').trim();
   const normalizedProductGroupId = String(productGroupId || '').trim();
