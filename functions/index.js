@@ -5,7 +5,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
 
@@ -4248,6 +4248,127 @@ export const pushInventoryToShopify = onRequest(
     } catch (error) {
       console.error('[pushInventoryToShopify] failed', error);
       return sendJson(res, 400, { ok: false, error: { message: error.message || 'Shopify在庫反映に失敗しました。' } });
+    }
+  }
+);
+
+
+// Shopify orders/paid Webhook 受信。Shopifyでの販売をPOS在庫へ反映し、進行中棚卸しの数え直しにも連動する。
+// URLに ?storeId=... を含め、署名は当該店舗の clientSecret で HMAC-SHA256 検証する。
+// orders/paid は自前の在庫set(pushInventoryToShopify)では発火しないためループしない。
+// 冪等性: stores/{storeId}/shopifyWebhookEvents/{orderId} で二重処理を防止。
+export const shopifyOrderWebhook = onRequest(
+  { region: REGION, cors: false, invoker: 'public' },
+  async (request, response) => {
+    try {
+      if (request.method !== 'POST') {
+        return response.status(405).send('Method Not Allowed');
+      }
+      const storeId = String(request.query.storeId || '').trim();
+      if (!storeId) {
+        return response.status(400).send('storeId required');
+      }
+
+      const storeRef = db.collection('stores').doc(storeId);
+      const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+      const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+      const secret = String(settings.clientSecret || '').trim();
+
+      // HMAC検証
+      const hmacHeader = String(request.get('X-Shopify-Hmac-Sha256') || '');
+      if (!secret || !hmacHeader) {
+        return response.status(401).send('unauthorized');
+      }
+      const digest = createHmac('sha256', secret).update(request.rawBody).digest('base64');
+      const a = Buffer.from(digest);
+      const b = Buffer.from(hmacHeader);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        return response.status(401).send('invalid signature');
+      }
+
+      // 在庫連携OFFなら何もしない（200で受領しShopify再送を止める）
+      if (!settings.inventorySyncEnabled) {
+        return response.status(200).send('inventory sync disabled');
+      }
+
+      const order = JSON.parse(request.rawBody.toString('utf8'));
+      const orderId = String(order.id || order.admin_graphql_api_id || '').replace(/[^A-Za-z0-9_-]/g, '_');
+
+      // 冪等性: 同一注文の二重処理を防ぐ（create が衝突したら処理済み）
+      if (orderId) {
+        const eventRef = storeRef.collection('shopifyWebhookEvents').doc(orderId);
+        try {
+          await eventRef.create({ topic: 'orders/paid', receivedAt: FieldValue.serverTimestamp() });
+        } catch (e) {
+          return response.status(200).send('already processed');
+        }
+      }
+
+      const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+      const qtyByVariantGid = new Map();
+      for (const li of lineItems) {
+        const variantId = li?.variant_id;
+        const quantity = Math.max(Number(li?.quantity || 0), 0);
+        if (!variantId || quantity <= 0) continue;
+        const gid = `gid://shopify/ProductVariant/${variantId}`;
+        qtyByVariantGid.set(gid, (qtyByVariantGid.get(gid) || 0) + quantity);
+      }
+      if (qtyByVariantGid.size === 0) {
+        return response.status(200).send('no line items');
+      }
+
+      const stocktakeSnap = await storeRef.collection('stocktakes').where('status', '==', 'in_progress').limit(1).get();
+      const activeStocktakeId = stocktakeSnap.empty ? null : stocktakeSnap.docs[0].id;
+      const RECOUNT_WINDOW_MS = 60 * 60 * 1000;
+
+      let batch = db.batch();
+      let ops = 0;
+      const commitIfNeeded = async (force = false) => {
+        if (ops === 0) return;
+        if (!force && ops < 400) return;
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      };
+
+      for (const [gid, quantity] of qtyByVariantGid) {
+        const matched = await storeRef.collection('products').where('shopifyVariantId', '==', gid).limit(1).get();
+        if (matched.empty) continue;
+        const productDoc = matched.docs[0];
+
+        batch.set(productDoc.ref, {
+          inventoryQuantity: FieldValue.increment(-quantity),
+          quantity: FieldValue.increment(-quantity),
+          inventorySyncSource: 'shopify',
+          lastShopifySoldAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        ops += 1;
+
+        if (activeStocktakeId) {
+          const itemRef = storeRef.collection('stocktakes').doc(activeStocktakeId).collection('items').doc(productDoc.id);
+          const itemSnap = await itemRef.get();
+          if (itemSnap.exists) {
+            const item = itemSnap.data() || {};
+            if (item.storefrontConfirmedAt) {
+              const confirmedMs = typeof item.storefrontConfirmedAt?.toMillis === 'function' ? item.storefrontConfirmedAt.toMillis() : 0;
+              const within = confirmedMs > 0 && (Date.now() - confirmedMs) <= RECOUNT_WINDOW_MS;
+              const patch = { storefrontShelfQuantity: FieldValue.increment(-quantity), updatedAt: FieldValue.serverTimestamp() };
+              if (within) { patch.needsRecount = true; patch.status = 'needs_recount'; }
+              batch.set(itemRef, patch, { merge: true });
+              ops += 1;
+            }
+          }
+        }
+        await commitIfNeeded();
+      }
+      await commitIfNeeded(true);
+
+      return response.status(200).send('ok');
+    } catch (error) {
+      console.error('[shopifyOrderWebhook] failed', error);
+      // 200で返してShopifyの再送ストームを避ける（エラーはログで追跡）
+      return response.status(200).send('error-logged');
     }
   }
 );
