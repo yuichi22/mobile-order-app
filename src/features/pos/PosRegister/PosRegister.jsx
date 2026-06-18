@@ -23,6 +23,7 @@ import {
 import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
+import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 
 const getJstBusinessDate = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -1857,6 +1858,23 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
 
       if (isSessionComplete) {
         void runPostPaymentCleanup();
+      }
+
+      // 棚卸し進行中なら、販売した店頭在庫を棚卸しカウントへ反映する。
+      // 店頭確定から1時間以内の販売は「数え直しリスト」に自動掲載される。
+      if (orderRetailQuantityByProductId.size > 0) {
+        void (async () => {
+          try {
+            const activeStocktake = await getActiveStocktake(storeId);
+            if (activeStocktake?.id) {
+              const soldItems = [...orderRetailQuantityByProductId.entries()]
+                .map(([productId, quantity]) => ({ productId, quantity }));
+              await applyStocktakeSaleAdjustment(storeId, activeStocktake.id, soldItems);
+            }
+          } catch (stocktakeError) {
+            console.error('棚卸し連動エラー:', stocktakeError);
+          }
+        })();
       }
 
       const issuedReceipt = null;

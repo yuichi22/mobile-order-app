@@ -232,6 +232,53 @@ export const addToRecountList = async (storeId, stocktakeId, product) => {
   }, { merge: true });
 };
 
+// 販売(POS会計/EC)時に、進行中棚卸しの店頭カウントへ販売分を反映する。
+// 店頭確定済み(storefrontConfirmedAt あり)の商品のみ対象:
+//   - storefrontShelfQuantity を販売数だけ減算してカウントを最新に保つ
+//   - 確定から recountWindowMs(既定1時間)以内の販売なら needsRecount=true(数え直しリスト入り)
+// soldItems: [{ productId, quantity }]
+export const applyStocktakeSaleAdjustment = async (
+  storeId,
+  stocktakeId,
+  soldItems = [],
+  { recountWindowMs = 60 * 60 * 1000 } = {}
+) => {
+  const result = { adjusted: 0, flaggedForRecount: 0 };
+  if (!isValidStoreId(storeId) || !stocktakeId || !Array.isArray(soldItems)) return result;
+
+  for (const sold of soldItems) {
+    const productId = String(sold?.productId || '').trim();
+    const quantity = Math.max(Number(sold?.quantity || 0), 0);
+    if (!productId || quantity <= 0) continue;
+
+    const itemRef = stocktakeItemDocRef(storeId, stocktakeId, productId);
+    const snapshot = await getDoc(itemRef);
+    if (!snapshot.exists()) continue; // 未カウント商品は対象外
+    const current = snapshot.data();
+    if (!current.storefrontConfirmedAt) continue; // 店頭未確定は対象外
+
+    const confirmedMs = typeof current.storefrontConfirmedAt?.toMillis === 'function'
+      ? current.storefrontConfirmedAt.toMillis()
+      : 0;
+    const withinWindow = confirmedMs > 0 && (Date.now() - confirmedMs) <= recountWindowMs;
+
+    const patch = {
+      storefrontShelfQuantity: increment(-quantity),
+      updatedAt: serverTimestamp()
+    };
+    if (withinWindow) {
+      patch.needsRecount = true;
+      patch.status = 'needs_recount';
+      result.flaggedForRecount += 1;
+    }
+
+    await setDoc(itemRef, patch, { merge: true });
+    result.adjusted += 1;
+  }
+
+  return result;
+};
+
 export const getStocktakeRecountItems = async (storeId, stocktakeId) => {
   if (!isValidStoreId(storeId) || !stocktakeId) return [];
 
