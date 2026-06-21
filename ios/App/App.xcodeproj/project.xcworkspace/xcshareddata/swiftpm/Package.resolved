@@ -1,5 +1,5 @@
 {
-  "originHash" : "44b3d880a855481c2e11f712010c9ad7489d114c5f76107bc173cf08003b80d8",
+  "originHash" : "5caf107c3e2b87357f9da63e8b1cb47844d03b11f3ed7b187e4f41f853516a5a",
   "pins" : [
     {
       "identity" : "capacitor-swift-pm",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "2231987d85b8b0b289320b1d0947b4ae8345cde4",
         "version" : "8.4.1"
+      }
+    },
+    {
+      "identity" : "starxpand-sdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/star-micronics/StarXpand-SDK-iOS",
+      "state" : {
+        "revision" : "37ead35af06789f03ffb34cbf08557be519edfd3",
+        "version" : "2.12.1"
       }
     }
   ],

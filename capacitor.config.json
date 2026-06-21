@@ -3,7 +3,7 @@
   "appName": "AKUTO Order",
   "webDir": "dist",
   "server": {
-    "url": "https://mobile-order-prod.web.app",
+    "url": "https://mobile-order-dev-5f7fd.web.app",
     "cleartext": false
   }
 }

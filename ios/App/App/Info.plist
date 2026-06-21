@@ -47,5 +47,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+		<string>jp.star-m.starpro</string>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>レシートプリンタ（Bluetooth）に接続して印刷するために使用します。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>同一ネットワーク上のレシートプリンタを検出・印刷するために使用します。</string>
 </dict>
 </plist>
