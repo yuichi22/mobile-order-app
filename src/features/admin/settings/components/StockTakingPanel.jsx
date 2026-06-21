@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Archive } from 'lucide-react';
 
+import { getAuth } from 'firebase/auth';
+
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import {
   finalizeStocktake,
@@ -9,6 +11,7 @@ import {
   subscribeToActiveStocktake,
   subscribeToStocktakeItems
 } from '../../../inventory/services/stocktakeDataService';
+import { pushInventoryToShopify } from '../../../store/services/storeDataService';
 
 const formatDateTimeText = (value) => {
   if (!value) return '-';
@@ -106,6 +109,25 @@ const StockTakingPanel = ({ storeId }) => {
     try {
       const results = await finalizeStocktake(storeId, activeStocktake.id);
       setFinalizeResults(results);
+
+      // 棚卸し確定で在庫が変わった商品を Shopify へ push（在庫連携ON=prodのみ で実反映。サーバ側でゲート）。
+      // 確定差分が最大のドリフト源なのでここで塞ぐ。fire-and-forget・200件ずつ。
+      (async () => {
+        try {
+          const changedIds = (Array.isArray(results) ? results : [])
+            .filter((r) => Number(r?.beforeQuantity) !== Number(r?.finalQuantity))
+            .map((r) => r.productId)
+            .filter(Boolean);
+          if (changedIds.length === 0) return;
+          const idToken = await getAuth().currentUser?.getIdToken?.();
+          for (let i = 0; i < changedIds.length; i += 200) {
+            const chunk = changedIds.slice(i, i + 200);
+            await pushInventoryToShopify({ storeId, productIds: chunk, idToken });
+          }
+        } catch (pushError) {
+          console.warn('failed to push finalized inventory to Shopify', pushError);
+        }
+      })();
     } catch (error) {
       console.error('failed to finalize stocktake', error);
       setFinalizeError(`棚卸し終了処理に失敗しました: ${error?.message || error}`);

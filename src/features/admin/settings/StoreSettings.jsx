@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   Boxes,
@@ -354,6 +354,7 @@ const EcIntegrationPanel = ({
         settings={productMaster?.shopifySettings}
         onSave={productMaster?.saveShopifySettings}
         onSyncProductLinks={productMaster?.syncShopifyProductLinks}
+        onReconcileInventory={productMaster?.reconcileShopifyInventory}
         onSaved={onSaved}
       />
     );
@@ -1791,7 +1792,7 @@ const CsvImportWorkflowPanel = ({
 );
 
 
-const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10, onSaved }) => {
+const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10, onSaved, rememberedTabsRef }) => {
   const page = POS_DUMMY_PAGES[item?.id] || {
     title: item?.label || '準備中',
     eyebrow: 'Coming Soon',
@@ -1801,8 +1802,19 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
     ]
   };
   const Icon = item?.icon || Package;
-  const [activeDummyTab, setActiveDummyTab] = useState(page.tabs[0]?.id || 'overview');
+  // item ごとに記憶した内部タブがあれば復元（検索→商品マスター→×で復帰した時に開いていたタブまで戻す）。
+  const resolveRememberedTab = (currentItemId) => {
+    const remembered = rememberedTabsRef?.current?.[currentItemId];
+    return remembered && page.tabs.some((tab) => tab.id === remembered)
+      ? remembered
+      : (page.tabs[0]?.id || 'overview');
+  };
+  const [activeDummyTab, setActiveDummyTab] = useState(() => resolveRememberedTab(item?.id));
   const activeTab = page.tabs.find((tab) => tab.id === activeDummyTab) || page.tabs[0];
+  const selectDummyTab = (tabId) => {
+    setActiveDummyTab(tabId);
+    if (rememberedTabsRef?.current && item?.id) rememberedTabsRef.current[item.id] = tabId;
+  };
 
   const renderProductManagementPanel = () => {
     if (item?.id === 'shopifyIntegration' || item?.id === 'ecIntegration') {
@@ -2038,7 +2050,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
   const productManagementPanel = renderProductManagementPanel();
 
   useEffect(() => {
-    setActiveDummyTab(page.tabs[0]?.id || 'overview');
+    setActiveDummyTab(resolveRememberedTab(item?.id));
   }, [item?.id]);
 
   return (
@@ -2078,7 +2090,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveDummyTab(tab.id)}
+                onClick={() => selectDummyTab(tab.id)}
                 className={`rounded-xl px-4 py-3 text-sm font-black transition-all ${
                   isActive
                     ? 'bg-white text-blue-700 shadow-sm'
@@ -2829,6 +2841,29 @@ export const StoreSettings = ({
     onPosSettingsSubTabChange(settingsMode === 'pos' ? activeSubTab : null);
   }, [activeSubTab, onPosSettingsSubTabChange, settingsMode]);
 
+  // POS設定ページ(PosDummyTabbedPage)の内部タブを item ごとに記憶し、再マウント時に復元する。
+  // (検索→商品マスター→×で復帰した時、開いていたタブまで戻すため)
+  const posDummyTabsRef = useRef({});
+
+  // POSモードで検索キーワードが入ったら(手入力・スキャン問わず)商品マスター画面へ移動して結果表示。
+  // ×でクリアしたら、検索で移動する前にいた画面へ戻す。
+  const subTabBeforeSearchRef = useRef(null);
+  useEffect(() => {
+    if (settingsMode !== 'pos') return;
+    const hasKeyword = Boolean(posProductKeyword && posProductKeyword.trim());
+
+    if (hasKeyword) {
+      if (subTab !== 'products' && canAccessSettingsSection(normalizedRole, 'products')) {
+        subTabBeforeSearchRef.current = subTab; // 移動前の画面を記憶
+        setSubTab('products');
+      }
+    } else if (subTab === 'products' && subTabBeforeSearchRef.current) {
+      const back = subTabBeforeSearchRef.current;
+      subTabBeforeSearchRef.current = null;
+      setSubTab(back); // クリアで元の画面へ復帰
+    }
+  }, [posProductKeyword, settingsMode, subTab, normalizedRole]);
+
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
   const activeMenuItem = availableMenuItems.find((item) => item.id === activeSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
@@ -2906,7 +2941,9 @@ export const StoreSettings = ({
   };
 
   return (
-    <div className="fixed inset-0 z-0 flex bg-gray-50 font-sans text-gray-800">
+    <div
+      className="settings-shell fixed inset-0 z-0 flex bg-gray-50 font-sans text-gray-800"
+    >
       <SaveCompleteOverlay show={saveCompleteVisible} />
 
       {toast.show && (
@@ -2917,7 +2954,8 @@ export const StoreSettings = ({
         />
       )}
 
-      <aside className="flex h-full w-64 flex-shrink-0 flex-col bg-slate-900 text-white shadow-2xl">
+      <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-white shadow-2xl">
+        <div className="settings-sidebar-inner flex h-full w-64 min-w-[16rem] flex-col">
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
@@ -2990,6 +3028,7 @@ export const StoreSettings = ({
             <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
             <span className="text-sm font-bold">ログアウト</span>
           </button>
+        </div>
         </div>
       </aside>
 
@@ -3106,6 +3145,7 @@ export const StoreSettings = ({
                 storeId={storeId}
                 defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
                 onSaved={showSaveComplete}
+                rememberedTabsRef={posDummyTabsRef}
               />
             )}
 

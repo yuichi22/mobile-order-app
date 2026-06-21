@@ -897,7 +897,7 @@ const handleClearLimitedQuantity = async (event, item) => {
   }
 
   return (
-    <div className="w-full animate-in fade-in duration-300 pb-20">
+    <div className="w-full pb-20">
       {editingItem ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
           <div className="flex h-24 items-center justify-between border-b bg-orange-500 px-8 text-white">

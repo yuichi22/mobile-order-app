@@ -4389,6 +4389,217 @@ export const shopifyInventoryWebhook = onRequest(
 );
 
 
+// ── 在庫リコンサイル（差分レポート） ───────────────────────────────────
+// 全紐付け商品(shopifyInventoryItemId)について Firestore現在庫 と Shopify on_hand を突合し、
+// 不一致レポートを作成する。**自動修復はしない**(人が見て判断)。初期&定期の安全網。
+// Shopify on_hand はバリアントをページングで一括取得(スロットル時はバックオフ)。
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const callShopifyGraphqlWithRetry = async (args, maxRetries = 6) => {
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await callShopifyGraphql(args);
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || '');
+      if (!/throttle/i.test(message)) throw error; // スロットル以外は即時失敗
+      await sleepMs(Math.min(8000, 1000 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+};
+
+// 全バリアントを走査し inventoryItem gid → on_hand合計(対象ロケーション) のMapを作る。
+const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericSet }) => {
+  const onHandByItemGid = new Map();
+  const query = `query($cursor: String) {
+    productVariants(first: 50, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        inventoryItem {
+          id
+          inventoryLevels(first: 10) {
+            nodes {
+              location { id }
+              quantities(names: ["on_hand"]) { name quantity }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  let cursor = null;
+  let pages = 0;
+  do {
+    const data = await callShopifyGraphqlWithRetry({ shopDomain, accessToken, query, variables: { cursor } });
+    const connection = data.productVariants || {};
+    const nodes = connection.nodes || [];
+    for (const node of nodes) {
+      const itemGid = String(node?.inventoryItem?.id || '').trim();
+      if (!itemGid) continue;
+      const levels = node?.inventoryItem?.inventoryLevels?.nodes || [];
+      let total = 0;
+      for (const level of levels) {
+        const locNum = String(level?.location?.id || '').trim().split('/').pop();
+        if (locationNumericSet.size && (!locNum || !locationNumericSet.has(locNum))) continue;
+        const onHand = (level?.quantities || []).find((q) => q.name === 'on_hand');
+        total += onHand ? Number(onHand.quantity || 0) : 0;
+      }
+      onHandByItemGid.set(itemGid, total);
+    }
+    cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+    pages += 1;
+    if (cursor) await sleepMs(500); // ペース調整(スロットル回避)
+  } while (cursor && pages < 1000);
+
+  return onHandByItemGid;
+};
+
+const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '' }) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+
+  const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+
+  const locationNumericSet = new Set(
+    (Array.isArray(settings.locationIds) && settings.locationIds.length
+      ? settings.locationIds
+      : (settings.locationId ? [settings.locationId] : []))
+      .map((l) => String(l || '').trim().split('/').pop())
+      .filter(Boolean)
+  );
+
+  const onHandByItemGid = await buildShopifyOnHandMap({ shopDomain, accessToken, locationNumericSet });
+
+  // 紐付け済み(shopifyInventoryItemId が非空文字列)の商品のみ突合
+  const linkedSnap = await storeRef.collection('products').where('shopifyInventoryItemId', '>', '').get();
+
+  const MISMATCH_CAP = 1000;
+  const mismatches = [];
+  let totalLinked = 0;
+  let matched = 0;
+  let mismatchedCount = 0;
+  let missingInShopify = 0;
+
+  linkedSnap.forEach((docSnap) => {
+    const product = docSnap.data() || {};
+    const itemGid = String(product.shopifyInventoryItemId || '').trim();
+    if (!itemGid) return;
+    totalLinked += 1;
+
+    const pos = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+    const hasShopify = onHandByItemGid.has(itemGid);
+    const shopify = hasShopify ? Number(onHandByItemGid.get(itemGid) || 0) : null;
+
+    if (!hasShopify) {
+      missingInShopify += 1;
+    } else if (pos === shopify) {
+      matched += 1;
+      return;
+    } else {
+      mismatchedCount += 1;
+    }
+
+    if (mismatches.length < MISMATCH_CAP) {
+      mismatches.push({
+        productId: docSnap.id,
+        name: product.name || '',
+        sku: product.sku || product.productCode || '',
+        barcode: product.barcode || '',
+        inventoryItemId: itemGid,
+        pos,
+        shopify: hasShopify ? shopify : null,
+        diff: hasShopify ? pos - shopify : null,
+        reason: hasShopify ? 'mismatch' : 'missingInShopify'
+      });
+    }
+  });
+
+  const summary = {
+    at: FieldValue.serverTimestamp(),
+    source,
+    triggeredBy: triggeredBy || null,
+    totalLinked,
+    matched,
+    mismatched: mismatchedCount,
+    missingInShopify,
+    reportedRows: mismatches.length,
+    truncated: (mismatchedCount + missingInShopify) > mismatches.length,
+    shopifyVariantsScanned: onHandByItemGid.size,
+    autoResolved: false,
+    mismatches
+  };
+
+  const reportRef = await storeRef.collection('inventoryReconcileReports').add(summary);
+
+  return {
+    reportId: reportRef.id,
+    totalLinked,
+    matched,
+    mismatched: mismatchedCount,
+    missingInShopify,
+    reportedRows: mismatches.length,
+    truncated: summary.truncated,
+    shopifyVariantsScanned: onHandByItemGid.size
+  };
+};
+
+// 手動トリガー(EC連携「差分を確認」ボタン)。読み取りのみで Shopify には書き込まない。
+export const reconcileShopifyInventory = onRequest(
+  { region: REGION, cors: true, timeoutSeconds: 540, memory: '1GiB' },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+      const authUser = await verifyRequestUser(req);
+      const { storeId } = parseJsonBody(req);
+      const normalizedStoreId = String(storeId || '').trim();
+      if (!normalizedStoreId) {
+        return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
+      }
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const result = await runShopifyInventoryReconcile({
+        storeId: normalizedStoreId,
+        source: 'manual',
+        triggeredBy: authUser.uid
+      });
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      console.error('[reconcileShopifyInventory] failed', error);
+      return sendJson(res, 400, { ok: false, error: { message: error.message || '在庫の差分確認に失敗しました。' } });
+    }
+  }
+);
+
+// 日次の自動リコンサイル。inventorySyncEnabled=true の店舗(=prodのみ想定)だけ実行する。
+export const scheduledShopifyInventoryReconcile = onSchedule(
+  { region: REGION, schedule: 'every day 03:00', timeZone: 'Asia/Tokyo', timeoutSeconds: 540, memory: '1GiB' },
+  async () => {
+    try {
+      const settingsSnap = await db.collectionGroup('settings').where('inventorySyncEnabled', '==', true).get();
+      for (const docSnap of settingsSnap.docs) {
+        if (docSnap.id !== 'shopify') continue;
+        const storeId = docSnap.ref.parent.parent?.id;
+        if (!storeId) continue;
+        try {
+          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled' });
+          console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...result });
+        } catch (error) {
+          console.error('[scheduledShopifyInventoryReconcile] store failed', { storeId, message: error?.message });
+        }
+      }
+    } catch (error) {
+      console.error('[scheduledShopifyInventoryReconcile] failed', error);
+    }
+  }
+);
+
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);
@@ -6285,6 +6496,42 @@ const findWorkerHeaderIndex = (headers = [], candidates = []) => {
   return headers.findIndex((header) => normalizedCandidates.includes(String(header || '').trim().toLowerCase()));
 };
 
+// クライアントUIの項目ID(fieldKey)と、ワーカーのindexキーの差異を吸収する別名。
+const WORKER_INDEX_KEY_ALIASES = {
+  priceTaxExcluded: ['priceTaxExcluded', 'price'],
+  price: ['price', 'priceTaxExcluded'],
+  inventoryQuantity: ['inventoryQuantity', 'stock'],
+  stock: ['stock', 'inventoryQuantity']
+};
+
+// 手動の列マッピング(columnMapping=[{columnIndex, fieldKey}])が指定された場合、
+// 自動判定(indexes)を破棄し、手動指定を正として indexes を再構築する(=手動マッピング優先)。
+// 手動指定の無いフィールドは -1(未取込)。自動判定はそのまま、columnMapping 未指定時のみ使われる。
+const applyManualColumnMappingToIndexes = (indexes = {}, manualColumnMapping = null) => {
+  if (!Array.isArray(manualColumnMapping) || manualColumnMapping.length === 0) return indexes;
+
+  const indexKeys = new Set(Object.keys(indexes));
+  const next = {};
+  indexKeys.forEach((key) => { next[key] = -1; });
+
+  manualColumnMapping.forEach((entry) => {
+    const fieldKey = String(entry?.fieldKey || '').trim();
+    const columnIndex = Number(entry?.columnIndex);
+    if (!fieldKey || !Number.isInteger(columnIndex) || columnIndex < 0) return;
+
+    let targetKey = null;
+    if (indexKeys.has(fieldKey)) {
+      targetKey = fieldKey;
+    } else {
+      const aliases = WORKER_INDEX_KEY_ALIASES[fieldKey] || [];
+      targetKey = aliases.find((alias) => indexKeys.has(alias)) || null;
+    }
+    if (targetKey) next[targetKey] = columnIndex;
+  });
+
+  return next;
+};
+
 const getWorkerCell = (row = [], index = -1) => {
   if (index < 0) return '';
   return normalizeWorkerCell(row[index]);
@@ -6306,18 +6553,22 @@ const normalizeWorkerTaxRateType = (value) => (
   ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : ''
 );
 
-const resolveWorkerMasterTaxRate = (item = {}, fallbackDefaultTaxRate = 10) => {
-  const normalizedDefaultTaxRate = Number(fallbackDefaultTaxRate) === 8 ? 8 : 10;
+// そのマスター(売場/グループ/カテゴリー)が「自前で持つ税率」を返す。
+// 'inherit'(親/既定を継承) や、型も明示税率も無い場合は null を返し、上位/既定へフォールバックさせる。
+// ※ 'inherit' の場合に保存されている taxRate:0 は継承プレースホルダなので採用しない(これが0%バグの原因だった)。
+const resolveWorkerMasterOwnTaxRate = (item = {}) => {
   const taxRateType = normalizeWorkerTaxRateType(item?.taxRateType);
 
   if (taxRateType === 'standard') return 10;
   if (taxRateType === 'reduced') return 8;
   if (taxRateType === 'taxFree') return 0;
+  if (taxRateType === 'inherit') return null;
 
+  // 型未設定: 明示税率があればそれを採用(0も明示値として有効)。
   const explicitTaxRate = toWorkerNumberOrNull(item?.taxRate);
   if (explicitTaxRate !== null && explicitTaxRate !== undefined) return explicitTaxRate;
 
-  return normalizedDefaultTaxRate;
+  return null;
 };
 
 const findWorkerMasterById = (items = [], id = '') => {
@@ -6352,29 +6603,25 @@ const resolveWorkerProductTaxRate = ({
     || findWorkerMasterById(productCategoryGroups, matchedCategory?.groupId || matchedCategory?.categoryGroupId)
     || findWorkerMasterByName(productCategoryGroups, matchedCategory?.groupName || matchedCategory?.categoryGroupName);
 
-  if (matchedSubCategory?.taxRateType !== undefined || matchedSubCategory?.taxRate !== undefined) {
-    return resolveWorkerMasterTaxRate(matchedSubCategory, defaultTaxRate);
-  }
-
-  if (matchedCategory?.taxRateType !== undefined || matchedCategory?.taxRate !== undefined) {
-    return resolveWorkerMasterTaxRate(matchedCategory, defaultTaxRate);
-  }
-
-  if (matchedGroup?.taxRateType !== undefined || matchedGroup?.taxRate !== undefined) {
-    return resolveWorkerMasterTaxRate(matchedGroup, defaultTaxRate);
+  // サブカテゴリー→カテゴリー→グループ の順に「自前の税率」を探し、最初に見つかったものを採用。
+  // 'inherit'(継承)の階層はスキップして上位へ。どこにも無ければ店舗既定。
+  for (const matched of [matchedSubCategory, matchedCategory, matchedGroup]) {
+    if (!matched) continue;
+    const ownTaxRate = resolveWorkerMasterOwnTaxRate(matched);
+    if (ownTaxRate !== null && ownTaxRate !== undefined) return ownTaxRate;
   }
 
   return Number(defaultTaxRate) === 8 ? 8 : 10;
 };
 
-const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
+const buildProductCsvFunctionPreviewForWorker = (rows = [], manualColumnMapping = null) => {
   const headers = Array.isArray(rows?.[0])
     ? rows[0].map(normalizeWorkerHeader)
     : [];
 
   const dataRows = Array.isArray(rows) && rows.length > 1 ? rows.slice(1) : [];
 
-  const indexes = {
+  let indexes = {
     sku: findWorkerHeaderIndex(headers, ['sku', '品番', 'productCode', '商品コード']),
     barcode: findWorkerHeaderIndex(headers, ['barcode', 'バーコード', 'jan', 'JAN']),
     name: findWorkerHeaderIndex(headers, ['name', '商品名', 'productName']),
@@ -6386,6 +6633,7 @@ const buildProductCsvFunctionPreviewForWorker = (rows = []) => {
     price: findWorkerHeaderIndex(headers, ['price', 'sellPrice', 'sellingPrice', '売価', '販売価格', 'Variant Price']),
     stock: findWorkerHeaderIndex(headers, ['stock', 'stockQty', 'quantity', 'inventoryQuantity', '在庫', '在庫数'])
   };
+  indexes = applyManualColumnMappingToIndexes(indexes, manualColumnMapping);
 
   const warnings = [];
   const groupKeys = new Set();
@@ -6481,15 +6729,15 @@ const toWorkerNumberOrNull = (value) => {
 const buildWorkerGroupKey = ({
   productGroupId,
   productGroupName,
-  categoryGroup,
-  category,
-  subCategory
+  name
 }) => {
   if (productGroupId) return `id:${productGroupId}`;
   if (productGroupName) return `name:${productGroupName}`;
-  return ['category', categoryGroup, category, subCategory]
-    .map((value) => String(value || '').trim())
-    .join('|');
+  // 明示的なグループ指定が無い場合は「商品名」でグループ化する。
+  // (=同じ商品名のものだけが同一グループ。商品名が違えば別グループ=実質単独)
+  const normalizedName = String(name || '').trim().toLowerCase();
+  if (normalizedName) return `pname:${normalizedName}`;
+  return '';
 };
 
 const buildWorkerProductKey = ({
@@ -6508,13 +6756,13 @@ const buildWorkerProductKey = ({
     .join('|');
 };
 
-const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
+const buildProductCsvFunctionWritePlanForWorker = (rows = [], manualColumnMapping = null) => {
   const headers = Array.isArray(rows?.[0])
     ? rows[0].map(normalizeWorkerHeader)
     : [];
   const dataRows = Array.isArray(rows) && rows.length > 1 ? rows.slice(1) : [];
 
-  const indexes = {
+  let indexes = {
     productGroupId: findWorkerHeaderIndex(headers, ['productGroupId', '商品グループID', 'グループID']),
     productGroupRole: findWorkerHeaderIndex(headers, ['productGroupRole', 'グループ役割']),
     productGroupName: findWorkerHeaderIndex(headers, ['productGroupName', '商品グループ名', 'グループ名']),
@@ -6542,6 +6790,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     shopifyVariantId: findWorkerHeaderIndex(headers, ['shopifyVariantId']),
     shopifyInventoryItemId: findWorkerHeaderIndex(headers, ['shopifyInventoryItemId'])
   };
+  indexes = applyManualColumnMappingToIndexes(indexes, manualColumnMapping);
 
   const groupMap = new Map();
   const productCandidates = [];
@@ -6591,9 +6840,7 @@ const buildProductCsvFunctionWritePlanForWorker = (rows = []) => {
     const groupKey = buildWorkerGroupKey({
       productGroupId,
       productGroupName,
-      categoryGroup,
-      category,
-      subCategory
+      name
     });
 
     if (groupKey && !groupMap.has(groupKey)) {
@@ -6830,6 +7077,13 @@ const executeProductCsvFunctionWritesForWorker = async ({
 
   for (const group of groupCandidates) {
     const preferredId = String(group.sourceProductGroupId || '').trim();
+
+    // 同じ商品名が2件以上ある場合だけグループを作る。単独(1件)はグループにしない。
+    // ただしCSVで明示的に商品グループIDが指定されている場合はその意思を尊重する。
+    if (Number(group.productCount || 0) < 2 && !preferredId) {
+      continue;
+    }
+
     const groupRef = preferredId
       ? storeRef.collection('productGroups').doc(preferredId)
       : storeRef.collection('productGroups').doc();
@@ -6863,6 +7117,8 @@ const executeProductCsvFunctionWritesForWorker = async ({
     await commitIfNeeded();
   }
 
+  const assignedPrimaryGroupIds = new Set();
+
   for (const product of productCandidates) {
     const existingRef = getExistingProductRefForWorker({
       existingProductRefs,
@@ -6870,9 +7126,23 @@ const executeProductCsvFunctionWritesForWorker = async ({
     });
 
     const productRef = existingRef || storeRef.collection('products').doc();
+    // 単独商品(同名が無い)は groupIdByKey に無いので productGroupId='' = 非グループになる。
     const productGroupId = groupIdByKey.get(product.groupKey)
       || product.sourceProductGroupId
       || '';
+
+    // グループ内は先頭をprimary・以降をvariantに。単独商品は従来どおりprimary(=非グループ)。
+    let resolvedProductGroupRole;
+    if (productGroupId) {
+      if (assignedPrimaryGroupIds.has(productGroupId)) {
+        resolvedProductGroupRole = product.productGroupRole || 'variant';
+      } else {
+        resolvedProductGroupRole = product.productGroupRole || 'primary';
+        assignedPrimaryGroupIds.add(productGroupId);
+      }
+    } else {
+      resolvedProductGroupRole = product.productGroupRole || 'primary';
+    }
 
     const searchKeywords = buildWorkerSearchKeywords([
       product.name,
@@ -6921,7 +7191,7 @@ const executeProductCsvFunctionWritesForWorker = async ({
       groupCode: product.groupCode || '',
       productGroupId,
       productGroupName: product.productGroupName || '',
-      productGroupRole: product.productGroupRole || 'primary',
+      productGroupRole: resolvedProductGroupRole,
       productType: '',
       size: product.size || '',
       colorName: product.colorName || '',
@@ -7040,9 +7310,11 @@ export const processProductCsvImportJob = onDocumentWritten(
       const [buffer] = await getStorage().bucket().file(storagePath).download();
       const csvText = buffer.toString('utf8');
       const rows = parseProductCsvTextForWorker(csvText);
+      // 手動の列マッピング(あれば優先)。無ければ各ビルダーが従来の自動判定を使う。
+      const manualColumnMapping = Array.isArray(after.columnMapping) ? after.columnMapping : null;
       const summary = countMappedProductCsvRowsForWorker(rows);
-      const functionPreview = buildProductCsvFunctionPreviewForWorker(rows);
-      const functionWritePlan = buildProductCsvFunctionWritePlanForWorker(rows);
+      const functionPreview = buildProductCsvFunctionPreviewForWorker(rows, manualColumnMapping);
+      const functionWritePlan = buildProductCsvFunctionWritePlanForWorker(rows, manualColumnMapping);
 
       if (after.executeProductWrites === true) {
         await jobRef.set({

@@ -171,6 +171,7 @@ const runProductCsvImportJob = async ({
   fileName,
   file,
   preview,
+  mappingDraft,
   onProgress
 }) => {
   const normalizedStoreId = String(storeId || '').trim();
@@ -252,6 +253,14 @@ const runProductCsvImportJob = async ({
     await uploadedBatch.commit();
 
     if (PRODUCT_CSV_IMPORT_PROCESSING_MODE === 'function') {
+      // 手動の列マッピングをジョブに添付する。ワーカーは columnMapping があれば
+      // それを優先し、無ければ従来の自動判定を使う。
+      const columnMapping = Array.isArray(mappingDraft)
+        ? mappingDraft
+          .filter((mapping) => mapping && mapping.fieldKey)
+          .map((mapping) => ({ columnIndex: mapping.columnIndex, fieldKey: mapping.fieldKey }))
+        : [];
+
       const queuedBatch = writeBatch(db);
       queuedBatch.set(importJobRef, {
         status: 'queued',
@@ -260,6 +269,7 @@ const runProductCsvImportJob = async ({
         executeProductWrites: PRODUCT_CSV_IMPORT_EXECUTE_PRODUCT_WRITES,
         functionReadOnly: false,
         functionWritePlanOnly: false,
+        columnMapping,
         queuedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -739,6 +749,7 @@ const ProductCsvImportPanel = ({
           fileName,
           file: selectedFile,
           preview,
+          mappingDraft,
           onProgress: (progress) => setImportProgress(progress)
         });
 

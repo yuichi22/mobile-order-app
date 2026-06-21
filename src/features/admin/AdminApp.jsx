@@ -11,7 +11,7 @@ import {
   ShoppingBag,
   Utensils,
   X} from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import { useStoreSettings } from '../store/hooks';
 
@@ -19,10 +19,12 @@ import { useAuth } from '../../app/providers/useAuth';
 import { auth, db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import NotificationToast from '../../shared/components/feedback/NotificationToast';
-import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
 import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
+import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
+import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
+import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import {
   canAccessAdminTab,
   canAccessAnalytics,
@@ -179,6 +181,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const showRegisterModeToggle = activeAdminTab === 'pos' || activeAdminTab === 'settings';
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing' || activeAdminTab === 'analytics';
 
+  // POSモードの設定画面ではどの画面にいてもバーコード読取を捕捉し、右上検索にセット
+  // →(StoreSettings側で)商品マスターへ移動して検索結果を表示する。
+  useGlobalBarcodeScanner({
+    active: activeAdminTab === 'settings' && registerMode === 'pos',
+    onScan: (value) => setPosSettingsProductKeyword(normalizeScannedCode(value))
+  });
+
   useEffect(() => {
     if (!storeId) return undefined;
 
@@ -195,8 +204,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     if (!user || !storeId || activeAdminTab !== 'pos') return undefined;
 
     const sessionsCollectionRef = collection(db, 'stores', storeId, 'sessions');
+    // 表示に使うのは status==='active'（開いている卓）のみ。全履歴(paid/idle/archived等)を
+    // 読み込むとレジ復帰のたびに肥大化しもたつくため、active だけを購読する。
+    const activeSessionsQuery = query(sessionsCollectionRef, where('status', '==', 'active'));
 
-    const unsubscribe = onSnapshot(sessionsCollectionRef, (snapshot) => {
+    const unsubscribe = onSnapshot(activeSessionsQuery, (snapshot) => {
       const allSessions = snapshot.docs
         .map((sessionDoc) => ({
           id: sessionDoc.id,
@@ -315,8 +327,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
     try {
       printableToast = await ensurePaymentResultMobileReceipt();
-      const payload = buildPosReceiptPrintPayload(printableToast, storeSettings);
-      await printReceiptViaBridge(payload, storeSettings);
+      await issueReceipt({
+        data: printableToast,
+        settings: storeSettings,
+        mode: resolveReceiptMode(printableToast, registerMode)
+      });
       return;
     } catch (error) {
       console.error('[admin pos payment result receipt print error]', error);
@@ -399,8 +414,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       )}
 
       {showAdminHeader && (
-        <header className="sticky top-0 z-40 h-[72px] w-full border-b border-gray-100 bg-white/95 px-5 shadow-sm backdrop-blur-md print:hidden">
-          <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-gray-100 bg-white/95 px-5 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur-md print:hidden">
+          <div className="grid min-h-[72px] grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="flex min-w-0 items-center gap-3">
               {canViewSettings && (
                 <button

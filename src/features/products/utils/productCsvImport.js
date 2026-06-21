@@ -291,18 +291,20 @@ const normalizeProductCsvTaxRateType = (value) => (
   ['inherit', 'standard', 'reduced', 'taxFree'].includes(value) ? value : ''
 );
 
-const resolveProductCsvMasterTaxRate = (item = {}, fallbackDefaultTaxRate = 10) => {
-  const normalizedDefaultTaxRate = Number(fallbackDefaultTaxRate) === 8 ? 8 : 10;
+// そのマスターが「自前で持つ税率」を返す。'inherit'(親/既定を継承)や未設定は null を返し、上位/既定へフォールバックさせる。
+// ('inherit' 時に保存される taxRate:0 は継承プレースホルダなので採用しない)
+const resolveProductCsvMasterOwnTaxRate = (item = {}) => {
   const taxRateType = normalizeProductCsvTaxRateType(item?.taxRateType);
 
   if (taxRateType === 'standard') return 10;
   if (taxRateType === 'reduced') return 8;
   if (taxRateType === 'taxFree') return 0;
+  if (taxRateType === 'inherit') return null;
 
   const explicitTaxRate = Number(item?.taxRate);
   if (Number.isFinite(explicitTaxRate)) return explicitTaxRate;
 
-  return normalizedDefaultTaxRate;
+  return null;
 };
 
 const resolveProductCsvTaxRate = ({
@@ -319,16 +321,11 @@ const resolveProductCsvTaxRate = ({
 
   if (csvTaxRate !== null && csvTaxRate !== undefined) return csvTaxRate;
 
-  if (matchedSubCategory?.taxRateType !== undefined || matchedSubCategory?.taxRate !== undefined) {
-    return resolveProductCsvMasterTaxRate(matchedSubCategory, defaultTaxRate);
-  }
-
-  if (matchedCategory?.taxRateType !== undefined || matchedCategory?.taxRate !== undefined) {
-    return resolveProductCsvMasterTaxRate(matchedCategory, defaultTaxRate);
-  }
-
-  if (matchedGroup?.taxRateType !== undefined || matchedGroup?.taxRate !== undefined) {
-    return resolveProductCsvMasterTaxRate(matchedGroup, defaultTaxRate);
+  // サブカテゴリー→カテゴリー→グループ の順に自前税率を探す。'inherit' はスキップして上位/既定へ。
+  for (const matched of [matchedSubCategory, matchedCategory, matchedGroup]) {
+    if (!matched) continue;
+    const ownTaxRate = resolveProductCsvMasterOwnTaxRate(matched);
+    if (ownTaxRate !== null && ownTaxRate !== undefined) return ownTaxRate;
   }
 
   return Number(defaultTaxRate) === 8 ? 8 : 10;

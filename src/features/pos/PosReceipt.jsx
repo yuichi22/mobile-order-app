@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle, FileText, Printer } from 'lucide-react';
-import { printReceiptViaBridge } from '../../shared/api/printBridge';
-import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
+import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getIdToken } from 'firebase/auth';
 import { auth } from '../../shared/api/firebase/client';
 
@@ -79,14 +78,14 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
 
   const handlePrint = async () => {
     try {
-      const payload = buildPosReceiptPrintPayload({
+      const receiptData = {
         ...data,
         receiptId: issuedReceipt.receiptId,
         receiptNo: issuedReceipt.receiptNo,
         issueReceipt: Boolean(issuedReceipt.receiptNo),
         recipientName
-      }, settings);
-      await printReceiptViaBridge(payload, settings);
+      };
+      await issueReceipt({ data: receiptData, settings, mode: resolveReceiptMode(receiptData) });
     } catch (error) {
       console.error('[pos receipt print error]', error);
 

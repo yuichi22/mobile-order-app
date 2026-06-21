@@ -40,3 +40,8 @@ body {
   animation: cross-sell-tab-nudge 2.2s ease-in-out infinite;
   will-change: transform;
 }
+
+/* 設定サイドバーの幅。開閉アニメーションは現場端末でのもたつき切り分けのため一旦無効化。 */
+.settings-sidebar {
+  width: 16rem;
+}

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Calculator, Check, ChevronLeft, Minus, Package, Plus, RotateCcw, ShoppingBag, Store, Trash2, User, Utensils } from 'lucide-react';
+import { normalizeScannedCode } from '../../../../shared/utils/halfWidth';
 import {
   formatOrderCustomerLabel,
   groupOrdersByCustomer
@@ -402,7 +403,7 @@ export const PosRegisterLeft = ({
 
           <input
             value={orderRetailKeyword}
-            onChange={(event) => setOrderRetailKeyword?.(event.target.value)}
+            onChange={(event) => setOrderRetailKeyword?.(normalizeScannedCode(event.target.value))}
             placeholder="商品名 / 品番 / バーコードで検索"
             className="mb-3 h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
           />

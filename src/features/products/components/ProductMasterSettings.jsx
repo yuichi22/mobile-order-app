@@ -22,7 +22,9 @@ import {
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import { db } from '../../../shared/api/firebase/client';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory } from '../../store/services/storeDataService';
+import { normalizeScannedCode } from '../../../shared/utils/halfWidth';
+import { getAuth } from 'firebase/auth';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify } from '../../store/services/storeDataService';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -2323,10 +2325,22 @@ const ProductMasterTable = ({
     setInventoryAdjustSaving(true);
 
     try {
-      await adjustProductInventory(storeId, inventoryAdjustModalRow.id, {
+      const adjustedProductId = inventoryAdjustModalRow.id;
+      await adjustProductInventory(storeId, adjustedProductId, {
         quantity: afterQuantity,
         note: inventoryAdjustNote.trim()
       });
+
+      // 手動在庫調整も Shopify へ push（在庫連携ON=prodのみ で実反映。サーバ側でゲート）。
+      // ドリフト源を塞ぐため fire-and-forget。失敗しても在庫調整自体は成功扱い。
+      (async () => {
+        try {
+          const idToken = await getAuth().currentUser?.getIdToken?.();
+          await pushInventoryToShopify({ storeId, productIds: [adjustedProductId], idToken });
+        } catch (pushError) {
+          console.warn('failed to push adjusted inventory to Shopify', pushError);
+        }
+      })();
 
       rememberSavedProduct({
         ...inventoryAdjustModalRow,
@@ -2544,7 +2558,10 @@ const ProductMasterTable = ({
                 }
               }}
               value={row.sku || row.productCode}
-              onChange={(value) => update({ sku: value, productCode: value })}
+              onChange={(value) => {
+                const code = normalizeScannedCode(value);
+                update({ sku: code, productCode: code });
+              }}
               onKeyDown={handleSkuFieldKeyDown('sku')}
               onFocus={handleSkuFieldFocus('sku')}
               placeholder="品番"
@@ -2556,7 +2573,7 @@ const ProductMasterTable = ({
             <TableTextInput
               ref={registerSkuFieldRef('barcode')}
               value={row.barcode}
-              onChange={(value) => update({ barcode: value })}
+              onChange={(value) => update({ barcode: normalizeScannedCode(value) })}
               onKeyDown={handleSkuFieldKeyDown('barcode')}
               onFocus={handleSkuFieldFocus('barcode')}
               placeholder="バーコード"
@@ -3296,12 +3313,32 @@ export const ShopifySettingsPanel = ({
   settings,
   onSave,
   onSyncProductLinks,
+  onReconcileInventory,
   onSaved
 }) => {
   const [syncStatuses, setSyncStatuses] = useState(['ACTIVE']);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [syncError, setSyncError] = useState('');
+
+  const [reconcileRunning, setReconcileRunning] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState(null);
+  const [reconcileError, setReconcileError] = useState('');
+
+  const runInventoryReconcile = async () => {
+    if (!onReconcileInventory || reconcileRunning) return;
+    setReconcileRunning(true);
+    setReconcileError('');
+    setReconcileResult(null);
+    try {
+      const result = await onReconcileInventory();
+      setReconcileResult(result);
+    } catch (error) {
+      setReconcileError(error?.message || '在庫の差分確認に失敗しました。');
+    } finally {
+      setReconcileRunning(false);
+    }
+  };
 
   const toggleSyncStatus = (status) => {
     setSyncStatuses((current) => (
@@ -3674,6 +3711,47 @@ export const ShopifySettingsPanel = ({
               同期完了：紐付け {Number(syncResult.linked || 0).toLocaleString()}件
               （バーコード一致 {Number(syncResult.linkedByBarcode || 0).toLocaleString()} / variantId経由 {Number(syncResult.linkedByVariant || 0).toLocaleString()}）。
               Shopify商品バーコード {Number(syncResult.shopifyBarcodeCount || 0).toLocaleString()}件 / 商品マスター走査 {Number(syncResult.scannedProducts || 0).toLocaleString()}件。
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
+          <div className="text-sm font-black text-slate-700">在庫の差分を確認（リコンサイル）</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+            紐付け済み商品について、POSの在庫数とShopifyのon_handを突合して不一致レポートを作成します。
+            読み取りのみで在庫は自動修正しません（人が確認して判断）。go-live前の初期確認や、定期点検にお使いください。
+            ※毎日深夜に自動でも実行されます（在庫連携ONの店舗のみ）。
+          </p>
+
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={runInventoryReconcile}
+              disabled={reconcileRunning || !onReconcileInventory}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-60"
+            >
+              {reconcileRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
+              {reconcileRunning ? '突合中…（数十秒〜数分かかります）' : '在庫の差分を確認する'}
+            </button>
+          </div>
+
+          {reconcileError && (
+            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+              {reconcileError}
+            </div>
+          )}
+          {reconcileResult?.ok && (
+            <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-relaxed ${
+              Number(reconcileResult.mismatched || 0) + Number(reconcileResult.missingInShopify || 0) > 0
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+            }`}>
+              突合完了：紐付け {Number(reconcileResult.totalLinked || 0).toLocaleString()}件中、
+              一致 {Number(reconcileResult.matched || 0).toLocaleString()} /
+              不一致 {Number(reconcileResult.mismatched || 0).toLocaleString()} /
+              Shopify側に無し {Number(reconcileResult.missingInShopify || 0).toLocaleString()}。
+              {reconcileResult.truncated ? `（レポートは先頭${Number(reconcileResult.reportedRows || 0).toLocaleString()}件まで記録）` : ''}
+              <br />レポートは inventoryReconcileReports に保存されました（自動修復なし）。
             </div>
           )}
         </div>

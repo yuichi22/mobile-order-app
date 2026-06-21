@@ -155,7 +155,9 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
       <body>
         <div class="receipt">
           <div class="center">
+            ${payload.bannerImage ? `<img src="${escapeReceiptHtml(payload.bannerImage)}" alt="" style="max-width:100%;max-height:120px;margin:0 auto 6px;display:block;" />` : ''}
             <div class="receipt-title">${title}</div>
+            ${payload.headerTitle ? `<div>${escapeReceiptHtml(payload.headerTitle)}</div>` : ''}
             <div class="store-name">${storeName}</div>
             ${payload.address ? `<div>${escapeReceiptHtml(payload.address)}</div>` : ''}
             ${payload.tel ? `<div>TEL: ${escapeReceiptHtml(payload.tel)}</div>` : ''}
@@ -188,8 +190,9 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
           </div>
 
           <div class="section footer">
-            <div>ご利用ありがとうございました。</div>
-            <div>またのご来店をお待ちしております。</div>
+            ${payload.footerNote
+              ? escapeReceiptHtml(payload.footerNote).replaceAll('\n', '<br>')
+              : '<div>ご利用ありがとうございました。</div><div>またのご来店をお待ちしております。</div>'}
           </div>
         </div>
         <script>

@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { printReceiptViaBridge } from '../../shared/api/printBridge';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
 import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
+import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronDown, CreditCard, Filter, Printer, QrCode, Receipt, Tag, XCircle, LogOut
+  CheckCircle2, ChevronDown, ChevronLeft, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut
 } from 'lucide-react';
-import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -312,8 +312,7 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
 
   const printReceipt = async (ticket, settings) => {
     try {
-      const payload = buildPosReceiptPrintPayload(ticket, settings);
-      await printReceiptViaBridge(payload, settings);
+      await issueReceipt({ data: ticket, settings, mode: resolveReceiptMode(ticket) });
       return;
     } catch (error) {
       console.error('[pos transaction receipt print error]', error);
@@ -440,16 +439,38 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     const payload = buildTicketStatementPayload(ticket, settings);
 
     try {
-      await printReceiptViaBridge(payload, settings);
-      return;
+      await printPayloadByMode({ payload, settings, mode: resolveReceiptMode(ticket) });
     } catch (error) {
-      console.error('[pos statement bridge print error]', error, { ticket, payload });
+      console.error('[pos statement print error]', error, { ticket, payload });
+      openPosReceiptBrowserPrint(payload);
     }
-
-    openPosReceiptBrowserPrint(payload);
   };
 
-export const PosTransactionHistory = ({ storeId }) => {
+export const PosTransactionHistory = ({
+  storeId,
+  ownRegisterId = null,
+  registers = [],
+  posHolds = [],
+  onResumeHold = null,
+  onDeleteHold = null
+}) => {
+  // 履歴は登録レジ単位。既定は自レジ(ownRegisterId)。「その他のレジ」で他レジを閲覧可。
+  const [viewingRegisterId, setViewingRegisterId] = useState(ownRegisterId);
+  const [pickingRegister, setPickingRegister] = useState(false);
+  // 自レジが変わったら自レジ表示へ戻す。
+  useEffect(() => {
+    setViewingRegisterId(ownRegisterId);
+    setPickingRegister(false);
+  }, [ownRegisterId]);
+  const viewedRegister = registers.find((register) => register.id === viewingRegisterId) || null;
+  const viewedRegisterMode = viewedRegister?.registerMode || null;
+  const isViewingOtherRegister = Boolean(ownRegisterId) && viewingRegisterId !== ownRegisterId;
+  // 取引が表示中レジのものか。registerId 無しの旧データは自レジ表示時のみ含める。
+  const transactionMatchesViewingRegister = (transaction) => {
+    const rid = String(transaction?.registerId || '');
+    if (!rid) return viewingRegisterId === ownRegisterId;
+    return rid === viewingRegisterId;
+  };
   const [orders, setOrders] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -474,8 +495,207 @@ export const PosTransactionHistory = ({ storeId }) => {
   const [closeTicketTarget, setCloseTicketTarget] = useState(null);
   const [isClosingTicket, setIsClosingTicket] = useState(false);
   const closeTicketTimerRef = useRef(null);
-  const [filter, setFilter] = useState('unpaid');
+  // 待機既定: POS自レジ=保留(センターレジで売上履歴を常時見せない), POS他レジ=会計済み, ORDER=未会計。
+  const [filter, setFilter] = useState(() => {
+    const own = registers.find((register) => register.id === ownRegisterId);
+    return own?.registerMode === 'order' ? 'unpaid' : 'hold';
+  });
+  // 表示中レジのモード/自他が定まる/変わるたびに既定タブへ寄せる。
+  useEffect(() => {
+    if (!viewedRegisterMode) return;
+    if (viewedRegisterMode === 'pos') {
+      setFilter(isViewingOtherRegister ? 'paid' : 'hold');
+    } else {
+      setFilter('unpaid');
+    }
+  }, [viewedRegisterMode, isViewingOtherRegister]);
   const { settings } = useStoreSettings(storeId);
+
+  // 会計後キャンセル（全額/一部）。cancelTarget=対象の生取引、cancelQty={明細index:取消数量}。
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelQty, setCancelQty] = useState({});
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const openCancelModal = (ticket) => {
+    const txId = ticket?.sourceTransactionId
+      || (Array.isArray(ticket?.sourceTransactionIds) && ticket.sourceTransactionIds.length === 1
+        ? ticket.sourceTransactionIds[0] : '');
+    const transaction = transactions.find((item) => item.id === txId);
+    if (!transaction || !Array.isArray(transaction.items) || transaction.items.length === 0) {
+      window.alert('取消対象の取引明細が見つかりません。');
+      return;
+    }
+    const initial = {};
+    transaction.items.forEach((item, index) => { initial[index] = 0; });
+    setCancelTarget(transaction);
+    setCancelQty(initial);
+    setCancelReason('');
+  };
+
+  const closeCancelModal = () => {
+    if (isCancelling) return;
+    setCancelTarget(null);
+    setCancelQty({});
+    setCancelReason('');
+  };
+
+  const executeCancellation = async () => {
+    if (!cancelTarget || isCancelling || !storeId) return;
+    const transaction = cancelTarget;
+    const items = Array.isArray(transaction.items) ? transaction.items : [];
+    const num = (value) => Number(value || 0);
+
+    const cancelledEntries = [];
+    let anyCancel = false;
+
+    const updatedItems = items.map((item, index) => {
+      const qty = num(item.quantity) || 1;
+      const cQty = Math.min(Math.max(num(cancelQty[index]), 0), qty);
+      if (cQty <= 0) return item;
+      anyCancel = true;
+      const remainingQty = qty - cQty;
+      const ratio = qty > 0 ? remainingQty / qty : 0;
+      const scale = (value) => Math.round(num(value) * ratio);
+      cancelledEntries.push({
+        name: item.name || '商品',
+        productId: item.id || item.productId || '',
+        sourceType: item.sourceType || '',
+        quantity: cQty,
+        amount: num(item.totalPrice) - scale(item.totalPrice)
+      });
+      if (remainingQty <= 0) return null;
+      return {
+        ...item,
+        quantity: remainingQty,
+        totalPrice: scale(item.totalPrice),
+        taxIncludedAmount: scale(item.taxIncludedAmount),
+        salesTaxIncludedAmount: scale(item.salesTaxIncludedAmount),
+        salesTaxExcludedAmount: scale(item.salesTaxExcludedAmount),
+        salesTaxAmount: scale(item.salesTaxAmount),
+        costTaxIncludedAmount: scale(item.costTaxIncludedAmount),
+        costTaxExcludedAmount: scale(item.costTaxExcludedAmount),
+        costTaxAmount: scale(item.costTaxAmount),
+        grossProfitTaxIncluded: scale(item.grossProfitTaxIncluded),
+        grossProfitTaxExcluded: scale(item.grossProfitTaxExcluded)
+      };
+    }).filter((item) => item !== null);
+
+    if (!anyCancel) {
+      window.alert('取消する数量を選択してください。');
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const batch = writeBatch(db);
+
+      // 在庫を戻す（retail商品のみ）。
+      const restoreByProduct = new Map();
+      cancelledEntries.forEach((entry) => {
+        if (entry.sourceType === 'retail' && entry.productId) {
+          restoreByProduct.set(entry.productId, (restoreByProduct.get(entry.productId) || 0) + entry.quantity);
+        }
+      });
+      restoreByProduct.forEach((qty, productId) => {
+        batch.update(doc(db, 'stores', storeId, 'products', productId), {
+          inventoryQuantity: increment(qty),
+          quantity: increment(qty),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      // 残った明細から取引合計を再計算（日計は純額で自動整合）。
+      const sumBy = (key) => updatedItems.reduce((sum, item) => sum + num(item[key]), 0);
+      const taxByType = (type) => updatedItems
+        .filter((item) => item.salesTaxRateType === type)
+        .reduce((sum, item) => sum + (num(item.salesTaxIncludedAmount) - num(item.salesTaxExcludedAmount)), 0);
+      const totalAmount = sumBy('totalPrice');
+      const subTotal = sumBy('salesTaxExcludedAmount');
+      const taxAmountStandard = taxByType('standard');
+      const taxAmountReduced = taxByType('reduced');
+      const cancelledTotal = cancelledEntries.reduce((sum, entry) => sum + num(entry.amount), 0);
+      const fullyCancelled = updatedItems.length === 0;
+
+      const cancellationLog = {
+        cancelledAt: new Date().toISOString(),
+        reason: cancelReason.trim(),
+        amount: cancelledTotal,
+        type: fullyCancelled ? 'full' : 'partial',
+        items: cancelledEntries
+      };
+      const nextCancellations = [
+        ...(Array.isArray(transaction.cancellations) ? transaction.cancellations : []),
+        cancellationLog
+      ];
+
+      const updatePayload = {
+        items: updatedItems,
+        totalAmount,
+        subTotal,
+        taxAmountStandard,
+        taxAmountReduced,
+        taxAmount: taxAmountStandard + taxAmountReduced,
+        cancellations: nextCancellations,
+        hasCancellations: true,
+        updatedAt: serverTimestamp()
+      };
+      if (fullyCancelled) {
+        updatePayload.status = 'cancelled';
+        updatePayload.paymentStatus = 'cancelled';
+        updatePayload.isPaid = false;
+        updatePayload.voidedAt = serverTimestamp();
+      }
+
+      batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), updatePayload);
+      await batch.commit();
+
+      // ローカル(getDocs取得)を即時反映。
+      const localPatch = {
+        ...transaction,
+        items: updatedItems,
+        totalAmount,
+        subTotal,
+        taxAmountStandard,
+        taxAmountReduced,
+        taxAmount: taxAmountStandard + taxAmountReduced,
+        cancellations: nextCancellations,
+        hasCancellations: true,
+        ...(fullyCancelled
+          ? { status: 'cancelled', paymentStatus: 'cancelled', isPaid: false, voidedAt: new Date() }
+          : {})
+      };
+      setTransactions((prev) => prev.map((item) => (item.id === transaction.id ? localPatch : item)));
+      setCancelTarget(null);
+      setCancelQty({});
+      setCancelReason('');
+    } catch (error) {
+      console.error('[pos cancel error]', error);
+      window.alert(`取消に失敗しました${error?.message ? `: ${error.message}` : ''}`);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const cancelRefundTotal = (() => {
+    if (!cancelTarget) return 0;
+    const items = Array.isArray(cancelTarget.items) ? cancelTarget.items : [];
+    return items.reduce((sum, item, index) => {
+      const qty = Number(item.quantity || 0) || 1;
+      const c = Math.min(Math.max(Number(cancelQty[index] || 0), 0), qty);
+      if (c <= 0) return sum;
+      const remaining = qty - c;
+      const total = Number(item.totalPrice || 0);
+      return sum + (total - Math.round((total * remaining) / qty));
+    }, 0);
+  })();
+
+  const selectAllForCancel = () => {
+    if (!cancelTarget) return;
+    const all = {};
+    (cancelTarget.items || []).forEach((item, index) => { all[index] = Number(item.quantity || 0) || 1; });
+    setCancelQty(all);
+  };
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -812,6 +1032,9 @@ export const PosTransactionHistory = ({ storeId }) => {
     const transactionTickets = transactions
       .filter((transaction) => transaction && transaction?.isPaid !== false)
       .filter((transaction) => {
+        // 表示中の登録レジの取引のみ（自レジ or 選択した他レジ）。
+        if (ownRegisterId && !transactionMatchesViewingRegister(transaction)) return false;
+
         const transactionDate =
           toDateInputValue(transaction.paidAt) ||
           toDateInputValue(transaction.timestamp);
@@ -930,6 +1153,7 @@ export const PosTransactionHistory = ({ storeId }) => {
           }],
           excludedOrders: [],
           hasCancelledLinkedOrder,
+          cancellations: Array.isArray(transaction.cancellations) ? transaction.cancellations : [],
           isTakeout:
             transaction?.isTakeout === true ||
             transaction?.orderType === 'takeout' ||
@@ -944,7 +1168,56 @@ export const PosTransactionHistory = ({ storeId }) => {
       const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
       return rightTime - leftTime;
     });
-  }, [orders, paidPaymentFilter, selectedPaidDate, settings, transactions]);
+  }, [orders, paidPaymentFilter, selectedPaidDate, settings, transactions, ownRegisterId, viewingRegisterId]);
+
+  // 会計後キャンセル（全額/一部）をキャンセルタブ用のチケットに変換。
+  const cancelledTransactionTickets = useMemo(() => {
+    return transactions
+      .filter((transaction) => Array.isArray(transaction.cancellations) && transaction.cancellations.length > 0)
+      .filter((transaction) => {
+        if (!ownRegisterId) return true;
+        const rid = String(transaction.registerId || '');
+        if (!rid) return viewingRegisterId === ownRegisterId;
+        return rid === viewingRegisterId;
+      })
+      .flatMap((transaction) => (transaction.cancellations || []).map((cancellation, index) => {
+        const when = toDateValue(cancellation.cancelledAt)
+          || toDateValue(transaction.voidedAt)
+          || toDateValue(transaction.paidAt)
+          || null;
+        const items = Array.isArray(cancellation.items)
+          ? cancellation.items.map((ci) => ({
+            name: ci.name || '商品',
+            quantity: Number(ci.quantity || 0),
+            totalPrice: Number(ci.amount || 0),
+            unitPrice: Number(ci.quantity) > 0
+              ? Math.round(Number(ci.amount || 0) / Number(ci.quantity))
+              : Number(ci.amount || 0)
+          }))
+          : [];
+        return {
+          id: `cancel-${transaction.id}-${index}`,
+          status: 'cancelled',
+          sourceTransactionId: transaction.id,
+          sourceTransactionIds: [transaction.id],
+          tableId: transaction.tableId || 'takeout',
+          tableDisplayName: transaction.tableDisplayName || transaction.tableName || (transaction.isTakeout ? 'テイクアウト' : ''),
+          tableName: transaction.tableName || transaction.tableDisplayName || (transaction.isTakeout ? 'テイクアウト' : ''),
+          totalPrice: Number(cancellation.amount || 0),
+          totalAmount: Number(cancellation.amount || 0),
+          timestamp: when,
+          paidAt: when,
+          cancelledAt: when,
+          items,
+          cancelType: cancellation.type || 'full',
+          cancelReason: cancellation.reason || '',
+          paidOrders: [],
+          paymentBreakdown: [],
+          excludedOrders: [],
+          taxRates: {}
+        };
+      }));
+  }, [transactions, ownRegisterId, viewingRegisterId]);
 
   const clearCloseTicketLongPress = () => {
     if (closeTicketTimerRef.current) {
@@ -1111,8 +1384,10 @@ export const PosTransactionHistory = ({ storeId }) => {
     }
 
     if (filter === 'cancelled') {
-      return groupedTickets
-        .filter((ticket) => ticket.status === 'cancelled')
+      return [
+        ...groupedTickets.filter((ticket) => ticket.status === 'cancelled'),
+        ...cancelledTransactionTickets
+      ]
         .filter((ticket) => !selectedPaidDate || getTicketCancelDate(ticket) === selectedPaidDate)
         .sort((left, right) => {
           const leftTime = (resolveCancelDateValue(left) || resolveOrderDateValue(left))?.getTime?.() || 0;
@@ -1128,7 +1403,7 @@ export const PosTransactionHistory = ({ storeId }) => {
         const rightTime = resolveHistoryDateValue(right)?.getTime?.() || 0;
         return rightTime - leftTime;
       });
-  }, [filter, groupedTickets, paidSessionTickets, selectedPaidDate]);
+  }, [filter, groupedTickets, paidSessionTickets, selectedPaidDate, cancelledTransactionTickets]);
 
 
 
@@ -1454,9 +1729,9 @@ export const PosTransactionHistory = ({ storeId }) => {
       <div className="flex min-h-[96px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 p-4 font-black text-gray-700">
         <div className="flex min-w-0 items-center gap-2">
           <Receipt size={18} className="shrink-0 text-gray-500" />
-          <span className="shrink-0">会計履歴</span>
+          <span className="shrink-0">{filter === 'hold' ? '保留伝票' : '会計履歴'}</span>
           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
-            {displayTickets.length}件
+            {filter === 'hold' ? posHolds.length : displayTickets.length}件
           </span>
         </div>
 
@@ -1534,16 +1809,32 @@ export const PosTransactionHistory = ({ storeId }) => {
       </div>
 
       <div className="flex shrink-0 gap-1 border-b border-gray-100 bg-white p-2">
-        <button
-          type="button"
-          onClick={() => setFilter('unpaid')}
-          className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
-            filter === 'unpaid' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 hover:bg-orange-50'
-          }`}
-        >
-          <Filter size={14} />
-          未会計
-        </button>
+        {viewedRegisterMode === 'pos' && !isViewingOtherRegister && (
+          <button
+            type="button"
+            onClick={() => setFilter('hold')}
+            className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
+              filter === 'hold'
+                ? (posHolds.length > 0 ? 'bg-amber-500 text-white shadow-md' : 'bg-gray-200 text-gray-700')
+                : (posHolds.length > 0 ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-500 hover:bg-gray-50')
+            }`}
+          >
+            <PauseCircle size={14} />
+            保留{posHolds.length > 0 ? `（${posHolds.length}）` : ''}
+          </button>
+        )}
+        {viewedRegisterMode !== 'pos' && (
+          <button
+            type="button"
+            onClick={() => setFilter('unpaid')}
+            className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
+              filter === 'unpaid' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 hover:bg-orange-50'
+            }`}
+          >
+            <Filter size={14} />
+            未会計
+          </button>
+        )}
 
         <button
           type="button"
@@ -1563,9 +1854,56 @@ export const PosTransactionHistory = ({ storeId }) => {
           }`}
         >
           <XCircle size={14} />
-          キャンセル
+          取消
         </button>
       </div>
+
+      {registers.length > 1 && (
+        <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            {isViewingOtherRegister ? (
+              <button
+                type="button"
+                onClick={() => { setViewingRegisterId(ownRegisterId); setPickingRegister(false); }}
+                className="flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200"
+              >
+                <ChevronLeft size={14} />
+                自レジに戻る
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPickingRegister((value) => !value)}
+                className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
+              >
+                その他のレジの履歴表示
+              </button>
+            )}
+            <span className="truncate text-sm font-black text-gray-800">
+              {viewedRegister?.name || '自レジ'}
+              {viewedRegister?.departmentName && (
+                <span className="ml-1 text-xs font-bold text-gray-400">{viewedRegister.departmentName}</span>
+              )}
+            </span>
+          </div>
+
+          {pickingRegister && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
+                <button
+                  key={register.id}
+                  type="button"
+                  onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-bold text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+                >
+                  {register.name}
+                  <span className="block text-[10px] font-bold text-gray-400">{register.departmentName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {(filter === 'paid' || filter === 'cancelled') && (
         <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
@@ -1627,13 +1965,59 @@ export const PosTransactionHistory = ({ storeId }) => {
       )}
 
       <div className="flex-grow space-y-3 overflow-y-auto bg-slate-50/50 p-3">
-        {loading && (
+        {filter === 'hold' && posHolds.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
+              <PauseCircle size={28} />
+            </div>
+            <p className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700">
+              保留中の伝票はありません
+            </p>
+          </div>
+        )}
+
+        {filter === 'hold' && posHolds.map((hold) => {
+          const cart = Array.isArray(hold.cart) ? hold.cart : [];
+          const count = cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+          const total = cart.reduce(
+            (sum, item) => sum + Number(item.totalPrice ?? (Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1))),
+            0
+          );
+          return (
+            <div key={hold.id} className="rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-slate-800">{hold.title || '保留'}</div>
+                  <div className="text-xs font-bold text-slate-400">{count}点 ・ ¥{total.toLocaleString()}</div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onDeleteHold?.(hold.id)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 hover:bg-slate-50"
+                  >
+                    削除
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onResumeHold?.(hold.id)}
+                    className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-amber-600"
+                  >
+                    復帰
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filter !== 'hold' && loading && (
           <div className="py-10 text-center">
               <LoadingSpinner size={32} className="inline" />
           </div>
         )}
 
-        {!loading && displayTickets.length === 0 && (
+        {filter !== 'hold' && !loading && displayTickets.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
               filter === 'paid' && paidPaymentFilter === 'cash'
@@ -1664,18 +2048,28 @@ export const PosTransactionHistory = ({ storeId }) => {
                   ? '選択した日付・支払い方法の会計済み伝票がありません'
                   : '選択した支払い方法の会計済み伝票がありません'
                 : filter === 'cancelled' && selectedPaidDate
-                  ? '選択した日付のキャンセル履歴がありません'
+                  ? '選択した日付の取消履歴がありません'
                   : '該当する会計履歴がありません'}
             </p>
           </div>
         )}
 
-        {!loading && displayTickets.map((ticket, index) => {
+        {filter !== 'hold' && !loading && displayTickets.map((ticket, index) => {
           const isExpanded = expandedTicketId === ticket.id;
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
+          // 取消数量を商品名ごとに集計（商品行を「元の数量」で表示するために残数へ足し戻す）。
+          const cancelledByName = new Map();
+          let cancelledTotalCount = 0;
+          (Array.isArray(ticket.cancellations) ? ticket.cancellations : []).forEach((cancellation) => {
+            (cancellation.items || []).forEach((cItem) => {
+              const q = Number(cItem.quantity || 0);
+              cancelledByName.set(cItem.name, (cancelledByName.get(cItem.name) || 0) + q);
+              cancelledTotalCount += q;
+            });
+          });
           const paymentRowsCount = Array.isArray(ticket.paidOrders) ? ticket.paidOrders.length : 0;
           const breakdownRowsCount = Array.isArray(ticket.paymentBreakdown)
             ? ticket.paymentBreakdown.reduce((sum, entry) => sum + Math.max(Number(entry?.count || 1), 1), 0)
@@ -1737,7 +2131,7 @@ export const PosTransactionHistory = ({ storeId }) => {
                             : 'bg-orange-50 text-orange-600'
                       }`}
                     >
-                      {isCancelled ? 'キャンセル' : isPaid ? '会計済み' : '未会計'}
+                      {isCancelled ? '取消' : isPaid ? '会計済み' : '未会計'}
                     </span>
                     {isPaid && ticket.hasCancelledLinkedOrder && (
                       <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
@@ -1748,7 +2142,7 @@ export const PosTransactionHistory = ({ storeId }) => {
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
                     <span>注文 {formatDateTimeShort(ticket.timestamp) || formatTime(ticket.timestamp)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
-                    <span>{isCancelled ? 'キャンセル' : '会計'} {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
+                    <span>{isCancelled ? '取消' : '会計'} {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
                     {hasDifferentHistoryDate && (
                       <>
                         <span className="h-1 w-1 rounded-full bg-gray-300" />
@@ -1798,7 +2192,14 @@ export const PosTransactionHistory = ({ storeId }) => {
                       className="flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                     >
                       <Printer size={13} />
-                      {hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
+                      {hasMultiplePayments ? (
+                        '明細印刷'
+                      ) : (
+                        <span className="flex flex-col items-center leading-none">
+                          <span>レシート</span>
+                          <span>再印刷</span>
+                        </span>
+                      )}
                     </button>
                   )}
 
@@ -1884,6 +2285,20 @@ export const PosTransactionHistory = ({ storeId }) => {
                             </div>
                           ))}
                         </div>
+
+                        {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length === 1)) && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCancelModal(ticket);
+                            }}
+                            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white py-2.5 text-xs font-black text-red-500 shadow-sm transition-colors hover:bg-red-50"
+                          >
+                            <XCircle size={14} />
+                            この会計を取消
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -1937,7 +2352,7 @@ export const PosTransactionHistory = ({ storeId }) => {
                       <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-end justify-between border-b-2 border-dashed border-gray-200 pb-2">
                           <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">注文内容</h4>
-                          <span className="text-[10px] font-bold tabular-nums text-gray-400">計 {totalItemsCount} 点</span>
+                          <span className="text-[10px] font-bold tabular-nums text-gray-400">計 {totalItemsCount + cancelledTotalCount} 点</span>
                         </div>
 
                         <ul className="space-y-3">
@@ -1947,6 +2362,8 @@ export const PosTransactionHistory = ({ storeId }) => {
                             const itemTaxRate = item.taxRate || (
                               isTakeoutItem ? ticket.taxRates.reducedRate : ticket.taxRates.standardRate
                             );
+                            // 商品行は「元の数量」(残数＋取消数)で表示。取消分は下の取消記録で差し引く。
+                            const originalQty = Number(item.quantity || 1) + (cancelledByName.get(item.name) || 0);
 
                             return (
                               <li key={`${ticket.id}-${index}`} className="flex items-start justify-between py-1.5 text-sm">
@@ -1966,7 +2383,7 @@ export const PosTransactionHistory = ({ storeId }) => {
                                       )}
                                     </div>
                                     <span className="mt-1 text-[11px] font-medium tabular-nums text-gray-400">
-                                      ¥{Number(item.unitPrice || 0).toLocaleString()} x {Number(item.quantity || 1)}
+                                      ¥{Number(item.unitPrice || 0).toLocaleString()} x {originalQty}
                                     </span>
                                     {Array.isArray(item.options) && item.options.length > 0 && (
                                       <span className="mt-1 text-[11px] text-gray-400">
@@ -1976,12 +2393,29 @@ export const PosTransactionHistory = ({ storeId }) => {
                                   </div>
                                 </div>
                                 <span className="shrink-0 font-black tabular-nums text-gray-800">
-                                  ¥{(Number(item.unitPrice || 0) * Number(item.quantity || 1)).toLocaleString()}
+                                  ¥{(Number(item.unitPrice || 0) * originalQty).toLocaleString()}
                                 </span>
                               </li>
                             );
                           })}
                         </ul>
+
+                        {Array.isArray(ticket.cancellations) && ticket.cancellations.length > 0 && (
+                          <ul className="mt-2 space-y-1.5 border-t border-dashed border-red-200 pt-3">
+                            {ticket.cancellations.flatMap((cancellation, ci) =>
+                              (cancellation.items || []).map((cItem, ii) => (
+                                <li key={`cx-${ci}-${ii}`} className="flex items-start justify-between text-sm text-red-600">
+                                  <span className="font-bold leading-tight">
+                                    {cItem.name} 取消 {Number(cItem.quantity || 0)}点
+                                  </span>
+                                  <span className="shrink-0 font-black tabular-nums">
+                                    −¥{Number(cItem.amount || 0).toLocaleString()}
+                                  </span>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        )}
 
                         <div className="mt-6 space-y-2 border-t-2 border-dashed border-gray-200 pt-4 text-xs font-bold text-gray-500">
                           {Number(ticket.discountAmount || 0) > 0 && (
@@ -2064,6 +2498,105 @@ export const PosTransactionHistory = ({ storeId }) => {
               >
                 閉じる
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
+          <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-[2rem] border border-red-100 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-5">
+              <div className="min-w-0">
+                <h3 className="text-lg font-black text-gray-900">会計の取消</h3>
+                <p className="mt-1 text-xs font-bold text-gray-400">
+                  取消する商品の数量を選んで確定します。在庫は自動で戻ります。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCancelModal}
+                disabled={isCancelling}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50"
+                aria-label="閉じる"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-5">
+              {(cancelTarget.items || []).map((item, index) => {
+                const qty = Number(item.quantity || 0) || 1;
+                const sel = Math.min(Math.max(Number(cancelQty[index] || 0), 0), qty);
+                return (
+                  <div key={index} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-gray-800">{item.name || '商品'}</div>
+                      <div className="text-xs font-bold text-gray-400">
+                        ¥{Number(item.totalPrice || 0).toLocaleString()} / {qty}点
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCancelQty((prev) => ({ ...prev, [index]: Math.max(sel - 1, 0) }))}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white font-black text-gray-600 hover:bg-gray-50"
+                      >
+                        −
+                      </button>
+                      <span className="w-7 text-center text-base font-black tabular-nums text-gray-900">{sel}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCancelQty((prev) => ({ ...prev, [index]: Math.min(sel + 1, qty) }))}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white font-black text-red-500 hover:bg-red-50"
+                      >
+                        ＋
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={selectAllForCancel}
+                className="mt-1 w-full rounded-xl bg-red-50 py-2 text-xs font-black text-red-600 hover:bg-red-100"
+              >
+                全額取消（すべて選択）
+              </button>
+
+              <textarea
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+                placeholder="取消理由（任意）"
+                rows={2}
+                className="mt-2 w-full rounded-xl border border-gray-200 p-2 text-sm font-bold outline-none focus:border-red-300"
+              />
+            </div>
+
+            <div className="border-t border-gray-100 p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-black text-gray-500">取消金額</span>
+                <span className="font-mono text-2xl font-black text-red-600">¥{cancelRefundTotal.toLocaleString()}</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeCancelModal}
+                  disabled={isCancelling}
+                  className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 hover:bg-gray-200 disabled:opacity-50"
+                >
+                  やめる
+                </button>
+                <button
+                  type="button"
+                  onClick={executeCancellation}
+                  disabled={isCancelling || cancelRefundTotal <= 0}
+                  className="flex-1 rounded-2xl bg-red-500 py-4 text-sm font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
+                >
+                  {isCancelling ? '取消処理中...' : '取消を確定'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

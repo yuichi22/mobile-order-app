@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
-  ChevronRight,
   ChefHat,
   Copy,
   CreditCard,
@@ -27,6 +26,7 @@ import {
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
+import ReceiptModeSettingsSection from './ReceiptModeSettingsSection';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
 import {
@@ -203,6 +203,50 @@ const BasicSettings = ({
 
   const commitDepartmentDrafts = async () => {
     await saveRegisterDrafts(registerDrafts, departmentDrafts);
+  };
+
+  // レジ追加: 3台までは無料、4台目以降は月額追加(仮の確認モーダルを挟む)。
+  const FREE_REGISTER_LIMIT = 3;
+  const ADDITIONAL_REGISTER_MONTHLY_FEE = 3000;
+  const [showAddRegisterModal, setShowAddRegisterModal] = useState(false);
+  const [addingRegister, setAddingRegister] = useState(false);
+
+  const buildNextRegister = (existingRegisters) => {
+    const normalized = getAvailableRegisters(existingRegisters, departmentDrafts);
+    const nextNumber = normalized.length + 1;
+    const defaultDepartment = getAvailableDepartments(departmentDrafts)[0]
+      || { id: 'retail', name: '物販', registerMode: 'pos' };
+    return {
+      id: `register_${Date.now()}`,
+      name: `レジ${nextNumber}`,
+      label: `レジ${nextNumber}`,
+      departmentId: defaultDepartment.id,
+      departmentName: defaultDepartment.name,
+      registerMode: defaultDepartment.registerMode === 'order' ? 'order' : 'pos'
+    };
+  };
+
+  const addRegisterNow = async () => {
+    if (addingRegister) return;
+    setAddingRegister(true);
+    try {
+      const normalized = getAvailableRegisters(registerDrafts, departmentDrafts);
+      const next = [...normalized, buildNextRegister(registerDrafts)];
+      setRegisterDrafts(next);
+      await saveRegisterDrafts(next, departmentDrafts);
+    } finally {
+      setAddingRegister(false);
+      setShowAddRegisterModal(false);
+    }
+  };
+
+  const handleAddRegister = () => {
+    const currentCount = getAvailableRegisters(registerDrafts, departmentDrafts).length;
+    if (currentCount >= FREE_REGISTER_LIMIT) {
+      setShowAddRegisterModal(true); // 4台目以降は確認
+    } else {
+      addRegisterNow();
+    }
   };
 
   const updateRegisterNameDraft = (registerId, name) => {
@@ -646,6 +690,25 @@ const handleTestPrinter = async () => {
 
   return (
     <div className="mx-auto w-full max-w-6xl animate-in fade-in pb-32 duration-500">
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <h2 className="text-4xl font-black tracking-tight text-gray-900">基本設定</h2>
+          <span className="pb-1 text-2xl font-light text-gray-300">/</span>
+          <p className="pb-1.5 text-base font-bold text-gray-500">
+            店舗プロフィールと会計に関わる基本項目を設定できます
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => formRef.current?.requestSubmit()}
+          disabled={isSaving}
+          className="group flex shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-black disabled:opacity-60"
+        >
+          {isSaving ? <LoadingSpinner size={18} /> : <Save size={18} />}
+          保存
+        </button>
+      </div>
+
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
@@ -786,22 +849,65 @@ const handleTestPrinter = async () => {
             );
           })}
         </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-bold leading-relaxed text-gray-400">
+            レジは{FREE_REGISTER_LIMIT}台まで無料です。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税込）が追加されます。
+          </p>
+          <button
+            type="button"
+            onClick={handleAddRegister}
+            disabled={addingRegister}
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-700 active:scale-95 disabled:opacity-60"
+          >
+            <Plus size={16} strokeWidth={2.6} />
+            レジを追加
+          </button>
+        </div>
       </div>
 
-      <div className="pb-10 pt-6">
-        <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
-          <span>Settings</span>
-          <ChevronRight size={14} />
-          <span className="text-orange-500">Basic Info</span>
+      {showAddRegisterModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                <CreditCard size={24} strokeWidth={2.4} />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">レジを追加しますか？</h3>
+            </div>
+            <p className="mt-4 text-sm font-bold leading-relaxed text-slate-600">
+              レジは{FREE_REGISTER_LIMIT}台まで無料です。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき
+              <span className="font-black text-slate-900">月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税込）</span>
+              が追加で発生します。よろしいですか？
+            </p>
+            <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-700">
+              ※現在は仮の確認画面です。実際の課金処理（スーパーアドミン連携）は今後接続します。
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAddRegisterModal(false)}
+                disabled={addingRegister}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={addRegisterNow}
+                disabled={addingRegister}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-lg transition-all hover:bg-black active:scale-[0.98] disabled:opacity-60"
+              >
+                {addingRegister ? <LoadingSpinner size={14} /> : <Check size={18} />}
+                了承して追加
+              </button>
+            </div>
+          </div>
         </div>
+      )}
 
-        <div className="flex items-end gap-4">
-          <h2 className="text-4xl font-black tracking-tight text-gray-900">基本設定</h2>
-          <span className="pb-1 text-2xl font-light text-gray-300">/</span>
-          <p className="pb-1.5 text-base font-bold text-gray-500">
-            店舗プロフィールと会計に関わる基本項目を設定できます
-          </p>
-        </div>
+      <div className="mt-6">
+        <ReceiptModeSettingsSection settings={settings} onSave={onSave} onSaved={onSaved} />
       </div>
 
       <form ref={formRef} onSubmit={handleSubmit}>
