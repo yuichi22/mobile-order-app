@@ -1,0 +1,9 @@
+{
+  "appId": "com.akuto.mobileorder",
+  "appName": "AKUTO Order",
+  "webDir": "dist",
+  "server": {
+    "url": "https://mobile-order-prod.web.app",
+    "cleartext": false
+  }
+}
