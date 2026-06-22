@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarCheck,
   ChefHat,
+  ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -256,7 +257,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
     setPaymentResultToast(payload);
 
-    if (payload.transactionId && payload.sessionId) {
+    // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
+    if (payload.transactionId && payload.sessionId && resolveReceiptMode(payload, registerMode) === 'order') {
       ensurePaymentResultMobileReceipt(payload).catch((error) => {
         console.error('[admin pos mobile receipt issue error]', error);
       });
@@ -324,20 +326,31 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     setIsPaymentResultReceiptPrinting(true);
 
     let printableToast = paymentResultToast;
+    const receiptMode = resolveReceiptMode(paymentResultToast, registerMode);
 
     try {
-      printableToast = await ensurePaymentResultMobileReceipt();
+      // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
+      // 発行に失敗(招待無効など)しても物理レシート印刷は止めない。
+      if (receiptMode === 'order') {
+        try {
+          printableToast = await ensurePaymentResultMobileReceipt();
+        } catch (mobileReceiptError) {
+          console.error('[admin pos mobile receipt issue error]', mobileReceiptError);
+          printableToast = paymentResultToast;
+        }
+      }
       await issueReceipt({
         data: printableToast,
         settings: storeSettings,
-        mode: resolveReceiptMode(printableToast, registerMode)
+        mode: receiptMode
       });
       return;
     } catch (error) {
-      console.error('[admin pos payment result receipt print error]', error);
+      const errorText = error?.message || error?.errorMessage || error?.code || JSON.stringify(error) || String(error);
+      console.error('[admin pos payment result receipt print error]', errorText, error);
 
       const shouldFallback = window.confirm(
-        'レシートプリンターへの印刷に失敗しました。ブラウザ印刷を開きますか？'
+        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`
       );
 
       if (!shouldFallback) {
@@ -445,31 +458,25 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   <button
                     type="button"
                     onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
-                    className="group flex h-11 w-full items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md active:scale-[0.98]"
+                    className={`group flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-black text-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
+                      registerMode === 'pos'
+                        ? 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
+                        : 'bg-orange-500 shadow-orange-500/20 hover:bg-orange-600'
+                    }`}
                     aria-label={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
                     title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
                   >
-                    <span
-                      className={`flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-xs font-black transition-all duration-200 ${
-                        registerMode === 'order'
-                          ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                          : 'text-gray-500 group-hover:text-orange-600'
-                      }`}
-                    >
-                      <CreditCard size={15} strokeWidth={2.7} />
-                      ORDERレジ
-                    </span>
-
-                    <span
-                      className={`flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-xs font-black transition-all duration-200 ${
-                        registerMode === 'pos'
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                          : 'text-gray-500 group-hover:text-blue-700'
-                      }`}
-                    >
-                      <ShoppingBag size={15} strokeWidth={2.7} />
-                      POSレジ
-                    </span>
+                    {registerMode === 'pos' ? (
+                      <ShoppingBag size={16} strokeWidth={2.7} />
+                    ) : (
+                      <CreditCard size={16} strokeWidth={2.7} />
+                    )}
+                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
+                    <ArrowLeftRight
+                      size={15}
+                      strokeWidth={3}
+                      className="ml-1 opacity-70 transition-transform duration-200 group-hover:rotate-180"
+                    />
                   </button>
                 )}
 

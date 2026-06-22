@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import {
   BadgeJapaneseYen,
   CalendarDays,
@@ -15,30 +15,6 @@ import {
   Users
 } from 'lucide-react';
 
-const filterDailyTransactions = (transactions = [], selectedRegisterId = 'all', selectedRegisterMode = 'all') => {
-  return transactions.filter((transaction) => {
-    const registerId = transaction?.registerId || '';
-    const registerMode = transaction?.registerMode || '';
-
-    const matchesRegister =
-      selectedRegisterId === 'all'
-        ? true
-        : selectedRegisterId === 'unassigned'
-          ? !registerId
-          : registerId === selectedRegisterId;
-
-    const matchesMode =
-      selectedRegisterMode === 'all'
-        ? true
-        : selectedRegisterMode === 'unassigned'
-          ? !registerMode
-          : registerMode === selectedRegisterMode;
-
-    return matchesRegister && matchesMode;
-  });
-};
-
-
 import { db } from '../../../shared/api/firebase/client';
 import { useDailyTransactions } from '../Analytics/hooks/useDailyTransactions';
 import {
@@ -50,7 +26,8 @@ import {
 import DailyClosingCheckModal from './DailyClosingCheckModal';
 import { useStoreSettings, usePeriodData } from '../../store/hooks';
 import { printDailyClosingReceipt } from './printDailyClosingReceipt';
-import { getAvailableRegisters } from '../../pos/utils/registerContext';
+import { getAvailableRegisters, getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
+import { buildItemDepartmentResolver, splitTransactionsByDepartment } from '../Analytics/utils/departmentAttribution';
 
 const toDateInputValue = (date) => {
   const target = new Date(date || new Date());
@@ -100,8 +77,14 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [isLoadingClosedDaily, setIsLoadingClosedDaily] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [amountDisplayMode, setAmountDisplayMode] = useState(getInitialAmountDisplayMode);
-  const [selectedRegisterId, setSelectedRegisterId] = useState('all');
-  const [selectedRegisterMode, setSelectedRegisterMode] = useState('all');
+  // 日計は部門単位で表示。既定=自レジの部門、'all'=全体。
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
+  // 同一部門レジの締め状況 {registerId: true}。
+  const [registerClosedMap, setRegisterClosedMap] = useState({});
+  const [closingReloadKey, setClosingReloadKey] = useState(0);
+  // 部門振り分け用の商品カテゴリーマスター。
+  const [productCategories, setProductCategories] = useState([]);
+  const [productCategoryGroups, setProductCategoryGroups] = useState([]);
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
@@ -131,6 +114,29 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     };
   }, [storeId]);
 
+  // 部門振り分け用に商品カテゴリー/グループを取得（当日中はほぼ不変なので一度だけ）。
+  useEffect(() => {
+    let cancelled = false;
+    const loadCategoryMaster = async () => {
+      if (!storeId) return;
+      try {
+        const [catSnap, groupSnap] = await Promise.all([
+          getDocs(collection(db, 'stores', storeId, 'productCategories')),
+          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups'))
+        ]);
+        if (cancelled) return;
+        setProductCategories(catSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setProductCategoryGroups(groupSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error('Failed to load category master:', error);
+      }
+    };
+    loadCategoryMaster();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
   const { periods = [] } = usePeriodData(storeId);
 
   const { transactions, loading } = useDailyTransactions({
@@ -140,30 +146,71 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 
 
   const registerOptions = useMemo(() => {
-    return getAvailableRegisters(settings?.registers || []);
-  }, [settings?.registers]);
+    return getAvailableRegisters(settings?.registers || [], settings?.departments || []);
+  }, [settings?.registers, settings?.departments]);
 
-  const registerFilterOptions = useMemo(() => {
-    return [
-      { id: 'all', name: 'すべて' },
-      ...registerOptions.map((register) => ({
-        id: register.id,
-        name: register.name || register.id
-      })),
-      { id: 'unassigned', name: '未設定' }
-    ];
-  }, [registerOptions]);
+  // この端末の登録レジ→所属部門。日計は既定でこの部門を表示し、締めはこのレジ単位で行う。
+  const activeRegister = useMemo(
+    () => getActiveRegisterContext(storeId, settings?.registers, settings?.departments),
+    [storeId, settings?.registers, settings?.departments]
+  );
+  const activeDepartment = useMemo(
+    () => getDepartmentById(activeRegister?.departmentId, settings?.departments),
+    [activeRegister, settings?.departments]
+  );
+  const activeMode = activeDepartment?.registerMode || 'order';
+  // 同一部門のレジ（締め状況の表示対象）。
+  const departmentRegisters = useMemo(
+    () => registerOptions.filter((register) => register.departmentId === activeDepartment?.id),
+    [registerOptions, activeDepartment]
+  );
 
-  const registerModeFilterOptions = [
-    { id: 'all', name: 'すべて' },
-    { id: 'order', name: 'ORDERレジ' },
-    { id: 'pos', name: 'POSレジ' },
-    { id: 'unassigned', name: '未設定' }
-  ];
+  const departmentOptions = useMemo(
+    () => getAvailableDepartments(settings?.departments || []),
+    [settings?.departments]
+  );
+  const selectedDepartment = useMemo(
+    () => departmentOptions.find((dept) => dept.id === selectedDepartmentId) || null,
+    [departmentOptions, selectedDepartmentId]
+  );
 
+  // 既定表示を自部門に一度だけ寄せる。
+  const didInitDeptFilter = useRef(false);
+  useEffect(() => {
+    if (didInitDeptFilter.current) return;
+    if (!settings?.departments && !settings?.registers) return;
+    didInitDeptFilter.current = true;
+    setSelectedDepartmentId(activeDepartment?.id || 'all');
+  }, [activeDepartment, settings?.departments, settings?.registers]);
+
+  // 商品カテゴリーの所属部門でアイテム単位に振り分けるリゾルバ。
+  const resolveItemDepartment = useMemo(
+    () => buildItemDepartmentResolver({
+      productCategories,
+      productCategoryGroups,
+      departments: settings?.departments || []
+    }),
+    [productCategories, productCategoryGroups, settings?.departments]
+  );
+
+  // 取引を部門スライスに展開（混在会計はアイテムごとに部門へ分割）。
+  const departmentSlices = useMemo(
+    () => splitTransactionsByDepartment(transactions, resolveItemDepartment),
+    [transactions, resolveItemDepartment]
+  );
+
+  // 表示中の部門で絞り込んだスライス（'all'は全スライス）。
   const filteredTransactions = useMemo(() => {
-    return filterDailyTransactions(transactions, selectedRegisterId, selectedRegisterMode);
-  }, [transactions, selectedRegisterId, selectedRegisterMode]);
+    if (selectedDepartmentId === 'all') return departmentSlices;
+    return departmentSlices.filter((slice) => String(slice?.departmentId || '') === selectedDepartmentId);
+  }, [departmentSlices, selectedDepartmentId]);
+
+  // 件数表示用に元取引のユニーク件数を数える（混在会計のスライス重複を除く）。
+  const filteredTransactionCount = useMemo(() => {
+    const ids = new Set();
+    filteredTransactions.forEach((slice, index) => ids.add(slice?.id ?? slice?.transactionId ?? index));
+    return ids.size;
+  }, [filteredTransactions]);
 
 
   const dateKey = useMemo(() => formatDailyClosingDateKey(targetDate), [targetDate]);
@@ -188,6 +235,45 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     () => buildDailyClosingSummary(filteredTransactions, periods),
     [filteredTransactions, periods]
   );
+
+  // 締めは自レジ単位。締めモーダル/レジ別締めデータは自レジの取引のみで集計する。
+  const registerTransactions = useMemo(
+    () => transactions.filter((transaction) => String(transaction.registerId || '') === String(activeRegister?.id || '')),
+    [transactions, activeRegister]
+  );
+  const registerSummary = useMemo(
+    () => buildDailyClosingSummary(registerTransactions, periods),
+    [registerTransactions, periods]
+  );
+  // 既存の日付単位の締め(分析互換)は全日集計で保持する。
+  const fullDaySummary = useMemo(
+    () => buildDailyClosingSummary(transactions, periods),
+    [transactions, periods]
+  );
+
+  // レジ別締め状況を読み込む（dailyClosings/{date}/registers/{registerId}）。
+  useEffect(() => {
+    if (!storeId || !dateKey) {
+      setRegisterClosedMap({});
+      return undefined;
+    }
+    let active = true;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers'));
+        if (!active) return;
+        const map = {};
+        snap.forEach((docSnap) => {
+          if (docSnap.data()?.status === 'closed') map[docSnap.id] = true;
+        });
+        setRegisterClosedMap(map);
+      } catch (error) {
+        console.error('Failed to load register closings:', error);
+        if (active) setRegisterClosedMap({});
+      }
+    })();
+    return () => { active = false; };
+  }, [storeId, dateKey, closingReloadKey]);
 
   useEffect(() => {
     if (!storeId || !dateKey) {
@@ -297,6 +383,11 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const timeSlotList = Array.isArray(summary?.timeSlotList)
     ? summary.timeSlotList
     : [];
+  // POS系部門の表示では時間帯別売上を出さない。
+  // POS系部門の表示では時間帯別売上を出さない（全体表示=allでは出す）。
+  const showTimeSlot = !(selectedDepartment && selectedDepartment.registerMode === 'pos');
+  // 自部門を表示している時だけ締め処理を許可（他部門/全体では非表示）。
+  const isOwnDepartmentView = selectedDepartmentId === (activeDepartment?.id || '');
 
   const categoryList = Array.isArray(summary?.categoryList)
     ? summary.categoryList
@@ -307,6 +398,9 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     : [];
 
   const isClosed = closingStatus === 'closed' || closedDailyData?.status === 'closed';
+  // 自レジが締め済みか（レジ別締め状況）。
+  const isOwnClosed = Boolean(activeRegister?.id && registerClosedMap[activeRegister.id]);
+  const otherDepartmentRegisters = departmentRegisters.filter((register) => register.id !== activeRegister?.id);
 
   const handleDateInputChange = (event) => {
     if (!setTargetDate) return;
@@ -360,72 +454,95 @@ const handleSaveChangeFundAmount = async (nextAmount) => {
 };
 
 const openClosingModal = () => {
-  if (!storeId || isClosing || loading || transactions.length === 0) return;
+  // 売上0のレジでも締め状況を記録できるよう、件数では無効化しない。
+  if (!storeId || isClosing || loading) return;
   setIsCheckModalOpen(true);
 };
 
+const buildClosingPayload = (sum, txns, closingCheck = {}) => ({
+  dateKey,
+  targetDate: new Date(targetDate || new Date()),
+  status: 'closed',
+
+  transactionIds: txns.map((transaction) => transaction.id),
+  transactionCount: Number(sum?.transactionCount || 0),
+  customerCount: Number(sum?.customerCount || 0),
+  itemCount: Number(sum?.itemCount || 0),
+
+  totalSales: Number(sum?.totalSales || 0),
+
+  cashSales: Number(sum?.cashSales || 0),
+  cardSales: Number(sum?.cardSales || 0),
+  qrSales: Number(sum?.qrSales || 0),
+  otherSales: Number(sum?.otherSales || 0),
+
+  discountTotal: Number(sum?.discountTotal || 0),
+  promoExpenseTotal: Number(sum?.promoExpenseTotal || 0),
+  voucherTotal: Number(sum?.voucherTotal || 0),
+  settlementAdjustmentTotal: Number(sum?.settlementAdjustmentTotal || 0),
+
+  paymentMethods: Array.isArray(sum?.paymentMethodList) ? sum.paymentMethodList : [],
+  departments: Array.isArray(sum?.departmentList) ? sum.departmentList : [],
+  taxBreakdown: Array.isArray(sum?.taxBreakdownList) ? sum.taxBreakdownList : [],
+  discounts: Array.isArray(sum?.discountList) ? sum.discountList : [],
+  promoExpenses: Array.isArray(sum?.promoExpenseList) ? sum.promoExpenseList : [],
+  vouchers: Array.isArray(sum?.voucherList) ? sum.voucherList : [],
+  timeSlots: Array.isArray(sum?.timeSlotList) ? sum.timeSlotList : [],
+  categories: Array.isArray(sum?.categoryList) ? sum.categoryList : [],
+
+  cashCheck: closingCheck.cashCheck || null,
+  couponCheck: closingCheck.couponCheck || null,
+  externalPaymentCheck: closingCheck.externalPaymentCheck || null,
+  changeFundAmount: Number(changeFundAmount || 0)
+});
+
 const handleCloseDay = async (closingCheck = {}) => {
   if (!storeId || isClosing) return;
+  const registerId = String(activeRegister?.id || '');
+  if (!registerId) {
+    window.alert('使用レジが未設定です。基本設定でレジを選択してください。');
+    return;
+  }
 
   setIsClosing(true);
 
   try {
-    const closingRef = doc(db, 'stores', storeId, 'dailyClosings', dateKey);
-    const closingSnapshot = await getDoc(closingRef);
-
-    if (closingSnapshot.exists()) {
-      const overwrite = window.confirm('この日の締めデータは既にあります。上書きしますか？');
+    // レジ単位の締め: dailyClosings/{date}/registers/{registerId}
+    const registerClosingRef = doc(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers', registerId);
+    const registerSnap = await getDoc(registerClosingRef);
+    if (registerSnap.exists() && registerSnap.data()?.status === 'closed') {
+      const overwrite = window.confirm(`${activeRegister?.name || 'このレジ'} の締めデータは既にあります。上書きしますか？`);
       if (!overwrite) {
         setIsClosing(false);
         return;
       }
     }
 
-    const savedClosingData = {
-      dateKey,
-      targetDate: new Date(targetDate || new Date()),
-      status: 'closed',
-
-      transactionIds: transactions.map((transaction) => transaction.id),
-      transactionCount: Number(summary?.transactionCount || 0),
-      customerCount: Number(summary?.customerCount || 0),
-      itemCount: Number(summary?.itemCount || 0),
-
-      totalSales: Number(summary?.totalSales || 0),
-
-      cashSales: Number(summary?.cashSales || 0),
-      cardSales: Number(summary?.cardSales || 0),
-      qrSales: Number(summary?.qrSales || 0),
-      otherSales: Number(summary?.otherSales || 0),
-
-      discountTotal: Number(summary?.discountTotal || 0),
-      promoExpenseTotal: Number(summary?.promoExpenseTotal || 0),
-      voucherTotal: Number(summary?.voucherTotal || 0),
-      settlementAdjustmentTotal: Number(summary?.settlementAdjustmentTotal || 0),
-
-      paymentMethods: paymentMethodList,
-      departments: departmentList,
-      taxBreakdown: taxBreakdownList,
-      discounts: discountList,
-      promoExpenses: promoExpenseList,
-      vouchers: voucherList,
-      timeSlots: timeSlotList,
-      categories: categoryList,
-
-      cashCheck: closingCheck.cashCheck || null,
-      couponCheck: closingCheck.couponCheck || null,
-      externalPaymentCheck: closingCheck.externalPaymentCheck || null,
-      changeFundAmount: Number(changeFundAmount || 0)
+    const registerPayload = {
+      ...buildClosingPayload(registerSummary, registerTransactions, closingCheck),
+      registerId,
+      registerName: activeRegister?.name || registerId,
+      departmentId: activeDepartment?.id || '',
+      departmentName: activeDepartment?.name || ''
     };
-
-    await setDoc(closingRef, {
-      ...savedClosingData,
+    await setDoc(registerClosingRef, {
+      ...registerPayload,
       closedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    setClosedDailyData(savedClosingData);
+    // 既存の日付単位(全日集計・分析互換)も更新
+    const legacyPayload = buildClosingPayload(fullDaySummary, transactions, closingCheck);
+    await setDoc(doc(db, 'stores', storeId, 'dailyClosings', dateKey), {
+      ...legacyPayload,
+      closedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    setClosedDailyData(legacyPayload);
     setClosingStatus('closed');
+    setRegisterClosedMap((prev) => ({ ...prev, [registerId]: true }));
+    setClosingReloadKey((key) => key + 1);
     setIsCheckModalOpen(false);
   } catch (error) {
     console.error('Daily closing failed:', error);
@@ -438,44 +555,61 @@ const handleCloseDay = async (closingCheck = {}) => {
   return (
     <div className="mt-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
 
-        <div className="mt-3 grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-          <div>
-            <label className="mb-1 block text-[11px] font-black text-slate-400">
-              使用レジ
-            </label>
-            <select
-              value={selectedRegisterId}
-              onChange={(event) => setSelectedRegisterId(event.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-400"
-            >
-              {registerFilterOptions.map((register) => (
-                <option key={register.id} value={register.id}>
-                  {register.name}
-                </option>
-              ))}
-            </select>
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+          {/* 使用レジ（固定表示・大きめテキスト） */}
+          <div className="rounded-xl bg-slate-900 px-4 py-2 text-base font-black text-white">
+            {activeRegister?.name || 'レジ'}
           </div>
 
-          <div>
-            <label className="mb-1 block text-[11px] font-black text-slate-400">
-              会計区分
-            </label>
-            <select
-              value={selectedRegisterMode}
-              onChange={(event) => setSelectedRegisterMode(event.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-400"
-            >
-              {registerModeFilterOptions.map((mode) => (
-                <option key={mode.id} value={mode.id}>
-                  {mode.name}
-                </option>
-              ))}
-            </select>
+          {/* 部門ボタン（配置・名称は固定。自部門は大きく、その他は小さく。選択中は黒） */}
+          {departmentOptions.map((dept) => {
+            const isSelected = selectedDepartmentId === dept.id;
+            const isOwn = dept.id === activeDepartment?.id;
+            return (
+              <button
+                key={dept.id}
+                type="button"
+                onClick={() => setSelectedDepartmentId(dept.id)}
+                className={`rounded-xl font-black transition ${
+                  isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
+                } ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                {dept.name}
+              </button>
+            );
+          })}
+
+          {/* 全体（小さくグレー、選択中は黒） */}
+          <button
+            type="button"
+            onClick={() => setSelectedDepartmentId('all')}
+            className={`rounded-xl px-3 py-2 text-xs font-black transition ${
+              selectedDepartmentId === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+          >
+            全体
+          </button>
+
+          <div className="ml-auto rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+            表示中: {filteredTransactionCount}件 / 全{transactions.length}件
           </div>
 
-          <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
-            表示中: {filteredTransactions.length}件 / 全{transactions.length}件
-          </div>
+          {/* 自部門に戻る（一番右。自部門表示中は非表示） */}
+          {!isOwnDepartmentView && (
+            <button
+              type="button"
+              onClick={() => setSelectedDepartmentId(activeDepartment?.id || 'all')}
+              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+            >
+              自部門に戻る
+            </button>
+          )}
         </div>
       <div className="mb-5 flex flex-col gap-4 border-b border-gray-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
@@ -527,28 +661,25 @@ const handleCloseDay = async (closingCheck = {}) => {
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch gap-2 sm:items-end">
-          <button
-            type="button"
-            onClick={openClosingModal}
-            disabled={loading || isClosing || isLoadingClosedDaily || transactions.length === 0}
-            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm transition-colors ${
-              isClosed
-                ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                : 'bg-gray-900 text-white hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-300'
-            }`}
-          >
-            {isClosing || isLoadingClosedDaily ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : isClosed ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <LockKeyhole size={16} />
-            )}
-            {isClosed ? '締め処理済み・修正' : '締め処理'}
-          </button>
+        {isOwnDepartmentView && (
+        <div className="flex flex-row flex-wrap items-center gap-2 sm:justify-end">
+          {/* 同一部門の他レジの締め状況（表示のみ・左側） */}
+          {otherDepartmentRegisters.map((register) => {
+            const closed = Boolean(registerClosedMap[register.id]);
+            return (
+              <div
+                key={register.id}
+                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black ${
+                  closed ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-400'
+                }`}
+              >
+                {closed ? <CheckCircle2 size={14} /> : <LockKeyhole size={14} />}
+                {register.name}{closed ? '締め処理済み' : '未締め'}
+              </div>
+            );
+          })}
 
-          {isClosed && (
+          {isOwnClosed && (
             <>
               <div className="rounded-xl bg-gray-50 px-4 py-2 text-right text-xs font-bold text-gray-500">
                 {dateKey} の日計
@@ -564,7 +695,29 @@ const handleCloseDay = async (closingCheck = {}) => {
               </button>
             </>
           )}
+
+          {/* 自レジの締め処理（操作可・黒地・右端） */}
+          <button
+            type="button"
+            onClick={openClosingModal}
+            disabled={loading || isClosing || isLoadingClosedDaily}
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm transition-colors ${
+              isOwnClosed
+                ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                : 'bg-gray-900 text-white hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-300'
+            }`}
+          >
+            {isClosing || isLoadingClosedDaily ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isOwnClosed ? (
+              <CheckCircle2 size={16} />
+            ) : (
+              <LockKeyhole size={16} />
+            )}
+            {activeRegister?.name || 'レジ'}{isOwnClosed ? '締め処理済み・修正' : '締め処理'}
+          </button>
         </div>
+        )}
       </div>
 
       {loading ? (
@@ -933,6 +1086,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               </div>
             </div>
 
+            {showTimeSlot && (
             <div className="rounded-2xl border border-gray-100 p-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <Clock3 size={16} />
@@ -966,6 +1120,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                 )}
               </div>
             </div>
+            )}
           </div>
 
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
@@ -1038,7 +1193,7 @@ const handleCloseDay = async (closingCheck = {}) => {
       <DailyClosingCheckModal
         isOpen={isCheckModalOpen}
         dateKey={dateKey}
-        summary={summary}
+        summary={registerSummary}
         discountList={discountList}
         changeFundAmount={changeFundAmount}
         closedDailyData={closedDailyData}

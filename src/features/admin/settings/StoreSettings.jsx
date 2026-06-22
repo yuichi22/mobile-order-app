@@ -40,6 +40,7 @@ import {
   USER_ROLES
 } from '../../../shared/utils/roles';
 import { safeStorage } from '../../../shared/utils/storage';
+import { resolveModeTaxSettings } from '../../../shared/utils/tax';
 import {
   useBusinessSettings,
   useCategoryData,
@@ -455,15 +456,16 @@ const CATEGORY_TAX_OPTIONS = [
   { id: 'taxFree', label: '0% 非課税 / 対象外', rate: 0 }
 ];
 
+// taxRateType を唯一の真実とする。inherit/未設定の item に古い taxRate:0 が
+// 残っていても「個別設定」とは見なさない（会計計算は taxRateType で行うため）。
+const hasExplicitCategoryTaxRule = (item = {}) =>
+  ['standard', 'reduced', 'taxFree'].includes(item.taxRateType || 'inherit');
+
 const getCategoryTaxRuleValue = (item = {}) => {
   const type = item.taxRateType || 'inherit';
   if (['standard', 'reduced', 'taxFree'].includes(type)) return type;
 
-  const rate = Number(item.taxRate);
-  if (rate === 8) return 'reduced';
-  if (rate === 0) return 'taxFree';
-  if (rate === 10) return 'standard';
-
+  // inherit/未設定 は標準税率を既定として編集を開始する（古い taxRate は無視）。
   return 'standard';
 };
 
@@ -473,9 +475,7 @@ const getCategoryTaxRuleLabel = (item = {}, defaultTaxRate = 10) => {
   if (type === 'reduced') return '8%';
   if (type === 'taxFree') return '0%';
 
-  const rate = Number(item.taxRate);
-  if (Number.isFinite(rate)) return `${rate}%`;
-
+  // inherit/未設定: 古い taxRate(=0 等)ではなく実効税率（標準/継承）を表示する。
   const fallback = Number.isFinite(Number(defaultTaxRate)) ? Number(defaultTaxRate) : 10;
   return `標準税率（${fallback}%）`;
 };
@@ -713,10 +713,7 @@ const CategoryTaxRulePanel = ({
   ), [items, getOptionLabel]);
 
   const configuredItems = useMemo(() => (
-    activeItems.filter((item) => {
-      const type = item.taxRateType || 'inherit';
-      return ['standard', 'reduced', 'taxFree'].includes(type) || Number.isFinite(Number(item.taxRate));
-    })
+    activeItems.filter((item) => hasExplicitCategoryTaxRule(item))
   ), [activeItems]);
 
   const [selectedId, setSelectedId] = useState('');
@@ -929,6 +926,27 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
     );
   }, [storeId]);
 
+  // 会計の税ルール(POS/ORDER別)。会計・日計が参照する settings/basic に保存する。
+  const [modeTax, setModeTax] = useState(() => ({
+    pos: resolveModeTaxSettings({}, 'pos'),
+    order: resolveModeTaxSettings({}, 'order')
+  }));
+  useEffect(() => {
+    if (!storeId) return undefined;
+    const basicRef = doc(db, 'stores', storeId, 'settings', 'basic');
+    return onSnapshot(basicRef, (snapshot) => {
+      const data = snapshot.exists() ? snapshot.data() : {};
+      setModeTax({
+        pos: resolveModeTaxSettings(data, 'pos'),
+        order: resolveModeTaxSettings(data, 'order')
+      });
+    });
+  }, [storeId]);
+
+  const updateModeTax = (mode, patch) => {
+    setModeTax((current) => ({ ...current, [mode]: { ...current[mode], ...patch } }));
+  };
+
   const updateSetting = (key, value) => {
     setSettings((current) => mergeTaxPriceSettings({
       ...current,
@@ -956,6 +974,27 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         doc(db, 'stores', storeId, 'settings', 'taxPrice'),
         {
           ...normalized,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      // 会計の税ルール(POS/ORDER別)を settings/basic に保存（会計・日計が参照）。
+      await setDoc(
+        doc(db, 'stores', storeId, 'settings', 'basic'),
+        {
+          posTax: {
+            priceBase: modeTax.pos.priceBase,
+            standardRate: Number(modeTax.pos.standardRate),
+            reducedRate: Number(modeTax.pos.reducedRate),
+            rounding: modeTax.pos.rounding
+          },
+          orderTax: {
+            priceBase: modeTax.order.priceBase,
+            standardRate: Number(modeTax.order.standardRate),
+            reducedRate: Number(modeTax.order.reducedRate),
+            rounding: modeTax.order.rounding
+          },
           updatedAt: serverTimestamp()
         },
         { merge: true }
@@ -1049,6 +1088,64 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
               税抜価格から税込価格を計算する時に使用します。
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Checkout Tax</p>
+        <h3 className="mt-2 text-xl font-black text-slate-900">会計の税ルール（レジ種別ごと）</h3>
+        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+          POS（物販）と ORDER（飲食）で、価格の入力方法・税率・端数を分けて設定します。会計・日計はこの設定で計算します。
+        </p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {[{ key: 'pos', label: 'POS（物販）' }, { key: 'order', label: 'ORDER（飲食）' }].map(({ key, label }) => (
+            <div key={key} className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <h4 className="text-lg font-black text-slate-900">{label}</h4>
+              <div>
+                <span className="mb-1 block text-xs font-black text-slate-500">価格の入力</span>
+                <select
+                  value={modeTax[key].priceBase}
+                  onChange={(event) => updateModeTax(key, { priceBase: event.target.value })}
+                  className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                >
+                  <option value="taxIncluded">税込で入力</option>
+                  <option value="taxExcluded">税抜で入力</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="mb-1 block text-xs font-black text-slate-500">標準税率(%)</span>
+                  <input
+                    type="number"
+                    value={modeTax[key].standardRate}
+                    onChange={(event) => updateModeTax(key, { standardRate: Number(event.target.value) })}
+                    className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <span className="mb-1 block text-xs font-black text-slate-500">軽減税率(%)</span>
+                  <input
+                    type="number"
+                    value={modeTax[key].reducedRate}
+                    onChange={(event) => updateModeTax(key, { reducedRate: Number(event.target.value) })}
+                    className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <span className="mb-1 block text-xs font-black text-slate-500">消費税端数処理</span>
+                <select
+                  value={modeTax[key].rounding}
+                  onChange={(event) => updateModeTax(key, { rounding: event.target.value })}
+                  className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                >
+                  <option value="floor">切り捨て</option>
+                  <option value="round">四捨五入</option>
+                  <option value="ceil">切り上げ</option>
+                </select>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

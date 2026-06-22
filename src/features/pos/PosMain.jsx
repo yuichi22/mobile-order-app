@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDocs, increment, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, increment, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent } from 'lucide-react';
 
-import { getActiveRegisterContext, getAvailableRegisters } from './utils/registerContext';
+import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 
@@ -22,7 +22,9 @@ import {
 } from '../store/hooks';
 import {
   normalizeTaxRounding,
-  splitTaxIncludedAmount
+  splitTaxIncludedAmount,
+  resolveModeTaxSettings,
+  computeLineTaxBreakdown
 } from '../../shared/utils/tax';
 import { useKitchenBoard } from '../kitchen/hooks/useKitchenBoard';
 import { useTableMenuOverrides } from './hooks/useTableMenuOverrides';
@@ -144,14 +146,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     productCategoryGroups: productMasterCategoryGroups = [],
     productSalesAreas: productMasterSalesAreas = [],
     loading: productMasterLoading
-  } = useProductMasterData(storeId);
+    // POSレジは商品リストを表示しないため、重い products 購読をスキップする。
+    // バーコード検索は Firestore 直接検索(searchKeywords)で動作する。
+  } = useProductMasterData(storeId, { includeProducts: registerMode !== 'pos' });
   const { discounts } = useDiscountData(storeId) || { discounts: [] };
   // 既定は右ペイン=履歴。POSでも待機中は履歴を表示し、商品がカートに入ったら会計画面へ切替える。
   const [isTakeoutMode, setIsTakeoutMode] = useState(false);
-  const [posProductKeyword, setPosProductKeyword] = useState('');
-  const [posProductCategoryId, setPosProductCategoryId] = useState('');
-  const [posManualName, setPosManualName] = useState('');
-  const [posManualPrice, setPosManualPrice] = useState('');
   const [posProductMessage, setPosProductMessage] = useState(null);
   // バーコード未登録商品の会計モーダル(売り場起点・POSレジ用)。null=閉
   const [uncodedSalesArea, setUncodedSalesArea] = useState(null);
@@ -223,26 +223,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       : []
   ), [posCategoryNameMap, productMasterProducts]);
 
-  const filteredPosProducts = useMemo(() => {
-    const normalizedKeyword = posProductKeyword.trim().toLowerCase();
-
-    return activePosProducts.filter((product) => {
-      if (posProductCategoryId && product.categoryId !== posProductCategoryId) return false;
-
-      if (!normalizedKeyword) return true;
-
-      return [
-        product.name,
-        product.sku,
-        product.productCode,
-        product.barcode,
-        product.resolvedCategoryName
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedKeyword));
-    });
-  }, [activePosProducts, posProductCategoryId, posProductKeyword]);
-
   const getRetailCartQuantity = (productId) => (
     takeoutCart
       .filter((item) => item.sourceType === 'retail' && item.productId === productId)
@@ -313,6 +293,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       takeoutPrice: Number(product.resolvedPrice || 0),
       unitPrice: Number(product.resolvedPrice || 0),
       priceTaxIncluded: Number(product.resolvedPrice || 0),
+      taxRate: Number.isFinite(Number(product.taxRate)) ? Number(product.taxRate) : null,
       barcode: product.barcode || '',
       sku: product.sku || product.productCode || '',
       stockQuantity,
@@ -321,32 +302,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     setPosMessage(`${product.name || '商品'} を追加しました。`, 'success');
     return true;
-  };
-
-  const addManualPosItem = () => {
-    const normalizedName = posManualName.trim() || '手入力商品';
-    const normalizedPrice = Math.max(Number(posManualPrice || 0) || 0, 0);
-
-    if (normalizedPrice <= 0) {
-      setPosMessage('手入力商品の金額を入力してください。', 'error');
-      return;
-    }
-
-    addPosCartItem({
-      id: `manual:${Date.now()}`,
-      sourceType: 'manual',
-      name: normalizedName,
-      categoryId: posProductCategoryId || '',
-      categoryName: posCategoryNameMap[posProductCategoryId] || '手入力',
-      takeoutPrice: normalizedPrice,
-      unitPrice: normalizedPrice,
-      priceTaxIncluded: normalizedPrice,
-      quantity: 1
-    });
-
-    setPosManualName('');
-    setPosManualPrice('');
-    setPosMessage(`${normalizedName} を追加しました。`, 'success');
   };
 
   // バーコード未登録商品(売り場→分類選択＋金額・数量手入力)を会計リストへ追加する。
@@ -367,6 +322,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       takeoutPrice: normalizedPrice,
       unitPrice: normalizedPrice,
       priceTaxIncluded: normalizedPrice,
+      taxRate: resolveCategoryTaxRate(categoryId),
       salesAreaName: salesAreaName || '',
       quantity: normalizedQuantity
     });
@@ -375,19 +331,60 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPosMessage(`${label} を会計リストに追加しました。`, 'success');
   };
 
-  const addPosProductByCode = (codeText) => {
-    const normalizedCode = String(codeText || '').trim().toLowerCase();
+  // カテゴリー(→所属グループ)の税率設定から税率を解決する。FOOD等の軽減=8%、既定=標準10%。
+  const resolveCategoryTaxRate = (categoryId) => {
+    const reducedTax = Number(storeSettings?.taxRateReduced ?? 8);
+    const standardTax = Number(storeSettings?.taxRate ?? 10);
+    const category = (productMasterCategories || []).find((c) => c.id === categoryId);
+    const groupId = category?.groupId || category?.categoryGroupId;
+    const group = (productMasterCategoryGroups || []).find((g) => g.id === groupId);
+    const ownType = category?.taxRateType && category.taxRateType !== 'inherit' ? category.taxRateType : '';
+    const type = ownType || group?.taxRateType || '';
+    if (type === 'reduced') return reducedTax;
+    if (type === 'taxFree') return 0;
+    return standardTax;
+  };
+
+  // メモリ(直近200件)に無い商品を Firestore から直接引くための整形。
+  const buildResolvedPosProduct = (raw) => ({
+    ...raw,
+    resolvedPrice: Number(raw.priceTaxIncluded ?? raw.price ?? 0) || 0,
+    resolvedStock: getProductStockQuantity(raw),
+    resolvedCategoryName: posCategoryNameMap[raw.categoryId] || raw.categoryName || 'カテゴリー'
+  });
+
+  const addPosProductByCode = async (codeText) => {
+    const rawCode = String(codeText || '').trim();
+    const normalizedCode = rawCode.toLowerCase();
     if (!normalizedCode) return false;
 
-    const matchedProduct = activePosProducts.find((product) => (
+    let matchedProduct = activePosProducts.find((product) => (
       [product.barcode, product.sku, product.productCode]
         .filter(Boolean)
         .some((value) => String(value).trim().toLowerCase() === normalizedCode)
     ));
 
+    // メモリ(直近200件)に無ければ Firestore を直接検索する。
+    // barcode 等の単一フィールドはインデックス対象外のため、検索用の searchKeywords(配列)で引く。
+    if (!matchedProduct && storeId) {
+      try {
+        const productsRef = collection(db, 'stores', storeId, 'products');
+        const candidates = Array.from(new Set([rawCode, normalizedCode])).filter(Boolean);
+        for (const term of candidates) {
+          const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(1)));
+          if (!snapshot.empty) {
+            const docSnap = snapshot.docs[0];
+            matchedProduct = buildResolvedPosProduct({ id: docSnap.id, ...docSnap.data() });
+            break;
+          }
+        }
+      } catch (error) {
+        console.error('[pos barcode lookup]', error);
+      }
+    }
+
     if (!matchedProduct) {
-      setPosProductKeyword(codeText);
-      setPosMessage('商品マスターに一致するバーコード / 品番 / SKU がありません。検索欄に入力しました。', 'error');
+      setPosMessage('商品マスターに一致するバーコード / 品番 / SKU がありません。', 'error');
       return false;
     }
 
@@ -461,11 +458,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       : takeoutMenuItems
   ), [takeoutCategoryFilter, takeoutMenuItems]);
 
-  const takeoutCartRawTotal = useMemo(() => (
-    takeoutCart.reduce((sum, item) => (
-      sum + (Number(item.takeoutPrice || item.unitPrice || item.priceTaxIncluded || 0) * Number(item.quantity || 0))
-    ), 0)
-  ), [takeoutCart]);
+  // カート合計(値引き前・税込)。価格が税抜入力(priceBase=taxExcluded)の場合は税を上乗せして税込にする。
+  const takeoutCartRawTotal = useMemo(() => {
+    const modeTax = resolveModeTaxSettings(storeSettings, registerMode === 'pos' ? 'pos' : 'order');
+    return takeoutCart.reduce((sum, item) => {
+      const lineAmount = Number(item.takeoutPrice || item.unitPrice || item.priceTaxIncluded || 0) * Number(item.quantity || 0);
+      const itemRate = Number.isFinite(Number(item.taxRate)) && Number(item.taxRate) > 0
+        ? Number(item.taxRate)
+        : (registerMode === 'order' ? modeTax.reducedRate : modeTax.standardRate);
+      const { includedAmount } = computeLineTaxBreakdown(lineAmount, itemRate, modeTax.priceBase, modeTax.rounding);
+      return sum + includedAmount;
+    }, 0);
+  }, [takeoutCart, storeSettings, registerMode]);
 
   const takeoutDiscountAmount = useMemo(() => {
     const rawTotal = Number(takeoutCartRawTotal || 0);
@@ -682,36 +686,73 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const paymentAmountNumber = takeoutPaymentMethod === 'cash'
         ? Number(takeoutPaymentAmount || 0)
         : Number(takeoutCartTotal);
-      const reducedTax = Number(settings?.taxRateReduced ?? 8);
-      const standardTax = Number(settings?.taxRate ?? 10);
-      const taxRounding = normalizeTaxRounding(settings?.taxRounding);
-      const reducedBreakdown = splitTaxIncludedAmount(takeoutCartTotal, reducedTax, taxRounding);
+      const modeTax = resolveModeTaxSettings(storeSettings, registerMode === 'pos' ? 'pos' : 'order');
+      const reducedTax = modeTax.reducedRate;
+      const standardTax = modeTax.standardRate;
+      const taxRounding = modeTax.rounding;
+      const priceBase = modeTax.priceBase;
       const transactionRef = doc(collection(db, 'stores', storeId, 'transactions'));
       const sessionId = `takeout-${transactionRef.id}`;
       const nowIso = new Date().toISOString();
       const businessDate = nowIso.slice(0, 10);
 
-      const items = takeoutCart.map((item) => ({
-        id: item.id,
-        menuItemId: item.id,
-        productId: item.productId || '',
-        sourceType: item.sourceType || 'takeout',
-        name: item.name || '未設定商品',
-        categoryId: item.categoryId || '',
-        categoryName: item.categoryName || 'カテゴリー未設定',
-        unitPrice: Number(item.takeoutPrice || 0),
-        quantity: Number(item.quantity || 1),
-        totalPrice: Number(item.takeoutPrice || 0) * Number(item.quantity || 1),
-        barcode: item.barcode || '',
-        sku: item.sku || '',
-        stockQuantity: item.stockQuantity ?? null,
-        isTakeout: true,
-        allowsTakeout: true,
-        taxRate: reducedTax,
-        status: 'paid',
-        paymentStatus: 'paid',
-        paidAtClient: nowIso
-      }));
+      // 商品ごとの税率で計算する。商品が税率を持てばそれを採用、無ければ
+      // ORDER(テイクアウト食品)=軽減、POS(物販)=標準 を既定にする。
+      const resolveItemTaxRate = (item) => {
+        const r = Number(item?.taxRate);
+        if (Number.isFinite(r) && r > 0) return r;
+        return registerMode === 'order' ? reducedTax : standardTax;
+      };
+
+      const items = takeoutCart.map((item) => {
+        const quantity = Number(item.quantity || 1);
+        const lineAmount = Number(item.takeoutPrice || 0) * quantity;
+        const itemRate = resolveItemTaxRate(item);
+        const isReducedItem = itemRate <= reducedTax;
+        const { includedAmount, baseAmount, taxAmount } = computeLineTaxBreakdown(lineAmount, itemRate, priceBase, taxRounding);
+        return {
+          id: item.id,
+          menuItemId: item.id,
+          productId: item.productId || '',
+          sourceType: item.sourceType || 'takeout',
+          name: item.name || '未設定商品',
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || 'カテゴリー未設定',
+          unitPrice: Number(item.takeoutPrice || 0),
+          quantity,
+          totalPrice: includedAmount,
+          barcode: item.barcode || '',
+          sku: item.sku || '',
+          stockQuantity: item.stockQuantity ?? null,
+          isTakeout: isReducedItem,
+          allowsTakeout: true,
+          taxRate: itemRate,
+          salesTaxRate: itemRate,
+          salesTaxRateType: isReducedItem ? 'reduced' : 'standard',
+          salesTaxIncludedAmount: includedAmount,
+          salesTaxExcludedAmount: baseAmount,
+          salesTaxAmount: taxAmount,
+          taxIncludedAmount: includedAmount,
+          status: 'paid',
+          paymentStatus: 'paid',
+          paidAtClient: nowIso
+        };
+      });
+
+      // 税率ブロック別に集計（値引きは元の明細合計に対する比率で各ブロックへ按分）。
+      const sumItemsBy = (predicate, key) => items
+        .filter(predicate)
+        .reduce((sum, it) => sum + Number(it[key] || 0), 0);
+      const reducedInclRaw = sumItemsBy((it) => it.salesTaxRateType === 'reduced', 'salesTaxIncludedAmount');
+      const standardInclRaw = sumItemsBy((it) => it.salesTaxRateType === 'standard', 'salesTaxIncludedAmount');
+      const grossLineTotal = reducedInclRaw + standardInclRaw;
+      const discountRatio = grossLineTotal > 0 ? Number(takeoutCartTotal) / grossLineTotal : 1;
+      const reducedIncluded = Math.round(reducedInclRaw * discountRatio);
+      const standardIncluded = Math.round(standardInclRaw * discountRatio);
+      const reducedBreakdown = splitTaxIncludedAmount(reducedIncluded, reducedTax, taxRounding);
+      const standardBreakdown = splitTaxIncludedAmount(standardIncluded, standardTax, taxRounding);
+      const subTotalAmount = Number(reducedBreakdown.baseAmount) + Number(standardBreakdown.baseAmount);
+      const totalTaxAmount = Number(reducedBreakdown.taxAmount) + Number(standardBreakdown.taxAmount);
 
       const selectedAccountingAdjustmentItems = Array.isArray(takeoutSelectedDiscount?.items) && takeoutSelectedDiscount.items.length > 0
         ? takeoutSelectedDiscount.items
@@ -753,30 +794,45 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const taxSummary = {
         reducedTaxRate: Number(reducedTax),
         standardTaxRate: Number(standardTax),
-        reducedTaxIncluded: Number(takeoutCartTotal),
+        reducedTaxIncluded: Number(reducedIncluded),
         reducedTaxExcluded: Number(reducedBreakdown.baseAmount),
         reducedTaxAmount: Number(reducedBreakdown.taxAmount),
-        standardTaxIncluded: 0,
-        standardTaxExcluded: 0,
-        standardTaxAmount: 0
+        standardTaxIncluded: Number(standardIncluded),
+        standardTaxExcluded: Number(standardBreakdown.baseAmount),
+        standardTaxAmount: Number(standardBreakdown.taxAmount)
       };
 
       const taxBreakdown = {
         reduced: {
           rate: Number(reducedTax),
-          sales: Number(takeoutCartTotal),
+          sales: Number(reducedIncluded),
           baseAmount: Number(reducedBreakdown.baseAmount),
           tax: Number(reducedBreakdown.taxAmount)
         },
         standard: {
           rate: Number(standardTax),
-          sales: 0,
-          baseAmount: 0,
-          tax: 0
+          sales: Number(standardIncluded),
+          baseAmount: Number(standardBreakdown.baseAmount),
+          tax: Number(standardBreakdown.taxAmount)
         }
       };
 
       const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments);
+      // 売上の部門/モードは「会計時のpos/orderトグル(=売上種別)」で決める。
+      // registerId/Name(締め用)は物理レジ(registerContext)のまま。
+      const saleMode = registerMode === 'pos' ? 'pos' : 'order';
+      const saleDepartment = (() => {
+        if (registerContext.registerMode === saleMode) {
+          return {
+            id: registerContext.departmentId || (saleMode === 'pos' ? 'retail' : 'restaurant'),
+            name: registerContext.departmentName || (saleMode === 'pos' ? '物販' : '飲食')
+          };
+        }
+        const dept = getAvailableDepartments(storeSettings?.departments).find((d) => d.registerMode === saleMode);
+        return dept
+          ? { id: dept.id, name: dept.name }
+          : { id: saleMode === 'pos' ? 'retail' : 'restaurant', name: saleMode === 'pos' ? '物販' : '飲食' };
+      })();
       const hasManualSale = items.some((item) => item?.sourceType === 'manual');
       const hasBarcodeSale = items.some((item) => item?.sourceType === 'barcode');
       const hasRetailSale = items.some((item) => item?.sourceType === 'retail');
@@ -823,10 +879,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         receiptScopeLabel: registerMode === 'pos' ? 'POSレジ' : 'テイクアウト',
         title: '領収書',
         items,
-        subTotal: Number(reducedBreakdown.baseAmount),
-        taxAmount: Number(reducedBreakdown.taxAmount),
+        subTotal: Number(subTotalAmount),
+        taxAmount: Number(totalTaxAmount),
         taxAmountReduced: Number(reducedBreakdown.taxAmount),
-        taxAmountStandard: 0,
+        taxAmountStandard: Number(standardBreakdown.taxAmount),
         discountAmount: Number(takeoutDiscountAmount),
         promoExpenseAmount: 0,
         voucherAmount: 0,
@@ -848,11 +904,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
           registerId: registerContext.id,
           registerName: registerContext.name,
-          departmentId: registerContext.departmentId || 'retail',
-          departmentName: registerContext.departmentName || '物販',
-          registerMode: registerContext.registerMode || (registerMode === 'pos' ? 'pos' : 'order'),
-          salesChannel: (registerContext.registerMode || registerMode) === 'pos' ? 'pos_register' : 'order_register',
-          salesChannelLabel: (registerContext.registerMode || registerMode) === 'pos' ? 'POSレジ' : 'ORDERレジ',
+          departmentId: saleDepartment.id,
+          departmentName: saleDepartment.name,
+          registerMode: saleMode,
+          salesChannel: saleMode === 'pos' ? 'pos_register' : 'order_register',
+          salesChannelLabel: saleMode === 'pos' ? 'POSレジ' : 'ORDERレジ',
           salesSubChannel,
           salesSubChannelLabel,
 
@@ -875,21 +931,21 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           periodId: 'takeout',
           periodName: 'テイクアウト',
 
-          subTotal: Number(reducedBreakdown.baseAmount),
-          subtotal: Number(reducedBreakdown.baseAmount),
+          subTotal: Number(subTotalAmount),
+          subtotal: Number(subTotalAmount),
           rawTotalAmount: Number(takeoutCartRawTotal),
           discountAmount: Number(takeoutDiscountAmount),
           totalAmount: Number(takeoutCartTotal),
           totalPrice: Number(takeoutCartTotal),
 
-          taxAmount: Number(reducedBreakdown.taxAmount),
+          taxAmount: Number(totalTaxAmount),
           taxAmountReduced: Number(reducedBreakdown.taxAmount),
-          taxAmountStandard: 0,
+          taxAmountStandard: Number(standardBreakdown.taxAmount),
           taxRateReduced: Number(reducedTax),
           taxRateStandard: Number(standardTax),
 
-          totalReducedIncl: Number(takeoutCartTotal),
-          totalStandardIncl: 0,
+          totalReducedIncl: Number(reducedIncluded),
+          totalStandardIncl: Number(standardIncluded),
 
           taxSummary,
           taxBreakdown,
@@ -1177,10 +1233,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   useEffect(() => {
     scanCaptureActiveRef.current = registerMode === 'pos' || isTakeoutMode;
     runGlobalScanRef.current = (value) => {
-      inputRef.current?.focus();
-      setScanInput(value);
       processScannedValue(value);
       setScanInput('');
+      // スキャン後はフォーカスを入力欄(検索窓)から外す。
+      // カーソルが入力欄に残ると次のバーコードが入力欄に取られ、グローバル捕捉に失敗するため。
+      const active = document.activeElement;
+      if (active && typeof active.blur === 'function'
+        && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+        active.blur();
+      }
     };
   });
 
@@ -1214,11 +1275,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       if (event.key.length === 1) {
         if (gap > SCAN_INTERVAL_MS) buffer = ''; // 新しい入力列
         buffer += event.key;
-        // 入力欄にフォーカス中は手入力を壊さないので奪わない。
-        // 非入力要素にフォーカス中(=どこにも入らない)のみ横取りして取りこぼしを防ぐ。
+
         const el = document.activeElement;
         const editable = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-        if (!editable) {
+        // 2文字目以降の高速連続入力＝スキャナと判定。
+        const isScanSpeed = gap < SCAN_INTERVAL_MS && buffer.length >= 2;
+
+        // スキャン中に入力欄(検索窓)へカーソルがあれば即座に外し、
+        // 以降のキーを確実にグローバル捕捉する（人為的にフォーカスしていても1本で通る）。
+        if (editable && isScanSpeed) {
+          el.blur();
+        }
+
+        // 非入力要素にフォーカス中、またはスキャンと判定した時は横取りして取りこぼしを防ぐ。
+        if (!editable || isScanSpeed) {
           event.preventDefault();
           event.stopPropagation();
         }
@@ -1502,35 +1572,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             {registerMode === 'pos' ? (
               <div className="flex h-full min-h-0 flex-col bg-slate-50">
                 <div className="shrink-0 border-b border-slate-200 bg-white p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-black text-slate-900">商品入力</div>
-                      <div className="mt-1 text-xs font-bold text-slate-400">
-                        商品マスターから選択、または手入力で仮伝票に追加します。
-                      </div>
-                    </div>
-                    <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-                      {filteredPosProducts.length}件
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 xl:grid-cols-[1fr_160px]">
-                    <input
-                      value={posProductKeyword}
-                      onChange={(event) => setPosProductKeyword(normalizeScannedCode(event.target.value))}
-                      placeholder="商品名 / 品番 / バーコードで検索"
-                      className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
-                    />
-                    <select
-                      value={posProductCategoryId}
-                      onChange={(event) => setPosProductCategoryId(event.target.value)}
-                      className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
-                    >
-                      <option value="">すべて</option>
-                      {productMasterCategories.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
+                  <div className="text-sm font-black text-slate-900">商品入力</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">
+                    バーコードをスキャン、または売り場を選んで仮伝票に追加します。
                   </div>
                 </div>
 
@@ -1560,103 +1604,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     )}
 
-                    <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-3">
-                      <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">手入力</div>
-                      <div className="grid grid-cols-[1fr_120px] gap-2">
-                        <input
-                          value={posManualName}
-                          onChange={(event) => setPosManualName(event.target.value)}
-                          placeholder="商品名（任意）"
-                          className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
-                        />
-                        <input
-                          type="number"
-                          value={posManualPrice}
-                          onChange={(event) => setPosManualPrice(event.target.value)}
-                          placeholder="金額"
-                          className="h-11 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-right font-mono text-lg font-black text-slate-900 outline-none focus:border-blue-400"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addManualPosItem}
-                        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white shadow-sm transition-all hover:bg-black active:scale-[0.98]"
-                      >
-                        <Plus size={16} />
-                        手入力で追加
-                      </button>
-                    </div>
-
-                    <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      商品リスト（商品マスター）
-                    </div>
-                    {productMasterLoading ? (
-                      <div className="flex h-full items-center justify-center">
-                        <LoadingSpinner />
-                      </div>
-                    ) : filteredPosProducts.length === 0 ? (
-                      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
-                        <ShoppingBag size={48} className="text-slate-300" />
-                        <p className="mt-3 text-sm font-black text-slate-500">
-                          商品が見つかりません
-                        </p>
-                        <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
-                          POS設定の商品マスターに商品を登録してください。
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid gap-2 grid-cols-1 2xl:grid-cols-2">
-                        {filteredPosProducts.map((product) => {
-                          const stockQuantity = Number(product.resolvedStock || 0);
-                          const cartQuantity = getRetailCartQuantity(product.id);
-                          const isOutOfStock = stockQuantity <= 0;
-                          const isReachedCartLimit = cartQuantity >= stockQuantity;
-                          const isDisabled = POS_ENFORCE_STOCK_LIMIT && (isOutOfStock || isReachedCartLimit);
-
-                          return (
-                            <button
-                              key={product.id}
-                              type="button"
-                              onClick={() => addPosProductToCart(product)}
-                              disabled={isDisabled}
-                              className={`flex min-h-[98px] flex-col justify-between rounded-2xl border p-3 text-left shadow-sm transition-all active:scale-[0.99] ${
-                                isDisabled
-                                  ? 'cursor-not-allowed border-slate-100 bg-slate-100 opacity-70'
-                                  : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50'
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <div className={`truncate text-sm font-black ${isDisabled ? 'text-slate-400' : 'text-slate-800'}`}>
-                                  {product.name || '商品'}
-                                </div>
-                                <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
-                                  {product.sku || product.productCode || product.barcode || product.resolvedCategoryName}
-                                </div>
-                              </div>
-                              <div className="mt-3 flex items-end justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[11px] font-bold text-slate-400">
-                                    {product.resolvedCategoryName}
-                                  </div>
-                                  <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                    isOutOfStock
-                                      ? 'bg-red-50 text-red-500'
-                                      : isReachedCartLimit
-                                        ? 'bg-orange-50 text-orange-500'
-                                        : 'bg-emerald-50 text-emerald-600'
-                                  }`}>
-                                    在庫 {stockQuantity.toLocaleString()} / 選択 {cartQuantity.toLocaleString()}
-                                  </div>
-                                </div>
-                                <span className={`font-mono text-base font-black ${isDisabled ? 'text-slate-400' : 'text-slate-900'}`}>
-                                  ¥{Number(product.resolvedPrice || 0).toLocaleString()}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
 
                   {renderTakeoutCartColumn()}

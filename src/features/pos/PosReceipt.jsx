@@ -87,10 +87,11 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
       };
       await issueReceipt({ data: receiptData, settings, mode: resolveReceiptMode(receiptData) });
     } catch (error) {
-      console.error('[pos receipt print error]', error);
+      const errorText = error?.message || error?.errorMessage || error?.code || JSON.stringify(error) || String(error);
+      console.error('[pos receipt print error]', errorText, error);
 
       const shouldFallback = window.confirm(
-        'レシートプリンターへの印刷に失敗しました。ブラウザ印刷を開きますか？'
+        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`
       );
 
       if (shouldFallback) {

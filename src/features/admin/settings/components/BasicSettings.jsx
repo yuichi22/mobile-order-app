@@ -28,7 +28,6 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import ReceiptModeSettingsSection from './ReceiptModeSettingsSection';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
-import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
 import {
   REGISTER_MODE_OPTIONS,
   getActiveRegisterContext,
@@ -334,10 +333,6 @@ const BasicSettings = ({
   const [cookingCategoryDraftSourceKey, setCookingCategoryDraftSourceKey] = useState(null);
 
   const [copiedServeUrl, setCopiedServeUrl] = useState(false);
-  const [printerHealth, setPrinterHealth] = useState(null);
-  const [printerTestStatus, setPrinterTestStatus] = useState(null);
-  const [isCheckingPrinter, setIsCheckingPrinter] = useState(false);
-  const [isTestingPrinter, setIsTestingPrinter] = useState(false);
   const serveModeUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
 
@@ -396,13 +391,7 @@ const BasicSettings = ({
     form.taxRateReduced.value = settings.taxRateReduced ?? 8;
     form.receiptBannerImage.value = settings.receiptBannerImage || '';
     form.customerLogoUrl.value = settings.customerLogoUrl || '';
-    const printerSettings = settings.printerSettings || {};
-    form.printerEnabled.checked = Boolean(printerSettings.enabled);
-    form.printerBridgeUrl.value = printerSettings.bridgeUrl || 'http://localhost:8787';
-    form.printerIp.value = printerSettings.printerIp || '';
-    form.printerPort.value = printerSettings.printerPort || 9100;
-    form.printerAutoPrintReceipt.checked = Boolean(printerSettings.autoPrintReceipt);
-    
+
     setCustomerLogoPreview(null);
     setCustomerThemeColor(settings.customerThemeColor || '#0f172a');
     setTaxRounding(normalizeTaxRounding(settings.taxRounding));
@@ -546,80 +535,6 @@ const confirmDeleteCookingCategory = () => {
     });
   };
 
-const buildPrinterSettingsFromForm = () => {
-  const form = formRef.current;
-  if (!form) {
-    return {
-      printerSettings: {
-        enabled: false,
-        mode: 'local_bridge',
-        bridgeUrl: 'http://localhost:8787',
-        printerIp: '',
-        printerPort: 9100,
-        autoPrintReceipt: false
-      }
-    };
-  }
-
-  return {
-    printerSettings: {
-      enabled: form.printerEnabled.checked,
-      mode: 'local_bridge',
-      bridgeUrl: form.printerBridgeUrl.value.trim() || 'http://localhost:8787',
-      printerIp: form.printerIp.value.trim(),
-      printerPort: Number(form.printerPort.value || 9100),
-      autoPrintReceipt: form.printerAutoPrintReceipt.checked
-    }
-  };
-};
-
-const handleCheckPrinterBridge = async () => {
-  setIsCheckingPrinter(true);
-  setPrinterHealth(null);
-
-  try {
-    const currentSettings = buildPrinterSettingsFromForm();
-    const result = await checkPrintBridgeHealth(currentSettings);
-
-    setPrinterHealth({
-      ok: true,
-      message: `印刷ブリッジに接続できました。${result.printerIp ? `現在の既定IP: ${result.printerIp}` : ''}`
-    });
-  } catch (error) {
-    console.error('[printer bridge health error]', error);
-    setPrinterHealth({
-      ok: false,
-      message: error.message || '印刷ブリッジに接続できませんでした'
-    });
-  } finally {
-    setIsCheckingPrinter(false);
-  }
-};
-
-const handleTestPrinter = async () => {
-  setIsTestingPrinter(true);
-  setPrinterTestStatus(null);
-
-  try {
-    const currentSettings = buildPrinterSettingsFromForm();
-    await printTestViaBridge(currentSettings);
-
-    setPrinterTestStatus({
-      ok: true,
-      message: 'テスト印刷を送信しました。プリンターから紙が出たか確認してください。'
-    });
-  } catch (error) {
-    console.error('[printer test error]', error);
-    setPrinterTestStatus({
-      ok: false,
-      message: error.message || 'テスト印刷に失敗しました'
-    });
-  } finally {
-    setIsTestingPrinter(false);
-  }
-};
-
-
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSaving(true);
@@ -647,13 +562,14 @@ const handleTestPrinter = async () => {
         receiptBannerImage: formData.get('receiptBannerImage'),
         customerLogoUrl: formData.get('customerLogoUrl'),
         kitchens,
-        printerSettings: {
-          enabled: formData.get('printerEnabled') === 'on',
+        // 旧来のstore共通プリンタ設定はレシート設定(モード別)へ統合済み。既存値は保持する。
+        printerSettings: settings.printerSettings || {
+          enabled: false,
           mode: 'local_bridge',
-          bridgeUrl: String(formData.get('printerBridgeUrl') || '').trim() || 'http://localhost:8787',
-          printerIp: String(formData.get('printerIp') || '').trim(),
-          printerPort: Number(formData.get('printerPort') || 9100),
-          autoPrintReceipt: formData.get('printerAutoPrintReceipt') === 'on'
+          bridgeUrl: 'http://localhost:8787',
+          printerIp: '',
+          printerPort: 9100,
+          autoPrintReceipt: false
         }
       });
 
@@ -1695,168 +1611,6 @@ const handleTestPrinter = async () => {
             </div>
           </div>
         </SettingSection>
-<SettingSection
-  title="レシートプリンター"
-  desc="レジ端末にインストールした印刷ブリッジを経由して、LAN内のレシートプリンターへ印刷します。"
-  icon={Printer}
->
-  <div className="space-y-6">
-    <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div>
-        <p className="text-sm font-black text-gray-800">レシートプリンターを使用する</p>
-        <p className="mt-1 text-xs font-bold leading-relaxed text-gray-400">
-          POSのレシート印刷ボタンから、ローカル印刷ブリッジへ送信します。
-        </p>
-      </div>
-      <input
-        name="printerEnabled"
-        type="checkbox"
-        className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-      />
-    </label>
-
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="space-y-2 md:col-span-2">
-        <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-          印刷ブリッジURL
-        </label>
-        <input
-          name="printerBridgeUrl"
-          className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 font-mono text-sm text-gray-700 outline-none transition-all focus:border-orange-500"
-          placeholder="http://localhost:8787"
-        />
-        <p className="ml-1 text-[11px] font-bold leading-relaxed text-gray-400">
-          通常は http://localhost:8787 のままで使用します。レジ端末上で印刷ブリッジを起動してください。
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-          プリンターIPアドレス
-        </label>
-        <input
-          name="printerIp"
-          className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 font-mono text-sm font-bold text-gray-700 outline-none transition-all focus:border-orange-500"
-          placeholder="192.168.1.51"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-          ポート
-        </label>
-        <input
-          name="printerPort"
-          type="number"
-          min="1"
-          className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 font-mono text-sm font-bold text-gray-700 outline-none transition-all focus:border-orange-500"
-          placeholder="9100"
-        />
-      </div>
-    </div>
-
-    <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-white p-4">
-      <div>
-        <p className="text-sm font-black text-gray-800">会計完了後に自動印刷する</p>
-        <p className="mt-1 text-xs font-bold leading-relaxed text-gray-400">
-          まずはOFF推奨です。運用が安定してからONにしてください。
-        </p>
-      </div>
-      <input
-        name="printerAutoPrintReceipt"
-        type="checkbox"
-        className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-      />
-    </label>
-
-    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
-          <Printer size={20} />
-        </div>
-        <div>
-          <p className="text-sm font-black text-gray-800">印刷ブリッジをインストール</p>
-          <p className="mt-1 text-xs font-bold leading-relaxed text-gray-400">
-            この端末でレシート印刷するには、印刷ブリッジを起動してください。
-            初回のみNode.jsのインストールが必要です。
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <a
-          href="/downloads/mobile-order-print-bridge-mac.zip"
-          download
-          className="flex h-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-gray-50"
-        >
-          Mac版をダウンロード
-        </a>
-
-        <a
-          href="/downloads/mobile-order-print-bridge-windows.zip"
-          download
-          className="flex h-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-gray-50"
-        >
-          Windows版をダウンロード
-        </a>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <button
-        type="button"
-        onClick={handleCheckPrinterBridge}
-        disabled={isCheckingPrinter}
-        className="flex h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:opacity-60"
-      >
-        {isCheckingPrinter ? <LoadingSpinner size={16} /> : <Smartphone size={18} />}
-        接続確認
-      </button>
-
-      <button
-        type="button"
-        onClick={handleTestPrinter}
-        disabled={isTestingPrinter}
-        className="flex h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-black text-white shadow-sm transition-all hover:bg-black disabled:opacity-60"
-      >
-        {isTestingPrinter ? <LoadingSpinner size={16} /> : <Receipt size={18} />}
-        テスト印刷
-      </button>
-    </div>
-
-    {(printerHealth || printerTestStatus) && (
-      <div className="space-y-2">
-        {printerHealth && (
-          <div className={`rounded-2xl border p-4 text-xs font-bold ${
-            printerHealth.ok
-              ? 'border-green-100 bg-green-50 text-green-700'
-              : 'border-red-100 bg-red-50 text-red-700'
-          }`}>
-            {printerHealth.message}
-          </div>
-        )}
-
-        {printerTestStatus && (
-          <div className={`rounded-2xl border p-4 text-xs font-bold ${
-            printerTestStatus.ok
-              ? 'border-green-100 bg-green-50 text-green-700'
-              : 'border-red-100 bg-red-50 text-red-700'
-          }`}>
-            {printerTestStatus.message}
-          </div>
-        )}
-      </div>
-    )}
-
-    <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs">
-      <AlertCircle className="shrink-0 text-blue-500" size={18} />
-      <p className="font-bold leading-relaxed text-blue-700">
-        プリンターIPはルーター側で固定割当してください。IPが変わると印刷できなくなります。
-        印刷ブリッジ未起動時は、POS側で従来のブラウザ印刷にフォールバックできます。
-      </p>
-    </div>
-  </div>
-</SettingSection>
 
 
         <SettingSection

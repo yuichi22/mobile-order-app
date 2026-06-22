@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Capacitor
 import StarIO10
 
@@ -76,7 +77,9 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
 
                 let printer = StarPrinter(settings)
-                let commands = self.buildCommands(receipt)
+                // バナー画像URLがあれば先に取得（非同期）。失敗しても印刷は続行する。
+                let bannerImage = await self.loadBannerImage(receipt["bannerImage"] as? String)
+                let commands = self.buildCommands(receipt, bannerImage: bannerImage)
                 do {
                     try await printer.open()
                     try await printer.print(command: commands)
@@ -119,7 +122,7 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - レシート組み立て（StarXpand コマンド）
 
-    private func buildCommands(_ r: [String: Any]) -> String {
+    private func buildCommands(_ r: [String: Any], bannerImage: UIImage?) -> String {
         let width = 48 // 80mm / Font A 目安
         let printerBuilder = StarXpandCommand.PrinterBuilder()
 
@@ -150,20 +153,60 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         func str(_ key: String) -> String { (r[key] as? String) ?? "" }
 
-        // ヘッダ
-        let header = str("headerTitle").isEmpty ? str("storeName") : str("headerTitle")
+        // 0. 上部の余白
+        _ = printerBuilder.actionFeedLine(1)
+
+        // 1. タイトル「領収書」（最上部・大きく・字間あり）
+        let rawTitle = str("title").isEmpty ? "領収書" : str("title")
+        let title = rawTitle == "領収書" ? "領　収　書" : rawTitle
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 2, height: 2))
-        center(header, bold: true)
+        center(title, bold: true)
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 1, height: 1))
+        _ = printerBuilder.actionFeedLine(1)
+
+        // 2. バナー画像（任意・中央）。取得できた時のみ印字。
+        if let banner = bannerImage {
+            // バナー幅(dot)。payloadで指定可・既定192(80mm=576dotの約1/3)。30〜576にクランプ。
+            let rawBannerWidth = (r["bannerWidth"] as? NSNumber)?.intValue ?? 192
+            let bannerWidth = max(30, min(rawBannerWidth, 576))
+            // ロゴ/線画はディザリングするとにじむため、既定はディザOFF＋しきい値2値化でくっきり印字。
+            // diffusion=trueは写真向けの誤差拡散。threshold(0-255)が大きいほど黒が増える。いずれもpayloadで調整可。
+            let bannerDiffusion = (r["bannerDiffusion"] as? NSNumber)?.boolValue ?? false
+            let rawThreshold = (r["bannerThreshold"] as? NSNumber)?.intValue ?? 160
+            let bannerThreshold = max(0, min(rawThreshold, 255))
+            let imageParam = StarXpandCommand.Printer.ImageParameter(image: banner, width: bannerWidth)
+                .setEffectDiffusion(bannerDiffusion)
+                .setThreshold(bannerThreshold)
+            _ = printerBuilder.styleAlignment(.center)
+            _ = printerBuilder.actionPrintImage(imageParam)
+            _ = printerBuilder.styleAlignment(.left)
+            // バナーとヘッダー文言の間に余白
+            _ = printerBuilder.actionFeedLine(1)
+        }
+
+        // 3. ヘッダー文言（レシート設定・あれば）
+        if !str("headerTitle").isEmpty { center(str("headerTitle")) }
+
+        _ = printerBuilder.actionFeedLine(1)
+
+        // 4. 店名・住所・TEL・登録番号
+        if !str("storeName").isEmpty { center(str("storeName"), bold: true) }
         if !str("address").isEmpty { center(str("address")) }
         if !str("tel").isEmpty { center("TEL: " + str("tel")) }
         if !str("invoiceNumber").isEmpty { center("登録番号: " + str("invoiceNumber")) }
         divider()
 
-        // メタ
+        // 5. 日付 / No / レジ区分
         if !str("issuedAtText").isEmpty { text(str("issuedAtText")) }
         if !str("receiptNo").isEmpty { text("No: " + str("receiptNo")) }
         if !str("tableName").isEmpty { text(str("tableName")) }
+
+        // 6. 宛名（手書き欄・右寄せの下線＋様）。上下に余白。
+        _ = printerBuilder.actionFeedLine(1)
+        _ = printerBuilder.styleAlignment(.right)
+        text(String(repeating: "_", count: 24) + "  様")
+        _ = printerBuilder.styleAlignment(.left)
+        _ = printerBuilder.actionFeedLine(1)
         divider()
 
         // 明細
@@ -189,10 +232,12 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         if !str("paymentMethod").isEmpty { lr("お支払", str("paymentMethod")) }
         divider()
 
-        // フッタ
+        // フッタ（前に余白）
+        _ = printerBuilder.actionFeedLine(1)
         let footer = str("footerNote").isEmpty ? "ご利用ありがとうございました。" : str("footerNote")
         center(footer)
-        _ = printerBuilder.actionFeedLine(1)
+        // カット前のティアオフ余白
+        _ = printerBuilder.actionFeedLine(2)
         _ = printerBuilder.actionCut(StarXpandCommand.Printer.CutType.partial)
 
         let builder = StarXpandCommand.StarXpandCommandBuilder()
@@ -200,6 +245,19 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
             StarXpandCommand.DocumentBuilder().addPrinter(printerBuilder)
         )
         return builder.getCommands()
+    }
+
+    // バナー画像URLを取得して UIImage を返す。URL空・取得失敗時は nil（印刷は続行）。
+    private func loadBannerImage(_ urlString: String?) async -> UIImage? {
+        guard let urlString = urlString, !urlString.isEmpty, let url = URL(string: urlString) else {
+            return nil
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return UIImage(data: data)
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - ユーティリティ

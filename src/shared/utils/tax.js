@@ -46,3 +46,35 @@ export const toTaxIncludedAmount = (baseAmount, taxRate, roundingMode) => {
   const rate = stabilizeDecimal(taxRate);
   return applyTaxRounding(stabilizeDecimal(amount * (1 + (rate / 100))), roundingMode);
 };
+
+// 会計モード(pos/order)別の税設定を settings(=settings/basic) から解決する。
+// 未設定なら従来値(taxRate/taxRateReduced/taxRounding, ORDERは menuPriceTaxMode)へフォールバック。
+export const resolveModeTaxSettings = (settings = {}, mode = 'pos') => {
+  const key = mode === 'pos' ? 'posTax' : 'orderTax';
+  const cfg = settings?.[key] || {};
+  const fallbackPriceBase = mode === 'order'
+    ? (settings?.menuPriceTaxMode === 'tax_excluded' ? 'taxExcluded' : 'taxIncluded')
+    : 'taxIncluded';
+  const priceBase = cfg.priceBase === 'taxExcluded' || cfg.priceBase === 'taxIncluded'
+    ? cfg.priceBase
+    : fallbackPriceBase;
+  return {
+    priceBase,
+    standardRate: Number.isFinite(Number(cfg.standardRate)) ? Number(cfg.standardRate) : Number(settings?.taxRate ?? 10),
+    reducedRate: Number.isFinite(Number(cfg.reducedRate)) ? Number(cfg.reducedRate) : Number(settings?.taxRateReduced ?? 8),
+    rounding: normalizeTaxRounding(cfg.rounding || settings?.taxRounding)
+  };
+};
+
+// 1行ぶんの税内訳。priceBase=taxIncluded なら lineAmount は税込、taxExcluded なら税抜(base)。
+// includedAmount(=実際に請求する税込額)/baseAmount(税抜)/taxAmount を返す。
+export const computeLineTaxBreakdown = (lineAmount, taxRate, priceBase, roundingMode) => {
+  if (priceBase === 'taxExcluded') {
+    const baseAmount = applyTaxRounding(stabilizeDecimal(lineAmount), roundingMode);
+    const includedAmount = toTaxIncludedAmount(baseAmount, taxRate, roundingMode);
+    return { includedAmount, baseAmount, taxAmount: stabilizeDecimal(includedAmount - baseAmount) };
+  }
+  const includedAmount = stabilizeDecimal(lineAmount);
+  const { baseAmount, taxAmount } = splitTaxIncludedAmount(includedAmount, taxRate, roundingMode);
+  return { includedAmount, baseAmount, taxAmount };
+};

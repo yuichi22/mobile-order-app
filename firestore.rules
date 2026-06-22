@@ -514,6 +514,12 @@ service cloud.firestore {
       match /dailyClosings/{closingId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreStaff(storeId);
+
+        // レジ別締め（dailyClosings/{date}/registers/{registerId}）
+        match /registers/{registerId} {
+          allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+          allow write: if isPlatformAdmin() || isStoreStaff(storeId);
+        }
       }
     }
 

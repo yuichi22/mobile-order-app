@@ -94,8 +94,10 @@ const useStoreDocState = (storeId, subscribeFn, label) => {
   };
 };
 
-export const useProductMasterData = (storeId) => {
-  const productsState = useStoreCollectionState(storeId, subscribeToProductMasterItems, 'products');
+export const useProductMasterData = (storeId, options = {}) => {
+  const { includeProducts = true } = options;
+  // products は件数が多く重いので、不要な画面(POSレジ等)では購読をスキップできる。
+  const productsState = useStoreCollectionState(includeProducts ? storeId : null, subscribeToProductMasterItems, 'products');
   const productGroupsState = useStoreCollectionState(storeId, subscribeToProductGroups, 'productGroups');
   const categoriesState = useStoreCollectionState(storeId, subscribeToProductCategories, 'productCategories');
   const categoryGroupsState = useStoreCollectionState(storeId, subscribeToProductCategoryGroups, 'productCategoryGroups');
