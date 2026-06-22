@@ -718,6 +718,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
   const summary = {
     transactionCount: 0,
     customerCount: 0,
+    posCustomerCount: 0,
     totalSales: 0,
 
     sessionGuestCounts: new Map(),
@@ -774,6 +775,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     summary.totalSales += totalAmount + settlementAdjustmentTotal;
     summary.settlementAdjustmentTotal += settlementAdjustmentTotal;
 
+    // POSレジは「一会計＝一客」で来客数に加算（人数・顧客IDを持たないため）。
+    if (transaction.registerMode === 'pos' || transaction.salesChannel === 'pos_register') {
+      summary.posCustomerCount += 1;
+    }
+
     const guestCount = getTransactionGuestCount(transaction);
     const sessionKey = getTransactionSessionKey(transaction);
 
@@ -796,9 +802,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     const guestCustomerCount = sumSessionGuestCounts(summary.sessionGuestCounts);
     const fallbackCustomerCount = summary.customerIdSet?.size || 0;
-    const customerCount = guestCustomerCount > 0 ? guestCustomerCount : fallbackCustomerCount;
+    // ORDER(テーブル人数) ＋ POS(一会計一客)。どちらも0なら顧客ID数で代替。
+    const combinedCustomerCount = guestCustomerCount + (summary.posCustomerCount || 0);
+    const customerCount = combinedCustomerCount > 0 ? combinedCustomerCount : fallbackCustomerCount;
 
-    const { sessionGuestCounts, ...publicSummary } = summary;
+    const { sessionGuestCounts, posCustomerCount, ...publicSummary } = summary;
 
     // 粗利率は会計・経営管理で見やすいように税抜同士で算出する。
     const grossProfitRate = summary.grossProfitTrackedSalesTaxExcluded > 0
