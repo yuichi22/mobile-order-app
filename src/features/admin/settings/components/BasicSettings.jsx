@@ -27,6 +27,7 @@ import {
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import ReceiptModeSettingsSection from './ReceiptModeSettingsSection';
+import LabelPrinterSettingsSection from './LabelPrinterSettingsSection';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import {
   REGISTER_MODE_OPTIONS,
@@ -311,6 +312,10 @@ const BasicSettings = ({
 
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  // レシート設定(レジモード別)の下書き。子から通知を受け、保存時にまとめて送る。
+  const [receiptModeDraft, setReceiptModeDraft] = useState(null);
+  // ラベルプリンタ設定の下書き。子から通知を受け、保存時にまとめて送る。
+  const [labelPrinterDraft, setLabelPrinterDraft] = useState(null);
   const [taxRounding, setTaxRounding] = useState('floor');
   const [menuPriceTaxMode, setMenuPriceTaxMode] = useState('tax_included');
   const [defaultCostTaxMode, setDefaultCostTaxMode] = useState('tax_included');
@@ -561,6 +566,10 @@ const confirmDeleteCookingCategory = () => {
         customerThemeColor,
         receiptBannerImage: formData.get('receiptBannerImage'),
         customerLogoUrl: formData.get('customerLogoUrl'),
+        // レシート設定(レジモード別)。子の下書きをそのまま保存。未編集(null)なら既存値を保持。
+        receiptModeSettings: receiptModeDraft || settings.receiptModeSettings,
+        // ラベルプリンタ設定。未編集(null)なら既存値を保持。
+        labelPrinterSettings: labelPrinterDraft || settings.labelPrinterSettings,
         kitchens,
         // 旧来のstore共通プリンタ設定はレシート設定(モード別)へ統合済み。既存値は保持する。
         printerSettings: settings.printerSettings || {
@@ -823,7 +832,11 @@ const confirmDeleteCookingCategory = () => {
       )}
 
       <div className="mt-6">
-        <ReceiptModeSettingsSection settings={settings} onSave={onSave} onSaved={onSaved} />
+        <ReceiptModeSettingsSection settings={settings} onDraftChange={setReceiptModeDraft} />
+      </div>
+
+      <div className="mt-6">
+        <LabelPrinterSettingsSection settings={settings} onDraftChange={setLabelPrinterDraft} />
       </div>
 
       <form ref={formRef} onSubmit={handleSubmit}>
