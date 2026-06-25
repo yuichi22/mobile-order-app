@@ -162,6 +162,95 @@ export const recordStocktakeCount = async (storeId, stocktakeId, product, { loca
   throw new Error(`invalid location: ${location}`);
 };
 
+// 棚卸し中の入庫(受け入れ)。
+// live在庫には一切触れず、棚卸しの店頭カウントへ反映する。
+// 理由: finalizeStocktake が在庫を warehouse+storefront で上書きするため、
+//       通常の入庫(live在庫加算)では確定時に消えてしまう。
+//
+// 分岐は店頭基準・アイテムの storefrontConfirmedAt で自動判定する:
+//  - isNewProduct: 入庫数をそのまま店頭確定カウントにする
+//      (入庫数 = 確定在庫)。
+//  - 既存 & 店頭確定済み(storefrontConfirmedAt あり):
+//      storefrontShelfQuantity に加算し、確定を維持(recountは立てない)。
+//  - 既存 & 未確定(item 無し / storefrontConfirmedAt 無し):
+//      数量は加えず店頭数え直しリストに載せる(needsRecount=true)。
+//      後で棚を数えれば物理的に入庫分が含まれるため。
+// 倉庫分は従来どおり recordStocktakeCount('warehouse') を使う。
+// 監査ログは通常入庫と同様 stockIns / stockMovements に必ず記録する。
+export const recordStocktakeStockIn = async (
+  storeId,
+  stocktakeId,
+  product,
+  { quantity, isNewProduct = false } = {}
+) => {
+  if (!isValidStoreId(storeId) || !stocktakeId || !product?.id) {
+    throw new Error('invalid arguments');
+  }
+
+  const addQuantity = Math.max(Number(quantity || 0), 0);
+  if (addQuantity <= 0) return { mode: 'none', quantityApplied: 0 };
+
+  const itemRef = stocktakeItemDocRef(storeId, stocktakeId, product.id);
+  const snapshot = await getDoc(itemRef);
+  const current = snapshot.exists() ? snapshot.data() : {};
+  const base = buildItemBaseFields(product);
+
+  const isStorefrontConfirmed = Boolean(current.storefrontConfirmedAt);
+
+  let mode;
+  let quantityApplied;
+
+  if (isNewProduct || isStorefrontConfirmed) {
+    // 新規商品 = 入庫数がそのまま確定在庫。
+    // 既存確定済み = 確定カウントに入庫分を上乗せ(確定は維持)。
+    await setDoc(itemRef, {
+      ...base,
+      storefrontShelfQuantity: increment(addQuantity),
+      storefrontConfirmedAt: serverTimestamp(),
+      needsRecount: false,
+      status: 'storefront_counted',
+      createdAt: current.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    mode = isNewProduct ? 'new_product_confirmed' : 'storefront_confirmed';
+    quantityApplied = addQuantity;
+  } else {
+    // 既存・未確定: 数量は加えず数え直しリストへ載せるだけ。
+    await setDoc(itemRef, {
+      ...base,
+      needsRecount: true,
+      status: 'needs_recount',
+      createdAt: current.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    mode = 'needs_recount';
+    quantityApplied = 0;
+  }
+
+  // 監査ログ(live在庫は触らないが、入庫の事実は必ず残す)。
+  const movementPayload = {
+    productId: product.id,
+    productGroupId: product.productGroupId || product.groupId || '',
+    type: 'stock_in',
+    quantity: addQuantity,
+    note: '棚卸し中入庫',
+    stocktakeId,
+    stocktakeStockIn: true,
+    stocktakeStockInMode: mode,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  await addDoc(storeCollectionRef(storeId, 'stockIns'), {
+    ...movementPayload,
+    status: 'completed'
+  });
+
+  await addDoc(storeCollectionRef(storeId, 'stockMovements'), movementPayload);
+
+  return { mode, quantityApplied };
+};
+
 // 品出し(倉庫→店頭移動)。
 // 店頭が確定済みなら倉庫を減らして店頭バックグラウンド棚数を増やす。
 // 店頭が未確定なら倉庫を減らすだけ(カウント時に自然に反映される)。

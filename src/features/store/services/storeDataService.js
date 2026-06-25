@@ -19,6 +19,7 @@ import {
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { TAX_ROUNDING_MODES, normalizeTaxRounding } from '../../../shared/utils/tax';
+import { getActiveStocktake, recordStocktakeStockIn } from '../../inventory/services/stocktakeDataService';
 
 export const isValidStoreId = (storeId) => Boolean(storeId && typeof storeId === 'string');
 
@@ -334,7 +335,13 @@ export const saveProductMasterItem = async (storeId, itemData) => {
 
   const stockInQuantity = Math.max(Number(itemData.stockInQuantityDraft || 0), 0);
   const currentInventoryQuantity = Math.max(Number(itemData.inventoryQuantity ?? itemData.quantity ?? 0), 0);
-  const nextInventoryQuantity = stockInQuantity > 0
+
+  // 棚卸し進行中の入庫は live 在庫に加算せず、棚卸しカウント側へ反映する。
+  // (finalizeStocktake が在庫を上書きするため、live加算では確定時に消える)
+  const activeStocktake = stockInQuantity > 0 ? await getActiveStocktake(storeId) : null;
+  const routeStockInToStocktake = Boolean(activeStocktake);
+
+  const nextInventoryQuantity = (stockInQuantity > 0 && !routeStockInToStocktake)
     ? currentInventoryQuantity + stockInQuantity
     : currentInventoryQuantity;
 
@@ -410,7 +417,16 @@ export const saveProductMasterItem = async (storeId, itemData) => {
     { merge: true }
   );
 
-  if (stockInQuantity > 0) {
+  if (stockInQuantity > 0 && routeStockInToStocktake) {
+    // 棚卸し中: live在庫は加算済みでない。棚卸しカウントへ反映する。
+    // 監査ログ(stockIns/stockMovements)は recordStocktakeStockIn 側で記録する。
+    await recordStocktakeStockIn(
+      storeId,
+      activeStocktake.id,
+      { ...productPayload, id: savedProductId },
+      { quantity: stockInQuantity, isNewProduct: !itemData.id }
+    );
+  } else if (stockInQuantity > 0) {
     const movementPayload = {
       productId: savedProductId,
       productGroupId: nextProductGroupId,

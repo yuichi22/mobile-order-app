@@ -107,7 +107,6 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'qrcode', mode: 'order', group: '店舗運用', label: 'QRコード発行', icon: QrCode, desc: 'テーブルに貼るQRコードを発行' },
   { id: 'time', mode: 'order', group: '店舗運用', label: '時間帯設定', icon: Clock, desc: '提供時間帯と営業時間の設定' },
   { id: 'layout', mode: 'order', group: '店舗運用', label: 'テーブル設定', icon: Layout, desc: 'テーブルIDと配置の編集' },
-  { id: 'discount', mode: 'order', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加' },
 
   { id: 'products', mode: 'pos', group: null, label: '商品マスター', icon: Package, desc: '在庫数確認・在庫調整・入庫登録を1画面で行います' },
   { id: 'purchaseManagement', mode: 'pos', group: null, label: '発注管理', icon: ShoppingCart, desc: '仕入先別発注確認と発注履歴を管理します' },
@@ -116,6 +115,7 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'shopifyIntegration', mode: 'pos', group: null, label: 'EC連携', icon: Link, desc: 'Shopify / STORES / BASE / 楽天 / Amazon商品・在庫との連携を設定します' },
   { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
+  { id: 'discount', mode: 'shared', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加（POS・ORDER共通）' },
   { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
   { id: 'taxPrice', mode: 'shared', group: '共通', label: '税・価格設定', icon: Percent, desc: '税率・税抜価格基準・Shopify価格同期方式' },
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
@@ -1324,7 +1324,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
     columns: [
       { key: 'brandId', label: 'ブランドID' },
       { key: 'name', label: 'ブランド名' },
-      { key: 'stocktakingTypeCode', label: '棚卸区分コード' },
       { key: 'supplierId', label: '仕入先ID' },
       { key: 'supplierName', label: '仕入先名' },
       { key: 'note', label: 'メモ' }
@@ -1333,7 +1332,6 @@ const CSV_TEMPLATE_DEFINITIONS = [
       {
         brandId: 'BR-001',
         name: 'サンプルブランド',
-        stocktakingTypeCode: '',
         supplierId: 'SUP-001',
         supplierName: 'サンプル仕入先',
         note: 'サンプル'
@@ -2034,6 +2032,10 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             { id: 'name', label: '売場名' },
             { id: 'sortOrder', label: '並び順', type: 'number' },
             { id: 'color', label: 'カラー' },
+            // 手打ち品・原価未登録品の粗利計算に使う原価率(%)。原価=売価×原価率。
+            { id: 'costRate', label: '原価率 %', type: 'number', helpText: '手打ち品や原価未登録品の粗利計算に使う原価率です。例: 60 → 原価=売価×60%（粗利=売価×40%）。空欄は原価率未設定として粗利に含めません。' },
+            // 棚卸しコードは売場(=商品に紐づく)に持たせ、売り場別在庫高の集計キーにする。
+            { id: 'stocktakingTypeCode', label: '棚卸しコード', helpText: '売り場別在庫高の集計に使う棚卸し用コードです。' },
             { id: 'allowedCategoryGroupNames', label: '紐付けカテゴリーグループ', type: 'categoryGroupMultiSelect' },
           ]}
           onSave={(payload) =>
@@ -2094,7 +2096,6 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
               type: 'number',
               helpText: '仕入先の標準掛け率と異なる場合だけ入力してください。未設定の場合は仕入先の標準掛け率を使用します。'
             },
-            { id: 'stocktakingTypeCode', label: '棚卸区分コード' },
             { id: 'note', label: 'ブランドプロフィール', type: 'textarea', rows: 8 }
           ]}
           onSave={productMaster?.saveBrand}
@@ -2961,6 +2962,26 @@ export const StoreSettings = ({
     }
   }, [posProductKeyword, settingsMode, subTab, normalizedRole]);
 
+  // 管理メニュー(サイドバー)を押した時のハンドラ。
+  // POSモードで右上検索にキーワードが残っていると、上の useEffect が
+  // 「キーワードあり→商品マスターへ強制移動」を再実行し、押したメニューから
+  // 商品マスターへ引き戻してしまう。メニュー選択を最優先にするため、
+  // 別メニューを選んだら検索キーワードをクリアして強制移動を解除する。
+  const handleSelectSettingsSubTab = (nextSubTab) => {
+    if (
+      settingsMode === 'pos' &&
+      nextSubTab !== 'products' &&
+      posProductKeyword &&
+      posProductKeyword.trim()
+    ) {
+      subTabBeforeSearchRef.current = null;
+      if (typeof onPosProductKeywordChange === 'function') {
+        onPosProductKeywordChange('');
+      }
+    }
+    setSubTab(nextSubTab);
+  };
+
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
   const activeMenuItem = availableMenuItems.find((item) => item.id === activeSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
@@ -3081,7 +3102,7 @@ export const StoreSettings = ({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSubTab(item.id)}
+                  onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
                     isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
@@ -3101,7 +3122,7 @@ export const StoreSettings = ({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSubTab(item.id)}
+                  onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 transition-all duration-300 ${
                     isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
@@ -3227,6 +3248,7 @@ export const StoreSettings = ({
               shopifySettings={productMaster?.shopifySettings}
               onSaveShopifySettings={productMaster?.saveShopifySettings}
               defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+              labelPrinterSettings={settings?.labelPrinterSettings}
             />
           )}
 

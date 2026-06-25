@@ -174,7 +174,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         },
                         {
                           id: 'amount',
-                          label: '金額値引き (円)',
+                          label: '固定金額値引き (円)',
                           icon: <span className="text-xl font-black">¥</span>
                         }
                       ].map((type) => {

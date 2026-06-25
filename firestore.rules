@@ -202,6 +202,12 @@ service cloud.firestore {
         allow write: if isPlatformAdmin() || isStoreManager(storeId);
       }
 
+      // POSレジの共有設定(お気に入り商品など)。レジ担当(staff)が編集できる軽量データ。
+      match /posShared/{documentId} {
+        allow read: if true;
+        allow write: if isPlatformAdmin() || isStoreStaff(storeId);
+      }
+
 
       match /importJobs/{jobId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
