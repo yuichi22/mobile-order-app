@@ -2229,31 +2229,24 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       <div style={{ width: `${100 - splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pl-1">
         {isTakeoutMode ? (
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm">
-            <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3">
-              <div className="min-w-0">
-                <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
-                  <ShoppingBag size={22} />
-                  {registerMode === 'pos' ? 'POS会計' : 'テイクアウト会計'}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeTakeoutMode}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                aria-label={registerMode === 'pos' ? 'POS会計を閉じる' : 'テイクアウト会計を閉じる'}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
+            {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。 */}
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
-                  <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
-                  {takeoutDiscountAmount > 0 && (
-                    <span>割引 -¥{takeoutDiscountAmount.toLocaleString()}</span>
-                  )}
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+                    <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
+                    {takeoutDiscountAmount > 0 && (
+                      <span>割引 -¥{takeoutDiscountAmount.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeTakeoutMode}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    aria-label={registerMode === 'pos' ? 'POS会計を閉じる' : 'テイクアウト会計を閉じる'}
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="shrink-0 text-sm font-black text-slate-600">お支払い額</span>
@@ -2288,18 +2281,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="shrink-0 text-xs font-bold text-gray-500">お預かり</span>
-                          <span className="min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-gray-500">お預かり</span>
+                          <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
                             ¥{(Number(takeoutPaymentAmount) || 0).toLocaleString()}
                           </span>
                         </div>
                       </div>
 
                       <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="shrink-0 text-xs font-bold text-gray-500">おつり</span>
-                          <span className={`min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-gray-500">おつり</span>
+                          <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
                             ¥{takeoutChangeAmount.toLocaleString()}
                           </span>
                         </div>
