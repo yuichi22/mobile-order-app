@@ -8,6 +8,8 @@ import {
   findProductByBarcode,
   getStocktakeItem,
   recordStocktakeCount,
+  recordStocktakeRecount,
+  recordStocktakeWarehouseOverwrite,
   recordWarehouseToStorefrontTransfer,
   subscribeToActiveStocktake,
   subscribeToStocktakeItems
@@ -48,20 +50,22 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
   const [error, setError] = useState('');
 
   const handleSave = async () => {
+    if (quantityInput === '') return;
     const quantity = Number(quantityInput);
-    if (!Number.isFinite(quantity) || quantity <= 0) return;
+    // 数え直しは棚の実数で上書きするため 0(棚が空)も有効な入力として扱う。
+    if (!Number.isFinite(quantity) || quantity < 0) return;
 
     setSaving(true);
     setError('');
 
     try {
-      await recordStocktakeCount(storeId, stocktakeId, {
+      await recordStocktakeRecount(storeId, stocktakeId, {
         id: item.productId,
         name: item.name,
         sku: item.sku,
         barcode: item.barcode,
         productGroupName: item.productGroupName
-      }, { location: 'storefront', quantity });
+      }, { quantity });
 
       setQuantityInput('');
     } catch (err) {
@@ -96,16 +100,16 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
         <input
           type="number"
           inputMode="numeric"
-          min="1"
+          min="0"
           value={quantityInput}
           onChange={(event) => setQuantityInput(event.target.value)}
-          placeholder="店頭の数"
+          placeholder="店頭の実数(上書き)"
           className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
         />
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !quantityInput || Number(quantityInput) <= 0}
+          disabled={saving || quantityInput === '' || Number(quantityInput) < 0}
           className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
@@ -136,6 +140,7 @@ const StocktakePage = ({ storeId }) => {
   const [transferMessage, setTransferMessage] = useState('');
   const [recountSaving, setRecountSaving] = useState(false);
   const [recountMessage, setRecountMessage] = useState('');
+  const [recountConfirmOpen, setRecountConfirmOpen] = useState(false);
   const [localHistory, setLocalHistory] = useState([]);
   const [historyShowAll, setHistoryShowAll] = useState(false);
   const hasDetectedRef = useRef(false);
@@ -188,6 +193,7 @@ const StocktakePage = ({ storeId }) => {
     setTransferMessage('');
     setTransferError('');
     setRecountMessage('');
+    setRecountConfirmOpen(false);
   };
 
   const resetScanState = () => {
@@ -247,11 +253,22 @@ const StocktakePage = ({ storeId }) => {
     setScanning(false);
   };
 
-  const handleSaveCount = async () => {
+  const handleSaveCount = async ({ skipConfirm = false } = {}) => {
     const quantity = Number(quantityInput);
     if (!Number.isFinite(quantity) || quantity <= 0) return;
     if (!storeId || !activeStocktake?.id || !scannedProduct?.id) return;
 
+    // カウント済みの場所をもう一度カウントすると increment で二重計上になるため確認する。
+    // 店頭=確定済み(storefrontConfirmedAt) / 倉庫=カウント済み(warehouseCountedAt)。
+    const alreadyCounted = view === 'warehouse'
+      ? Boolean(existingItem?.warehouseCountedAt)
+      : Boolean(existingItem?.storefrontConfirmedAt);
+    if (!skipConfirm && alreadyCounted) {
+      setRecountConfirmOpen(true);
+      return;
+    }
+
+    setRecountConfirmOpen(false);
     setSaving(true);
     setSaveError('');
     setSaveMessage('');
@@ -299,6 +316,55 @@ const StocktakePage = ({ storeId }) => {
     } catch (error) {
       console.error('failed to save stocktake count', error);
       setSaveError(`保存に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // カウント済みの数を「上書き(訂正/数え直し)」する。入力した実数で置き換える。
+  // 店頭=storefrontShelfQuantity、倉庫=warehouseQuantity を上書きする。
+  const handleOverwriteCount = async () => {
+    const quantity = Number(quantityInput);
+    if (!Number.isFinite(quantity) || quantity < 0) return; // 上書きは0(棚が空)も有効
+    if (!storeId || !activeStocktake?.id || !scannedProduct?.id) return;
+
+    setRecountConfirmOpen(false);
+    setSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+
+    try {
+      if (view === 'warehouse') {
+        await recordStocktakeWarehouseOverwrite(storeId, activeStocktake.id, scannedProduct, { quantity });
+        setExistingItem((prev) => ({ ...(prev || {}), warehouseQuantity: quantity }));
+      } else {
+        await recordStocktakeRecount(storeId, activeStocktake.id, scannedProduct, { quantity });
+        setExistingItem((prev) => ({ ...(prev || {}), storefrontShelfQuantity: quantity, needsRecount: false }));
+      }
+
+      setSaveMessage(`上書きしました(${view === 'warehouse' ? '倉庫' : '店頭'}: ${quantity}個)`);
+      setQuantityInput('');
+      setLocalHistory((prev) => [
+        {
+          id: `${scannedProduct.id}_${Date.now()}`,
+          productId: scannedProduct.id,
+          name: scannedProduct.name || '名称未設定',
+          sku: scannedProduct.sku || scannedProduct.productCode || '',
+          barcode: scannedProduct.barcode || '',
+          size: scannedProduct.size || '',
+          colorName: scannedProduct.colorName || '',
+          priceTaxExcluded: scannedProduct.priceTaxExcluded ?? scannedProduct.price ?? null,
+          priceTaxIncluded: calcPriceTaxIncluded(scannedProduct),
+          location: view,
+          countedQuantity: quantity,
+          overwrite: true,
+          countedAt: Date.now()
+        },
+        ...prev
+      ]);
+    } catch (error) {
+      console.error('failed to overwrite stocktake count', error);
+      setSaveError(`上書きに失敗しました: ${error?.message || error}`);
     } finally {
       setSaving(false);
     }
@@ -449,6 +515,9 @@ const StocktakePage = ({ storeId }) => {
     ? Number(existingItem?.warehouseQuantity || 0)
     : Number(existingItem?.storefrontShelfQuantity || 0);
   const existingTransferToStorefront = Number(existingItem?.transferToStorefront || 0);
+  const locationAlreadyCounted = view === 'warehouse'
+    ? Boolean(existingItem?.warehouseCountedAt)
+    : Boolean(existingItem?.storefrontConfirmedAt);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4">
@@ -522,6 +591,10 @@ const StocktakePage = ({ storeId }) => {
                 <div className="mt-2 flex items-center justify-center rounded-2xl bg-white/60 p-3">
                   <LoadingSpinner size={16} />
                 </div>
+              ) : locationAlreadyCounted ? (
+                <p className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold leading-relaxed text-emerald-700">
+                  この商品は{view === 'warehouse' ? '倉庫で' : '店頭で'}<strong>{view === 'warehouse' ? 'カウント済み' : '確定済み'}</strong>です(現在 {existingCountForLocation.toLocaleString()}個)。もう一度カウントすると確認が表示されます。
+                </p>
               ) : existingCountForLocation > 0 ? (
                 <p className="mt-2 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
                   すでに{existingCountForLocation.toLocaleString()}個カウント済みです。
@@ -540,7 +613,7 @@ const StocktakePage = ({ storeId }) => {
                 />
                 <button
                   type="button"
-                  onClick={handleSaveCount}
+                  onClick={() => handleSaveCount()}
                   disabled={saving || existingItem === undefined || !quantityInput || Number(quantityInput) <= 0}
                   className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${theme.buttonClass}`}
                 >
@@ -731,6 +804,47 @@ const StocktakePage = ({ storeId }) => {
           )}
         </div>
       </div>
+
+      {recountConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-black text-slate-900">
+              {view === 'warehouse' ? '倉庫でカウント済みの商品です' : '店頭で確定済みの商品です'}
+            </h3>
+            <p className="mt-2 text-sm font-bold leading-relaxed text-slate-600">
+              「{scannedProduct?.name || '名称未設定'}」は{view === 'warehouse' ? '倉庫で' : '店頭で'}<strong>{view === 'warehouse' ? 'カウント済み' : '確定済み'}</strong>(現在 {existingCountForLocation.toLocaleString()}個)です。
+              入力した<strong>{quantityInput || 0}個</strong>をどう反映しますか？
+            </p>
+
+            <div className="mt-5 space-y-2">
+              <button
+                type="button"
+                onClick={() => handleSaveCount({ skipConfirm: true })}
+                disabled={saving}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                追加でカウント(現在の数に＋{quantityInput || 0})
+              </button>
+              <button
+                type="button"
+                onClick={handleOverwriteCount}
+                disabled={saving}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-black text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                数え直し(この数で上書き → {quantityInput || 0}個)
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecountConfirmOpen(false)}
+                disabled={saving}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

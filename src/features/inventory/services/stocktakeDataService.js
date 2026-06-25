@@ -28,6 +28,27 @@ const stocktakeItemDocRef = (storeId, stocktakeId, productId) => (
   doc(db, 'stores', storeId, 'stocktakes', stocktakeId, 'items', productId)
 );
 
+const toMillis = (ts) => (ts && typeof ts.toMillis === 'function' ? ts.toMillis() : 0);
+
+// この棚卸し(startedAt)より後に作成された商品か = 棚卸し中に新規登録された商品か。
+// 商品登録と入庫を別保存で行うと itemData.id が既に付くため呼び出し側の id 有無では
+// 新規判定できない。商品の createdAt と棚卸しの startedAt の比較で堅牢に判定する。
+const wasProductCreatedDuringStocktake = async (storeId, stocktakeId, productId) => {
+  try {
+    const [stSnap, prodSnap] = await Promise.all([
+      getDoc(stocktakeDocRef(storeId, stocktakeId)),
+      getDoc(doc(db, 'stores', storeId, 'products', productId))
+    ]);
+    const startedMs = toMillis(stSnap.data()?.startedAt);
+    const createdMs = toMillis(prodSnap.data()?.createdAt);
+    if (!startedMs || !createdMs) return false;
+    return createdMs >= startedMs;
+  } catch (error) {
+    console.warn('wasProductCreatedDuringStocktake failed', error);
+    return false;
+  }
+};
+
 const buildItemBaseFields = (product) => ({
   productId: product.id,
   name: product.name || '',
@@ -162,6 +183,64 @@ export const recordStocktakeCount = async (storeId, stocktakeId, product, { loca
   throw new Error(`invalid location: ${location}`);
 };
 
+// 数え直し(店頭)。入力された実数で storefrontShelfQuantity を「上書き」確定する。
+// recordStocktakeCount は加算(増分カウント)用なので流用すると二重計上になるため分離。
+// 数え直しリスト(needsRecount=true)の商品は、既存値(確定値から販売分を減算した値)を
+// 持っているため、棚を数えた実数で置き換えるのが正しい。
+export const recordStocktakeRecount = async (storeId, stocktakeId, product, { quantity }) => {
+  if (!isValidStoreId(storeId) || !stocktakeId || !product?.id) {
+    throw new Error('invalid arguments');
+  }
+
+  const countedQuantity = Math.max(Number(quantity || 0), 0);
+  if (!Number.isFinite(countedQuantity) || countedQuantity < 0) {
+    throw new Error('invalid quantity');
+  }
+
+  const itemRef = stocktakeItemDocRef(storeId, stocktakeId, product.id);
+  const snapshot = await getDoc(itemRef);
+  const current = snapshot.exists() ? snapshot.data() : {};
+  const base = buildItemBaseFields(product);
+
+  await setDoc(itemRef, {
+    ...base,
+    storefrontShelfQuantity: countedQuantity, // 加算ではなく実数で上書き
+    storefrontConfirmedAt: serverTimestamp(),
+    needsRecount: false,
+    status: 'storefront_counted',
+    createdAt: current.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+// 倉庫カウントの上書き訂正。入力された実数で warehouseQuantity を「上書き」する。
+// recordStocktakeCount('warehouse') は加算用のため、打ち間違いを直せるよう分離。
+export const recordStocktakeWarehouseOverwrite = async (storeId, stocktakeId, product, { quantity }) => {
+  if (!isValidStoreId(storeId) || !stocktakeId || !product?.id) {
+    throw new Error('invalid arguments');
+  }
+
+  const countedQuantity = Math.max(Number(quantity || 0), 0);
+  if (!Number.isFinite(countedQuantity) || countedQuantity < 0) {
+    throw new Error('invalid quantity');
+  }
+
+  const itemRef = stocktakeItemDocRef(storeId, stocktakeId, product.id);
+  const snapshot = await getDoc(itemRef);
+  const current = snapshot.exists() ? snapshot.data() : {};
+  const base = buildItemBaseFields(product);
+
+  await setDoc(itemRef, {
+    ...base,
+    warehouseQuantity: countedQuantity, // 加算ではなく実数で上書き
+    warehouseCountedAt: serverTimestamp(),
+    // status は recordStocktakeCount('warehouse') と同じ規則で更新(店頭の数え直しフラグは維持)。
+    status: current.status === 'needs_recount' ? 'needs_recount' : 'warehouse_counted',
+    createdAt: current.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
 // 棚卸し中の入庫(受け入れ)。
 // live在庫には一切触れず、棚卸しの店頭カウントへ反映する。
 // 理由: finalizeStocktake が在庫を warehouse+storefront で上書きするため、
@@ -197,10 +276,17 @@ export const recordStocktakeStockIn = async (
 
   const isStorefrontConfirmed = Boolean(current.storefrontConfirmedAt);
 
+  // 新規判定: 呼び出し側の明示フラグ、または「この棚卸し開始後に登録された商品」なら新規扱い。
+  // (登録と入庫が別保存だと呼び出し側の isNewProduct は false になるため createdAt で補完する)
+  let isNew = isNewProduct;
+  if (!isNew && !isStorefrontConfirmed) {
+    isNew = await wasProductCreatedDuringStocktake(storeId, stocktakeId, product.id);
+  }
+
   let mode;
   let quantityApplied;
 
-  if (isNewProduct || isStorefrontConfirmed) {
+  if (isNew || isStorefrontConfirmed) {
     // 新規商品 = 入庫数がそのまま確定在庫。
     // 既存確定済み = 確定カウントに入庫分を上乗せ(確定は維持)。
     await setDoc(itemRef, {
@@ -212,7 +298,7 @@ export const recordStocktakeStockIn = async (
       createdAt: current.createdAt || serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
-    mode = isNewProduct ? 'new_product_confirmed' : 'storefront_confirmed';
+    mode = isNew ? 'new_product_confirmed' : 'storefront_confirmed';
     quantityApplied = addQuantity;
   } else {
     // 既存・未確定: 数量は加えず数え直しリストへ載せるだけ。
