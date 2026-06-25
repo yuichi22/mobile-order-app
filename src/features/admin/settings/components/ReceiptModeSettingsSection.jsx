@@ -39,10 +39,11 @@ const buildStarTestReceipt = (modeLabel, cfg = {}, settings = {}) => ({
 });
 
 // レジモード(POS共通 / ORDER共通)別のレシート設定。印刷方式・プリンタ・自動印刷・文言をモード別に保存する。
-const ReceiptModeSettingsSection = ({ settings, onSave, onSaved }) => {
+// レシート設定は自前保存せず、draft を親(BasicSettings)へ通知し、
+// 親の「保存」(最上部/フッター)でまとめて保存する。
+const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
   const [activeMode, setActiveMode] = useState('pos');
   const [draft, setDraft] = useState(() => buildReceiptModeDraft(settings));
-  const [saving, setSaving] = useState(false);
 
   // Star プリンタ（Capacitorネイティブアプリのみ）
   const isNative = Capacitor.isNativePlatform();
@@ -62,20 +63,15 @@ const ReceiptModeSettingsSection = ({ settings, onSave, onSaved }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.receiptModeSettings, settings?.printerSettings]);
 
+  useEffect(() => {
+    // 最新の下書きを親へ通知し、親の保存に含めてもらう。
+    onDraftChange?.(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
   const current = draft[activeMode] || {};
   const updateCurrent = (patch) => {
     setDraft((prev) => ({ ...prev, [activeMode]: { ...prev[activeMode], ...patch } }));
-  };
-
-  const handleSave = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await onSave({ ...settings, receiptModeSettings: draft });
-      onSaved?.();
-    } finally {
-      setSaving(false);
-    }
   };
 
   // 印刷方式（star/bridge）。star を既定とする。
@@ -161,7 +157,7 @@ const ReceiptModeSettingsSection = ({ settings, onSave, onSaved }) => {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="mb-5 flex items-start gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
             <Printer size={22} />
@@ -169,19 +165,10 @@ const ReceiptModeSettingsSection = ({ settings, onSave, onSaved }) => {
           <div>
             <h3 className="text-lg font-black tracking-tight text-gray-900">レシート設定（レジモード別）</h3>
             <p className="mt-0.5 text-xs font-bold text-gray-400">
-              POSレジ・ORDERレジで、印刷方式・プリンタ・自動印刷・文言を分けて設定できます。
+              POSレジ・ORDERレジで、印刷方式・プリンタ・自動印刷・文言を分けて設定できます。上部またはフッターの「保存」で保存されます。
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:opacity-60"
-        >
-          {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
-          保存
-        </button>
       </div>
 
       <div className="mb-5 inline-flex rounded-full border border-gray-200 bg-gray-50 p-1">

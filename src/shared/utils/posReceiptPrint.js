@@ -11,6 +11,16 @@ const formatPaymentMethod = (method) => {
   return method || '未設定';
 };
 
+// 現金＋カード/QR の分割会計は「現金 ¥1,000 / カード ¥2,000」のように内訳を表示する。
+const formatPaymentMethodText = (data) => {
+  if (Array.isArray(data?.payments) && data.payments.length > 0) {
+    return data.payments
+      .map((payment) => `${formatPaymentMethod(payment.method)} ¥${Number(payment.amount || 0).toLocaleString()}`)
+      .join(' / ');
+  }
+  return formatPaymentMethod(data?.paymentMethod);
+};
+
 const toDate = (value) => {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -95,6 +105,6 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     taxAmountReduced: data.taxAmountReduced || 0,
     taxAmountStandard: data.taxAmountStandard || 0,
     total,
-    paymentMethod: formatPaymentMethod(data.paymentMethod)
+    paymentMethod: formatPaymentMethodText(data)
   };
 };

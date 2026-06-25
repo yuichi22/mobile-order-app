@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, FileText, Printer } from 'lucide-react';
-import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
+import { issueReceipt, openCashDrawer, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getIdToken } from 'firebase/auth';
 import { auth } from '../../shared/api/firebase/client';
 
@@ -14,13 +14,27 @@ const formatPaymentMethod = (method) => {
 };
 
 export const PosReceipt = ({ data, onNext, storeId }) => {
-  const { settings } = useStoreSettings(storeId);
+  const { settings, loading: settingsLoading } = useStoreSettings(storeId);
   const [issuedReceipt, setIssuedReceipt] = useState({
     receiptId: data.receiptId || '',
     receiptNo: data.receiptNo || ''
   });
   const [recipientName, setRecipientName] = useState(data.recipientName || '');
   const [isIssuingReceipt, setIsIssuingReceipt] = useState(false);
+
+  // 会計確定（この完了画面の表示）時に、支払い方法を問わずキャッシュドロワーを開く。
+  // レシート印刷とは独立。履歴の再印刷はこの画面を経由しないため開かない。
+  // ネイティブ(iPad)以外は openCashDrawer 内で no-op。1会計につき一度だけ実行する。
+  // 設定の初期値には starIdentifier が無く、空だと毎回8秒の自動探索が走るため、
+  // 店舗設定の読み込み完了を待ってから一度だけ実行する。
+  const drawerOpenedRef = useRef(false);
+  useEffect(() => {
+    if (drawerOpenedRef.current || settingsLoading) return;
+    drawerOpenedRef.current = true;
+    openCashDrawer({ settings, mode: resolveReceiptMode(data) }).catch((error) => {
+      console.error('[cash drawer open error]', error);
+    });
+  }, [settingsLoading, settings, data]);
 
   const handleIssueReceipt = async () => {
     if (issuedReceipt.receiptNo || isIssuingReceipt) return;
@@ -222,6 +236,15 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               <div className="flex justify-between pl-2 text-[9px] text-gray-600">
                 <span>¥{Number(item.unitPrice || 0).toLocaleString()} x {Number(item.quantity || 1)}</span>
               </div>
+              {item.lineDiscount && Number(item.lineDiscount.amount || 0) > 0 && (
+                <div className="flex justify-between pl-2 text-[9px] text-gray-600">
+                  <span>
+                    {item.lineDiscount.name || `${Number(item.lineDiscount.value || 0)}%OFF`}
+                    {item.lineDiscount.type === 'percent' ? `（${Number(item.lineDiscount.value || 0)}%OFF）` : ''}
+                  </span>
+                  <span>-¥{Number(item.lineDiscount.amount || 0).toLocaleString()}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>

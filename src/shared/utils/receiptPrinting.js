@@ -28,6 +28,31 @@ const enrichPayload = (data, settings, cfg) => ({
   bannerThreshold: Number(cfg.bannerThreshold) || 180
 });
 
+// ネイティブ(iPad)の Star プリンタ接続先(識別子/インターフェース)を解決する。
+// 識別子が空だと毎回8秒の自動探索が走り会計後の動作が遅くなるため、
+// 同一プリンタを共用する想定で、当該モードが未設定ならもう一方のモードの値へフォールバックする。
+const resolveStarConnection = (settings, resolvedMode) => {
+  const cfg = getReceiptModeSettings(settings, resolvedMode);
+  const otherCfg = getReceiptModeSettings(settings, resolvedMode === 'pos' ? 'order' : 'pos');
+  return {
+    identifier: cfg.starIdentifier || otherCfg.starIdentifier || '',
+    interface: cfg.starIdentifier
+      ? (cfg.starInterface || 'bluetooth')
+      : (otherCfg.starInterface || cfg.starInterface || 'bluetooth')
+  };
+};
+
+// 会計確定時にキャッシュドロワー(釣銭機)を開く。支払い方法を問わず常時開く。
+// 印刷とは独立したネイティブコマンドのため、レシート印刷の有無/タイミングと切り離せる。
+// ネイティブ(iPad)以外では何もしない。失敗はドロワーが開かないだけなので呼び出し側で握りつぶす。
+export const openCashDrawer = async ({ settings, mode } = {}) => {
+  if (!Capacitor.isNativePlatform()) return { method: 'noop' };
+  const resolvedMode = resolveReceiptMode(mode, 'pos');
+  const { identifier, interface: starInterface } = resolveStarConnection(settings, resolvedMode);
+  await StarPrinter.openDrawer({ identifier, interface: starInterface });
+  return { method: 'starNative', mode: resolvedMode };
+};
+
 // 事前構築済みpayloadを、レジモード別設定の方式(Star/ブリッジ)で印刷する。
 export const printPayloadByMode = async ({ payload, settings, mode }) => {
   const resolvedMode = resolveReceiptMode(mode ?? payload, 'pos');
@@ -37,13 +62,7 @@ export const printPayloadByMode = async ({ payload, settings, mode }) => {
   // 印刷方式(star/bridge)の選択は PC/ブラウザ側にのみ適用する。
   // （iPadからは印刷ブリッジ localhost:8787 に到達できないため、モードによらずStarを使う）
   if (Capacitor.isNativePlatform()) {
-    // 識別子が空だと毎回8秒の自動探索が走り会計後の印刷が遅くなる。
-    // 同一プリンタを共用する想定で、当該モードが未設定ならもう一方のモードの識別子へフォールバックする。
-    const otherCfg = getReceiptModeSettings(settings, resolvedMode === 'pos' ? 'order' : 'pos');
-    const starIdentifier = cfg.starIdentifier || otherCfg.starIdentifier || '';
-    const starInterface = cfg.starIdentifier
-      ? (cfg.starInterface || 'bluetooth')
-      : (otherCfg.starInterface || cfg.starInterface || 'bluetooth');
+    const { identifier: starIdentifier, interface: starInterface } = resolveStarConnection(settings, resolvedMode);
     await StarPrinter.printReceipt({
       receipt: payload,
       identifier: starIdentifier,
