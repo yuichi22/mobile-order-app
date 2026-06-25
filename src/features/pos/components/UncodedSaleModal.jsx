@@ -81,6 +81,7 @@ const UncodedSaleModal = ({
   const handleConfirm = () => {
     if (!canConfirm) return;
     onConfirm?.({
+      salesAreaId: salesArea?.id || '',
       salesAreaName: salesArea?.name || '',
       categoryGroupId: selectedGroup?.id || '',
       categoryGroupName: selectedGroup?.name || '',

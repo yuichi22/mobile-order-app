@@ -23,6 +23,7 @@ import {
 import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
+import { computePaymentSplit, getSplitMethodLabel } from '../utils/paymentSplit';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../store/services/storeDataService';
 import { getAuth } from 'firebase/auth';
@@ -107,6 +108,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
   const [selectedDiscount, setSelectedDiscount] = useState(null);
 
   const [discountQuantities, setDiscountQuantities] = useState({});
+  // 全額売掛のワンタップ会計用。全額売掛stateを反映させた後にhandlePaymentを発火する。
+  const [pendingFullCreditCheckout, setPendingFullCreditCheckout] = useState(false);
 
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [issueReceipt, setIssueReceipt] = useState(false);
@@ -219,7 +222,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
   const allowTakeout = settings?.allowTakeout !== false;
   const resolvedPaymentMethod = availablePaymentMethods.includes(paymentMethod)
     ? paymentMethod
-    : '';
+    : (paymentMethod === 'credit' ? 'credit' : '');
 
   const clearSessionAccess = async (batch) => {
     const normalizedTableId = String(tableId ?? '').trim();
@@ -659,6 +662,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
     subTotal,
     taxAmount,
     totalAmount,
+    rawTotalAmount,
     discountAmount,
     promoExpenseAmount,
     voucherAmount,
@@ -674,6 +678,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         subTotal: 0,
         taxAmount: 0,
         totalAmount: 0,
+        rawTotalAmount: 0,
         discountAmount: 0,
         promoExpenseAmount: 0,
         voucherAmount: 0,
@@ -767,6 +772,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
       subTotal: Number(reducedBreakdown.baseAmount + standardBreakdown.baseAmount),
       taxAmount: Number(reducedBreakdown.taxAmount + standardBreakdown.taxAmount),
       totalAmount: Number(finalTotalAmount),
+      rawTotalAmount: Number(rawTotalIncl),
       discountAmount: Number(salesDiscountAmount),
       promoExpenseAmount: Number(promoExpenseAmountValue),
       voucherAmount: Number(voucherAmountValue),
@@ -1414,8 +1420,15 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
     if (isPaymentSubmitting) return;
     if (consolidatedItems.length === 0) return;
 
+    const isFullCredit = resolvedPaymentMethod === 'credit';
     const checkoutTotalAmount = Number(totalAmount || 0);
-    if (checkoutTotalAmount <= 0) {
+    // 全額売掛は売掛で全額相殺するため支払総額0が正常。値引き前の総額があれば許可する。
+    if (isFullCredit) {
+      if (Number(rawTotalAmount || 0) <= 0) {
+        alert('会計金額が正しくありません。会計対象を選び直してください。');
+        return;
+      }
+    } else if (checkoutTotalAmount <= 0) {
       alert('会計金額が正しくありません。会計対象を選び直してください。');
       return;
     }
@@ -1424,6 +1437,12 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
       alert('お預かり金額が不足しています');
       return;
     }
+
+    // 現金＋カード/QR の分割会計。成立時は payments[] に現金/カードの内訳を持たせて記録する。
+    const paymentSplit = computePaymentSplit(resolvedPaymentMethod, paymentAmount, checkoutTotalAmount);
+    const resolvedPaymentMethodLabel = paymentSplit.isSplit
+      ? `現金＋${getSplitMethodLabel(paymentSplit.otherMethod)}`
+      : '';
 
     setIsPaymentSubmitting(true);
     setIsPaymentFlowLocked(true);
@@ -1802,6 +1821,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
 
         paymentMethod: resolvedPaymentMethod,
         paymentMethodGroup: resolvedPaymentMethod,
+        ...(resolvedPaymentMethodLabel ? { paymentMethodLabel: resolvedPaymentMethodLabel } : {}),
+        ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
 
         timestamp: serverTimestamp(),
         paidAt: serverTimestamp(),
@@ -1920,6 +1941,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
       setDiscountValue(0);
       setDiscountQuantities({});
       setSelectedDiscount(null);
+      if (isFullCredit) setPaymentMethod('');
       setIsPaymentFlowLocked(false);
 
       onPaymentResult?.({
@@ -1930,6 +1952,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         change: Number(changeAmount),
         method: resolvedPaymentMethod,
         paymentMethod: resolvedPaymentMethod,
+        ...(resolvedPaymentMethodLabel ? { paymentMethodLabel: resolvedPaymentMethodLabel } : {}),
+        payments: paymentSplit.payments || null,
+        isSplitPayment: paymentSplit.isSplit,
         receiptId: issuedReceipt?.receiptId || '',
         receiptNo: issuedReceipt?.receiptNo || '',
         transactionId: transactionRef.id,
@@ -1971,6 +1996,40 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
       setIsPaymentSubmitting(false);
     }
   };
+
+  // 全額売掛ボタン: 全額を売掛にして即会計確定する。
+  // state更新は非同期のため、全額売掛の状態をセットだけして、
+  // 派生値(totalAmount=0/voucherAmount=全額)が反映された後に下のeffectで会計を発火する。
+  const requestFullCreditCheckout = () => {
+    if (isPaymentSubmitting || consolidatedItems.length === 0) return;
+    const fullAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
+    if (fullAmount <= 0) return;
+
+    setDiscountType('amount');
+    setDiscountValue(fullAmount);
+    setSelectedDiscount({
+      id: 'full_credit',
+      name: '全額売掛',
+      type: 'full_credit',
+      value: fullAmount,
+      accountingCategory: 'voucher_payment',
+      count: 1,
+      quantity: 1,
+      amount: fullAmount
+    });
+    setDiscountQuantities({});
+    setPaymentMethod('credit');
+    setPendingFullCreditCheckout(true);
+  };
+
+  useEffect(() => {
+    if (!pendingFullCreditCheckout) return;
+    // 全額売掛の状態が反映され、支払方法も売掛に切り替わってから確定する。
+    if (selectedDiscount?.id !== 'full_credit' || resolvedPaymentMethod !== 'credit') return;
+    setPendingFullCreditCheckout(false);
+    handlePayment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFullCreditCheckout, selectedDiscount, resolvedPaymentMethod]);
 
   const toggleItemTakeout = (event, itemKey) => {
     if (!allowTakeout) return;
@@ -2209,6 +2268,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         showSplitModal={showSplitModal}
         setShowSplitModal={setShowSplitModal}
         totalAmount={totalAmount}
+        rawTotalAmount={rawTotalAmount}
         splitCount={splitCount}
         setSplitCount={setSplitCount}
         showDiscountModal={showDiscountModal}
@@ -2219,6 +2279,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         setSelectedDiscount={setSelectedDiscount}
         discountQuantities={discountQuantities}
         setDiscountQuantities={setDiscountQuantities}
+        onFullCreditCheckout={requestFullCreditCheckout}
         showAbortModal={showAbortModal}
         setShowAbortModal={setShowAbortModal}
         abortReason={abortReason}

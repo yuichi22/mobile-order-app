@@ -13,6 +13,7 @@ import {
   Store,
   X
 } from 'lucide-react';
+import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from '../../utils/paymentSplit';
 
 const PAYMENT_METHOD_OPTIONS = [
   {
@@ -125,9 +126,17 @@ export const PosRegisterRight = ({
     [availablePaymentMethods, paymentMethod]
   );
 
-  const paymentActionLabel = selectedPaymentMethodOption
-    ? selectedPaymentMethodOption.buttonLabel
-    : '支払い方法を選択してください';
+  // 現金預かりを入れたままカード/QRタブへ移ったら「現金＋カード/QR」の分割会計にする。
+  const paymentSplit = useMemo(
+    () => computePaymentSplit(paymentMethod, paymentAmount, totalAmount),
+    [paymentMethod, paymentAmount, totalAmount]
+  );
+
+  const paymentActionLabel = paymentSplit.isSplit
+    ? getSplitActionLabel(paymentSplit.otherMethod)
+    : selectedPaymentMethodOption
+      ? selectedPaymentMethodOption.buttonLabel
+      : '支払い方法を選択してください';
 
   const paymentActionClassName = selectedPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500';
 
@@ -245,7 +254,7 @@ export const PosRegisterRight = ({
                   } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <Percent size={16} />
-                  <span>割引/金券</span>
+                  <span>割引・売掛</span>
                 </button>
 
                 <div className="min-w-0 text-right">
@@ -376,6 +385,31 @@ export const PosRegisterRight = ({
                 </button>
               </div>
             </div>
+          </div>
+        ) : paymentSplit.isSplit ? (
+          <div className="mb-3 flex min-h-0 flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
+            <div className="mb-1 text-center text-sm font-black text-blue-700">
+              現金・{getSplitMethodLabel(paymentSplit.otherMethod)}の分割会計
+            </div>
+            <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
+              <span className="text-sm font-bold text-gray-500">現金預かり</span>
+              <span className="font-mono text-3xl font-black tracking-tight text-gray-900">
+                ¥{paymentSplit.cashPortion.toLocaleString()}
+              </span>
+            </div>
+            <div className={`flex items-center justify-between rounded-2xl px-5 py-4 shadow-sm ${
+              paymentSplit.otherMethod === 'qr' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+            }`}>
+              <span className="text-sm font-bold opacity-90">
+                {getSplitMethodLabel(paymentSplit.otherMethod)}支払い
+              </span>
+              <span className="font-mono text-3xl font-black tracking-tight">
+                ¥{paymentSplit.otherPortion.toLocaleString()}
+              </span>
+            </div>
+            <p className="mt-1 text-center text-xs font-bold text-gray-400">
+              会計額 ¥{Number(totalAmount).toLocaleString()} − 現金預かり ¥{paymentSplit.cashPortion.toLocaleString()}
+            </p>
           </div>
         ) : (
           <div className={`mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed ${

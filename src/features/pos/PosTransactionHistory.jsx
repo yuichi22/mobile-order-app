@@ -560,7 +560,9 @@ export const PosTransactionHistory = ({
       const scale = (value) => Math.round(num(value) * ratio);
       cancelledEntries.push({
         name: item.name || '商品',
-        productId: item.id || item.productId || '',
+        // 在庫戻し先は実商品docのID。明細の id は `product:<docId>`(UI用キー)なので
+        // productId を優先し、保険で `product:` プレフィックスを剥がす(既存取引も救済)。
+        productId: String(item.productId || item.id || '').replace(/^product:/, ''),
         sourceType: item.sourceType || '',
         quantity: cQty,
         amount: num(item.totalPrice) - scale(item.totalPrice)
@@ -1042,8 +1044,11 @@ export const PosTransactionHistory = ({
 
         if (selectedPaidDate && transactionDate !== selectedPaidDate) return false;
 
-        const paymentMethod = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
-        if (paidPaymentFilter !== 'all' && paymentMethod !== paidPaymentFilter) return false;
+        // 分割会計は内訳のいずれかが絞り込み手段に一致すれば表示する。
+        const paymentMethodKeys = Array.isArray(transaction.payments) && transaction.payments.length > 0
+          ? transaction.payments.map((payment) => getPaymentMethodKey(payment.method))
+          : [getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod)];
+        if (paidPaymentFilter !== 'all' && !paymentMethodKeys.includes(paidPaymentFilter)) return false;
 
         return true;
       })
@@ -1110,6 +1115,15 @@ export const PosTransactionHistory = ({
           taxAmountReduced: Number(transaction.taxAmountReduced || 0),
           taxAmountStandard: Number(transaction.taxAmountStandard || 0),
           discountAmount: Number(transaction.discountAmount || 0),
+          promoExpenseAmount: Number(transaction.promoExpenseAmount || 0),
+          voucherAmount: Number(transaction.voucherAmount || 0),
+          discountLabelName: String(transaction.appliedDiscount?.name || transaction.discountName || '').trim(),
+          promoLabelName: (Array.isArray(transaction.promoExpenseItems)
+            ? transaction.promoExpenseItems.map((entry) => entry?.name).filter(Boolean).join('、')
+            : '').trim(),
+          voucherLabelName: (Array.isArray(transaction.vouchers)
+            ? transaction.vouchers.map((entry) => entry?.name).filter(Boolean).join('、')
+            : '').trim(),
           guestCount: Number(
             transaction.guestCount ||
             primaryOrder?.guestCount ||
@@ -1126,6 +1140,17 @@ export const PosTransactionHistory = ({
             total: transactionTotal,
             sourceTransactionId: transaction.id
           }],
+          // 現金＋カード/QR の分割会計は、表示用に内訳を持たせる(1取引=1レシートのまま)。
+          splitPayments: Array.isArray(transaction.payments) && transaction.payments.length > 1
+            ? transaction.payments.map((payment) => {
+                const method = getPaymentMethodKey(payment.method);
+                return {
+                  method,
+                  label: formatPaymentMethod(method),
+                  total: Number(payment.amount || 0)
+                };
+              })
+            : null,
           orderIds,
           sourceTransactionIds: [transaction.id].filter(Boolean),
           items,
@@ -1474,6 +1499,8 @@ export const PosTransactionHistory = ({
           taxAmountReduced: 0,
           taxAmountStandard: 0,
           discountAmount: 0,
+          promoExpenseAmount: 0,
+          voucherAmount: 0,
           paymentBreakdown: [],
           paymentMethod: '',
           hasCancelledLinkedOrder: false
@@ -1526,6 +1553,12 @@ export const PosTransactionHistory = ({
       groupedTicket.taxAmountReduced += Number(ticket.taxAmountReduced || 0);
       groupedTicket.taxAmountStandard += Number(ticket.taxAmountStandard || 0);
       groupedTicket.discountAmount += Number(ticket.discountAmount || 0);
+      groupedTicket.promoExpenseAmount += Number(ticket.promoExpenseAmount || 0);
+      groupedTicket.voucherAmount += Number(ticket.voucherAmount || 0);
+      // 割引/クーポン名は最初に出たものを採用(同一伝票内の代表名)。
+      if (!groupedTicket.discountLabelName && ticket.discountLabelName) groupedTicket.discountLabelName = ticket.discountLabelName;
+      if (!groupedTicket.promoLabelName && ticket.promoLabelName) groupedTicket.promoLabelName = ticket.promoLabelName;
+      if (!groupedTicket.voucherLabelName && ticket.voucherLabelName) groupedTicket.voucherLabelName = ticket.voucherLabelName;
 
       groupedTicket.guestCount = Math.max(
         Number(groupedTicket.guestCount || 0),
@@ -1624,6 +1657,10 @@ export const PosTransactionHistory = ({
     transactions.forEach((transaction) => {
       if (!transaction || transaction?.isPaid === false) return;
 
+      // 売上履歴の支払サマリは、リスト(伝票)と同じく「表示中レジ」のみを対象にする。
+      // (これが無いと他レジ・他部門の売上まで合算され、締め/日計とズレる)
+      if (!transactionMatchesViewingRegister(transaction)) return;
+
       const transactionDate =
         toDateInputValue(transaction.paidAt) ||
         toDateInputValue(transaction.timestamp);
@@ -1634,12 +1671,15 @@ export const PosTransactionHistory = ({
       if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
       if (!base[method]) return;
 
+      // totalAmount が 0 の取引(全額売掛・0円会計など)は実際の決済額が0なので 0 とする。
+      // `||` だと 0 を欠損扱いして totalPrice/raw を拾い、締め/日計(totalAmount基準)と乖離する。
+      // 旧データで totalAmount 自体が無い場合のみ totalPrice/amount にフォールバックする。
       base[method].count += 1;
-      base[method].total += Number(transaction.totalAmount || transaction.totalPrice || transaction.amount || 0);
+      base[method].total += Number(transaction.totalAmount ?? transaction.totalPrice ?? transaction.amount ?? 0);
     });
 
     return [base.cash, base.card, base.qr];
-  }, [paidPaymentFilter, selectedPaidDate, transactions]);
+  }, [paidPaymentFilter, selectedPaidDate, transactions, viewingRegisterId, ownRegisterId]);
 
   const paidPaymentSummaryTotal = paidPaymentSummary.reduce((sum, entry) => (
     sum + Number(entry.total || 0)
@@ -1727,10 +1767,10 @@ export const PosTransactionHistory = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex min-h-[96px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 p-4 font-black text-gray-700">
+      <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3 font-black text-gray-700">
         <div className="flex min-w-0 items-center gap-2">
           <Receipt size={18} className="shrink-0 text-gray-500" />
-          <span className="shrink-0">{filter === 'hold' ? '保留伝票' : '会計履歴'}</span>
+          <span className="shrink-0">{filter === 'hold' ? '保留伝票' : '履歴'}</span>
           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
             {filter === 'hold' ? posHolds.length : displayTickets.length}件
           </span>
@@ -1967,11 +2007,9 @@ export const PosTransactionHistory = ({
 
       <div className="flex-grow space-y-3 overflow-y-auto bg-slate-50/50 p-3">
         {filter === 'hold' && posHolds.length === 0 && (
-          <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
-              <PauseCircle size={28} />
-            </div>
-            <p className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700">
+          <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
+            <PauseCircle size={56} strokeWidth={1.5} />
+            <p className="mt-3 text-sm font-black">
               保留中の伝票はありません
             </p>
           </div>
@@ -2050,7 +2088,7 @@ export const PosTransactionHistory = ({
                   : '選択した支払い方法の会計済み伝票がありません'
                 : filter === 'cancelled' && selectedPaidDate
                   ? '選択した日付の取消履歴がありません'
-                  : '該当する会計履歴がありません'}
+                  : '該当する履歴がありません'}
             </p>
           </div>
         )}
@@ -2139,6 +2177,14 @@ export const PosTransactionHistory = ({
                         注文キャンセルあり
                       </span>
                     )}
+                    {(Number(ticket.discountAmount || 0) > 0
+                      || Number(ticket.promoExpenseAmount || 0) > 0
+                      || Number(ticket.voucherAmount || 0) > 0) && (
+                      <span className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                        <Tag size={10} />
+                        割引・クーポン
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
                     <span>注文 {formatDateTimeShort(ticket.timestamp) || formatTime(ticket.timestamp)}</span>
@@ -2160,6 +2206,14 @@ export const PosTransactionHistory = ({
                     )}
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
                     <span>{totalItemsCount}点</span>
+                    {Array.isArray(ticket.splitPayments) && ticket.splitPayments.length > 1 && (
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-gray-300" />
+                        <span className="font-black text-gray-600">
+                          {ticket.splitPayments.map((entry) => `${entry.label} ¥${Number(entry.total || 0).toLocaleString()}`).join(' / ')}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -2249,10 +2303,34 @@ export const PosTransactionHistory = ({
                             )}
                           </div>
                           <span className="text-[10px] font-black tabular-nums text-green-700">
-                            {ticket.paidOrders.length}件
+                            {Array.isArray(ticket.splitPayments) && ticket.splitPayments.length > 1
+                              ? `${ticket.splitPayments.length}種別`
+                              : `${ticket.paidOrders.length}件`}
                           </span>
                         </div>
 
+                        {Array.isArray(ticket.splitPayments) && ticket.splitPayments.length > 1 ? (
+                          <div className="space-y-2">
+                            {ticket.splitPayments.map((entry, index) => (
+                              <div
+                                key={`${ticket.id}-split-${entry.method}-${index}`}
+                                className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs shadow-sm"
+                              >
+                                <span className="font-black text-gray-700">
+                                  {entry.label}での支払い
+                                </span>
+                                <div className="flex shrink-0 items-center gap-2 pl-3">
+                                  <span className={`hidden rounded-full border px-2 py-0.5 text-[10px] font-black sm:inline-flex ${formatPaymentBadgeClass(entry.method)}`}>
+                                    {entry.label}
+                                  </span>
+                                  <span className="text-sm font-black tabular-nums text-gray-900">
+                                    ¥{Number(entry.total || 0).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
                         <div className="space-y-2">
                           {ticket.paidOrders.map((order) => (
                             <div
@@ -2290,6 +2368,7 @@ export const PosTransactionHistory = ({
                             </div>
                           ))}
                         </div>
+                        )}
 
                         {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length === 1)) && (
                           <button
@@ -2427,9 +2506,27 @@ export const PosTransactionHistory = ({
                             <div className="flex justify-between pb-1 text-red-500">
                               <div className="flex items-center gap-1">
                                 <Tag size={12} />
-                                <span>値引き適用</span>
+                                <span>{ticket.discountLabelName ? `売上値引（${ticket.discountLabelName}）` : '売上値引'}</span>
                               </div>
                               <span className="tabular-nums">-¥{Number(ticket.discountAmount || 0).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {Number(ticket.promoExpenseAmount || 0) > 0 && (
+                            <div className="flex justify-between pb-1 text-emerald-600">
+                              <div className="flex items-center gap-1">
+                                <Tag size={12} />
+                                <span>{ticket.promoLabelName ? `販促費（${ticket.promoLabelName}）` : '販促費'}</span>
+                              </div>
+                              <span className="tabular-nums">-¥{Number(ticket.promoExpenseAmount || 0).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {Number(ticket.voucherAmount || 0) > 0 && (
+                            <div className="flex justify-between pb-1 text-sky-600">
+                              <div className="flex items-center gap-1">
+                                <Tag size={12} />
+                                <span>{ticket.voucherLabelName ? `金券/売掛（${ticket.voucherLabelName}）` : '金券/売掛'}</span>
+                              </div>
+                              <span className="tabular-nums">-¥{Number(ticket.voucherAmount || 0).toLocaleString()}</span>
                             </div>
                           )}
                           <div className="flex justify-between">

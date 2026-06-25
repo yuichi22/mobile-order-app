@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Calculator, Check, ChevronRight, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
+import { Calculator, Check, ChevronRight, HandCoins, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
 
 const getAccountingCategoryLabel = (category) => {
   if (category === 'promo_expense') return '販促費';
@@ -15,6 +15,7 @@ export const PosModals = ({
   showSplitModal,
   setShowSplitModal,
   totalAmount,
+  rawTotalAmount,
   splitCount,
   setSplitCount,
   showDiscountModal,
@@ -25,6 +26,7 @@ export const PosModals = ({
   setSelectedDiscount,
   discountQuantities,
   setDiscountQuantities,
+  onFullCreditCheckout,
   showAbortModal,
   setShowAbortModal,
   abortReason = 'manual_abort',
@@ -39,6 +41,142 @@ export const PosModals = ({
     if (count <= 0) return { perPerson: 0, remainder: 0 };
     return { perPerson: Math.floor(totalAmount / count), remainder: totalAmount % count };
   }, [totalAmount, splitCount]);
+
+  const discountBase = Math.max(0, Number(totalAmount) || 0);
+
+  // この場で選択中の登録割引。percent優先→amount合算 で「適用予定額」を算出する。
+  const selectedRegisteredPercent = discounts.find((discount) => {
+    const type = discount.type || 'amount';
+    const key = discount.id || discount.name;
+    return type === 'percent' && Number(discountQuantities?.[key] || 0) > 0;
+  });
+  const registeredAmountSum = discounts.reduce((sum, discount) => {
+    if ((discount.type || 'amount') !== 'amount') return sum;
+    const key = discount.id || discount.name;
+    const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
+    return sum + ((Number(discount.value) || 0) * quantity);
+  }, 0);
+
+  const previewDiscountAmount = selectedRegisteredPercent
+    ? Math.floor(discountBase * ((Number(selectedRegisteredPercent.value) || 0) / 100))
+    : registeredAmountSum;
+  const previewPercentLabel = selectedRegisteredPercent
+    ? `${Number(selectedRegisteredPercent.value) || 0}%`
+    : null;
+
+  const resetDiscountSelection = () => {
+    setDiscountType('none');
+    setDiscountValue(0);
+    setSelectedDiscount?.(null);
+    setDiscountQuantities?.({});
+  };
+
+  // 全額売掛を適用。amount経路 + voucher_payment区分で、値引き前の支払全額を売掛として計上する。
+  // onFullCreditCheckout が渡されていれば「適用＋会計確定」を親に委ねる(ワンタップ会計)。
+  const fullCreditAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
+  const applyFullCredit = () => {
+    if (fullCreditAmount <= 0) return;
+    if (onFullCreditCheckout) {
+      setShowDiscountModal(false);
+      onFullCreditCheckout();
+      return;
+    }
+    setDiscountType('amount');
+    setDiscountValue(fullCreditAmount);
+    setSelectedDiscount?.({
+      id: 'full_credit',
+      name: '全額売掛',
+      type: 'full_credit',
+      value: fullCreditAmount,
+      accountingCategory: 'voucher_payment',
+      count: 1,
+      quantity: 1,
+      amount: fullCreditAmount
+    });
+    setDiscountQuantities?.({});
+    setShowDiscountModal(false);
+  };
+
+  // 全体割引モーダルの「適用」: 登録済み割引(percent優先→amount合算)を適用する。
+  const applyDiscountSelection = () => {
+    if (selectedRegisteredPercent) {
+      const unitValue = Number(selectedRegisteredPercent.value) || 0;
+      setDiscountType('percent');
+      setDiscountValue(unitValue);
+      setSelectedDiscount?.({
+        id: selectedRegisteredPercent.id || null,
+        name: selectedRegisteredPercent.name || '値引き',
+        type: 'percent',
+        value: unitValue,
+        accountingCategory: selectedRegisteredPercent.accountingCategory || 'sales_discount',
+        count: 1,
+        quantity: 1
+      });
+      setShowDiscountModal(false);
+      return;
+    }
+
+    const selectedAmountDiscounts = discounts
+      .map((discount) => {
+        const type = discount.type || 'amount';
+        const key = discount.id || discount.name;
+        const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
+        const unitValue = Number(discount.value) || 0;
+        if (type !== 'amount' || quantity <= 0) return null;
+        return {
+          id: discount.id || null,
+          name: discount.name || '値引き',
+          type,
+          value: unitValue,
+          accountingCategory: discount.accountingCategory || 'sales_discount',
+          count: quantity,
+          quantity,
+          amount: unitValue * quantity
+        };
+      })
+      .filter(Boolean);
+
+    const totalAmountDiscount = selectedAmountDiscounts.reduce(
+      (sum, discount) => sum + Number(discount.amount || 0),
+      0
+    );
+
+    if (totalAmountDiscount <= 0) {
+      setDiscountType('none');
+      setDiscountValue(0);
+      setSelectedDiscount?.(null);
+      setShowDiscountModal(false);
+      return;
+    }
+
+    const displayName = selectedAmountDiscounts.length === 1
+      ? selectedAmountDiscounts[0].name
+      : `${selectedAmountDiscounts.length}種類のクーポン`;
+    const totalQuantity = selectedAmountDiscounts.reduce(
+      (sum, discount) => sum + Number(discount.quantity || 0),
+      0
+    );
+
+    setDiscountType('amount');
+    setDiscountValue(totalAmountDiscount);
+    setSelectedDiscount?.({
+      id: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].id : 'multiple_coupons',
+      name: displayName,
+      type: 'amount',
+      accountingCategory: selectedAmountDiscounts.length === 1
+        ? selectedAmountDiscounts[0].accountingCategory || 'sales_discount'
+        : 'mixed',
+      value: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].value : 0,
+      count: totalQuantity,
+      quantity: totalQuantity,
+      amount: totalAmountDiscount,
+      items: selectedAmountDiscounts,
+      label: selectedAmountDiscounts.length === 1
+        ? `${selectedAmountDiscounts[0].name} × ${selectedAmountDiscounts[0].quantity}枚`
+        : `${displayName} / ${totalQuantity}枚`
+    });
+    setShowDiscountModal(false);
+  };
 
   const isAllItemsCancelledAbort = abortReason === 'all_items_cancelled';
   const abortModalTitle = isAllItemsCancelledAbort
@@ -174,9 +312,32 @@ export const PosModals = ({
           <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
               <Percent size={20} className="text-orange-500" />
-              割引/金券を適用
+              割引・売掛を適用
             </h3>
 
+            <div className="mb-4 space-y-2">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-2">
+                <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-black text-sky-600">
+                  <HandCoins size={13} />
+                  全額売掛{onFullCreditCheckout ? '（即会計）' : ''}
+                </div>
+                <button
+                  type="button"
+                  onClick={applyFullCredit}
+                  disabled={fullCreditAmount <= 0}
+                  className="flex h-10 w-full items-center justify-center gap-1 rounded-lg bg-sky-500 px-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                >
+                  {fullCreditAmount > 0
+                    ? `全額 ¥${fullCreditAmount.toLocaleString()} を売掛${onFullCreditCheckout ? 'で会計' : ''}`
+                    : '全額を売掛にする'}
+                </button>
+              </div>
+              <p className="px-1 text-[10px] font-bold leading-relaxed text-gray-400">
+                % 割引は商品ごとの「単品割引」で適用します。下のリストは登録済みの金額クーポン/金券、全額売掛は支払全額を売掛(後日回収)として計上します。
+              </p>
+            </div>
+
+            <div className="mb-2 px-1 text-[11px] font-black text-gray-400">登録済みの割引/金券</div>
             <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-400">
               <div>項目名</div>
               <div className="text-center">数量</div>
@@ -315,14 +476,7 @@ export const PosModals = ({
                 <div className="flex items-center justify-between text-sm font-black text-orange-900">
                   <span>適用予定額</span>
                   <span className="font-mono">
-                    -{discounts.reduce((sum, discount) => {
-                      const type = discount.type || 'amount';
-                      if (type !== 'amount') return sum;
-
-                      const key = discount.id || discount.name;
-                      const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
-                      return sum + ((Number(discount.value) || 0) * quantity);
-                    }, 0).toLocaleString()}円
+                    {previewPercentLabel ? `${previewPercentLabel} = ` : ''}-{previewDiscountAmount.toLocaleString()}円
                   </span>
                 </div>
                 <div className="mt-1 text-[11px] font-bold text-orange-600">
@@ -332,98 +486,7 @@ export const PosModals = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  const selectedAmountDiscounts = discounts
-                    .map((discount) => {
-                      const type = discount.type || 'amount';
-                      const key = discount.id || discount.name;
-                      const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
-                      const unitValue = Number(discount.value) || 0;
-
-                      if (type !== 'amount' || quantity <= 0) return null;
-
-                      return {
-                        id: discount.id || null,
-                        name: discount.name || '値引き',
-                        type,
-                        value: unitValue,
-                        accountingCategory: discount.accountingCategory || 'sales_discount',
-                        count: quantity,
-                        quantity,
-                        amount: unitValue * quantity
-                      };
-                    })
-                    .filter(Boolean);
-
-                  const selectedPercentDiscount = discounts.find((discount) => {
-                    const type = discount.type || 'amount';
-                    const key = discount.id || discount.name;
-                    return type === 'percent' && Number(discountQuantities?.[key] || 0) > 0;
-                  });
-
-                  if (selectedPercentDiscount) {
-                    const unitValue = Number(selectedPercentDiscount.value) || 0;
-
-                    setDiscountType('percent');
-                    setDiscountValue(unitValue);
-                    setSelectedDiscount?.({
-                      id: selectedPercentDiscount.id || null,
-                      name: selectedPercentDiscount.name || '値引き',
-                      type: 'percent',
-                      value: unitValue,
-                      accountingCategory: selectedPercentDiscount.accountingCategory || 'sales_discount',
-                      count: 1,
-                      quantity: 1
-                    });
-                    setShowDiscountModal(false);
-                    return;
-                  }
-
-                  const totalAmountDiscount = selectedAmountDiscounts.reduce(
-                    (sum, discount) => sum + Number(discount.amount || 0),
-                    0
-                  );
-
-                  if (totalAmountDiscount <= 0) {
-                    setDiscountType('none');
-                    setDiscountValue(0);
-                    setSelectedDiscount?.(null);
-                    setShowDiscountModal(false);
-                    return;
-                  }
-
-                  const displayName = selectedAmountDiscounts.length === 1
-                    ? selectedAmountDiscounts[0].name
-                    : `${selectedAmountDiscounts.length}種類のクーポン`;
-
-                  const totalQuantity = selectedAmountDiscounts.reduce(
-                    (sum, discount) => sum + Number(discount.quantity || 0),
-                    0
-                  );
-
-                  setDiscountType('amount');
-                  setDiscountValue(totalAmountDiscount);
-                  setSelectedDiscount?.({
-                    id: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].id : 'multiple_coupons',
-                    name: displayName,
-                    type: 'amount',
-                    accountingCategory: selectedAmountDiscounts.length === 1
-                      ? selectedAmountDiscounts[0].accountingCategory || 'sales_discount'
-                      : 'mixed',
-                    value: selectedAmountDiscounts.length === 1
-                      ? selectedAmountDiscounts[0].value
-                      : 0,
-                    count: totalQuantity,
-                    quantity: totalQuantity,
-                    amount: totalAmountDiscount,
-                    items: selectedAmountDiscounts,
-                    label: selectedAmountDiscounts.length === 1
-                      ? `${selectedAmountDiscounts[0].name} × ${selectedAmountDiscounts[0].quantity}枚`
-                      : `${displayName} / ${totalQuantity}枚`
-                  });
-
-                  setShowDiscountModal(false);
-                }}
+                onClick={applyDiscountSelection}
                 className="mb-3 flex w-full items-center justify-center rounded-xl bg-orange-500 py-3 font-black text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.99]"
               >
                 適用
@@ -432,10 +495,7 @@ export const PosModals = ({
               <button
                 type="button"
                 onClick={() => {
-                  setDiscountType('none');
-                  setDiscountValue(0);
-                  setSelectedDiscount?.(null);
-                  setDiscountQuantities?.({});
+                  resetDiscountSelection();
                   setShowDiscountModal(false);
                 }}
                 className="mb-2 w-full rounded-xl bg-gray-100 py-3 font-bold text-gray-600 transition-colors hover:bg-gray-200"

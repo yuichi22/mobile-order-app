@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, increment, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
+import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
+import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import FloorMapCanvas from '../../shared/components/floor-map/FloorMapCanvas';
@@ -30,7 +32,9 @@ import { useKitchenBoard } from '../kitchen/hooks/useKitchenBoard';
 import { useTableMenuOverrides } from './hooks/useTableMenuOverrides';
 import PosTransactionHistoryPage from './pages/PosTransactionHistoryPage';
 import UncodedSaleModal from './components/UncodedSaleModal';
+import PosFavoritesModal from './components/PosFavoritesModal';
 import { PosModals } from './PosRegister/components/PosModals';
+import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
@@ -108,6 +112,40 @@ const writePosHoldsToStorage = (storeId, holds) => {
 // 既定は false。棚卸しで在庫を確定し、在庫数を信頼できるようになったら true に戻すと品切れ商品の販売を防げる。
 const POS_ENFORCE_STOCK_LIMIT = false;
 
+// 1カート行の金額figure。商品個別割引(lineDiscount, percentのみ)を適用した
+// 税込/税抜/税(割引後)と、割引前税込(includedRaw)・割引額(discountMoney=税込)を返す。
+// 割引は入力ライン額(価格×数量)に対して適用するため、無割引時は従来計算と完全に一致する。
+const computeCartLineFigures = (item, modeTax, registerMode) => {
+  const price = Number(item.takeoutPrice ?? item.unitPrice ?? item.priceTaxIncluded ?? 0);
+  const quantity = Number(item.quantity || 0);
+  const lineAmount = price * quantity;
+  const itemRate = Number.isFinite(Number(item.taxRate)) && Number(item.taxRate) > 0
+    ? Number(item.taxRate)
+    : (registerMode === 'order' ? modeTax.reducedRate : modeTax.standardRate);
+
+  const ld = item.lineDiscount;
+  const pct = ld && ld.type === 'percent'
+    ? Math.max(0, Math.min(100, Number(ld.value) || 0))
+    : 0;
+  const discountInput = pct > 0 ? Math.floor(lineAmount * (pct / 100)) : 0;
+  const netInput = Math.max(0, lineAmount - discountInput);
+
+  const rawBreakdown = computeLineTaxBreakdown(lineAmount, itemRate, modeTax.priceBase, modeTax.rounding);
+  const netBreakdown = computeLineTaxBreakdown(netInput, itemRate, modeTax.priceBase, modeTax.rounding);
+  const discountMoney = Math.max(0, rawBreakdown.includedAmount - netBreakdown.includedAmount);
+
+  return {
+    itemRate,
+    isReducedItem: itemRate <= modeTax.reducedRate,
+    includedRaw: rawBreakdown.includedAmount,
+    includedNet: netBreakdown.includedAmount,
+    baseNet: netBreakdown.baseAmount,
+    taxNet: netBreakdown.taxAmount,
+    discountPercent: pct,
+    discountMoney
+  };
+};
+
 export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, registerMode = 'order' }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
 
@@ -145,6 +183,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     productCategories: productMasterCategories = [],
     productCategoryGroups: productMasterCategoryGroups = [],
     productSalesAreas: productMasterSalesAreas = [],
+    brands: productMasterBrands = [],
+    suppliers: productMasterSuppliers = [],
     loading: productMasterLoading
     // POSレジは商品リストを表示しないため、重い products 購読をスキップする。
     // バーコード検索は Firestore 直接検索(searchKeywords)で動作する。
@@ -155,6 +195,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [posProductMessage, setPosProductMessage] = useState(null);
   // バーコード未登録商品の会計モーダル(売り場起点・POSレジ用)。null=閉
   const [uncodedSalesArea, setUncodedSalesArea] = useState(null);
+  // お気に入り(よく売る商品)モーダルの開閉。
+  const [favoritesModalOpen, setFavoritesModalOpen] = useState(false);
   // ORDERテイクアウトの商品リスト絞り込みカテゴリー。''=すべて
   const [takeoutCategoryFilter, setTakeoutCategoryFilter] = useState('');
   const [posHolds, setPosHolds] = useState([]);
@@ -167,7 +209,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [takeoutSelectedDiscount, setTakeoutSelectedDiscount] = useState(null);
   const [takeoutDiscountQuantities, setTakeoutDiscountQuantities] = useState({});
   const [showTakeoutDiscountModal, setShowTakeoutDiscountModal] = useState(false);
+  // 商品個別割引(percent)モーダルの対象カート行ID。null=閉。
+  const [lineDiscountTargetId, setLineDiscountTargetId] = useState(null);
+  const [lineDiscountManualValue, setLineDiscountManualValue] = useState('');
+  // 単品割引の会計区分(売上値引き/販促費)。
+  const [lineDiscountCategory, setLineDiscountCategory] = useState('sales_discount');
   const [isTakeoutSubmitting, setIsTakeoutSubmitting] = useState(false);
+  // 全額売掛のワンタップ会計: stateを全額売掛に切り替えた後、派生値(memo)が更新されてから会計確定を発火する。
+  const [pendingTakeoutFullCredit, setPendingTakeoutFullCredit] = useState(false);
   const [menuOverrideOpen, setMenuOverrideOpen] = useState(false);
   const [menuOverrideProcessing, setMenuOverrideProcessing] = useState(false);
   const { orders, calls, checks } = useKitchenBoard(storeId);
@@ -290,6 +339,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       name: product.name || '商品',
       categoryId: product.categoryId || '',
       categoryName: product.resolvedCategoryName || 'カテゴリー',
+      // 日計「売り場別売上」用に売り場・カテゴリーグループを明細へ保存する。
+      salesAreaId: product.salesAreaId || '',
+      salesAreaName: product.salesAreaName || '',
+      categoryGroupId: product.categoryGroupId || '',
+      categoryGroupName: product.categoryGroupName || '',
+      // 原価計算(掛け率連鎖)用: ブランド・商品固有掛け率・商品個別原価(単価)を明細へ持たせる。
+      brandId: product.brandId || '',
+      brandName: product.brandName || '',
+      productSupplierCostRate: Number.isFinite(Number(product.supplierCostRate)) ? Number(product.supplierCostRate) : null,
+      productCostTaxIncludedUnit: Number.isFinite(Number(product.costTaxIncluded)) ? Number(product.costTaxIncluded) : null,
+      productCostTaxExcludedUnit: Number.isFinite(Number(product.costTaxExcluded)) ? Number(product.costTaxExcluded) : null,
       takeoutPrice: Number(product.resolvedPrice || 0),
       unitPrice: Number(product.resolvedPrice || 0),
       priceTaxIncluded: Number(product.resolvedPrice || 0),
@@ -305,7 +365,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   };
 
   // バーコード未登録商品(売り場→分類選択＋金額・数量手入力)を会計リストへ追加する。
-  const addUncodedItemToCart = ({ salesAreaName, categoryGroupName, categoryId, categoryName, price, quantity }) => {
+  const addUncodedItemToCart = ({ salesAreaId, salesAreaName, categoryGroupId, categoryGroupName, categoryId, categoryName, price, quantity }) => {
     const normalizedPrice = Math.max(Number(price || 0) || 0, 0);
     const normalizedQuantity = Math.max(Number(quantity || 1) || 1, 1);
     if (normalizedPrice <= 0) return;
@@ -323,7 +383,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       unitPrice: normalizedPrice,
       priceTaxIncluded: normalizedPrice,
       taxRate: resolveCategoryTaxRate(categoryId),
+      // 日計「売り場別売上」用に売り場・カテゴリーグループを明細へ保存する。
+      salesAreaId: salesAreaId || '',
       salesAreaName: salesAreaName || '',
+      categoryGroupId: categoryGroupId || '',
+      categoryGroupName: categoryGroupName || '',
       quantity: normalizedQuantity
     });
 
@@ -358,25 +422,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     const normalizedCode = rawCode.toLowerCase();
     if (!normalizedCode) return false;
 
-    let matchedProduct = activePosProducts.find((product) => (
-      [product.barcode, product.sku, product.productCode]
-        .filter(Boolean)
-        .some((value) => String(value).trim().toLowerCase() === normalizedCode)
-    ));
+    // スキャン値と「バーコード/SKU/品番が完全一致」する商品を探す。
+    // 同一SKUグループは sku/productCode(=ブランド名)を共有するため、まず barcode の
+    // 完全一致を最優先し、無ければ sku/productCode の完全一致でフォールバックする。
+    const exactFieldMatch = (product, field) => (
+      String(product?.[field] || '').trim().toLowerCase() === normalizedCode
+    );
+    let matchedProduct = activePosProducts.find((product) => exactFieldMatch(product, 'barcode'))
+      || activePosProducts.find((product) => (
+        exactFieldMatch(product, 'sku') || exactFieldMatch(product, 'productCode')
+      ));
 
     // メモリ(直近200件)に無ければ Firestore を直接検索する。
     // barcode 等の単一フィールドはインデックス対象外のため、検索用の searchKeywords(配列)で引く。
+    // ただし searchKeywords は前方一致(prefix)・ブランド名・品名断片も含むため、
+    // limit(1) の先頭ではなく「完全一致(バーコード優先)」を選び、別バリアントの先頭価格を拾わないようにする。
     if (!matchedProduct && storeId) {
       try {
         const productsRef = collection(db, 'stores', storeId, 'products');
         const candidates = Array.from(new Set([rawCode, normalizedCode])).filter(Boolean);
         for (const term of candidates) {
-          const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(1)));
-          if (!snapshot.empty) {
-            const docSnap = snapshot.docs[0];
-            matchedProduct = buildResolvedPosProduct({ id: docSnap.id, ...docSnap.data() });
-            break;
-          }
+          const termLower = String(term).trim().toLowerCase();
+          const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(30)));
+          if (snapshot.empty) continue;
+
+          const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          const eq = (product, field) => String(product?.[field] || '').trim().toLowerCase() === termLower;
+          const resolved = docs.find((product) => eq(product, 'barcode'))
+            || docs.find((product) => eq(product, 'sku') || eq(product, 'productCode'))
+            || docs[0];
+          matchedProduct = buildResolvedPosProduct(resolved);
+          break;
         }
       } catch (error) {
         console.error('[pos barcode lookup]', error);
@@ -458,40 +534,66 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       : takeoutMenuItems
   ), [takeoutCategoryFilter, takeoutMenuItems]);
 
-  // カート合計(値引き前・税込)。価格が税抜入力(priceBase=taxExcluded)の場合は税を上乗せして税込にする。
-  const takeoutCartRawTotal = useMemo(() => {
+  // 各カート行のfigure(個別割引・税込/税抜/税)。価格が税抜入力(priceBase=taxExcluded)でも税込で算出する。
+  const takeoutCartLineFigures = useMemo(() => {
     const modeTax = resolveModeTaxSettings(storeSettings, registerMode === 'pos' ? 'pos' : 'order');
-    return takeoutCart.reduce((sum, item) => {
-      const lineAmount = Number(item.takeoutPrice || item.unitPrice || item.priceTaxIncluded || 0) * Number(item.quantity || 0);
-      const itemRate = Number.isFinite(Number(item.taxRate)) && Number(item.taxRate) > 0
-        ? Number(item.taxRate)
-        : (registerMode === 'order' ? modeTax.reducedRate : modeTax.standardRate);
-      const { includedAmount } = computeLineTaxBreakdown(lineAmount, itemRate, modeTax.priceBase, modeTax.rounding);
-      return sum + includedAmount;
-    }, 0);
+    return takeoutCart.map((item) => ({
+      item,
+      figures: computeCartLineFigures(item, modeTax, registerMode)
+    }));
   }, [takeoutCart, storeSettings, registerMode]);
 
+  // カート合計(全割引前・税込)。
+  const takeoutCartRawTotal = useMemo(() => (
+    takeoutCartLineFigures.reduce((sum, { figures }) => sum + Number(figures.includedRaw || 0), 0)
+  ), [takeoutCartLineFigures]);
+
+  // 商品個別割引の合計(税込)。
+  const takeoutLineDiscountTotal = useMemo(() => (
+    takeoutCartLineFigures.reduce((sum, { figures }) => sum + Number(figures.discountMoney || 0), 0)
+  ), [takeoutCartLineFigures]);
+
+  // 個別割引適用後の小計(税込)。全体割引はこの残額に対して掛ける。
+  const takeoutSubtotalAfterLine = useMemo(() => (
+    Math.max(Number(takeoutCartRawTotal || 0) - Number(takeoutLineDiscountTotal || 0), 0)
+  ), [takeoutCartRawTotal, takeoutLineDiscountTotal]);
+
+  // 個別割引の値引き額を会計区分ごとに保持(日計の区分別集計用)。
+  const takeoutLineDiscountItems = useMemo(() => (
+    takeoutCartLineFigures
+      .filter(({ figures }) => Number(figures.discountMoney || 0) > 0)
+      .map(({ item, figures }) => ({
+        id: item.lineDiscount?.discountId || null,
+        name: item.lineDiscount?.name
+          ? `${item.name} / ${item.lineDiscount.name}`
+          : `${item.name} ${figures.discountPercent}%OFF`,
+        accountingCategory: item.lineDiscount?.accountingCategory || 'sales_discount',
+        amount: Number(figures.discountMoney || 0)
+      }))
+  ), [takeoutCartLineFigures]);
+
+  // 全体割引は「個別割引適用後の小計(残額)」に対して計算する(個別→残額に全体でスタック)。
   const takeoutDiscountAmount = useMemo(() => {
-    const rawTotal = Number(takeoutCartRawTotal || 0);
-    if (rawTotal <= 0) return 0;
+    const base = Number(takeoutSubtotalAfterLine || 0);
+    if (base <= 0) return 0;
 
     if (takeoutDiscountType === 'percent') {
       return Math.min(
-        rawTotal,
-        Math.floor(rawTotal * ((Number(takeoutDiscountValue) || 0) / 100))
+        base,
+        Math.floor(base * ((Number(takeoutDiscountValue) || 0) / 100))
       );
     }
 
     if (takeoutDiscountType === 'amount') {
-      return Math.min(rawTotal, Number(takeoutDiscountValue || 0));
+      return Math.min(base, Number(takeoutDiscountValue || 0));
     }
 
     return 0;
-  }, [takeoutCartRawTotal, takeoutDiscountType, takeoutDiscountValue]);
+  }, [takeoutSubtotalAfterLine, takeoutDiscountType, takeoutDiscountValue]);
 
   const takeoutCartTotal = useMemo(() => (
-    Math.max(Number(takeoutCartRawTotal || 0) - Number(takeoutDiscountAmount || 0), 0)
-  ), [takeoutCartRawTotal, takeoutDiscountAmount]);
+    Math.max(Number(takeoutSubtotalAfterLine || 0) - Number(takeoutDiscountAmount || 0), 0)
+  ), [takeoutSubtotalAfterLine, takeoutDiscountAmount]);
 
   const takeoutDiscountLabel = useMemo(() => {
     if (takeoutDiscountType === 'none' || takeoutDiscountAmount <= 0) return '未設定';
@@ -523,7 +625,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   );
 
   const TakeoutPaymentIcon = selectedTakeoutPaymentMethodOption?.icon || null;
-  const takeoutPaymentActionLabel = selectedTakeoutPaymentMethodOption?.buttonLabel || '支払い方法を選択してください';
+  // 現金預かりを入れたままカード/QRタブへ移ったら「現金＋カード/QR」の分割会計にする。
+  const takeoutPaymentSplit = useMemo(
+    () => computePaymentSplit(takeoutPaymentMethod, takeoutPaymentAmount, takeoutCartTotal),
+    [takeoutPaymentMethod, takeoutPaymentAmount, takeoutCartTotal]
+  );
+  const takeoutPaymentActionLabel = takeoutPaymentSplit.isSplit
+    ? getSplitActionLabel(takeoutPaymentSplit.otherMethod)
+    : (selectedTakeoutPaymentMethodOption?.buttonLabel || '支払い方法を選択してください');
   const takeoutPaymentActionClassName = selectedTakeoutPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500';
 
   const addTakeoutCartItem = (menuItem) => {
@@ -562,7 +671,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           const currentQuantity = Number(item.quantity || 0);
           const nextQuantity = Math.max(currentQuantity + delta, 0);
 
+          // 在庫制限は POS_ENFORCE_STOCK_LIMIT で一括ON/OFF。棚卸し中など在庫が
+          // 未確立(0/不正確)の段階では false にして数量を増やせるようにする。
+          // 追加パス・+ボタンの disabled と条件を揃える。
           if (
+            POS_ENFORCE_STOCK_LIMIT &&
             registerMode === 'pos' &&
             item.sourceType === 'retail' &&
             delta > 0 &&
@@ -581,6 +694,27 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const removeTakeoutCartItem = (itemId) => {
     setTakeoutCart((current) => current.filter((item) => item.id !== itemId));
   };
+
+  // 商品個別割引(percent)を対象カート行に適用/解除する。
+  const applyLineDiscount = (itemId, lineDiscount) => {
+    setTakeoutCart((current) => current.map((item) => (
+      item.id === itemId ? { ...item, lineDiscount } : item
+    )));
+  };
+
+  const clearLineDiscount = (itemId) => {
+    setTakeoutCart((current) => current.map((item) => {
+      if (item.id !== itemId) return item;
+      const next = { ...item };
+      delete next.lineDiscount;
+      return next;
+    }));
+  };
+
+  const lineDiscountTarget = useMemo(
+    () => takeoutCart.find((item) => item.id === lineDiscountTargetId) || null,
+    [takeoutCart, lineDiscountTargetId]
+  );
 
   const holdCurrentPosCart = () => {
     if (registerMode !== 'pos' || takeoutCart.length === 0) {
@@ -682,7 +816,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     try {
       const selectedPaymentOption = TAKEOUT_PAYMENT_METHOD_OPTIONS.find((option) => option.id === takeoutPaymentMethod);
-      const paymentMethodLabel = selectedPaymentOption?.label || takeoutPaymentMethod;
+      // 現金＋カード/QR の分割会計。成立時は payments[] に現金/カードの内訳を持たせて記録する。
+      const paymentSplit = computePaymentSplit(takeoutPaymentMethod, takeoutPaymentAmount, takeoutCartTotal);
+      const paymentMethodLabel = paymentSplit.isSplit
+        ? `現金＋${getSplitMethodLabel(paymentSplit.otherMethod)}`
+        : takeoutPaymentMethod === 'credit'
+          ? '売掛'
+          : (selectedPaymentOption?.label || takeoutPaymentMethod);
       const paymentAmountNumber = takeoutPaymentMethod === 'cash'
         ? Number(takeoutPaymentAmount || 0)
         : Number(takeoutCartTotal);
@@ -690,26 +830,87 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const reducedTax = modeTax.reducedRate;
       const standardTax = modeTax.standardRate;
       const taxRounding = modeTax.rounding;
-      const priceBase = modeTax.priceBase;
       const transactionRef = doc(collection(db, 'stores', storeId, 'transactions'));
       const sessionId = `takeout-${transactionRef.id}`;
       const nowIso = new Date().toISOString();
       const businessDate = nowIso.slice(0, 10);
 
-      // 商品ごとの税率で計算する。商品が税率を持てばそれを採用、無ければ
-      // ORDER(テイクアウト食品)=軽減、POS(物販)=標準 を既定にする。
-      const resolveItemTaxRate = (item) => {
-        const r = Number(item?.taxRate);
-        if (Number.isFinite(r) && r > 0) return r;
-        return registerMode === 'order' ? reducedTax : standardTax;
+      // 原価(掛け率)連鎖の解決。優先度: 商品個別原価 > 商品掛け率 > ブランド掛け率 > 仕入先掛け率 > 売り場原価率。
+      // 既存の掛け率(brand/supplier.defaultCostRate, product.supplierCostRate)は読むだけ(編集中の値は上書きしない)。
+      const pickRate = (value) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null);
+      const brandById = new Map();
+      (productMasterBrands || []).forEach((brand) => {
+        if (brand?.id) brandById.set(String(brand.id), brand);
+      });
+      const supplierById = new Map();
+      (productMasterSuppliers || []).forEach((supplier) => {
+        if (supplier?.id) supplierById.set(String(supplier.id), supplier);
+      });
+      const salesAreaRateById = new Map();
+      const salesAreaRateByName = new Map();
+      (productMasterSalesAreas || []).forEach((area) => {
+        const rate = pickRate(area?.costRate);
+        if (rate === null) return;
+        if (area.id) salesAreaRateById.set(String(area.id), rate);
+        if (area.name) salesAreaRateByName.set(String(area.name), rate);
+      });
+      const resolveSalesAreaRate = (item) => {
+        if (item.salesAreaId && salesAreaRateById.has(String(item.salesAreaId))) return salesAreaRateById.get(String(item.salesAreaId));
+        if (item.salesAreaName && salesAreaRateByName.has(String(item.salesAreaName))) return salesAreaRateByName.get(String(item.salesAreaName));
+        return null;
+      };
+      const resolveItemCost = (item) => {
+        // 1) 商品個別原価(単価・登録あれば)＝正確な原価。
+        const unitIncl = pickRate(item.productCostTaxIncludedUnit);
+        if (unitIncl !== null) {
+          const unitExcl = pickRate(item.productCostTaxExcludedUnit);
+          return { source: 'product_cost', unitIncl, unitExcl: unitExcl !== null ? unitExcl : unitIncl, rate: null };
+        }
+        // 2) 掛け率連鎖。
+        const brand = item.brandId ? brandById.get(String(item.brandId)) : null;
+        const supplier = brand?.supplierId ? supplierById.get(String(brand.supplierId)) : null;
+        const productRate = pickRate(item.productSupplierCostRate);
+        if (productRate !== null) return { source: 'product_rate', rate: productRate };
+        const brandRate = pickRate(brand?.defaultCostRate);
+        if (brandRate !== null) return { source: 'brand_rate', rate: brandRate };
+        const supplierRate = pickRate(supplier?.defaultCostRate);
+        if (supplierRate !== null) return { source: 'supplier_rate', rate: supplierRate };
+        const areaRate = resolveSalesAreaRate(item);
+        if (areaRate !== null) return { source: 'sales_area_rate', rate: areaRate };
+        return { source: null, rate: null };
       };
 
+      // 商品ごとの税率・商品個別割引(percent)を適用して明細を作る。
+      // totalPrice/salesTax* は個別割引後の税込/税抜/税。元の税込は originalLineTotal に保持。
       const items = takeoutCart.map((item) => {
         const quantity = Number(item.quantity || 1);
-        const lineAmount = Number(item.takeoutPrice || 0) * quantity;
-        const itemRate = resolveItemTaxRate(item);
-        const isReducedItem = itemRate <= reducedTax;
-        const { includedAmount, baseAmount, taxAmount } = computeLineTaxBreakdown(lineAmount, itemRate, priceBase, taxRounding);
+        const figures = computeCartLineFigures(item, modeTax, registerMode);
+        const itemRate = figures.itemRate;
+        const isReducedItem = figures.isReducedItem;
+        const hasLineDiscount = Number(figures.discountMoney || 0) > 0;
+
+        // 原価スナップ: 掛け率連鎖(商品原価>商品掛け率>ブランド>仕入先>売り場)で原価を算出して保存する。
+        // 集計(日計)はこのスナップを読むため、ここで保存しないと粗利に入らない。
+        const costInfo = resolveItemCost(item);
+        const hasCost = costInfo.source !== null;
+        let costTaxIncludedAmount = null;
+        let costTaxExcludedAmount = null;
+        let unitCostSnapshot = null;
+        let costRateValue = null;
+        if (costInfo.source === 'product_cost') {
+          unitCostSnapshot = costInfo.unitIncl;
+          costTaxIncludedAmount = Math.round(costInfo.unitIncl * quantity);
+          costTaxExcludedAmount = Math.round(costInfo.unitExcl * quantity);
+        } else if (costInfo.rate !== null) {
+          costRateValue = costInfo.rate;
+          const costFraction = Math.max(0, Math.min(100, Number(costInfo.rate))) / 100;
+          costTaxIncludedAmount = Math.round(figures.includedNet * costFraction);
+          costTaxExcludedAmount = Math.round(figures.baseNet * costFraction);
+          unitCostSnapshot = Math.round(Number(item.takeoutPrice || 0) * costFraction);
+        }
+        const grossProfitTaxIncluded = hasCost ? (figures.includedNet - costTaxIncludedAmount) : null;
+        const grossProfitTaxExcluded = hasCost ? (figures.baseNet - costTaxExcludedAmount) : null;
+
         return {
           id: item.id,
           menuItemId: item.id,
@@ -718,9 +919,24 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           name: item.name || '未設定商品',
           categoryId: item.categoryId || '',
           categoryName: item.categoryName || 'カテゴリー未設定',
+          salesAreaId: item.salesAreaId || '',
+          salesAreaName: item.salesAreaName || '',
+          categoryGroupId: item.categoryGroupId || '',
+          categoryGroupName: item.categoryGroupName || '',
           unitPrice: Number(item.takeoutPrice || 0),
           quantity,
-          totalPrice: includedAmount,
+          totalPrice: figures.includedNet,
+          originalLineTotal: figures.includedRaw,
+          lineDiscount: hasLineDiscount
+            ? {
+                type: 'percent',
+                value: figures.discountPercent,
+                amount: figures.discountMoney,
+                discountId: item.lineDiscount?.discountId || null,
+                name: item.lineDiscount?.name || `${figures.discountPercent}%OFF`,
+                accountingCategory: item.lineDiscount?.accountingCategory || 'sales_discount'
+              }
+            : null,
           barcode: item.barcode || '',
           sku: item.sku || '',
           stockQuantity: item.stockQuantity ?? null,
@@ -729,17 +945,25 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           taxRate: itemRate,
           salesTaxRate: itemRate,
           salesTaxRateType: isReducedItem ? 'reduced' : 'standard',
-          salesTaxIncludedAmount: includedAmount,
-          salesTaxExcludedAmount: baseAmount,
-          salesTaxAmount: taxAmount,
-          taxIncludedAmount: includedAmount,
+          salesTaxIncludedAmount: figures.includedNet,
+          salesTaxExcludedAmount: figures.baseNet,
+          salesTaxAmount: figures.taxNet,
+          taxIncludedAmount: figures.includedNet,
+          // 原価スナップ(掛け率連鎖)。日計の粗利集計はこれを読む。costSource で原価の出所が分かる。
+          costPrice: hasCost ? unitCostSnapshot : null,
+          costRate: costRateValue,
+          costSource: costInfo.source,
+          costTaxIncludedAmount,
+          costTaxExcludedAmount,
+          grossProfitTaxIncluded,
+          grossProfitTaxExcluded,
           status: 'paid',
           paymentStatus: 'paid',
           paidAtClient: nowIso
         };
       });
 
-      // 税率ブロック別に集計（値引きは元の明細合計に対する比率で各ブロックへ按分）。
+      // 税率ブロック別に集計。明細は個別割引適用後なので、ここで按分するのは全体割引のみ。
       const sumItemsBy = (predicate, key) => items
         .filter(predicate)
         .reduce((sum, it) => sum + Number(it[key] || 0), 0);
@@ -790,6 +1014,58 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             items: selectedAccountingAdjustmentItems
           }
         : null;
+
+      // 値引き総額を会計区分(売上値引き/販促費/金券・売掛)に振り分ける。
+      // テイクアウト経路は従来すべて discountAmount(売上値引き)に寄せていたが、
+      // 全額売掛などは voucher_payment として日計で別枠集計する必要があるため分解する。
+      // 商品個別割引(takeoutLineDiscountItems)も区分付きでここに合算する。
+      const settlementByCategory = { sales_discount: 0, promo_expense: 0, voucher_payment: 0 };
+      const totalSettlementAmount = Math.max(
+        0,
+        (Number(takeoutLineDiscountTotal) || 0) + (Number(takeoutDiscountAmount) || 0)
+      );
+      if (totalSettlementAmount > 0) {
+        const combinedAdjustmentItems = [
+          ...takeoutLineDiscountItems,
+          ...selectedAccountingAdjustmentItems
+        ];
+        const allocationItems = combinedAdjustmentItems.length > 0
+          ? combinedAdjustmentItems
+          : [{ accountingCategory: 'sales_discount', amount: totalSettlementAmount }];
+        const rawItemsTotal = allocationItems.reduce(
+          (sum, item) => sum + Math.max(Number(item.amount) || 0, 0),
+          0
+        );
+
+        if (rawItemsTotal > 0) {
+          let allocated = 0;
+          allocationItems.forEach((item, index) => {
+            const category = item.accountingCategory === 'promo_expense' || item.accountingCategory === 'voucher_payment'
+              ? item.accountingCategory
+              : 'sales_discount';
+            const isLast = index === allocationItems.length - 1;
+            const portion = isLast
+              ? totalSettlementAmount - allocated
+              : Math.floor(totalSettlementAmount * (Math.max(Number(item.amount) || 0, 0) / rawItemsTotal));
+            settlementByCategory[category] += portion;
+            allocated += portion;
+          });
+        } else {
+          settlementByCategory.sales_discount = totalSettlementAmount;
+        }
+      }
+
+      const salesDiscountFinal = Math.max(0, settlementByCategory.sales_discount);
+      const promoExpenseFinal = Math.max(0, settlementByCategory.promo_expense);
+      const voucherFinal = Math.max(0, settlementByCategory.voucher_payment);
+      const settlementAdjustmentTotalFinal = promoExpenseFinal + voucherFinal;
+      const salesAmountBeforeSettlementFinal = Math.max(0, Number(takeoutCartRawTotal) - salesDiscountFinal);
+      const voucherItemsFinal = voucherFinal > 0
+        ? [{ id: appliedDiscount?.id || 'voucher_payment', name: appliedDiscount?.name || '金券/売掛', amount: voucherFinal, value: voucherFinal, count: 1, quantity: 1 }]
+        : [];
+      const promoExpenseItemsFinal = promoExpenseFinal > 0
+        ? [{ id: appliedDiscount?.id || 'promo_expense', name: appliedDiscount?.name || '販促費', amount: promoExpenseFinal, value: promoExpenseFinal, count: 1, quantity: 1 }]
+        : [];
 
       const taxSummary = {
         reducedTaxRate: Number(reducedTax),
@@ -868,6 +1144,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         method: takeoutPaymentMethod,
         paymentMethod: takeoutPaymentMethod,
         paymentMethodLabel,
+        payments: paymentSplit.payments || null,
+        isSplitPayment: paymentSplit.isSplit,
         transactionId: transactionRef.id,
         sessionId,
         tableId: 'takeout',
@@ -883,11 +1161,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         taxAmount: Number(totalTaxAmount),
         taxAmountReduced: Number(reducedBreakdown.taxAmount),
         taxAmountStandard: Number(standardBreakdown.taxAmount),
-        discountAmount: Number(takeoutDiscountAmount),
-        promoExpenseAmount: 0,
-        voucherAmount: 0,
-        settlementAdjustmentTotal: Number(takeoutDiscountAmount),
-        salesAmountBeforeSettlementAdjustments: Number(takeoutCartRawTotal),
+        discountAmount: Number(salesDiscountFinal),
+        promoExpenseAmount: Number(promoExpenseFinal),
+        voucherAmount: Number(voucherFinal),
+        settlementAdjustmentTotal: Number(settlementAdjustmentTotalFinal),
+        salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementFinal),
+        lineDiscountTotal: Number(takeoutLineDiscountTotal) || 0,
+        lineDiscountItems: takeoutLineDiscountItems,
         storeId,
         isTakeout: true,
         orderType: 'takeout',
@@ -934,7 +1214,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           subTotal: Number(subTotalAmount),
           subtotal: Number(subTotalAmount),
           rawTotalAmount: Number(takeoutCartRawTotal),
-          discountAmount: Number(takeoutDiscountAmount),
+          discountAmount: Number(salesDiscountFinal),
+          promoExpenseAmount: Number(promoExpenseFinal),
+          voucherAmount: Number(voucherFinal),
+          settlementAdjustmentTotal: Number(settlementAdjustmentTotalFinal),
+          salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementFinal),
+          lineDiscountTotal: Number(takeoutLineDiscountTotal) || 0,
+          lineDiscountItems: takeoutLineDiscountItems,
+          promoExpenseItems: promoExpenseItemsFinal,
+          vouchers: voucherItemsFinal,
           totalAmount: Number(takeoutCartTotal),
           totalPrice: Number(takeoutCartTotal),
 
@@ -959,6 +1247,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
           paymentMethod: takeoutPaymentMethod,
           paymentMethodGroup: takeoutPaymentMethod,
+          paymentMethodLabel,
+          ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
 
           timestamp: serverTimestamp(),
           paidAt: serverTimestamp(),
@@ -1009,6 +1299,42 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       setIsTakeoutSubmitting(false);
     }
   };
+
+  // 全額売掛ボタン: 全額を売掛にして即会計確定する。
+  // state更新は非同期なので、ここでは全額売掛の状態をセットするだけにし、
+  // 派生値(takeoutDiscountAmount等)が反映された後に下のeffectで会計を発火する。
+  const requestTakeoutFullCreditCheckout = () => {
+    if (takeoutCart.length === 0 || isTakeoutSubmitting) return;
+    // 全額売掛は「個別割引適用後の残額」を売掛に計上する。
+    const fullAmount = Math.max(0, Math.floor(Number(takeoutSubtotalAfterLine) || 0));
+    if (fullAmount <= 0) return;
+
+    setTakeoutDiscountType('amount');
+    setTakeoutDiscountValue(fullAmount);
+    setTakeoutSelectedDiscount({
+      id: 'full_credit',
+      name: '全額売掛',
+      type: 'full_credit',
+      value: fullAmount,
+      accountingCategory: 'voucher_payment',
+      count: 1,
+      quantity: 1,
+      amount: fullAmount
+    });
+    setTakeoutDiscountQuantities({});
+    setTakeoutPaymentMethod('credit');
+    setTakeoutPaymentAmount('0');
+    setPendingTakeoutFullCredit(true);
+  };
+
+  useEffect(() => {
+    if (!pendingTakeoutFullCredit) return;
+    // 全額売掛の状態が反映され、支払方法も売掛に切り替わってから確定する。
+    if (takeoutSelectedDiscount?.id !== 'full_credit' || takeoutPaymentMethod !== 'credit') return;
+    setPendingTakeoutFullCredit(false);
+    handleSubmitTakeoutTransaction();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTakeoutFullCredit, takeoutSelectedDiscount, takeoutPaymentMethod]);
 
   const getSessionByTableId = (tableId) => (
     displaySessions.find((session) => String(session.tableId) === String(tableId)) || null
@@ -1226,78 +1552,52 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setScanInput('');
   };
 
-  // レジ画面表示中、フォーカス位置に関係なくバーコードリーダーの読取を捕捉して即実行する。
-  // スキャナ=高速連続入力(短間隔)＋Enterで終端、という特性で手入力と区別する。
-  const scanCaptureActiveRef = useRef(false);
-  const runGlobalScanRef = useRef(() => {});
-  useEffect(() => {
-    scanCaptureActiveRef.current = registerMode === 'pos' || isTakeoutMode;
-    runGlobalScanRef.current = (value) => {
-      processScannedValue(value);
-      setScanInput('');
-      // スキャン後はフォーカスを入力欄(検索窓)から外す。
-      // カーソルが入力欄に残ると次のバーコードが入力欄に取られ、グローバル捕捉に失敗するため。
-      const active = document.activeElement;
-      if (active && typeof active.blur === 'function'
-        && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
-        active.blur();
-      }
-    };
+  // 箱のインクリメンタル検索(POSのみ)の候補。
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // スキャンはグローバル一本化: フォーカス位置に関係なくスキャナ読取をカートへ流す。
+  // 検索窓(箱)にフォーカス中はグローバル側は捕捉せず(入力欄を壊さない)、箱自身の
+  // バッファ式ハンドラ(posScanKeyDown)がスキャン速度を検出してカートへ流す。
+  useGlobalBarcodeScanner({
+    active: registerMode === 'pos' || isTakeoutMode,
+    onScan: processScannedValue
   });
 
+  // 箱フォーカス中のスキャン: 高速連続入力はバッファして1回でカート確定。
+  // 低速の手入力(検索)はそのまま onChange に通す(検索に使う)。
+  const posScanKeyDown = useScannerBufferedInput({
+    commit: (value) => {
+      processScannedValue(value);
+      setScanInput('');
+      setSearchResults([]);
+    }
+  });
+
+  // 入力に応じて searchKeywords を前方一致で引き候補表示(250msデバウンス)。
   useEffect(() => {
-    let buffer = '';
-    let lastTime = 0;
-    const SCAN_INTERVAL_MS = 40; // これより速い連続入力＝スキャナ
-    const MIN_SCAN_LENGTH = 3;
+    if (registerMode !== 'pos' || isTakeoutMode || !storeId) { setSearchResults([]); setSearchLoading(false); return undefined; }
+    const term = scanInput.trim().toLowerCase();
+    if (term.length < 2) { setSearchResults([]); setSearchLoading(false); return undefined; }
 
-    const onKeyDown = (event) => {
-      if (!scanCaptureActiveRef.current) { buffer = ''; return; }
-      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
-
-      const now = Date.now();
-      const gap = now - lastTime;
-      lastTime = now;
-
-      if (event.key === 'Enter') {
-        if (buffer.length >= MIN_SCAN_LENGTH && gap < SCAN_INTERVAL_MS) {
-          event.preventDefault();
-          event.stopPropagation();
-          const value = buffer;
-          buffer = '';
-          runGlobalScanRef.current(value);
-        } else {
-          buffer = '';
-        }
-        return;
+    let cancelled = false;
+    setSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const productsRef = collection(db, 'stores', storeId, 'products');
+        const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(20)));
+        if (cancelled) return;
+        setSearchResults(snapshot.docs.map((docSnap) => buildResolvedPosProduct({ id: docSnap.id, ...docSnap.data() })));
+      } catch (error) {
+        if (!cancelled) setSearchResults([]);
+        console.error('[pos search]', error);
+      } finally {
+        if (!cancelled) setSearchLoading(false);
       }
+    }, 250);
 
-      if (event.key.length === 1) {
-        if (gap > SCAN_INTERVAL_MS) buffer = ''; // 新しい入力列
-        buffer += event.key;
-
-        const el = document.activeElement;
-        const editable = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-        // 2文字目以降の高速連続入力＝スキャナと判定。
-        const isScanSpeed = gap < SCAN_INTERVAL_MS && buffer.length >= 2;
-
-        // スキャン中に入力欄(検索窓)へカーソルがあれば即座に外し、
-        // 以降のキーを確実にグローバル捕捉する（人為的にフォーカスしていても1本で通る）。
-        if (editable && isScanSpeed) {
-          el.blur();
-        }
-
-        // 非入力要素にフォーカス中、またはスキャンと判定した時は横取りして取りこぼしを防ぐ。
-        if (!editable || isScanSpeed) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [scanInput, registerMode, isTakeoutMode, storeId]);
 
   const handleMouseDown = (event) => {
     event.preventDefault();
@@ -1350,44 +1650,29 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   // 中央の会計リスト列。POSレジ・ORDERテイクアウトの両方で共有する。
   const renderTakeoutCartColumn = () => (
-    <div className="flex min-h-0 flex-col bg-white">
+    <div className="flex min-h-0 min-w-0 flex-col bg-white">
       <div className="shrink-0 border-b border-slate-100 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setShowTakeoutDiscountModal(true)}
-            disabled={takeoutCart.length === 0}
-            className={`flex h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
-              takeoutDiscountAmount > 0
-                ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
-                : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
-            }`}
-          >
-            <Percent size={16} />
-            割引/金券
-          </button>
-
-          <div className="text-right">
-            {takeoutDiscountAmount > 0 && (
-              <div className="mb-1 flex items-center justify-end gap-2 text-xs font-black text-orange-600">
-                <span className="max-w-[160px] truncate">{takeoutDiscountLabel}</span>
-                <span className="font-mono">-¥{takeoutDiscountAmount.toLocaleString()}</span>
-              </div>
-            )}
-            <div className="text-xs font-black text-slate-400">税込合計</div>
-            <div className="font-mono text-3xl font-black text-slate-900">
-              ¥{takeoutCartTotal.toLocaleString()}
-            </div>
-          </div>
-        </div>
-
-        {registerMode === 'pos' && (
-          <div className="mt-4 grid grid-cols-2 gap-2">
+        {registerMode === 'pos' ? (
+          // POSは税込合計を右の会計パネルに集約。ここは 割引・売掛 / 保留 / クリア の3ボタン横並び。
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTakeoutDiscountModal(true)}
+              disabled={takeoutCart.length === 0}
+              className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+                takeoutDiscountAmount > 0
+                  ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
+                  : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
+              }`}
+            >
+              <Percent size={15} />
+              割引・売掛
+            </button>
             <button
               type="button"
               onClick={holdCurrentPosCart}
               disabled={takeoutCart.length === 0}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-amber-500 text-xs font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-amber-500 text-xs font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
               <PauseCircle size={15} />
               保留する
@@ -1402,11 +1687,40 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 setPosMessage('仮伝票をクリアしました。', 'success');
               }}
               disabled={takeoutCart.length === 0}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={15} />
               クリア
             </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setShowTakeoutDiscountModal(true)}
+              disabled={takeoutCart.length === 0}
+              className={`flex h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+                takeoutDiscountAmount > 0
+                  ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
+                  : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
+              }`}
+            >
+              <Percent size={16} />
+              割引・売掛
+            </button>
+
+            <div className="text-right">
+              {takeoutDiscountAmount > 0 && (
+                <div className="mb-1 flex items-center justify-end gap-2 text-xs font-black text-orange-600">
+                  <span className="max-w-[160px] truncate">{takeoutDiscountLabel}</span>
+                  <span className="font-mono">-¥{takeoutDiscountAmount.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="text-xs font-black text-slate-400">税込合計</div>
+              <div className="font-mono text-3xl font-black text-slate-900">
+                ¥{takeoutCartTotal.toLocaleString()}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1421,7 +1735,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           </div>
         ) : (
           <div className="space-y-3">
-            {takeoutCart.map((item) => (
+            {takeoutCart.map((item) => {
+              const lineAmount = Number(item.takeoutPrice || 0) * Number(item.quantity || 0);
+              const linePct = item.lineDiscount?.type === 'percent'
+                ? Math.max(0, Math.min(100, Number(item.lineDiscount.value) || 0))
+                : 0;
+              const lineDiscountInput = linePct > 0 ? Math.floor(lineAmount * (linePct / 100)) : 0;
+              const lineNet = Math.max(0, lineAmount - lineDiscountInput);
+              const hasLineDiscount = lineDiscountInput > 0;
+              return (
               <div
                 key={item.id}
                 className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
@@ -1434,6 +1756,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <div className="mt-1 text-xs font-bold text-slate-400">
                       ¥{Number(item.takeoutPrice || 0).toLocaleString()} / {item.categoryName}
                     </div>
+                    {hasLineDiscount && (
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-2 py-0.5 text-[11px] font-black text-orange-700">
+                        <Percent size={11} />
+                        {item.lineDiscount?.name
+                          ? `${item.lineDiscount.name} (${linePct}%)`
+                          : `${linePct}%OFF`}
+                        <span className="font-mono">-¥{lineDiscountInput.toLocaleString()}</span>
+                      </div>
+                    )}
                     {item.sourceType === 'retail' && (
                       <div className="mt-1 text-[11px] font-black text-emerald-600">
                         商品マスター在庫対象 / 在庫 {Number(item.stockQuantity ?? 0).toLocaleString()} / 選択 {Number(item.quantity || 0).toLocaleString()}
@@ -1482,12 +1813,39 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     </button>
                   </div>
 
-                  <div className="font-mono text-lg font-black text-slate-900">
-                    ¥{(Number(item.takeoutPrice || 0) * Number(item.quantity || 0)).toLocaleString()}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLineDiscountManualValue(hasLineDiscount ? String(linePct) : '');
+                        setLineDiscountCategory(item.lineDiscount?.accountingCategory || 'sales_discount');
+                        setLineDiscountTargetId(item.id);
+                      }}
+                      className={`flex h-9 items-center gap-1 rounded-lg border px-3 text-xs font-black transition-all active:scale-95 ${
+                        hasLineDiscount
+                          ? 'border-orange-200 bg-orange-100 text-orange-700'
+                          : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+                      }`}
+                    >
+                      <Percent size={13} />
+                      割引
+                    </button>
+
+                    <div className="text-right">
+                      {hasLineDiscount && (
+                        <div className="font-mono text-xs font-bold text-slate-400 line-through">
+                          ¥{lineAmount.toLocaleString()}
+                        </div>
+                      )}
+                      <div className={`font-mono text-lg font-black ${hasLineDiscount ? 'text-orange-600' : 'text-slate-900'}`}>
+                        ¥{lineNet.toLocaleString()}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1518,10 +1876,39 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   ref={inputRef}
                   type="text"
                   value={scanInput}
-                  onChange={(event) => setScanInput(normalizeScannedCode(event.target.value))}
-                  className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-3 font-mono text-base"
-                  placeholder={registerMode === 'pos' ? 'バーコード / 品番 / SKU をスキャン...' : '卓番号・バーコードをスキャン...'}
+                  // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
+                  onChange={(event) => setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value))}
+                  onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
+                  className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-3 text-base"
+                  placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
+                {registerMode === 'pos' && scanInput.trim().length >= 2 && (searchLoading || searchResults.length > 0) && (
+                  <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                    {searchResults.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => { addPosProductToCart(product); setScanInput(''); setSearchResults([]); }}
+                        className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-left hover:bg-blue-50 active:bg-blue-100"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-gray-900">{product.name || '商品'}</span>
+                          <span className="block truncate text-xs text-gray-400">
+                            {[product.barcode, product.sku || product.productCode].filter(Boolean).join(' / ') || 'コードなし'}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-bold text-gray-700">¥{Number(product.resolvedPrice || 0).toLocaleString()}</span>
+                      </button>
+                    ))}
+                    {searchLoading && searchResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-400">検索中...</div>
+                    )}
+                    {!searchLoading && searchResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-400">一致する商品がありません</div>
+                    )}
+                  </div>
+                )}
               </div>
               <button type="submit" className="h-11 whitespace-nowrap rounded-lg bg-blue-600 px-4 font-bold text-white">
                 開く
@@ -1531,9 +1918,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         </div>
 
         <div className="relative flex flex-grow flex-col overflow-hidden rounded-xl bg-white shadow-sm">
-          {!isTakeoutMode && (
+          {!isTakeoutMode && registerMode !== 'pos' && (
             <div className="z-10 flex items-center justify-between gap-3 border-b bg-gray-50 p-3 font-bold text-gray-700">
-              <span>{registerMode === 'pos' ? 'POSレジ' : `利用中テーブル (${displaySessions.length})`}</span>
+              <span>{`利用中テーブル (${displaySessions.length})`}</span>
               {registerMode !== 'pos' && (
                 <div className="flex items-center gap-2">
                   <button
@@ -1571,32 +1958,33 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
             {registerMode === 'pos' ? (
               <div className="flex h-full min-h-0 flex-col bg-slate-50">
-                <div className="shrink-0 border-b border-slate-200 bg-white p-4">
-                  <div className="text-sm font-black text-slate-900">商品入力</div>
-                  <div className="mt-1 text-xs font-bold text-slate-400">
-                    バーコードをスキャン、または売り場を選んで仮伝票に追加します。
-                  </div>
-                </div>
+                {/* iPad小画面でもカートを広く見せるため、売り場カラムは細め(約1/3)・カートを中央で広く。 */}
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(96px,1fr)_minmax(0,2fr)] gap-0">
+                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-2">
+                    {/* よく売る商品をワンタップで出せるお気に入り(モーダル)。売り場ボタンの一番上に配置。 */}
+                    <button
+                      type="button"
+                      onClick={() => setFavoritesModalOpen(true)}
+                      className="mb-2 flex min-h-[48px] w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-2 text-left shadow-sm transition-all hover:bg-slate-900 active:scale-[0.99]"
+                    >
+                      <Star size={16} className="shrink-0 text-slate-200" />
+                      <span className="text-xs font-black leading-tight text-white">お気に入り</span>
+                    </button>
 
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-2">
-                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-4">
-                    <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                      売り場（バーコード未登録商品）
-                    </div>
                     {productMasterSalesAreas.length === 0 ? (
-                      <div className="mb-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-center text-xs font-bold text-slate-400">
-                        売り場が登録されていません。商品マスター設定で追加してください。
+                      <div className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white p-3 text-center text-[11px] font-bold text-slate-400">
+                        売り場が未登録です。商品マスター設定で追加してください。
                       </div>
                     ) : (
-                      <div className="mb-4 grid grid-cols-2 gap-2">
+                      <div className="mb-4 grid grid-cols-1 gap-1.5">
                         {productMasterSalesAreas.map((salesArea) => (
                           <button
                             key={salesArea.id || salesArea.name}
                             type="button"
                             onClick={() => setUncodedSalesArea(salesArea)}
-                            className="flex min-h-[56px] flex-col justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-orange-300 hover:bg-orange-50 active:scale-[0.99]"
+                            className="flex min-h-[48px] items-center rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:border-orange-300 hover:bg-orange-50 active:scale-[0.99]"
                           >
-                            <span className="truncate text-sm font-black text-slate-800">
+                            <span className="whitespace-normal break-words text-xs font-black leading-tight text-slate-800">
                               {salesArea.displayName || salesArea.name}
                             </span>
                           </button>
@@ -1841,15 +2229,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       <div style={{ width: `${100 - splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pl-1">
         {isTakeoutMode ? (
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm">
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b bg-gray-50 px-4 py-3">
+            <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3">
               <div className="min-w-0">
                 <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
                   <ShoppingBag size={22} />
                   {registerMode === 'pos' ? 'POS会計' : 'テイクアウト会計'}
                 </h2>
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  左側で選択した商品を、通常レジと同じ流れで精算します。
-                </p>
               </div>
 
               <button
@@ -1980,6 +2365,32 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   </div>
                 </div>
               ) : (
+                takeoutPaymentSplit.isSplit ? (
+                  <div className="mb-3 flex min-h-[360px] flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
+                    <div className="mb-1 text-center text-sm font-black text-blue-700">
+                      現金・{getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}の分割会計
+                    </div>
+                    <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
+                      <span className="text-sm font-bold text-gray-500">現金預かり</span>
+                      <span className="font-mono text-3xl font-black tracking-tight text-gray-900">
+                        ¥{takeoutPaymentSplit.cashPortion.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className={`flex items-center justify-between rounded-2xl px-5 py-4 shadow-sm ${
+                      takeoutPaymentSplit.otherMethod === 'qr' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                    }`}>
+                      <span className="text-sm font-bold opacity-90">
+                        {getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}支払い
+                      </span>
+                      <span className="font-mono text-3xl font-black tracking-tight">
+                        ¥{takeoutPaymentSplit.otherPortion.toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-center text-xs font-bold text-gray-400">
+                      会計額 ¥{takeoutCartTotal.toLocaleString()} − 現金預かり ¥{takeoutPaymentSplit.cashPortion.toLocaleString()}
+                    </p>
+                  </div>
+                ) : (
                 <div className={`mb-3 flex min-h-[360px] flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
                   selectedTakeoutPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-400'
                 }`}>
@@ -2009,6 +2420,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     </>
                   )}
                 </div>
+                )
               )}
             </div>
 
@@ -2056,7 +2468,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       setPaymentAmount={setTakeoutPaymentAmount}
       showSplitModal={false}
       setShowSplitModal={() => {}}
-      totalAmount={takeoutCartRawTotal}
+      totalAmount={takeoutSubtotalAfterLine}
+      rawTotalAmount={takeoutSubtotalAfterLine}
       splitCount={2}
       setSplitCount={() => {}}
       showDiscountModal={showTakeoutDiscountModal}
@@ -2067,6 +2480,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       setSelectedDiscount={setTakeoutSelectedDiscount}
       discountQuantities={takeoutDiscountQuantities}
       setDiscountQuantities={setTakeoutDiscountQuantities}
+      onFullCreditCheckout={requestTakeoutFullCreditCheckout}
       showAbortModal={false}
       setShowAbortModal={() => {}}
       abortReason="manual_abort"
@@ -2075,6 +2489,169 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       tableId="takeout"
       tableDisplayName="テイクアウト"
     />
+
+    {lineDiscountTarget && (() => {
+      const targetLineAmount = Number(lineDiscountTarget.takeoutPrice || 0) * Number(lineDiscountTarget.quantity || 0);
+      const currentPct = lineDiscountTarget.lineDiscount?.type === 'percent'
+        ? Number(lineDiscountTarget.lineDiscount.value) || 0
+        : 0;
+      const category = lineDiscountCategory === 'promo_expense' ? 'promo_expense' : 'sales_discount';
+      const categoryLabel = category === 'promo_expense' ? '販促費' : '売上値引き';
+      const closeModal = () => { setLineDiscountTargetId(null); setLineDiscountManualValue(''); };
+      const inputPct = Math.max(0, Math.min(100, Number(lineDiscountManualValue) || 0));
+      const previewDiscount = inputPct > 0 ? Math.floor(targetLineAmount * (inputPct / 100)) : 0;
+
+      const appendDigit = (digit) => setLineDiscountManualValue((prev) => {
+        const base = (prev && prev !== '0') ? prev : '';
+        const next = (base + digit).slice(0, 3);
+        return String(Math.min(100, Number(next) || 0));
+      });
+      const backspaceDigit = () => setLineDiscountManualValue((prev) => String(prev || '').slice(0, -1));
+      const applyManual = () => {
+        if (inputPct <= 0) return;
+        applyLineDiscount(lineDiscountTarget.id, {
+          type: 'percent',
+          value: inputPct,
+          discountId: null,
+          name: `${categoryLabel} ${inputPct}%引き`,
+          accountingCategory: category
+        });
+        closeModal();
+      };
+
+      const keypadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'back'];
+
+      return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b bg-orange-500 px-6 py-5 text-white">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/70">
+                  <Percent size={14} />
+                  単品割引
+                </div>
+                <h3 className="mt-1 truncate text-lg font-black">{lineDiscountTarget.name}</h3>
+                <p className="text-xs font-bold text-white/80">
+                  対象金額 ¥{targetLineAmount.toLocaleString()}（{Number(lineDiscountTarget.quantity || 0)}点）
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition-all hover:bg-white/20 active:scale-95"
+                aria-label="閉じる"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">会計区分</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'sales_discount', label: '売上値引き', desc: '通常の値引き' },
+                    { id: 'promo_expense', label: '販促費', desc: '社割・販促など' }
+                  ].map((option) => {
+                    const isSelected = category === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setLineDiscountCategory(option.id)}
+                        className={`rounded-xl border-2 px-4 py-3 text-left transition-all active:scale-95 ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-slate-100 bg-white hover:border-orange-200 hover:bg-orange-50/40'
+                        }`}
+                      >
+                        <div className={`text-sm font-black ${isSelected ? 'text-orange-700' : 'text-slate-700'}`}>{option.label}</div>
+                        <div className="mt-0.5 text-[11px] font-bold text-slate-400">{option.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">割引率</span>
+                  {previewDiscount > 0 && (
+                    <span className="text-sm font-black text-orange-600">
+                      -¥{previewDiscount.toLocaleString()} → ¥{(targetLineAmount - previewDiscount).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
+                  <span className="font-mono text-4xl font-black text-slate-800">{lineDiscountManualValue || '0'}</span>
+                  <span className="ml-1 text-2xl font-black text-slate-300">%</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {keypadKeys.map((key) => {
+                  if (key === 'C') {
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setLineDiscountManualValue('')}
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-base font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                      >
+                        C
+                      </button>
+                    );
+                  }
+                  if (key === 'back') {
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={backspaceDigit}
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                        aria-label="1文字削除"
+                      >
+                        <ChevronLeft size={22} />
+                      </button>
+                    );
+                  }
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => appendDigit(key)}
+                      className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-2xl font-black text-slate-800 transition-all hover:border-orange-200 hover:bg-orange-50/40 active:scale-95"
+                    >
+                      {key}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                disabled={inputPct <= 0}
+                onClick={applyManual}
+                className="flex h-14 w-full items-center justify-center rounded-xl bg-orange-500 font-black text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+              >
+                {categoryLabel}で適用
+              </button>
+
+              {currentPct > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { clearLineDiscount(lineDiscountTarget.id); closeModal(); }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-100 py-3 text-sm font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                >
+                  <X size={16} />
+                  この商品の割引を解除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    })()}
 
 
     <TableMenuOverrideModal
@@ -2097,6 +2674,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         onConfirm={addUncodedItemToCart}
       />
     )}
+
+    <PosFavoritesModal
+      storeId={storeId}
+      open={favoritesModalOpen}
+      onClose={() => setFavoritesModalOpen(false)}
+      onPickProduct={(rawProduct) => addPosProductToCart(buildResolvedPosProduct(rawProduct))}
+    />
     </>
   );
 };
