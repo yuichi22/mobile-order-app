@@ -6,9 +6,9 @@ import {
   ChefHat,
   ArrowLeftRight,
   ChevronLeft,
-  ChevronRight,
   CreditCard,
   Search,
+  Settings,
   ShoppingBag,
   Utensils,
   X} from 'lucide-react';
@@ -25,7 +25,8 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
-import { normalizeScannedCode } from '../../shared/utils/halfWidth';
+import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
+import { normalizeScannedCode, toHalfWidthCode } from '../../shared/utils/halfWidth';
 import {
   canAccessAdminTab,
   canAccessAnalytics,
@@ -55,9 +56,9 @@ const OperationTabButton = ({ active, icon: Icon, label, onClick }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
+    className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
       active
-        ? 'border-orange-200 bg-orange-50 text-orange-600'
+        ? 'border-orange-500 bg-orange-500 text-white shadow-orange-500/20'
         : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
     }`}
   >
@@ -179,14 +180,23 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     return canAccessAdminTab(normalizedRole, activeTab) ? activeTab : 'pos';
   })();
 
-  const showRegisterModeToggle = activeAdminTab === 'pos' || activeAdminTab === 'settings';
-  const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing' || activeAdminTab === 'analytics';
+  // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
+  const showRegisterModeToggle = activeAdminTab === 'pos';
+  const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
+    || activeAdminTab === 'analytics'
+    || activeAdminTab === 'settings';
 
   // POSモードの設定画面ではどの画面にいてもバーコード読取を捕捉し、右上検索にセット
   // →(StoreSettings側で)商品マスターへ移動して検索結果を表示する。
   useGlobalBarcodeScanner({
     active: activeAdminTab === 'settings' && registerMode === 'pos',
     onScan: (value) => setPosSettingsProductKeyword(normalizeScannedCode(value))
+  });
+
+  // 右上検索窓にバーコードを読む時、高速入力でも取りこぼさないようスキャン分は
+  // バッファして1回で確定する(手入力は従来通り onChange に委ねる)。
+  const handleProductSearchScanKeyDown = useScannerBufferedInput({
+    commit: (value) => setPosSettingsProductKeyword(toHalfWidthCode(value))
   });
 
   useEffect(() => {
@@ -430,35 +440,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
         <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-gray-100 bg-white/95 px-5 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur-md print:hidden">
           <div className="grid min-h-[72px] grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              {canViewSettings && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeAdminTab === 'settings') {
-                      closeSettings();
-                      return;
-                    }
-
-                    openSettingsForCurrentRegisterMode();
-                  }}
-                  className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
-                  aria-label={activeAdminTab === 'settings' ? 'レジ画面に戻る' : '設定画面を開く'}
-                  title={activeAdminTab === 'settings' ? 'レジ画面に戻る' : '設定画面を開く'}
-                >
-                  {activeAdminTab === 'settings' ? (
-                    <ChevronLeft size={22} strokeWidth={3} />
-                  ) : (
-                    <ChevronRight size={22} strokeWidth={3} />
-                  )}
-                </button>
-              )}
-
-              <div className="flex h-11 w-[260px] shrink-0 items-center">
+              {/* レジトグルと戻るを同じ固定幅にし、切替時に右隣のタブが揺れないようにする。 */}
+              <div className="flex h-11 w-[160px] shrink-0 items-center">
                 {showRegisterModeToggle && (
                   <button
                     type="button"
                     onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
-                    className={`group flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-black text-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
+                    className={`group flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black text-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
                       registerMode === 'pos'
                         ? 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
                         : 'bg-orange-500 shadow-orange-500/20 hover:bg-orange-600'
@@ -484,22 +472,23 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   <button
                     type="button"
                     onClick={() => {
+                      // 設定からの戻りはキッチン復帰等の分岐を持つ closeSettings を使う。
+                      if (activeAdminTab === 'settings') {
+                        closeSettings();
+                        return;
+                      }
                       const currentMode = registerMode === 'pos' ? 'pos' : 'order';
                       lastRegisterModeRef.current = currentMode;
                       saveStoredRegisterMode(currentMode);
                       setRegisterMode(currentMode);
                       setActiveTab('pos');
                     }}
-                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-black shadow-sm transition-all duration-200 active:scale-95 ${
-                      registerMode === 'pos'
-                        ? 'bg-blue-600 text-white shadow-blue-500/25 hover:bg-blue-700'
-                        : 'bg-orange-500 text-white shadow-orange-500/20 hover:bg-orange-600'
-                    }`}
-                    aria-label={`${registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}へ戻る`}
-                    title={`${registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}へ戻る`}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-slate-800 px-4 text-sm font-black text-white shadow-sm transition-all duration-200 hover:bg-slate-900 active:scale-95"
+                    aria-label="戻る"
+                    title="戻る"
                   >
                     <ChevronLeft size={17} strokeWidth={3} />
-                    {registerMode === 'pos' ? 'POSレジへ戻る' : 'ORDERレジへ戻る'}
+                    戻る
                   </button>
                 )}
               </div>
@@ -530,6 +519,21 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     }}
                   />
                 </>
+              )}
+
+              {canViewSettings && (
+                <OperationTabButton
+                  active={activeAdminTab === 'settings'}
+                  icon={Settings}
+                  label="設定"
+                  onClick={() => {
+                    if (activeAdminTab === 'settings') {
+                      closeSettings();
+                      return;
+                    }
+                    openSettingsForCurrentRegisterMode();
+                  }}
+                />
               )}
             </div>
 
@@ -568,6 +572,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   <input
                     value={posSettingsProductKeyword}
                     onChange={(event) => setPosSettingsProductKeyword(event.target.value)}
+                    onKeyDown={handleProductSearchScanKeyDown}
                     placeholder="商品検索"
                     className="h-11 w-full rounded-2xl border-2 border-gray-100 bg-white pl-11 pr-11 text-sm font-bold text-gray-700 outline-none transition focus:border-blue-400"
                   />
@@ -664,13 +669,15 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     <div>
                       <p className="text-xs font-black text-green-600">会計完了</p>
                       <h3 className="mt-1 text-xl font-black tracking-tight">
-                        {paymentResultToast.method === 'cash'
-                          ? '現金会計'
-                          : paymentResultToast.method === 'card'
-                            ? 'カード会計'
-                            : paymentResultToast.method === 'qr'
-                              ? 'QR決済'
-                              : '会計'}
+                        {paymentResultToast.isSplitPayment
+                          ? `${paymentResultToast.paymentMethodLabel || '現金＋カード'}会計`
+                          : paymentResultToast.method === 'cash'
+                            ? '現金会計'
+                            : paymentResultToast.method === 'card'
+                              ? 'カード会計'
+                              : paymentResultToast.method === 'qr'
+                                ? 'QR決済'
+                                : '会計'}
                       </h3>
                     </div>
 
@@ -692,7 +699,20 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       </span>
                     </div>
 
-                    {paymentResultToast.method === 'cash' && (
+                    {paymentResultToast.isSplitPayment && Array.isArray(paymentResultToast.payments) && (
+                      <div className="space-y-2 border-t border-dashed border-gray-200 pt-2">
+                        {paymentResultToast.payments.map((payment, index) => (
+                          <div key={`${payment.method}-${index}`} className="flex items-center justify-between text-sm font-bold text-gray-600">
+                            <span>{payment.method === 'cash' ? '現金' : payment.method === 'qr' ? 'QR決済' : 'カード'}</span>
+                            <span className="font-mono text-xl font-black text-gray-900">
+                              ¥{Number(payment.amount || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!paymentResultToast.isSplitPayment && paymentResultToast.method === 'cash' && (
                       <>
                         <div className="flex items-center justify-between text-sm font-bold text-gray-600">
                           <span>預かり金</span>
