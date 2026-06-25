@@ -28,6 +28,7 @@ import { useStoreSettings, usePeriodData } from '../../store/hooks';
 import { printDailyClosingReceipt } from './printDailyClosingReceipt';
 import { getAvailableRegisters, getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
 import { buildItemDepartmentResolver, splitTransactionsByDepartment } from '../Analytics/utils/departmentAttribution';
+import { buildItemSalesAreaResolver, buildSalesAreaSales } from '../Analytics/utils/salesAreaSales';
 
 const toDateInputValue = (date) => {
   const target = new Date(date || new Date());
@@ -82,37 +83,15 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   // 同一部門レジの締め状況 {registerId: true}。
   const [registerClosedMap, setRegisterClosedMap] = useState({});
   const [closingReloadKey, setClosingReloadKey] = useState(0);
-  // 部門振り分け用の商品カテゴリーマスター。
+  // 部門振り分け・売り場集計用の商品カテゴリーマスター。
   const [productCategories, setProductCategories] = useState([]);
   const [productCategoryGroups, setProductCategoryGroups] = useState([]);
+  const [productSalesAreas, setProductSalesAreas] = useState([]);
 
   const dateInputRef = useRef(null);
   const { settings } = useStoreSettings(storeId);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadDailyClosingSettings = async () => {
-      if (!storeId) return;
-
-      try {
-        const settingsRef = doc(db, 'stores', storeId, 'settings', 'dailyClosing');
-        const settingsSnapshot = await getDoc(settingsRef);
-
-        if (!cancelled && settingsSnapshot.exists()) {
-          setChangeFundAmount(Number(settingsSnapshot.data()?.changeFundAmount || 0));
-        }
-      } catch (error) {
-        console.error('Failed to load daily closing settings:', error);
-      }
-    };
-
-    loadDailyClosingSettings();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [storeId]);
+  // 釣り銭準備金はレジ単位で読み込む(activeRegister 定義後の effect で実行)。
 
   // 部門振り分け用に商品カテゴリー/グループを取得（当日中はほぼ不変なので一度だけ）。
   useEffect(() => {
@@ -120,13 +99,15 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     const loadCategoryMaster = async () => {
       if (!storeId) return;
       try {
-        const [catSnap, groupSnap] = await Promise.all([
+        const [catSnap, groupSnap, areaSnap] = await Promise.all([
           getDocs(collection(db, 'stores', storeId, 'productCategories')),
-          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups'))
+          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups')),
+          getDocs(collection(db, 'stores', storeId, 'productSalesAreas'))
         ]);
         if (cancelled) return;
         setProductCategories(catSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setProductCategoryGroups(groupSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setProductSalesAreas(areaSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (error) {
         console.error('Failed to load category master:', error);
       }
@@ -183,6 +164,32 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     setSelectedDepartmentId(activeDepartment?.id || 'all');
   }, [activeDepartment, settings?.departments, settings?.registers]);
 
+  // 釣り銭準備金は「レジ単位」で保持する(settings/dailyClosing の changeFundByRegister)。
+  // 旧来は店舗共通の changeFundAmount だったため他レジに引っ張られていた。
+  // 自レジの値が未設定なら、移行用に旧共通値を初期値として表示する。
+  useEffect(() => {
+    let cancelled = false;
+    const loadChangeFund = async () => {
+      if (!storeId) return;
+      try {
+        const settingsRef = doc(db, 'stores', storeId, 'settings', 'dailyClosing');
+        const settingsSnapshot = await getDoc(settingsRef);
+        if (cancelled || !settingsSnapshot.exists()) return;
+        const data = settingsSnapshot.data() || {};
+        const registerId = String(activeRegister?.id || '');
+        const byRegister = data.changeFundByRegister || {};
+        const amount = registerId && byRegister[registerId] !== undefined
+          ? Number(byRegister[registerId] || 0)
+          : Number(data.changeFundAmount || 0);
+        setChangeFundAmount(amount);
+      } catch (error) {
+        console.error('Failed to load change fund:', error);
+      }
+    };
+    loadChangeFund();
+    return () => { cancelled = true; };
+  }, [storeId, activeRegister?.id, closingReloadKey]);
+
   // 商品カテゴリーの所属部門でアイテム単位に振り分けるリゾルバ。
   const resolveItemDepartment = useMemo(
     () => buildItemDepartmentResolver({
@@ -197,6 +204,16 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const departmentSlices = useMemo(
     () => splitTransactionsByDepartment(transactions, resolveItemDepartment),
     [transactions, resolveItemDepartment]
+  );
+
+  // 売り場別売上(POS物販)用のアイテム→売り場リゾルバ。
+  const resolveItemSalesArea = useMemo(
+    () => buildItemSalesAreaResolver({
+      salesAreas: productSalesAreas,
+      productCategories,
+      productCategoryGroups
+    }),
+    [productSalesAreas, productCategories, productCategoryGroups]
   );
 
   // 表示中の部門で絞り込んだスライス（'all'は全スライス）。
@@ -393,6 +410,12 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     ? summary.categoryList
     : [];
 
+  // 売り場別売上(POS物販)。表示中の取引から、売り場→カテゴリーグループ内訳で集計。
+  const salesAreaList = useMemo(
+    () => buildSalesAreaSales(filteredTransactions, resolveItemSalesArea),
+    [filteredTransactions, resolveItemSalesArea]
+  );
+
   const departmentList = Array.isArray(summary?.departmentList)
     ? summary.departmentList
     : [];
@@ -442,11 +465,18 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 const handleSaveChangeFundAmount = async (nextAmount) => {
   if (!storeId) return;
 
+  const registerId = String(activeRegister?.id || '');
+  if (!registerId) {
+    window.alert('使用レジが未設定のため釣り銭準備金を保存できません。基本設定でレジを選択してください。');
+    return;
+  }
+
   const normalizedAmount = Math.max(Math.round(Number(nextAmount) || 0), 0);
   const settingsRef = doc(db, 'stores', storeId, 'settings', 'dailyClosing');
 
+  // レジ単位で保存。merge により他レジの値(changeFundByRegister の他キー)は保持される。
   await setDoc(settingsRef, {
-    changeFundAmount: normalizedAmount,
+    changeFundByRegister: { [registerId]: normalizedAmount },
     updatedAt: serverTimestamp()
   }, { merge: true });
 
@@ -479,6 +509,9 @@ const buildClosingPayload = (sum, txns, closingCheck = {}) => ({
   discountTotal: Number(sum?.discountTotal || 0),
   promoExpenseTotal: Number(sum?.promoExpenseTotal || 0),
   voucherTotal: Number(sum?.voucherTotal || 0),
+  discountCount: Number(sum?.discountCount || 0),
+  promoExpenseCount: Number(sum?.promoExpenseCount || 0),
+  voucherCount: Number(sum?.voucherCount || 0),
   settlementAdjustmentTotal: Number(sum?.settlementAdjustmentTotal || 0),
 
   paymentMethods: Array.isArray(sum?.paymentMethodList) ? sum.paymentMethodList : [],
@@ -531,16 +564,37 @@ const handleCloseDay = async (closingCheck = {}) => {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    // 既存の日付単位(全日集計・分析互換)も更新
-    const legacyPayload = buildClosingPayload(fullDaySummary, transactions, closingCheck);
+    // 当日(取引のある)全レジが締め済みかを判定する。
+    // 1レジ締めただけで店全体(per-date doc)を closed にすると、未締めレジが残っていても
+    // 「締め済みの日」と誤認され分析(useWeeklyTrendBaseDate 等)に影響するため、
+    // per-date doc の status='closed' は「全レジ締め完了時のみ」立てる。
+    const registersSnap = await getDocs(collection(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers'));
+    const closedRegisterIds = new Set();
+    registersSnap.forEach((snap) => {
+      if (snap.data()?.status === 'closed') closedRegisterIds.add(snap.id);
+    });
+    closedRegisterIds.add(registerId); // 直前に書いた自レジを確実に含める(読み取り遅延対策)
+
+    // registerId を持つ取引のあるレジが全部締め済みか。registerId 無しの旧取引は対象外。
+    const transactingRegisterIds = new Set(
+      transactions.map((transaction) => String(transaction.registerId || '')).filter(Boolean)
+    );
+    const allRegistersClosed = Array.from(transactingRegisterIds).every((rid) => closedRegisterIds.has(rid));
+    const legacyStatus = allRegistersClosed ? 'closed' : 'partial';
+
+    // 既存の日付単位(全日集計・分析互換)も更新。status は全レジ締め完了時のみ closed。
+    const legacyPayload = {
+      ...buildClosingPayload(fullDaySummary, transactions, closingCheck),
+      status: legacyStatus
+    };
     await setDoc(doc(db, 'stores', storeId, 'dailyClosings', dateKey), {
       ...legacyPayload,
       closedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    setClosedDailyData(legacyPayload);
-    setClosingStatus('closed');
+    setClosedDailyData(legacyStatus === 'closed' ? legacyPayload : null);
+    setClosingStatus(legacyStatus === 'closed' ? 'closed' : null);
     setRegisterClosedMap((prev) => ({ ...prev, [registerId]: true }));
     setClosingReloadKey((key) => key + 1);
     setIsCheckModalOpen(false);
@@ -895,6 +949,18 @@ const handleCloseDay = async (closingCheck = {}) => {
                 </div>
               </div>
             )}
+
+            {Number(summary?.estimatedCostItemCount || 0) > 0 && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5">
+                <div className="text-xs font-bold text-sky-700">
+                  この粗利には、売り場原価率/掛け率で推計した粗利を含みます
+                  <span className="ml-1 font-black text-sky-500">（{Number(summary?.estimatedCostItemCount || 0)}点 / 売上 {formatCurrency(summary?.estimatedCostSalesTaxExcluded)}）</span>
+                </div>
+                <div className="text-sm font-black text-sky-800">
+                  推計粗利 {formatCurrency(Number(summary?.estimatedCostSalesTaxExcluded || 0) - Number(summary?.estimatedCostTaxExcluded || 0))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -989,8 +1055,13 @@ const handleCloseDay = async (closingCheck = {}) => {
               </div>
 
               <div className="mb-3 rounded-xl bg-orange-50 px-4 py-3">
-                <div className="text-xs font-black text-orange-500">
-                  売上値引合計
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-orange-500">
+                    売上値引合計
+                  </div>
+                  <div className="text-[11px] font-black text-orange-500">
+                    {Number(summary?.discountCount || 0)}件
+                  </div>
                 </div>
                 <div className="mt-1 text-xl font-black text-gray-900">
                   {formatCurrency(summary?.discountTotal)}
@@ -1028,7 +1099,12 @@ const handleCloseDay = async (closingCheck = {}) => {
               </div>
 
               <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3">
-                <div className="text-xs font-black text-emerald-600">販促費合計</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-emerald-600">販促費合計</div>
+                  <div className="text-[11px] font-black text-emerald-600">
+                    {Number(summary?.promoExpenseCount || 0)}件
+                  </div>
+                </div>
                 <div className="mt-1 text-xl font-black text-gray-900">
                   {formatCurrency(summary?.promoExpenseTotal)}
                 </div>
@@ -1057,7 +1133,12 @@ const handleCloseDay = async (closingCheck = {}) => {
               </div>
 
               <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3">
-                <div className="text-xs font-black text-sky-600">金券/売掛合計</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-sky-600">金券/売掛合計</div>
+                  <div className="text-[11px] font-black text-sky-600">
+                    {Number(summary?.voucherCount || 0)}件
+                  </div>
+                </div>
                 <div className="mt-1 text-xl font-black text-gray-900">
                   {formatCurrency(summary?.voucherTotal)}
                 </div>
@@ -1158,31 +1239,57 @@ const handleCloseDay = async (closingCheck = {}) => {
 
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
             <div className="mb-3 text-sm font-black text-gray-800">
-              カテゴリー別売上
+              売り場別売上
             </div>
 
-            <div className="grid gap-2 md:grid-cols-2">
-              {categoryList.length === 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {salesAreaList.length === 0 ? (
                 <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400 md:col-span-2">
-                  カテゴリー別データがありません
+                  売り場別データがありません
                 </div>
               ) : (
-                categoryList.map((category) => (
+                salesAreaList.map((area) => (
                   <div
-                    key={category.id || category.name}
-                    className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3"
+                    key={area.id || area.name}
+                    className="rounded-xl bg-gray-50 p-4"
                   >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-gray-800">
-                        {category.name || 'カテゴリー未設定'}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-gray-800">
+                          {area.name || '売り場未設定'}
+                        </div>
+                        <div className="text-[11px] font-bold text-gray-400">
+                          {Number(area.quantity || 0)}点
+                        </div>
                       </div>
-                      <div className="text-[11px] font-bold text-gray-400">
-                        {Number(category.quantity || 0)}点
+                      <div className="ml-3 shrink-0 text-base font-black text-gray-900">
+                        {formatCurrency(area.total)}
                       </div>
                     </div>
-                    <div className="ml-3 shrink-0 text-sm font-black text-gray-900">
-                      {formatCurrency(category.total)}
-                    </div>
+
+                    {Array.isArray(area.groupList) && area.groupList.length > 0 && (
+                      <div className="mt-3 space-y-1.5 border-t border-gray-200 pt-3">
+                        {area.groupList.map((group) => (
+                          <div
+                            key={group.id || group.name}
+                            className="flex items-center justify-between gap-3 pl-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
+                              <span className="truncate text-xs font-bold text-gray-600">
+                                {group.name || 'グループ未設定'}
+                              </span>
+                              <span className="shrink-0 text-[10px] font-bold text-gray-400">
+                                {Number(group.quantity || 0)}点
+                              </span>
+                            </div>
+                            <span className="shrink-0 text-xs font-black text-gray-700">
+                              {formatCurrency(group.total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}

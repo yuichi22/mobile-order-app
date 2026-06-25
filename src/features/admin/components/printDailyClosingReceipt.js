@@ -190,6 +190,14 @@ export const printDailyClosingReceipt = ({
     ? Math.round(totalSales / customerCount)
     : 0;
 
+  // 値引・クーポンの区分別 合計金額／適用延べ件数。
+  const discountTotal = Number(summary?.discountTotal ?? closedDailyData?.discountTotal ?? 0);
+  const promoExpenseTotal = Number(summary?.promoExpenseTotal ?? closedDailyData?.promoExpenseTotal ?? 0);
+  const voucherTotal = Number(summary?.voucherTotal ?? closedDailyData?.voucherTotal ?? 0);
+  const discountCount = Number(summary?.discountCount ?? closedDailyData?.discountCount ?? 0);
+  const promoExpenseCount = Number(summary?.promoExpenseCount ?? closedDailyData?.promoExpenseCount ?? 0);
+  const voucherCount = Number(summary?.voucherCount ?? closedDailyData?.voucherCount ?? 0);
+
   const cashCheck = closedDailyData?.cashCheck || null;
   const couponCheck = closedDailyData?.couponCheck || null;
 
@@ -346,7 +354,10 @@ export const printDailyClosingReceipt = ({
 
           ${section(`
             ${sectionTitle('値引・クーポン利用')}
-            ${buildDiscountRows(discountList)}
+            ${row(`売上値引 (${discountCount}件)`, formatCurrency(discountTotal))}
+            ${row(`販促費 (${promoExpenseCount}件)`, formatCurrency(promoExpenseTotal))}
+            ${row(`金券/売掛 (${voucherCount}件)`, formatCurrency(voucherTotal))}
+            ${discountList.length ? `<div class="mini-section">${buildDiscountRows(discountList)}</div>` : ''}
           `)}
 
           ${section(`

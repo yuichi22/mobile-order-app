@@ -322,6 +322,12 @@ const addDiscountEntry = (summary, discount, fallbackIndex = 0) => {
   const amount = Number(discount?.amount || 0);
   if (amount <= 0) return;
 
+  // 売上値引の内訳には売上値引きのみを載せる。販促費/金券は
+  // addSettlementAdjustments(promoExpenses/vouchers)側で別集計するため除外する。
+  // (区分未設定の旧データ・手入力等は売上値引きとして扱う)
+  const category = discount?.accountingCategory;
+  if (category === 'promo_expense' || category === 'voucher_payment') return;
+
   const quantity = Math.max(
     1,
     Number(discount?.quantity ?? discount?.count ?? 1) || 1
@@ -361,6 +367,39 @@ const addDiscountEntry = (summary, discount, fallbackIndex = 0) => {
     summary.discounts[id].expectedAmount =
       summary.discounts[id].quantity * summary.discounts[id].value;
   }
+};
+
+const bumpDiscountCount = (summary, category) => {
+  if (category === 'promo_expense') summary.promoExpenseCount += 1;
+  else if (category === 'voucher_payment') summary.voucherCount += 1;
+  else summary.discountCount += 1;
+};
+
+// 区分ごとの割引「適用延べ件数」を数える(金額には触れない)。
+// 商品個別割引(lineDiscountItems)と会計全体割引(appliedDiscount(s))の両方を、
+// それぞれの会計区分で集計する。源泉が分かれているので二重計上にはならない。
+const addDiscountCounts = (summary, transaction) => {
+  if (Array.isArray(transaction.lineDiscountItems)) {
+    transaction.lineDiscountItems.forEach((item) => {
+      if (Number(item?.amount || 0) > 0) bumpDiscountCount(summary, item.accountingCategory);
+    });
+  }
+
+  const applied = Array.isArray(transaction.appliedDiscounts) && transaction.appliedDiscounts.length > 0
+    ? transaction.appliedDiscounts
+    : (transaction.appliedDiscount ? [transaction.appliedDiscount] : []);
+
+  applied.forEach((discount) => {
+    if (Array.isArray(discount?.items) && discount.items.length > 0) {
+      discount.items.forEach((item) => {
+        if (Number(item?.amount || 0) > 0) {
+          bumpDiscountCount(summary, item.accountingCategory || discount.accountingCategory);
+        }
+      });
+    } else if (Number(discount?.amount || 0) > 0) {
+      bumpDiscountCount(summary, discount.accountingCategory);
+    }
+  });
 };
 
 const addDiscounts = (summary, transaction) => {
@@ -637,6 +676,15 @@ const addGrossProfitSummary = (summary, transaction) => {
 
     summary.grossProfitTaxIncluded += grossProfitTaxIncluded;
     summary.grossProfitTaxExcluded += grossProfitTaxExcluded;
+
+    // 正確な個別原価ではなく「原価率(掛け率)で推計」した分を別途集計(粗利には含まれている)。
+    if (item.costSource && item.costSource !== 'product_cost') {
+      summary.estimatedCostItemCount += quantity;
+      summary.estimatedCostSalesTaxIncluded += salesTaxIncludedAmount;
+      summary.estimatedCostSalesTaxExcluded += salesTaxExcludedAmount;
+      summary.estimatedCostTaxIncluded += costTaxIncludedAmount;
+      summary.estimatedCostTaxExcluded += costTaxExcludedAmount;
+    }
   });
 };
 
@@ -732,6 +780,10 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     discountTotal: 0,
     promoExpenseTotal: 0,
     voucherTotal: 0,
+    // 区分ごとの割引「適用延べ件数」(個別割引は1行=1件、全体割引も1適用=1件)。
+    discountCount: 0,
+    promoExpenseCount: 0,
+    voucherCount: 0,
     settlementAdjustmentTotal: 0,
     itemCount: 0,
 
@@ -753,6 +805,13 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     costConfiguredSalesTaxExcluded: 0,
     costMissingSalesTaxIncluded: 0,
     costMissingSalesTaxExcluded: 0,
+
+    // 原価率で「推計」した(正確な個別原価が無い)売上。粗利には含めるが但し書きで明示する。
+    estimatedCostItemCount: 0,
+    estimatedCostSalesTaxIncluded: 0,
+    estimatedCostSalesTaxExcluded: 0,
+    estimatedCostTaxIncluded: 0,
+    estimatedCostTaxExcluded: 0,
 
     paymentMethods: {},
     departments: {},
@@ -787,9 +846,18 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     addCustomers(summary, transaction);
 
-    addPaymentMethod(summary, transaction.paymentMethodGroup || transaction.paymentMethod, totalAmount);
+    // 現金＋カード/QR の分割会計は payments[] の内訳を手段ごとに加算する。
+    // 単一手段の会計(payments無し)は従来通り会計総額を1手段に加算する。
+    if (Array.isArray(transaction.payments) && transaction.payments.length > 0) {
+      transaction.payments.forEach((payment) => {
+        addPaymentMethod(summary, payment.method, Number(payment.amount || 0));
+      });
+    } else {
+      addPaymentMethod(summary, transaction.paymentMethodGroup || transaction.paymentMethod, totalAmount);
+    }
     addDepartmentAmount(summary, transaction);
     addDiscounts(summary, transaction);
+    addDiscountCounts(summary, transaction);
     addSettlementAdjustments(summary, transaction);
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
