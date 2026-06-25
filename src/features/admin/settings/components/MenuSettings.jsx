@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Clock,
   Edit,
+  EyeOff,
   Filter,
   GripVertical,
   Image as ImageIcon,
@@ -2010,17 +2011,19 @@ const handleClearLimitedQuantity = async (event, item) => {
                           : []
                     );
 
+                    const isCustomerHidden = (item.customerVisibility || 'visible') === 'hidden';
+
                     return (
                       <div
                         key={item.id}
                         onClick={() => {
                           startEditing(item);
                         }}
-                        className={`group flex flex-col gap-3 rounded-2xl border bg-white px-4 py-3 shadow-sm transition-all lg:flex-row lg:items-center ${
+                        className={`group flex flex-col gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-all lg:flex-row lg:items-center ${
                           isSingleCategorySortReady
                             ? 'cursor-pointer border-orange-100 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
                             : 'cursor-pointer border-gray-200 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
-                        }`}
+                        } ${isCustomerHidden ? 'border-gray-300 bg-gray-200 opacity-80 grayscale hover:opacity-100 hover:grayscale-0' : 'bg-white'}`}
                       >
                         <div className="flex items-center gap-4 lg:min-w-0 lg:flex-1">
                           <div
@@ -2098,6 +2101,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   style={{ backgroundColor: item.photoLabelColor || '#F97316' }}
                                 >
                                   {item.photoLabelText}
+                                </span>
+                              )}
+
+                              {isCustomerHidden && (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-500">
+                                  <EyeOff size={10} />
+                                  非表示
                                 </span>
                               )}
                             </div>
