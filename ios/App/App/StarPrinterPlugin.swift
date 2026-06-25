@@ -13,7 +13,8 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "StarPrinter"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "discoverPrinters", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "printReceipt", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "printReceipt", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openDrawer", returnType: CAPPluginReturnPromise)
     ]
 
     // 探索中の参照保持（破棄されないように）
@@ -63,15 +64,9 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
 
         Task {
             do {
-                let settings: StarConnectionSettings
-                if let id = identifier, !id.isEmpty {
-                    settings = StarConnectionSettings(
-                        interfaceType: StarPrinterPlugin.interfaceType(interfaceStr),
-                        identifier: id
-                    )
-                } else if let found = try await self.discoverFirstPrinter(timeout: 8000) {
-                    settings = found
-                } else {
+                guard let settings = try await self.resolveConnectionSettings(
+                    identifier: identifier, interfaceStr: interfaceStr
+                ) else {
                     call.reject("プリンタが見つかりませんでした")
                     return
                 }
@@ -118,6 +113,64 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
             }
         }
+    }
+
+    // 識別子があればそれで接続設定を作り、無ければ探索して最初の1台を使う。
+    private func resolveConnectionSettings(identifier: String?, interfaceStr: String) async throws -> StarConnectionSettings? {
+        if let id = identifier, !id.isEmpty {
+            return StarConnectionSettings(
+                interfaceType: StarPrinterPlugin.interfaceType(interfaceStr),
+                identifier: id
+            )
+        }
+        return try await self.discoverFirstPrinter(timeout: 8000)
+    }
+
+    // MARK: - キャッシュドロワー（釣銭機/ドロワー）開放
+
+    // レシートプリンタのドロワーキックポート(No.1)へ開放信号のみを送る。
+    // 印刷とは独立したコマンドのため、会計確定時にレシート印刷とは別タイミングで開ける。
+    @objc func openDrawer(_ call: CAPPluginCall) {
+        let identifier = call.getString("identifier")
+        let interfaceStr = call.getString("interface") ?? "bluetooth"
+
+        Task {
+            do {
+                guard let settings = try await self.resolveConnectionSettings(
+                    identifier: identifier, interfaceStr: interfaceStr
+                ) else {
+                    call.reject("プリンタが見つかりませんでした")
+                    return
+                }
+
+                let printer = StarPrinter(settings)
+                let commands = self.buildDrawerCommands()
+                do {
+                    try await printer.open()
+                    try await printer.print(command: commands)
+                    await printer.close()
+                    call.resolve(["ok": true])
+                } catch {
+                    await printer.close()
+                    throw error
+                }
+            } catch {
+                call.reject("ドロワー開放に失敗しました: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // ドロワー開放のみの StarXpand コマンドを生成する（チャンネル No.1）。
+    private func buildDrawerCommands() -> String {
+        let builder = StarXpandCommand.StarXpandCommandBuilder()
+        _ = builder.addDocument(
+            StarXpandCommand.DocumentBuilder().addDrawer(
+                StarXpandCommand.DrawerBuilder().actionOpen(
+                    StarXpandCommand.Drawer.OpenParameter().setChannel(.no1)
+                )
+            )
+        )
+        return builder.getCommands()
     }
 
     // MARK: - レシート組み立て（StarXpand コマンド）
