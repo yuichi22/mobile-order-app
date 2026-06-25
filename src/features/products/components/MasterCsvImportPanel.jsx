@@ -30,7 +30,6 @@ const IMPORT_LABELS = {
       ['処理', 'importActionLabel'],
       ['ブランドID', 'brandId'],
       ['ブランド名', 'name'],
-      ['棚卸区分', 'stocktakingTypeCode'],
       ['仕入先ID', 'supplierId'],
       ['仕入先名', 'supplierName']
     ]
@@ -85,7 +84,6 @@ const normalizeBrandPayload = (item) => ({
   smaregiBrandId: String(item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
   brandExternalId: String(item.brandExternalId || item.smaregiBrandId || item.brandId || item.brandCode || '').trim(),
   brandCode: String(item.brandCode || item.brandId || item.smaregiBrandId || item.brandExternalId || '').trim(),
-  stocktakingTypeCode: String(item.stocktakingTypeCode || '').trim(),
   supplierId: String(item.supplierId || '').trim(),
   supplierSmaregiId: String(item.supplierSmaregiId || item.supplierExternalId || '').trim(),
   supplierExternalId: String(item.supplierExternalId || item.supplierSmaregiId || '').trim(),

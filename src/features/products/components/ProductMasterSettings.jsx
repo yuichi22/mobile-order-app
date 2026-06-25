@@ -1,9 +1,10 @@
-import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
   ArrowUp,
+  Barcode,
   Building2,
   Check,
   ChevronDown,
@@ -21,10 +22,14 @@ import {
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
+import { printLabelViaBridge } from '../../../shared/api/printBridge';
+import { buildLabelPrintPayload } from '../../../shared/utils/labelPrinterSettings';
 import { db } from '../../../shared/api/firebase/client';
-import { normalizeScannedCode } from '../../../shared/utils/halfWidth';
+import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
+import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
 import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify } from '../../store/services/storeDataService';
+import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -118,7 +123,9 @@ const blankProduct = {
   colorName: '',
   priceTaxIncluded: '',
   priceTaxExcluded: '',
-  taxRateType: 'standard',
+  // 新規商品は既定でカテゴリー/カテゴリーグループの個別税率を継承する(例: FOOD=軽減8%)。
+  // 'standard' を既定にすると継承より優先され、FOOD商品でも10%になってしまうため 'inherit'。
+  taxRateType: 'inherit',
   taxRate: 10,
   costTaxExcluded: '',
   costTaxIncluded: '',
@@ -135,6 +142,7 @@ const blankProduct = {
   shopifyProductId: '',
   shopifyVariantId: '',
   shopifyInventoryItemId: '',
+  shopifyStatus: '',
   productGroupId: '',
   productGroupRole: 'primary',
   productGroupName: '',
@@ -274,7 +282,16 @@ const normalizeProductPayload = (draft) => ({
   productType: draft.productType || 'retail',
   size: String(draft.size || '').trim(),
   colorName: String(draft.colorName || '').trim(),
-  priceTaxIncluded: normalizeNumberOrNull(draft.priceTaxIncluded),
+  // フォームは税抜売価のみ編集し税込は表示専用のため、税抜が入力されていれば
+  // 税込は必ず税抜×税率で再計算する。明示的な priceTaxIncluded を優先すると、
+  // バリアント複製時に親の税込が残り「税抜だけ変更→古い税込で保存」される不具合になる。
+  // (POSは priceTaxIncluded を参照するため、ここがズレると会計が誤価格になる)
+  // 税抜が無いときだけ明示的な税込にフォールバックする。
+  priceTaxIncluded: normalizeNumberOrNull(draft.priceTaxExcluded) !== null
+    ? normalizeNumberOrNull(
+      calculateProductMasterTaxIncludedPrice(draft.priceTaxExcluded, normalizeNumberOrNull(draft.taxRate) ?? 10)
+    )
+    : normalizeNumberOrNull(draft.priceTaxIncluded),
   priceTaxExcluded: normalizeNumberOrNull(draft.priceTaxExcluded),
   taxRateType: draft.taxRateType || 'standard',
   taxRate: normalizeNumberOrNull(draft.taxRate) ?? 10,
@@ -294,6 +311,7 @@ const normalizeProductPayload = (draft) => ({
   shopifyProductId: String(draft.shopifyProductId || '').trim(),
   shopifyVariantId: String(draft.shopifyVariantId || '').trim(),
   shopifyInventoryItemId: String(draft.shopifyInventoryItemId || '').trim(),
+  shopifyStatus: String(draft.shopifyStatus || '').trim(),
   productGroupId: String(draft.productGroupId || '').trim(),
   productGroupRole: draft.productGroupRole || 'primary',
   productGroupName: String(draft.productGroupName || '').trim(),
@@ -724,7 +742,7 @@ const formatMasterTaxRateLabel = (item = {}, defaultTaxRate = 10) => {
 
 const classNames = (...values) => values.filter(Boolean).join(' ');
 
-const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown, onFocus }, ref) => (
+const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown, onFocus, onCompositionStart, inputMode }, ref) => (
   <input
     ref={ref}
     type={type}
@@ -732,8 +750,14 @@ const TableTextInput = forwardRef(({ value, onChange, type = 'text', className =
     onChange={(event) => onChange(event.target.value)}
     onKeyDown={onKeyDown}
     onFocus={onFocus}
+    onCompositionStart={onCompositionStart}
     placeholder={placeholder}
-    inputMode={type === 'number' ? 'decimal' : undefined}
+    // inputMode を明示指定できる。バーコード窓は 'numeric' を渡し、iPadで日本語IME(かな)
+    // キーボードを出さない＝スキャナ入力がIME変換で壊れるのを防ぐ。
+    inputMode={inputMode ?? (type === 'number' ? 'decimal' : undefined)}
+    autoCapitalize={inputMode ? 'off' : undefined}
+    autoCorrect={inputMode ? 'off' : undefined}
+    spellCheck={inputMode ? false : undefined}
     className={classNames(
       'h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
       className
@@ -795,20 +819,18 @@ const PillToggle = ({
   </button>
 );
 
-const StatusPill = ({ product }) => {
-  if (product.isArchived) {
-    return <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-400">アーカイブ</span>;
-  }
+// barcode突合で紐付いた商品の Shopify掲載状況(公開中/下書き/非公開)を、
+// 商品マスターのEC連携「Shopify」ボタンの点灯色とツールチップに反映する。
+const SHOPIFY_STATUS_LABEL = {
+  ACTIVE: '公開中',
+  DRAFT: '下書き',
+  ARCHIVED: '非公開'
+};
 
-  if (product.isActive === false) {
-    return <span className="inline-flex rounded-full bg-rose-50 px-2 py-1 text-xs font-black text-rose-500">停止</span>;
-  }
-
-  if (product.shopifyProductId || product.shopifyVariantId) {
-    return <span className="inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-600">Shopify連携</span>;
-  }
-
-  return <span className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-600">登録・更新</span>;
+const SHOPIFY_BUTTON_CLASS = {
+  ACTIVE: 'bg-emerald-600 text-white shadow-sm shadow-emerald-200',
+  DRAFT: 'bg-amber-500 text-white shadow-sm shadow-amber-200',
+  ARCHIVED: 'bg-slate-500 text-white shadow-sm shadow-slate-200'
 };
 
 const FieldLabel = () => null;
@@ -868,9 +890,44 @@ const ProductMasterTable = ({
   onUpdateShopifyProduct,
   onSaveBrand,
   onSaveSupplier,
-  onSaved
+  onSaved,
+  labelPrinterSettings
 }) => {
   const [draftRows, setDraftRows] = useState({});
+  // バーコードラベル印刷（東芝テック B-EV4T / 印刷ブリッジ経由）
+  const [labelCopies, setLabelCopies] = useState({}); // { [productId]: 枚数 }
+  const [labelPrintingId, setLabelPrintingId] = useState('');
+
+  const handlePrintLabel = async (product) => {
+    if (!product || labelPrintingId) return;
+
+    const barcode = String(product.barcode || '').trim();
+    if (!barcode) {
+      window.alert('この商品にはバーコードが登録されていません。バーコード欄を入力して保存してください。');
+      return;
+    }
+
+    if (!labelPrinterSettings?.printerIp) {
+      window.alert('ラベルプリンタのIPが未設定です。設定 > ラベルプリンタ設定で接続先を設定してください。');
+      return;
+    }
+
+    const copies = Math.max(1, Math.min(999, Number(labelCopies[product.id] || 1)));
+    const price = product.priceTaxIncluded ?? product.price ?? product.priceTaxExcluded ?? '';
+
+    setLabelPrintingId(product.id);
+    try {
+      const payload = buildLabelPrintPayload(labelPrinterSettings, [
+        { barcode, name: product.name || '', price, copies }
+      ]);
+      await printLabelViaBridge(payload, { labelPrinterSettings });
+    } catch (error) {
+      window.alert(`ラベル印刷に失敗しました: ${error?.message || error}`);
+    } finally {
+      setLabelPrintingId('');
+    }
+  };
+
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
   const [pendingShopifySyncProductIds, setPendingShopifySyncProductIds] = useState(() => new Set());
   const [visibleProductGroupLimit, setVisibleProductGroupLimit] = useState(PRODUCT_MASTER_INITIAL_GROUP_LIMIT);
@@ -896,12 +953,76 @@ const ProductMasterTable = ({
   const [inventoryAdjustHistoryError, setInventoryAdjustHistoryError] = useState('');
   const [pendingSkuFocusProductId, setPendingSkuFocusProductId] = useState(null);
   const [lastAddedSkuProductId, setLastAddedSkuProductId] = useState({});
+  const [activeStocktake, setActiveStocktake] = useState(null);
+  // 棚卸し進捗バー用: 在庫あり点数 と カウント済み点数(カウント集計, 別画面で進むため周期更新)。
+  const [stocktakeProgress, setStocktakeProgress] = useState({ inStock: null, counted: null });
   const newProductNameInputRef = useRef(null);
   const newProductClassificationRef = useRef(null);
   const newProductSkuInputRef = useRef(null);
   const newEntrySkuFieldRefs = useRef({});
+  // バーコード欄ごとのスキャナ取り込みバッファ状態(key=フィールド識別子)。
+  const skuScanStatesRef = useRef({});
 
   const getDraft = (product) => draftRows[product.id] || recentlySavedRows[product.id] || product;
+
+  // 棚卸し進行中は入庫が「棚卸しカウント」に振り替わる(live在庫は触らない)。
+  // 利用者に状態を知らせるためのバナー判定に使う。
+  useEffect(() => {
+    if (!storeId) {
+      setActiveStocktake(null);
+      return undefined;
+    }
+
+    return subscribeToActiveStocktake(
+      storeId,
+      (stocktake) => setActiveStocktake(stocktake || null),
+      (error) => {
+        console.error('[ProductMaster] active stocktake subscribe failed', error);
+        setActiveStocktake(null);
+      }
+    );
+  }, [storeId]);
+
+  // 棚卸し進捗(在庫あり点数 / カウント済み点数)をカウント集計で取得。
+  // カウントは棚卸し画面で進むため、開始時＋一定間隔で更新する(集計は軽量)。
+  useEffect(() => {
+    const stocktakeId = activeStocktake?.id;
+    if (!storeId || !stocktakeId) {
+      setStocktakeProgress({ inStock: null, counted: null });
+      return undefined;
+    }
+
+    let cancelled = false;
+    const fetchProgress = async () => {
+      try {
+        const [inStockSnap, countedSnap] = await Promise.all([
+          getCountFromServer(
+            query(collection(db, 'stores', storeId, 'products'), where('inventoryQuantity', '>', 0))
+          ),
+          getCountFromServer(
+            query(
+              collection(db, 'stores', storeId, 'stocktakes', stocktakeId, 'items'),
+              where('status', 'in', ['warehouse_counted', 'storefront_counted'])
+            )
+          )
+        ]);
+        if (cancelled) return;
+        setStocktakeProgress({
+          inStock: inStockSnap.data().count,
+          counted: countedSnap.data().count
+        });
+      } catch (error) {
+        console.error('[ProductMaster] stocktake progress count failed', error);
+      }
+    };
+
+    fetchProgress();
+    const timer = window.setInterval(fetchProgress, 20000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [storeId, activeStocktake?.id]);
 
   useEffect(() => {
     setRecentlySavedRows((current) => {
@@ -1625,14 +1746,37 @@ const ProductMasterTable = ({
     setNewSkuRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
   };
 
+  // 商品の個別税率を継承解決する: 商品(inherit以外) → サブカテゴリー → カテゴリー → カテゴリーグループ → 店舗既定。
+  // 新規商品は通常 taxRateType 未設定(=inherit)なので、所属カテゴリーグループ(例: FOOD=軽減8%)の税率を継承する。
+  const resolveInheritedTaxForDraft = (draft = {}) => {
+    const productType = normalizeMasterTaxRateType(draft.taxRateType);
+    if (productType !== 'inherit') {
+      const rate = resolveMasterTaxRate(productType, draft.taxRate);
+      return { type: productType, rate: rate ?? 10 };
+    }
+    const subCategory = (productSubCategories || []).find((sub) => sub.id === draft.subCategoryId);
+    const subType = subCategory ? normalizeMasterTaxRateType(subCategory.taxRateType) : 'inherit';
+    if (subType !== 'inherit') return { type: subType, rate: resolveMasterTaxRate(subType, subCategory.taxRate) ?? 10 };
+    const category = (productCategories || []).find((cat) => cat.id === draft.categoryId);
+    const categoryType = category ? normalizeMasterTaxRateType(category.taxRateType) : 'inherit';
+    if (categoryType !== 'inherit') return { type: categoryType, rate: resolveMasterTaxRate(categoryType, category.taxRate) ?? 10 };
+    const group = (productCategoryGroups || []).find((grp) => grp.id === (draft.categoryGroupId || category?.groupId));
+    const groupType = group ? normalizeMasterTaxRateType(group.taxRateType) : 'inherit';
+    if (groupType !== 'inherit') return { type: groupType, rate: resolveMasterTaxRate(groupType, group.taxRate) ?? 10 };
+    return { type: 'standard', rate: 10 };
+  };
+
   const buildProductSavePayload = (draft) => {
     const matchedBrand = brands.find((brand) => brand.id === draft.brandId);
     const matchedCategory = productCategories.find((category) => category.id === draft.categoryId);
     const matchedGroup = productCategoryGroups.find((group) => group.id === (draft.categoryGroupId || matchedCategory?.groupId));
     const matchedSupplier = suppliers.find((supplier) => supplier.id === (draft.supplierId || matchedBrand?.supplierId));
+    const resolvedTax = resolveInheritedTaxForDraft({ ...draft, categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId });
 
     return normalizeProductPayload({
       ...draft,
+      taxRateType: resolvedTax.type,
+      taxRate: resolvedTax.rate,
       brandName: matchedBrand?.name || draft.brandName || '',
       categoryName: matchedCategory?.name || draft.categoryName || '',
       subCategoryName: draft.subCategoryName || '',
@@ -1834,6 +1978,9 @@ const ProductMasterTable = ({
       categoryGroupName: productCategoryGroups.find((group) => group.id === (matchedCategory?.groupId || primaryDraft.categoryGroupId))?.name || primaryDraft.categoryGroupName || '',
       salesAreaName: primaryDraft.salesAreaName || '',
       departmentId: matchedCategory?.departmentId || primaryDraft.departmentId || 'retail',
+      // 分類(カテゴリー/グループ)を保存する時は税率を inherit に戻し、
+      // 配下商品が新カテゴリー/グループの個別税率(例: FOOD=8%)を再継承するようにする。
+      taxRateType: 'inherit',
       labelEnabled: Boolean(primaryDraft.labelEnabled)
     };
 
@@ -2011,7 +2158,11 @@ const ProductMasterTable = ({
       ...targetLines,
       '',
       stockInTargetRows.length > 0 ? `入庫反映: ${stockInTargetRows.length}件` : '',
-      stockInTargetRows.length > 0 ? '入庫数は在庫数へ加算し、入庫履歴を記録します。' : '',
+      stockInTargetRows.length > 0
+        ? (activeStocktake
+          ? '棚卸し中のため、入庫数はlive在庫ではなく棚卸しカウントへ反映します(入庫履歴は記録)。'
+          : '入庫数は在庫数へ加算し、入庫履歴を記録します。')
+        : '',
       '',
       '実行してよろしいですか？'
     ].filter((line) => line !== '').join('\n');
@@ -2370,6 +2521,19 @@ const ProductMasterTable = ({
     const registeredAtText = formatProductMasterDateTimeText(row.createdAt || row.created_at);
     const skuRowIndex = options.skuRowIndex ?? 0;
 
+    // 税込プレビュー用の実効税率(カテゴリーグループ等の個別税率を継承)。
+    // 新規の追加SKU行は分類を持たないため、新規ヘッダー(newRow)の分類を引き継ぐ。
+    const taxContextDraft = isNew
+      ? {
+          categoryGroupId: row.categoryGroupId || newRow.categoryGroupId,
+          categoryId: row.categoryId || newRow.categoryId,
+          subCategoryId: row.subCategoryId || newRow.subCategoryId,
+          taxRateType: row.taxRateType ?? newRow.taxRateType,
+          taxRate: row.taxRate ?? newRow.taxRate
+        }
+      : row;
+    const effectiveTaxRate = resolveInheritedTaxForDraft(taxContextDraft).rate;
+
     const skuGroupKey = options.skuGroupKey || 'new-entry';
 
     const registerSkuFieldRef = (fieldName) => (el) => {
@@ -2408,6 +2572,23 @@ const ProductMasterTable = ({
       } else {
         event.target.select();
       }
+    };
+
+    // バーコードリーダーの高速入力でも取りこぼさないよう、スキャン分はバッファして1回で確定する。
+    // 手入力(低速)やEnterでのフォーカス移動は従来通り handleSkuFieldKeyDown に委ねる。
+    const buildSkuScanKeyDown = (fieldName, applyValue) => {
+      const stateKey = `${skuGroupKey}:${skuRowIndex}:${fieldName}`;
+      const onManualEnter = handleSkuFieldKeyDown(fieldName);
+      // ref アクセス・state生成は描画外(イベント発火時)で行う。state はキー単位で永続。
+      return (event) => {
+        const store = skuScanStatesRef.current;
+        if (!store[stateKey]) store[stateKey] = createScannerBufferedState();
+        createScannerBufferedKeyDown({
+          state: store[stateKey],
+          commit: applyValue,
+          onManualEnter
+        })(event);
+      };
     };
 
     return (
@@ -2497,7 +2678,8 @@ const ProductMasterTable = ({
                 <ProductClassificationControl
                   ref={newProductClassificationRef}
                   value={row}
-                  onChange={update}
+                  // 分類(カテゴリー/グループ等)変更時は税率を inherit に戻し、新カテゴリー/グループの個別税率を継承させる。
+                  onChange={(patch) => update({ ...patch, taxRateType: 'inherit' })}
                   onApply={() => {
                     requestAnimationFrame(() => {
                       newProductSkuInputRef.current?.focus();
@@ -2547,7 +2729,7 @@ const ProductMasterTable = ({
           </div>
         )}
 
-        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(148px,1.05fr)_72px_76px_92px_66px_74px_74px_84px_170px_72px_44px] gap-2">
+        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(148px,1.05fr)_72px_76px_92px_66px_74px_74px_84px_170px_72px_96px_44px] gap-2">
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
@@ -2573,10 +2755,16 @@ const ProductMasterTable = ({
             <TableTextInput
               ref={registerSkuFieldRef('barcode')}
               value={row.barcode}
-              onChange={(value) => update({ barcode: normalizeScannedCode(value) })}
-              onKeyDown={handleSkuFieldKeyDown('barcode')}
+              // バーコードは常に半角化して保存する。Windows等で日本語IME(全角)を経由して
+              // 入力されても、実バーコード(半角ASCII)と一致する正しい値で保存するため。
+              onChange={(value) => update({ barcode: toHalfWidthCode(value) })}
+              onKeyDown={buildSkuScanKeyDown('barcode', (value) => update({ barcode: toHalfWidthCode(value) }))}
               onFocus={handleSkuFieldFocus('barcode')}
+              // Windows日本語IMEの変換が前回値に追記され「ずらずら長い数字」になるのを防ぐ。
+              // 変換開始時に窓を空にし、変換結果が追記でなく置換で入るようにする。
+              onCompositionStart={() => update({ barcode: '' })}
               placeholder="バーコード"
+              inputMode="numeric"
             />
           </div>
 
@@ -2617,7 +2805,7 @@ const ProductMasterTable = ({
               className="text-right"
             />
             <div className="mt-1 text-right text-[11px] font-bold text-slate-400">
-              税込 {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, row.taxRate ?? 10) || 0).toLocaleString()}
+              税込 {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, effectiveTaxRate) || 0).toLocaleString()}
             </div>
           </div>
 
@@ -2703,6 +2891,33 @@ const ProductMasterTable = ({
               placeholder="数"
               className="text-right"
             />
+          </div>
+
+          <div>
+            <FieldLabel>ラベル</FieldLabel>
+            <div className="flex h-9 items-center justify-center gap-1">
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={labelCopies[row.id] ?? 1}
+                onChange={(event) =>
+                  setLabelCopies((prev) => ({ ...prev, [row.id]: event.target.value }))
+                }
+                disabled={isNew}
+                title="印刷枚数"
+                className="h-8 w-10 rounded-md border border-slate-200 px-1 text-center text-[11px] font-black text-slate-700 outline-none transition focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => handlePrintLabel(row)}
+                disabled={isNew || labelPrintingId === row.id}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                title="バーコードラベルを印刷"
+              >
+                {labelPrintingId === row.id ? <LoadingSpinner size={13} /> : <Barcode size={13} />}
+              </button>
+            </div>
           </div>
 
           <div className="flex h-9 items-center justify-center">
@@ -3048,6 +3263,43 @@ const ProductMasterTable = ({
           {showNewProductEntry ? '閉じる' : '新規登録'}
         </button>
       </div>
+      {activeStocktake && (
+        <div className="border-b border-amber-200 bg-amber-50 px-5 py-3">
+          <div className="flex items-start gap-2">
+            <Package size={16} strokeWidth={2.6} className="mt-0.5 shrink-0 text-amber-600" />
+            <p className="text-xs font-bold leading-relaxed text-amber-800">
+              棚卸し中です。入庫は live 在庫ではなく<strong className="font-black">棚卸しカウント</strong>に反映されます。
+              <br />
+              新規商品は入庫数がそのまま店頭の確定在庫になります。既存商品で店頭が未確定の場合は数量を加算せず「数え直しリスト」に載ります。
+            </p>
+          </div>
+
+          {(() => {
+            const inStock = Number(stocktakeProgress.inStock ?? 0);
+            const counted = Number(stocktakeProgress.counted ?? 0);
+            const loading = stocktakeProgress.inStock === null;
+            const pct = inStock > 0 ? Math.min(100, Math.round((counted / inStock) * 100)) : 0;
+            return (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 px-3 py-2.5">
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] font-black tracking-wide text-amber-700">棚卸し進捗</span>
+                  <span className="text-[11px] font-bold text-amber-700">
+                    {loading
+                      ? '集計中...'
+                      : <>在庫あり <strong className="font-black tabular-nums">{inStock.toLocaleString()}</strong> 点中 <strong className="font-black tabular-nums">{counted.toLocaleString()}</strong> 点カウント済み（<span className="tabular-nums">{pct}%</span>）</>}
+                  </span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-amber-100">
+                  <div
+                    className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                    style={{ width: `${loading ? 0 : pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
       <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           {newProductEntryMounted && (
@@ -3192,7 +3444,8 @@ const ProductMasterTable = ({
                       <div className="min-w-0">
                         <ProductClassificationControl
                           value={primaryDraft}
-                          onChange={updatePrimary}
+                          // 分類変更時は税率を inherit に戻し、新カテゴリー/グループの個別税率を継承させる。
+                          onChange={(patch) => updatePrimary({ ...patch, taxRateType: 'inherit' })}
                           productSalesAreas={getSalesAreaOptions()}
                           productCategoryGroups={productCategoryGroups}
                           productCategories={productCategories}
@@ -3231,29 +3484,46 @@ const ProductMasterTable = ({
                           const isPendingShopifySync = group.products.some((product) => pendingShopifySyncProductIds.has(product.id));
                           const isSavedUnsyncedShopifyReservation = groupHasSavedUnsyncedShopifyReservation(group);
                           const isShopifyTarget = isPendingShopifySync || isSavedUnsyncedShopifyReservation || (hasShopifyDraft ? draftShopifyTarget : savedShopifyTarget);
-                          const isShopifyActive = isShopifyTarget && isShopifySynced && !isPendingShopifySync && !isSavedUnsyncedShopifyReservation;
                           const isShopifyPending = isPendingShopifySync || isSavedUnsyncedShopifyReservation || (isShopifyTarget && (!isShopifySynced || hasShopifyDraft));
+
+                          // barcode突合で実際にShopifyに紐付いている(=掲載中)かを判定し、
+                          // 掲載状況(公開中/下書き/非公開)でボタンを点灯色分けする。
+                          const linkedShopifyProducts = group.products.filter(
+                            (product) => product.shopifyProductId || product.shopifyVariantId
+                          );
+                          const isShopifyLinked = isShopifySynced || linkedShopifyProducts.length > 0;
+                          const linkedStatusSet = new Set(
+                            linkedShopifyProducts.map((product) => String(product.shopifyStatus || '').trim().toUpperCase())
+                          );
+                          const groupShopifyStatus = linkedStatusSet.has('ACTIVE')
+                            ? 'ACTIVE'
+                            : linkedStatusSet.has('DRAFT')
+                              ? 'DRAFT'
+                              : linkedStatusSet.has('ARCHIVED')
+                                ? 'ARCHIVED'
+                                : '';
+                          const shopifyStatusLabel = SHOPIFY_STATUS_LABEL[groupShopifyStatus] || '掲載中';
 
                           return (
                             <PillToggle
-                              checked={isShopifyTarget}
+                              checked={isShopifyLinked || isShopifyTarget}
                               onChange={(value) => updateProductGroupShopifyDraft(group, value)}
                               disabled={savingKey === `shopify:${group.key}`}
                               onLabel="Shopify"
                               offLabel="Shopify"
                               activeClassName={
-                                isShopifyActive && !isShopifyPending
-                                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
+                                isShopifyLinked
+                                  ? (SHOPIFY_BUTTON_CLASS[groupShopifyStatus] || SHOPIFY_BUTTON_CLASS.ACTIVE)
                                   : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
                               }
                               inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
                               className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
                               title={
-                                isShopifyActive && !isShopifyPending
-                                  ? 'Shopify連携済みです。OFFにするとShopify IDは残したまま同期対象から外します。'
+                                isShopifyLinked
+                                  ? `Shopifyに${shopifyStatusLabel}の商品です（barcode突合で紐付け済み）。`
                                   : isShopifyPending
                                     ? 'Shopify同期対象です。Shopify同期ボタンから下書き作成または更新を実行します。'
-                                    : 'Shopify IDは残したまま同期対象外です。ONにするとShopify同期対象になります。'
+                                    : 'Shopify未連携です。ONにするとShopify同期対象になります。'
                               }
                             />
                           );
@@ -4786,6 +5056,7 @@ export const SimpleMasterPanel = ({
         ...(draft.email !== undefined ? { email: String(draft.email || '').trim() } : {}),
         ...(draft.address !== undefined ? { address: String(draft.address || '').trim() } : {}),
         ...(draft.defaultCostRate !== undefined ? { defaultCostRate: normalizeNumberOrNull(draft.defaultCostRate) } : {}),
+        ...(draft.costRate !== undefined ? { costRate: normalizeNumberOrNull(draft.costRate) } : {}),
         ...(draft.paymentTerms !== undefined ? { paymentTerms: String(draft.paymentTerms || '').trim() } : {}),
         ...(draft.supplierId !== undefined ? {
           supplierId: String(draft.supplierId || '').trim(),
@@ -5846,7 +6117,8 @@ const ProductMasterSettings = ({
   onSaved,
   defaultTaxRate = 10,
   externalKeyword,
-  onExternalKeywordChange
+  onExternalKeywordChange,
+  labelPrinterSettings
 }) => {
   const [activeTab, setActiveTab] = useState('products');
   const [internalKeyword, setInternalKeyword] = useState('');
@@ -6002,6 +6274,7 @@ const ProductMasterSettings = ({
                 onSaveBrand={onSaveBrand}
                 onSaveSupplier={onSaveSupplier}
                 onSaved={onSaved}
+                labelPrinterSettings={labelPrinterSettings}
               />
             </>
           )}

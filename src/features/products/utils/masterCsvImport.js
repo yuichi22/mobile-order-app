@@ -17,7 +17,6 @@ export const MASTER_CSV_FIELD_OPTIONS = {
     { id: '', label: '取り込まない' },
     { id: 'brandId', label: 'ブランドID', required: false },
     { id: 'name', label: 'ブランド名', required: true },
-    { id: 'stocktakingTypeCode', label: '棚卸区分コード' },
     { id: 'supplierId', label: '仕入先ID' },
     { id: 'supplierName', label: '仕入先名' },
     { id: 'note', label: 'メモ' }
@@ -52,7 +51,6 @@ const MASTER_CSV_HEADER_ALIASES = {
   brands: {
     brandId: ['ブランドID', 'brandId', 'brand_id', 'brandCode', 'smaregiBrandId', 'ブランドコード'],
     name: ['ブランド名', 'name', 'brandName', 'brand_name'],
-    stocktakingTypeCode: ['棚卸区分コード', 'stocktakingTypeCode', '棚卸区分'],
     supplierId: ['仕入先ID', 'supplierId', 'supplier_id', 'supplierCode', 'supplierSmaregiId', 'smaregiSupplierId', '仕入先コード'],
     supplierName: ['仕入先名', 'supplierName', 'supplier_name'],
     note: ['メモ', '備考', 'note']
@@ -538,7 +536,6 @@ export const buildMasterCsvPreview = ({
         smaregiBrandId,
         brandExternalId: smaregiBrandId,
         name,
-        stocktakingTypeCode: normalizeText(record.stocktakingTypeCode),
         supplierId: matchedSupplier?.id || matchedExistingBrand?.supplierId || '',
         supplierExternalId: supplierSmaregiId,
         supplierSmaregiId,
