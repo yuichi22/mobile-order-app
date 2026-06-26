@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronLeft, History, ListChecks, RefreshCw, Store, Truck, Warehouse, X } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { Camera, Check, ChevronLeft, History, Keyboard, ListChecks, RefreshCw, Search, Store, Truck, Warehouse, X } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
 import BarcodeScanner from '../components/BarcodeScanner';
@@ -141,9 +142,12 @@ const StocktakePage = ({ storeId }) => {
   const [recountSaving, setRecountSaving] = useState(false);
   const [recountMessage, setRecountMessage] = useState('');
   const [recountConfirmOpen, setRecountConfirmOpen] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [manualBarcode, setManualBarcode] = useState('');
   const [localHistory, setLocalHistory] = useState([]);
   const [historyShowAll, setHistoryShowAll] = useState(false);
   const hasDetectedRef = useRef(false);
+  const manualInputRef = useRef(null);
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -181,6 +185,16 @@ const StocktakePage = ({ storeId }) => {
     };
   }, [lookupState, storeId, activeStocktake?.id, scannedProduct?.id]);
 
+  // 手入力画面を開いたら入力欄へ自動でカーソルを移動する。
+  // (カメラ停止後にレンダリングされるため rAF で描画後にフォーカスする)
+  useEffect(() => {
+    if (!manualEntryOpen) return undefined;
+    const id = requestAnimationFrame(() => {
+      manualInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [manualEntryOpen]);
+
   const displayItems = activeStocktake?.id ? stocktakeItems : [];
   const recountItems = displayItems.filter((item) => item.needsRecount);
 
@@ -215,15 +229,19 @@ const StocktakePage = ({ storeId }) => {
     setView('home');
   };
 
-  const handleDetected = (code) => {
-    if (hasDetectedRef.current) return;
-    hasDetectedRef.current = true;
+  // カメラ検出・手入力の共通商品検索。
+  const runProductLookup = (code) => {
+    const trimmed = String(code || '').trim();
+    if (!trimmed) return;
+
     setScanning(false);
-    setScannedBarcode(code);
+    setManualEntryOpen(false);
+    setManualBarcode('');
+    setScannedBarcode(trimmed);
     setLookupState('loading');
     resetScanResultState();
 
-    findProductByBarcode(storeId, code)
+    findProductByBarcode(storeId, trimmed)
       .then((product) => {
         if (product) {
           setScannedProduct(product);
@@ -240,11 +258,46 @@ const StocktakePage = ({ storeId }) => {
       });
   };
 
+  const handleDetected = (code) => {
+    if (hasDetectedRef.current) return;
+    hasDetectedRef.current = true;
+    runProductLookup(code);
+  };
+
+  // 手入力モードを開く。iOS WebView ではカメラ起動中だと入力欄にキーボードが
+  // 出ないため、先にスキャナー(カメラ)を止めてから入力欄を表示する。
+  const openManualEntry = () => {
+    hasDetectedRef.current = false;
+    // iOS WebView はタップのジェスチャー内で同期フォーカスしないとカーソル/キーボードが
+    // 出ない。flushSync で入力欄を同期的に描画してから、その場で focus する。
+    flushSync(() => {
+      setScanning(false);
+      setManualBarcode('');
+      setManualEntryOpen(true);
+    });
+    manualInputRef.current?.focus();
+  };
+
+  const closeManualEntry = () => {
+    setManualEntryOpen(false);
+    setManualBarcode('');
+  };
+
+  // スキャンが読み取れない時のフォールバック: 手入力したバーコードで検索する。
+  const handleManualLookup = () => {
+    const code = manualBarcode.trim();
+    if (!code) return;
+    hasDetectedRef.current = true;
+    runProductLookup(code);
+  };
+
   const startScanning = () => {
     hasDetectedRef.current = false;
     setScannedProduct(null);
     setScannedBarcode('');
     setLookupState('idle');
+    setManualEntryOpen(false);
+    setManualBarcode('');
     resetScanResultState();
     setScanning(true);
   };
@@ -551,16 +604,80 @@ const StocktakePage = ({ storeId }) => {
               <X size={16} />
               スキャンをやめる
             </button>
+
+            <button
+              type="button"
+              onClick={openManualEntry}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+            >
+              <Keyboard size={16} />
+              バーコードを手入力
+            </button>
+          </div>
+        ) : manualEntryOpen ? (
+          <div className="space-y-3">
+            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-bold text-slate-500">読み取れない時は、バーコードの数字を入力してください。</p>
+              <input
+                ref={manualInputRef}
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={manualBarcode}
+                onChange={(event) => setManualBarcode(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') handleManualLookup(); }}
+                placeholder="バーコードを入力"
+                className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={handleManualLookup}
+                disabled={!manualBarcode.trim()}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Search size={16} />
+                この番号で検索
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={startScanning}
+              className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-black text-white shadow-sm transition ${theme.buttonClass}`}
+            >
+              <Camera size={18} />
+              カメラでスキャンに戻る
+            </button>
+            <button
+              type="button"
+              onClick={closeManualEntry}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+            >
+              <X size={16} />
+              手入力をやめる
+            </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={startScanning}
-            className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black text-white shadow-sm transition ${theme.buttonClass}`}
-          >
-            <Camera size={20} />
-            バーコードをスキャン
-          </button>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={startScanning}
+              className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black text-white shadow-sm transition ${theme.buttonClass}`}
+            >
+              <Camera size={20} />
+              バーコードをスキャン
+            </button>
+            <button
+              type="button"
+              onClick={openManualEntry}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+            >
+              <Keyboard size={16} />
+              バーコードを手入力
+            </button>
+          </div>
         )}
 
         {lookupState === 'loading' && (
