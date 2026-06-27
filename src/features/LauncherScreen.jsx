@@ -5,6 +5,7 @@ import {
   ChefHat,
   LogOut,
   Settings,
+  ShieldCheck,
   Utensils
 } from 'lucide-react';
 
@@ -24,6 +25,7 @@ const LauncherScreen = ({ onModeSelect }) => {
   const canUseKitchen = canAccessKitchen(normalizedRole);
   const canUseAdminPanel = canAccessAdminPanel(normalizedRole);
   const isStaffOnly = normalizedRole === USER_ROLES.STAFF;
+  const isSuperAdmin = normalizedRole === USER_ROLES.SUPER_ADMIN;
 
   const accountLabel = (() => {
     if (profileName?.trim()) return profileName.trim();
@@ -98,6 +100,26 @@ const LauncherScreen = ({ onModeSelect }) => {
 
             <p className="mt-2 text-center text-sm font-bold leading-relaxed text-gray-400">
               調理状況と注文を確認
+            </p>
+          </button>
+        )}
+
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => onModeSelect('platform')}
+            className={`group flex flex-col items-center rounded-2xl border-b-4 border-slate-900 bg-white p-8 shadow-xl transition-all hover:-translate-y-1 ${serveCardLayout}`}
+          >
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-900/10 text-slate-900 transition-colors">
+              <ShieldCheck size={32} />
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-800">
+              プラットフォーム管理
+            </h2>
+
+            <p className="mt-2 text-center text-sm font-bold leading-relaxed text-gray-400">
+              店舗・契約・スーパーアドミン
             </p>
           </button>
         )}
