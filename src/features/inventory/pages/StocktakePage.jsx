@@ -24,6 +24,20 @@ const calcPriceTaxIncluded = (product) => {
   return Math.floor(Number(excluded) * (100 + rate) / 100);
 };
 
+// 店頭の確定内訳「確定 X / 販売 −Y / 現在 Z」。確定スナップショットが無い(機能導入前に
+// 確定された)商品は null を返す。
+const formatStorefrontBreakdown = (item) => {
+  const confirmedRaw = item?.storefrontConfirmedQuantity;
+  if (confirmedRaw == null) return null;
+  const confirmed = Math.max(Number(confirmedRaw) || 0, 0);
+  const current = Math.max(Number(item.storefrontShelfQuantity || 0), 0);
+  // 販売数は「確定数 − 現在数」で導出する。現在数は販売のたびに減算済みのため、
+  // POS側の集計フィールド(soldDuringStocktake)に依存せず正しく出せる。
+  // (品出し等で現在 > 確定 になった場合は 0 扱い)
+  const sold = Math.max(confirmed - current, 0);
+  return `確定 ${confirmed.toLocaleString()} / 販売 −${sold.toLocaleString()} / 現在 ${current.toLocaleString()}`;
+};
+
 const LOCATION_THEME = {
   warehouse: {
     label: '倉庫',
@@ -97,6 +111,9 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
       <p className="mt-1 text-xs font-bold text-orange-500">
         倉庫: {Number(item.warehouseQuantity || 0).toLocaleString()} / 店頭: {Number(item.storefrontShelfQuantity || 0).toLocaleString()}
       </p>
+      {formatStorefrontBreakdown(item) ? (
+        <p className="mt-1 text-[11px] font-bold text-slate-400">{formatStorefrontBreakdown(item)}</p>
+      ) : null}
       <div className="mt-3 flex items-center gap-2">
         <input
           type="number"
@@ -343,6 +360,8 @@ const StocktakePage = ({ storeId }) => {
         return {
           ...base,
           storefrontShelfQuantity: Number(base.storefrontShelfQuantity || 0) + quantity,
+          storefrontConfirmedQuantity: Number(base.storefrontShelfQuantity || 0) + quantity,
+          soldDuringStocktake: 0,
           needsRecount: false
         };
       });
@@ -392,7 +411,13 @@ const StocktakePage = ({ storeId }) => {
         setExistingItem((prev) => ({ ...(prev || {}), warehouseQuantity: quantity }));
       } else {
         await recordStocktakeRecount(storeId, activeStocktake.id, scannedProduct, { quantity });
-        setExistingItem((prev) => ({ ...(prev || {}), storefrontShelfQuantity: quantity, needsRecount: false }));
+        setExistingItem((prev) => ({
+          ...(prev || {}),
+          storefrontShelfQuantity: quantity,
+          storefrontConfirmedQuantity: quantity,
+          soldDuringStocktake: 0,
+          needsRecount: false
+        }));
       }
 
       setSaveMessage(`上書きしました(${view === 'warehouse' ? '倉庫' : '店頭'}: ${quantity}個)`);
@@ -709,9 +734,12 @@ const StocktakePage = ({ storeId }) => {
                   <LoadingSpinner size={16} />
                 </div>
               ) : locationAlreadyCounted ? (
-                <p className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold leading-relaxed text-emerald-700">
+                <div className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold leading-relaxed text-emerald-700">
                   この商品は{view === 'warehouse' ? '倉庫で' : '店頭で'}<strong>{view === 'warehouse' ? 'カウント済み' : '確定済み'}</strong>です(現在 {existingCountForLocation.toLocaleString()}個)。もう一度カウントすると確認が表示されます。
-                </p>
+                  {view === 'storefront' && formatStorefrontBreakdown(existingItem) ? (
+                    <span className="mt-1 block font-bold text-emerald-600/80">内訳: {formatStorefrontBreakdown(existingItem)}</span>
+                  ) : null}
+                </div>
               ) : existingCountForLocation > 0 ? (
                 <p className="mt-2 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
                   すでに{existingCountForLocation.toLocaleString()}個カウント済みです。

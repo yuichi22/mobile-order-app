@@ -168,9 +168,14 @@ export const recordStocktakeCount = async (storeId, stocktakeId, product, { loca
   }
 
   if (location === 'storefront') {
+    // 確定時のカウント値をスナップショットし、確定後の販売累計をリセットする。
+    // (現在数 = storefrontConfirmedQuantity - soldDuringStocktake を画面で内訳表示するため)
+    const confirmedTotal = Math.max(Number(current.storefrontShelfQuantity || 0), 0) + addQuantity;
     await setDoc(itemRef, {
       ...base,
       storefrontShelfQuantity: increment(addQuantity),
+      storefrontConfirmedQuantity: confirmedTotal,
+      soldDuringStocktake: 0,
       storefrontConfirmedAt: serverTimestamp(),
       needsRecount: false,
       status: 'storefront_counted',
@@ -205,6 +210,8 @@ export const recordStocktakeRecount = async (storeId, stocktakeId, product, { qu
   await setDoc(itemRef, {
     ...base,
     storefrontShelfQuantity: countedQuantity, // 加算ではなく実数で上書き
+    storefrontConfirmedQuantity: countedQuantity, // 確定時スナップショット
+    soldDuringStocktake: 0, // 確定後の販売累計をリセット
     storefrontConfirmedAt: serverTimestamp(),
     needsRecount: false,
     status: 'storefront_counted',
@@ -289,9 +296,12 @@ export const recordStocktakeStockIn = async (
   if (isNew || isStorefrontConfirmed) {
     // 新規商品 = 入庫数がそのまま確定在庫。
     // 既存確定済み = 確定カウントに入庫分を上乗せ(確定は維持)。
+    const confirmedTotal = Math.max(Number(current.storefrontShelfQuantity || 0), 0) + addQuantity;
     await setDoc(itemRef, {
       ...base,
       storefrontShelfQuantity: increment(addQuantity),
+      storefrontConfirmedQuantity: confirmedTotal,
+      soldDuringStocktake: 0,
       storefrontConfirmedAt: serverTimestamp(),
       needsRecount: false,
       status: 'storefront_counted',
@@ -439,6 +449,7 @@ export const applyStocktakeSaleAdjustment = async (
 
     const patch = {
       storefrontShelfQuantity: increment(-quantity),
+      soldDuringStocktake: increment(quantity), // 確定後の販売累計(内訳表示用)
       updatedAt: serverTimestamp()
     };
     if (withinWindow) {
@@ -505,6 +516,13 @@ export const finalizeStocktake = async (storeId, stocktakeId) => {
       barcode: item.barcode || productData.barcode || '',
       warehouseQuantity,
       storefrontQuantity,
+      storefrontConfirmedQuantity: item.storefrontConfirmedQuantity != null
+        ? Math.max(Number(item.storefrontConfirmedQuantity), 0)
+        : null,
+      // 販売数は「確定数 − 現在の店頭数」で導出(集計フィールド非依存)。
+      soldDuringStocktake: item.storefrontConfirmedQuantity != null
+        ? Math.max(Math.max(Number(item.storefrontConfirmedQuantity), 0) - storefrontQuantity, 0)
+        : 0,
       beforeQuantity,
       finalQuantity
     });
