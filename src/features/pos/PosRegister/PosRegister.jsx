@@ -1385,6 +1385,54 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         });
       });
 
+      // 会計済みのトランザクションも無効化する。
+      // （無会計退店でも注文だけキャンセルされ売上が残り、日計・締めで二重計上されるバグ対策）
+      const sessionTxnQuery = query(
+        collection(db, 'stores', storeId, 'transactions'),
+        where('sessionId', '==', sessionId)
+      );
+      const sessionTxnSnap = await getDocs(sessionTxnQuery);
+      const restoreByProduct = new Map();
+      sessionTxnSnap.forEach((txnDoc) => {
+        const txn = txnDoc.data() || {};
+        if (txn.isPaid === false) return; // 既に取消済みはスキップ
+        // retail商品は会計時に在庫を減らしているため取消時に戻す。
+        (Array.isArray(txn.items) ? txn.items : []).forEach((item) => {
+          if (item?.sourceType !== 'retail' || !item?.productId) return;
+          const qty = Math.max(Number(item.quantity || 0), 0);
+          if (qty > 0) {
+            restoreByProduct.set(item.productId, (restoreByProduct.get(item.productId) || 0) + qty);
+          }
+        });
+        const cancellationLog = {
+          cancelledAt: new Date().toISOString(),
+          reason,
+          amount: Number(txn.totalAmount || 0),
+          type: 'full',
+          source: 'abort_session'
+        };
+        batch.update(txnDoc.ref, {
+          status: 'cancelled',
+          paymentStatus: 'cancelled',
+          isPaid: false,
+          voidedAt: cancelledAt,
+          closeReason: reason,
+          hasCancellations: true,
+          cancellations: [
+            ...(Array.isArray(txn.cancellations) ? txn.cancellations : []),
+            cancellationLog
+          ],
+          updatedAt: cancelledAt
+        });
+      });
+      restoreByProduct.forEach((qty, productId) => {
+        batch.update(doc(db, 'stores', storeId, 'products', productId), {
+          inventoryQuantity: increment(qty),
+          quantity: increment(qty),
+          updatedAt: cancelledAt
+        });
+      });
+
       await clearSessionAccess(batch);
       await batch.commit();
 
