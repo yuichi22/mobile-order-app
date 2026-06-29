@@ -6,7 +6,12 @@ import {
   setPersistence,
   signInWithCustomToken
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
@@ -32,7 +37,22 @@ const region = import.meta.env.VITE_FUNCTIONS_REGION || "asia-northeast1";
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Firestore は永続ローカルキャッシュを有効化する。
+// 2回目以降はキャッシュから即描画→裏で最新化。コールド接続/電波弱でも待たされにくい。
+// IndexedDB が使えない環境(プライベートモード等)では既定(メモリ)へフォールバック。
+const initFirestore = () => {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch (error) {
+    console.warn("[firebase] persistent cache unavailable, falling back to memory cache", error);
+    return getFirestore(app);
+  }
+};
+
+export const db = initFirestore();
 export const functionsApi = getFunctions(app, region);
 export const storage = getStorage(app);
 
