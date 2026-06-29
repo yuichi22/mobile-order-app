@@ -9,7 +9,8 @@ import {
   finalizeStocktake,
   startStocktake,
   subscribeToActiveStocktake,
-  subscribeToStocktakeItems
+  subscribeToStocktakeItems,
+  zeroNegativeInventory
 } from '../../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../../store/services/storeDataService';
 
@@ -68,6 +69,8 @@ const StockTakingPanel = ({ storeId }) => {
   const [finalizeProgress, setFinalizeProgress] = useState(null);
   const [finalizeResults, setFinalizeResults] = useState(null);
   const [finalizeError, setFinalizeError] = useState('');
+  const [fixingNegatives, setFixingNegatives] = useState(false);
+  const [negativeMessage, setNegativeMessage] = useState('');
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -145,6 +148,40 @@ const StockTakingPanel = ({ storeId }) => {
     } finally {
       setFinalizing(false);
       setFinalizeProgress(null);
+    }
+  };
+
+  // マイナス在庫を0に修正する(棚卸しと無関係にいつでも実行可)。
+  const handleFixNegatives = async () => {
+    if (!storeId) return;
+    if (!window.confirm('マイナス在庫の商品をすべて0に修正します。よろしいですか?')) return;
+
+    setFixingNegatives(true);
+    setNegativeMessage('');
+    try {
+      const ids = await zeroNegativeInventory(storeId);
+      if (ids.length === 0) {
+        setNegativeMessage('マイナス在庫の商品はありませんでした。');
+        return;
+      }
+      setNegativeMessage(`${ids.length}件のマイナス在庫を0に修正しました。`);
+
+      // 在庫連携ON(prod想定)なら Shopify on_hand も0へ。fire-and-forget・200件ずつ。
+      (async () => {
+        try {
+          const idToken = await getAuth().currentUser?.getIdToken?.();
+          for (let i = 0; i < ids.length; i += 200) {
+            await pushInventoryToShopify({ storeId, productIds: ids.slice(i, i + 200), idToken });
+          }
+        } catch (pushError) {
+          console.warn('failed to push negative-fix inventory to Shopify', pushError);
+        }
+      })();
+    } catch (error) {
+      console.error('failed to fix negative inventory', error);
+      setNegativeMessage(`修正に失敗しました: ${error?.message || error}`);
+    } finally {
+      setFixingNegatives(false);
     }
   };
 
@@ -257,6 +294,29 @@ const StockTakingPanel = ({ storeId }) => {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-slate-900">マイナス在庫の修正</p>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+              売り越しなどで在庫がマイナスになった商品を、まとめて0に修正します。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleFixNegatives}
+            disabled={fixingNegatives}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {fixingNegatives ? <LoadingSpinner size={16} /> : null}
+            マイナス在庫を0に修正
+          </button>
+        </div>
+        {negativeMessage ? (
+          <p className="mt-3 text-xs font-bold text-slate-600">{negativeMessage}</p>
+        ) : null}
       </div>
 
       {finalizeResults ? (

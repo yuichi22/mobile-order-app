@@ -575,3 +575,31 @@ export const finalizeStocktake = async (storeId, stocktakeId, onProgress) => {
 
   return results;
 };
+
+// マイナス在庫(inventoryQuantity<0)の商品をすべて0に修正する。
+// 棚卸しと無関係にいつでも実行できるメンテナンス用。修正した productId 配列を返す
+// (Shopify push 用)。
+export const zeroNegativeInventory = async (storeId) => {
+  if (!isValidStoreId(storeId)) throw new Error('invalid storeId');
+
+  const negQuery = query(storeCollectionRef(storeId, 'products'), where('inventoryQuantity', '<', 0));
+  const snapshot = await getDocs(negQuery);
+  const fixedIds = snapshot.docs.map((docSnap) => docSnap.id);
+  if (fixedIds.length === 0) return [];
+
+  let batch = writeBatch(db);
+  let ops = 0;
+  for (const docSnap of snapshot.docs) {
+    batch.set(doc(db, 'stores', storeId, 'products', docSnap.id), {
+      inventoryQuantity: 0, quantity: 0, updatedAt: serverTimestamp()
+    }, { merge: true });
+    batch.set(doc(db, 'stores', storeId, 'inventory', docSnap.id), {
+      productId: docSnap.id, quantity: 0, updatedAt: serverTimestamp()
+    }, { merge: true });
+    ops += 2;
+    if (ops >= 480) { await batch.commit(); batch = writeBatch(db); ops = 0; }
+  }
+  if (ops > 0) await batch.commit();
+
+  return fixedIds;
+};
