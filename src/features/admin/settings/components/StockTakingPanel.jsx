@@ -101,7 +101,14 @@ const StockTakingPanel = ({ storeId }) => {
 
   const handleFinalize = async () => {
     if (!storeId || !activeStocktake?.id) return;
-    if (!window.confirm('棚卸しを終了します。カウントされなかった商品の在庫は0になります。よろしいですか?')) return;
+
+    const baseConfirm = '棚卸しを終了します。カウントされなかった商品の在庫は0になります。よろしいですか?';
+    // 数え直しリストに未処理の商品が残っている時は、軽く注意を前置きする。
+    const remainingRecount = displayItems.filter((item) => item.needsRecount).length;
+    const confirmMessage = remainingRecount > 0
+      ? `数え直しリストに未処理の商品が${remainingRecount}点あります。\nこのまま終了すると、現在の数のまま在庫に確定されます。\n\n${baseConfirm}`
+      : baseConfirm;
+    if (!window.confirm(confirmMessage)) return;
 
     setFinalizing(true);
     setFinalizeError('');
