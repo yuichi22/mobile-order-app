@@ -254,13 +254,18 @@ const isRetailExtraItem = (item) => (
 
 const buildTicketItemKey = (item) => {
   const optionsKey = Array.isArray(item?.options) ? item.options.join('|') : '';
+  const ld = item?.lineDiscount;
+  const lineDiscountKey = ld && Number(ld.amount || 0) > 0
+    ? `${ld.type || ''}:${ld.value || ''}:${ld.accountingCategory || ''}`
+    : '';
   return [
     isRetailExtraItem(item) ? 'retail' : 'order',
     item?.productId || item?.id || item?.name || '',
     Number(item?.unitPrice || 0),
     item?.isTakeout === true ? 'takeout' : 'store',
     item?.taxRate || '',
-    optionsKey
+    optionsKey,
+    lineDiscountKey
   ].join('::');
 };
 
@@ -2508,6 +2513,18 @@ export const PosTransactionHistory = ({
                                     <span className="mt-1 text-[11px] font-medium tabular-nums text-gray-400">
                                       ¥{Number(item.unitPrice || 0).toLocaleString()} x {originalQty}
                                     </span>
+                                    {item.lineDiscount && Number(item.lineDiscount.amount || 0) > 0 && (
+                                      <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-red-500">
+                                        <Tag size={10} />
+                                        <span>
+                                          {item.lineDiscount.accountingCategory === 'promo_expense' ? '販促費' : '売上値引'}
+                                          {item.lineDiscount.type === 'percent' && Number(item.lineDiscount.value) > 0
+                                            ? `（${Number(item.lineDiscount.value)}%）`
+                                            : ''}
+                                        </span>
+                                        <span className="tabular-nums">-¥{Number(item.lineDiscount.amount || 0).toLocaleString()}</span>
+                                      </span>
+                                    )}
                                     {Array.isArray(item.options) && item.options.length > 0 && (
                                       <span className="mt-1 text-[11px] text-gray-400">
                                         オプション: {item.options.join(' / ')}
@@ -2541,24 +2558,41 @@ export const PosTransactionHistory = ({
                         )}
 
                         <div className="mt-6 space-y-2 border-t-2 border-dashed border-gray-200 pt-4 text-xs font-bold text-gray-500">
-                          {Number(ticket.discountAmount || 0) > 0 && (
-                            <div className="flex justify-between pb-1 text-red-500">
-                              <div className="flex items-center gap-1">
-                                <Tag size={12} />
-                                <span>{ticket.discountLabelName ? `売上値引（${ticket.discountLabelName}）` : '売上値引'}</span>
-                              </div>
-                              <span className="tabular-nums">-¥{Number(ticket.discountAmount || 0).toLocaleString()}</span>
-                            </div>
-                          )}
-                          {Number(ticket.promoExpenseAmount || 0) > 0 && (
-                            <div className="flex justify-between pb-1 text-emerald-600">
-                              <div className="flex items-center gap-1">
-                                <Tag size={12} />
-                                <span>{ticket.promoLabelName ? `販促費（${ticket.promoLabelName}）` : '販促費'}</span>
-                              </div>
-                              <span className="tabular-nums">-¥{Number(ticket.promoExpenseAmount || 0).toLocaleString()}</span>
-                            </div>
-                          )}
+                          {(() => {
+                            // 商品ごとのline割引は各商品の下に表示するため、合計表示からは差し引く。
+                            // (全体手入力値引きは廃止済みのため、line割引分を引くと通常はゼロ＝非表示)
+                            const sumLine = (cat) => (ticket.items || []).reduce((sum, it) => {
+                              const ld = it.lineDiscount;
+                              if (!ld || Number(ld.amount || 0) <= 0) return sum;
+                              const c = ld.accountingCategory === 'promo_expense' ? 'promo_expense'
+                                : ld.accountingCategory === 'voucher_payment' ? 'voucher_payment' : 'sales_discount';
+                              return c === cat ? sum + Number(ld.amount || 0) : sum;
+                            }, 0);
+                            const overallSales = Math.max(0, Number(ticket.discountAmount || 0) - sumLine('sales_discount'));
+                            const overallPromo = Math.max(0, Number(ticket.promoExpenseAmount || 0) - sumLine('promo_expense'));
+                            return (
+                              <>
+                                {overallSales > 0 && (
+                                  <div className="flex justify-between pb-1 text-red-500">
+                                    <div className="flex items-center gap-1">
+                                      <Tag size={12} />
+                                      <span>{ticket.discountLabelName ? `売上値引（${ticket.discountLabelName}）` : '売上値引'}</span>
+                                    </div>
+                                    <span className="tabular-nums">-¥{overallSales.toLocaleString()}</span>
+                                  </div>
+                                )}
+                                {overallPromo > 0 && (
+                                  <div className="flex justify-between pb-1 text-emerald-600">
+                                    <div className="flex items-center gap-1">
+                                      <Tag size={12} />
+                                      <span>{ticket.promoLabelName ? `販促費（${ticket.promoLabelName}）` : '販促費'}</span>
+                                    </div>
+                                    <span className="tabular-nums">-¥{overallPromo.toLocaleString()}</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                           {Number(ticket.voucherAmount || 0) > 0 && (
                             <div className="flex justify-between pb-1 text-sky-600">
                               <div className="flex items-center gap-1">
