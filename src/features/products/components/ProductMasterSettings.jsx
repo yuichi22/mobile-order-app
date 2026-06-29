@@ -2663,14 +2663,10 @@ const ProductMasterTable = ({
         ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {})
       });
 
-      const records = await getProductInventoryAdjustmentHistory(storeId, adjustedProductId);
-      setInventoryAdjustHistoryRecords(records);
-      setInventoryAdjustModalRow((current) => (current
-        ? { ...current, inventoryUnmanaged: unmanaged, ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {}) }
-        : current));
-      setInventoryAdjustNote('');
-
       onSaved?.();
+      setInventoryAdjustSaving(false);
+      closeInventoryAdjustModal(); // 保存後はモーダルを閉じる
+      return;
     } catch (error) {
       console.error('failed to adjust inventory', error);
       window.alert('在庫調整に失敗しました');
