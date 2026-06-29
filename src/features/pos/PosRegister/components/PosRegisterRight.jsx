@@ -3,15 +3,13 @@ import {
   CheckCircle,
   ChevronRight,
   CreditCard,
-  Delete,
   DollarSign,
   LogOut,
   Percent,
   QrCode,
   ScanQrCode,
   ShoppingBag,
-  Store,
-  X
+  Store
 } from 'lucide-react';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from '../../utils/paymentSplit';
 
@@ -77,12 +75,7 @@ export const PosRegisterRight = ({
   setPaymentMethod,
   allowedPaymentMethods,
   changeAmount,
-  isEverythingTakeout,
   allowTakeout,
-  issueReceipt,
-  setIssueReceipt,
-  recipientName,
-  setRecipientName,
   checkoutSelectionMode,
   selectedItemCount,
   totalPayableItemCount,
@@ -90,19 +83,13 @@ export const PosRegisterRight = ({
   consolidatedItems,
   takeoutItemKeys,
   setShowDiscountModal,
-  handleBulkTakeout,
   showSuccessModal,
   showAbortModal,
   isPaymentSubmitting,
   isPaymentFlowLocked,
   handlePayment,
-  handleAbortSession,
-  tableId,
-  tableDisplayName,
-  onClose
+  handleAbortSession
 }) => {
-  const tableTitle = tableDisplayName || tableId || '';
-
   const taxLabel = useMemo(() => {
     const standardLabel = `${settings?.taxRate || 10}%`;
     const reducedLabel = `${settings?.taxRateReduced || 8}%`;
@@ -208,30 +195,7 @@ export const PosRegisterRight = ({
 
   return (
     <div className="relative flex h-full min-h-0 w-5/12 flex-col overflow-hidden bg-white">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3">
-        <div className="min-w-0">
-          <h2 className="flex min-w-0 items-center gap-2 text-xl font-black text-gray-900">
-            <span className="shrink-0">会計伝票</span>
-            {tableTitle && (
-              <span className="min-w-0 truncate text-gray-500">
-                {tableTitle}
-              </span>
-            )}
-          </h2>
-        </div>
-
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            aria-label="会計伝票を閉じる"
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
-
+      {/* 会計伝票ヘッダ(テーブル名/×)は廃止。テーブル名は左ペインの戻るボタン横に表示する。 */}
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="mb-3 shrink-0 space-y-2">
           <div className="grid gap-2">
@@ -292,7 +256,7 @@ export const PosRegisterRight = ({
           </div>
         </div>
 
-        <div className="mb-3 shrink-0 rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm">
+        <div className="mb-3 shrink-0">
           <div className={`grid gap-2 ${availablePaymentMethods.length === 1 ? 'grid-cols-1' : availablePaymentMethods.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
             {availablePaymentMethods.map((method) => (
               <button
@@ -313,77 +277,76 @@ export const PosRegisterRight = ({
 
         {paymentMethod === 'cash' ? (
           <div className="flex min-h-0 flex-1 flex-col pb-2">
-            <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="shrink-0 text-xs font-bold text-gray-500">お預かり</span>
-                    <span className="min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
-                      ¥{(Number(paymentAmount) || 0).toLocaleString()}
-                    </span>
-                  </div>
+            <div className="mb-3 grid shrink-0 grid-cols-2 gap-2">
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-bold text-gray-500">お預かり</span>
+                  <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
+                    ¥{(Number(paymentAmount) || 0).toLocaleString()}
+                  </span>
                 </div>
+              </div>
 
-                <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="shrink-0 text-xs font-bold text-gray-500">おつり</span>
-                    <span className={`min-w-0 truncate text-right font-mono text-3xl font-black tracking-tight ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                      ¥{changeAmount.toLocaleString()}
-                    </span>
-                  </div>
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-bold text-gray-500">おつり</span>
+                  <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                    ¥{changeAmount.toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[96px_1fr] gap-2">
-              <div className="grid grid-rows-4 gap-1.5">
-                {[1000, 5000, 10000].map((amount) => (
+            {/* POSと同じ4列均等グリッド。各行=クイック加算1つ＋数字3つ(行優先)。 */}
+            <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-4 gap-1.5">
+              {[
+                { row: 1000, nums: [7, 8, 9] },
+                { row: 5000, nums: [4, 5, 6] },
+                { row: 10000, nums: [1, 2, 3] }
+              ].map(({ row, nums }) => (
+                <React.Fragment key={row}>
                   <button
-                    key={amount}
-                    onClick={() => handleQuickAdd(amount)}
-                    className="min-h-[56px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    onClick={() => handleQuickAdd(row)}
+                    className="min-h-[50px] rounded-xl border border-gray-200 bg-white px-2 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                   >
-                    +{amount.toLocaleString()}
+                    +{row.toLocaleString()}
                   </button>
-                ))}
+                  {nums.map((number) => (
+                    <button
+                      key={number}
+                      onClick={() => handleNumClick(String(number))}
+                      className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    >
+                      {number}
+                    </button>
+                  ))}
+                </React.Fragment>
+              ))}
 
-                <button
-                  onClick={handleFullPayment}
-                  className="min-h-[56px] rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
-                >
-                  ちょうど
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 gap-1.5">
-                {[7, 8, 9, 4, 5, 6, 1, 2, 3].map((number) => (
-                  <button
-                    key={number}
-                    onClick={() => handleNumClick(String(number))}
-                    className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                  >
-                    {number}
-                  </button>
-                ))}
-                <button
-                  onClick={() => handleNumClick('0')}
-                  className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                >
-                  0
-                </button>
-                <button
-                  onClick={() => handleNumClick('00')}
-                  className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                >
-                  00
-                </button>
-                <button
-                  onClick={() => handleNumClick('backspace')}
-                  className="flex min-h-[56px] items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
-                >
-                  <Delete size={24} />
-                </button>
-              </div>
+              <button
+                onClick={handleFullPayment}
+                className="min-h-[50px] rounded-xl border border-blue-200 bg-blue-50 px-2 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+              >
+                ちょうど
+              </button>
+              <button
+                onClick={() => handleNumClick('0')}
+                className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+              >
+                0
+              </button>
+              <button
+                onClick={() => handleNumClick('00')}
+                className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+              >
+                00
+              </button>
+              <button
+                onClick={() => handleNumClick('backspace')}
+                className="min-h-[50px] rounded-xl border border-red-100 bg-red-50 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
+              >
+                削除
+              </button>
             </div>
           </div>
         ) : paymentSplit.isSplit ? (
@@ -458,10 +421,10 @@ export const PosRegisterRight = ({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-3">
+      <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3">
         <div className="space-y-2">
           {orders.length > 0 && (
-            <div className="grid grid-cols-[96px_1fr] gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               <button
                 type="button"
                 onPointerDown={startAbortLongPress}
@@ -478,7 +441,7 @@ export const PosRegisterRight = ({
               <button
                 onClick={handlePayment}
                 disabled={isPaymentDisabled || isPaymentSubmitting}
-                className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
+                className={`col-span-3 flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] ${
                   isPaymentDisabled
                     ? 'bg-gray-300 text-gray-500'
                     : paymentActionClassName

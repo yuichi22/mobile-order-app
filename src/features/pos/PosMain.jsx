@@ -35,6 +35,9 @@ import UncodedSaleModal from './components/UncodedSaleModal';
 import PosFavoritesModal from './components/PosFavoritesModal';
 import { PosModals } from './PosRegister/components/PosModals';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
+import { pushInventoryToShopify } from '../store/services/storeDataService';
+import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../inventory/services/stocktakeDataService';
+import { getAuth } from 'firebase/auth';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
@@ -112,7 +115,7 @@ const writePosHoldsToStorage = (storeId, holds) => {
 // 既定は false。棚卸しで在庫を確定し、在庫数を信頼できるようになったら true に戻すと品切れ商品の販売を防げる。
 const POS_ENFORCE_STOCK_LIMIT = false;
 
-// 1カート行の金額figure。商品個別割引(lineDiscount, percentのみ)を適用した
+// 1カート行の金額figure。商品個別割引(lineDiscount, percent / amount)を適用した
 // 税込/税抜/税(割引後)と、割引前税込(includedRaw)・割引額(discountMoney=税込)を返す。
 // 割引は入力ライン額(価格×数量)に対して適用するため、無割引時は従来計算と完全に一致する。
 const computeCartLineFigures = (item, modeTax, registerMode) => {
@@ -127,7 +130,9 @@ const computeCartLineFigures = (item, modeTax, registerMode) => {
   const pct = ld && ld.type === 'percent'
     ? Math.max(0, Math.min(100, Number(ld.value) || 0))
     : 0;
-  const discountInput = pct > 0 ? Math.floor(lineAmount * (pct / 100)) : 0;
+  const discountInput = ld && ld.type === 'amount'
+    ? Math.max(0, Math.min(lineAmount, Math.floor(Number(ld.value) || 0)))
+    : (pct > 0 ? Math.floor(lineAmount * (pct / 100)) : 0);
   const netInput = Math.max(0, lineAmount - discountInput);
 
   const rawBreakdown = computeLineTaxBreakdown(lineAmount, itemRate, modeTax.priceBase, modeTax.rounding);
@@ -212,6 +217,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 商品個別割引(percent)モーダルの対象カート行ID。null=閉。
   const [lineDiscountTargetId, setLineDiscountTargetId] = useState(null);
   const [lineDiscountManualValue, setLineDiscountManualValue] = useState('');
+  // 単品割引の入力方法(percent=%割引 / amount=金額割引)。既定は%。
+  const [lineDiscountMode, setLineDiscountMode] = useState('percent');
   // 単品割引の会計区分(売上値引き/販促費)。
   const [lineDiscountCategory, setLineDiscountCategory] = useState('sales_discount');
   const [isTakeoutSubmitting, setIsTakeoutSubmitting] = useState(false);
@@ -357,6 +364,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       barcode: product.barcode || '',
       sku: product.sku || product.productCode || '',
       stockQuantity,
+      inventoryUnmanaged: Boolean(product.inventoryUnmanaged),
       quantity: 1
     });
 
@@ -566,7 +574,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         id: item.lineDiscount?.discountId || null,
         name: item.lineDiscount?.name
           ? `${item.name} / ${item.lineDiscount.name}`
-          : `${item.name} ${figures.discountPercent}%OFF`,
+          : (item.lineDiscount?.type === 'amount'
+              ? `${item.name} ¥${Number(figures.discountMoney || 0).toLocaleString()}引き`
+              : `${item.name} ${figures.discountPercent}%OFF`),
         accountingCategory: item.lineDiscount?.accountingCategory || 'sales_discount',
         amount: Number(figures.discountMoney || 0)
       }))
@@ -764,11 +774,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       return;
     }
 
+    // 復帰した保留はカートへ移すので保留リストからは削除する(二重表示を防ぐ)。
+    // 復帰後のカートは通常の作業カート扱い(再度保留すれば新規保留として登録)。
+    savePosHolds(posHolds.filter((item) => item.id !== holdId));
+
     setTakeoutCart(Array.isArray(hold.cart) ? hold.cart : []);
     if (registerMode === 'pos') setIsTakeoutMode(true);
     setTakeoutPaymentAmount('');
     setTakeoutPaymentMethod('');
-    setActivePosHoldId(hold.id);
+    setActivePosHoldId('');
     setPosMessage(`${hold.title || '保留'} を復帰しました。`, 'success');
   };
 
@@ -929,11 +943,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           originalLineTotal: figures.includedRaw,
           lineDiscount: hasLineDiscount
             ? {
-                type: 'percent',
-                value: figures.discountPercent,
+                type: item.lineDiscount?.type === 'amount' ? 'amount' : 'percent',
+                value: item.lineDiscount?.type === 'amount'
+                  ? (Number(item.lineDiscount?.value) || figures.discountMoney)
+                  : figures.discountPercent,
                 amount: figures.discountMoney,
                 discountId: item.lineDiscount?.discountId || null,
-                name: item.lineDiscount?.name || `${figures.discountPercent}%OFF`,
+                name: item.lineDiscount?.name
+                  || (item.lineDiscount?.type === 'amount'
+                      ? `¥${Number(figures.discountMoney || 0).toLocaleString()}OFF`
+                      : `${figures.discountPercent}%OFF`),
                 accountingCategory: item.lineDiscount?.accountingCategory || 'sales_discount'
               }
             : null,
@@ -1260,6 +1279,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const retailQuantityByProductId = new Map();
       takeoutCart.forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
+        if (item.inventoryUnmanaged) return; // 在庫管理をしない商品は減算しない(固定)
         const quantity = Math.max(Number(item.quantity || 0), 0);
         if (quantity <= 0) return;
         retailQuantityByProductId.set(
@@ -1279,6 +1299,36 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       });
 
       await batch.commit();
+
+      // 店頭(retail)販売の在庫連動。棚卸し進行中なら棚卸しカウントへ反映し、
+      // 在庫連携ON(prodのみ)なら販売後の在庫をShopifyへ反映する(関数側でゲート)。
+      if (retailQuantityByProductId.size > 0) {
+        const soldProductIds = [...retailQuantityByProductId.keys()];
+
+        void (async () => {
+          try {
+            const activeStocktake = await getActiveStocktake(storeId);
+            if (activeStocktake?.id) {
+              const soldItems = [...retailQuantityByProductId.entries()]
+                .map(([productId, quantity]) => ({ productId, quantity }));
+              await applyStocktakeSaleAdjustment(storeId, activeStocktake.id, soldItems);
+            }
+          } catch (stocktakeError) {
+            console.error('棚卸し連動エラー:', stocktakeError);
+          }
+        })();
+
+        void (async () => {
+          try {
+            const idToken = await getAuth().currentUser?.getIdToken?.();
+            if (idToken) {
+              await pushInventoryToShopify({ storeId, productIds: soldProductIds, idToken });
+            }
+          } catch (shopifyError) {
+            console.error('Shopify在庫反映エラー:', shopifyError);
+          }
+        })();
+      }
 
       clearActivePosHoldAfterPayment();
       setTakeoutCart([]);
@@ -1684,6 +1734,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 setTakeoutPaymentAmount('');
                 setTakeoutPaymentMethod('');
                 setActivePosHoldId('');
+                setIsTakeoutMode(false); // クリアで履歴表示へ戻る(×ボタン廃止に伴う戻り導線)
                 setPosMessage('仮伝票をクリアしました。', 'success');
               }}
               disabled={takeoutCart.length === 0}
@@ -1740,7 +1791,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               const linePct = item.lineDiscount?.type === 'percent'
                 ? Math.max(0, Math.min(100, Number(item.lineDiscount.value) || 0))
                 : 0;
-              const lineDiscountInput = linePct > 0 ? Math.floor(lineAmount * (linePct / 100)) : 0;
+              const lineDiscountInput = item.lineDiscount?.type === 'amount'
+                ? Math.max(0, Math.min(lineAmount, Math.floor(Number(item.lineDiscount.value) || 0)))
+                : (linePct > 0 ? Math.floor(lineAmount * (linePct / 100)) : 0);
               const lineNet = Math.max(0, lineAmount - lineDiscountInput);
               const hasLineDiscount = lineDiscountInput > 0;
               return (
@@ -1760,8 +1813,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-2 py-0.5 text-[11px] font-black text-orange-700">
                         <Percent size={11} />
                         {item.lineDiscount?.name
-                          ? `${item.lineDiscount.name} (${linePct}%)`
-                          : `${linePct}%OFF`}
+                          ? item.lineDiscount.name
+                          : (item.lineDiscount?.type === 'amount'
+                              ? `¥${lineDiscountInput.toLocaleString()}OFF`
+                              : `${linePct}%OFF`)}
                         <span className="font-mono">-¥{lineDiscountInput.toLocaleString()}</span>
                       </div>
                     )}
@@ -1817,7 +1872,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <button
                       type="button"
                       onClick={() => {
-                        setLineDiscountManualValue(hasLineDiscount ? String(linePct) : '');
+                        setLineDiscountMode(item.lineDiscount?.type === 'amount' ? 'amount' : 'percent');
+                        setLineDiscountManualValue(
+                          item.lineDiscount ? String(Number(item.lineDiscount.value) || '') : ''
+                        );
                         setLineDiscountCategory(item.lineDiscount?.accountingCategory || 'sales_discount');
                         setLineDiscountTargetId(item.id);
                       }}
@@ -1856,6 +1914,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     <>
     <div ref={containerRef} className="relative flex h-full select-none overflow-hidden bg-slate-100">
       <div style={{ width: `${splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pr-1">
+            {/* スキャン枠の上ラインを右ペインの白カード枠の上ラインに合わせる(両方とも各ペインのp-4=16px)。
+                右はカード端=下のカート枠端で一直線。カード p-4 にして中の開くの右が下のクリアの右と揃う。 */}
         <div className="mb-4 flex shrink-0 items-center gap-3">
           {onBack && (
             <button
@@ -1868,7 +1928,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <ChevronLeft size={20} />
             </button>
           )}
-          <div className="flex-1 rounded-xl bg-white p-3 shadow-sm">
+          <div className="flex-1 rounded-xl bg-white p-4 shadow-sm">
             <form onSubmit={handleScanSubmit} className="flex items-center gap-2">
               <div className="relative flex-grow">
                 <Barcode className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -1960,12 +2020,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <div className="flex h-full min-h-0 flex-col bg-slate-50">
                 {/* iPad小画面でもカートを広く見せるため、売り場カラムは細め(約1/3)・カートを中央で広く。 */}
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(96px,1fr)_minmax(0,2fr)] gap-0">
-                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-2">
+                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-4">
                     {/* よく売る商品をワンタップで出せるお気に入り(モーダル)。売り場ボタンの一番上に配置。 */}
                     <button
                       type="button"
                       onClick={() => setFavoritesModalOpen(true)}
-                      className="mb-2 flex min-h-[48px] w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-2 text-left shadow-sm transition-all hover:bg-slate-900 active:scale-[0.99]"
+                      className="mb-2 flex h-11 w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-2.5 text-left shadow-sm transition-all hover:bg-slate-900 active:scale-[0.99]"
                     >
                       <Star size={16} className="shrink-0 text-slate-200" />
                       <span className="text-xs font-black leading-tight text-white">お気に入り</span>
@@ -2229,24 +2289,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       <div style={{ width: `${100 - splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pl-1">
         {isTakeoutMode ? (
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm">
-            {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。 */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
-                    <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
-                    {takeoutDiscountAmount > 0 && (
-                      <span>割引 -¥{takeoutDiscountAmount.toLocaleString()}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={closeTakeoutMode}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    aria-label={registerMode === 'pos' ? 'POS会計を閉じる' : 'テイクアウト会計を閉じる'}
-                  >
-                    <X size={15} />
-                  </button>
+            {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。
+                body を縦flexにし、合計/支払い方法は固定・入力エリアを伸ばして下の隙間を無くす。 */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+              <div className="mb-2 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-3.5">
+                <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+                  <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
+                  {takeoutDiscountAmount > 0 && (
+                    <span>割引 -¥{takeoutDiscountAmount.toLocaleString()}</span>
+                  )}
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="shrink-0 text-sm font-black text-slate-600">お支払い額</span>
@@ -2256,14 +2307,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
               </div>
 
-              <div className="mb-3 rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm">
+              <div className="mb-2 shrink-0">
                 <div className="grid grid-cols-3 gap-2">
                   {TAKEOUT_PAYMENT_METHOD_OPTIONS.map((method) => (
                     <button
                       key={method.id}
                       type="button"
                       onClick={() => setTakeoutPaymentMethod(method.id)}
-                      className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
+                      className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-black transition-all active:scale-[0.98] ${
                         takeoutPaymentMethod === method.id
                           ? method.activeClassName
                           : method.inactiveClassName
@@ -2277,89 +2328,88 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               </div>
 
               {takeoutPaymentMethod === 'cash' ? (
-                <div className="flex min-h-0 flex-col pb-2">
-                  <div className="mb-3 shrink-0 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-gray-500">お預かり</span>
-                          <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
-                            ¥{(Number(takeoutPaymentAmount) || 0).toLocaleString()}
-                          </span>
-                        </div>
+                <div className="flex min-h-0 flex-1 flex-col pb-2">
+                  <div className="mb-2 grid shrink-0 grid-cols-2 gap-2">
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-gray-500">お預かり</span>
+                        <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
+                          ¥{(Number(takeoutPaymentAmount) || 0).toLocaleString()}
+                        </span>
                       </div>
+                    </div>
 
-                      <div className="min-w-0 rounded-xl bg-white px-3 py-3 shadow-sm">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-gray-500">おつり</span>
-                          <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                            ¥{takeoutChangeAmount.toLocaleString()}
-                          </span>
-                        </div>
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-gray-500">おつり</span>
+                        <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                          ¥{takeoutChangeAmount.toLocaleString()}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid min-h-[300px] grid-cols-[96px_1fr] gap-2">
-                    <div className="grid grid-rows-4 gap-1.5">
-                      {[1000, 5000, 10000].map((amount) => (
+                  {/* 4列均等。各行=クイック加算1つ＋数字3つ(行優先)。全ボタン同じ幅。 */}
+                  <div className="grid min-h-[200px] flex-1 grid-cols-4 grid-rows-4 gap-1.5">
+                    {[
+                      { row: 1000, nums: [7, 8, 9] },
+                      { row: 5000, nums: [4, 5, 6] },
+                      { row: 10000, nums: [1, 2, 3] }
+                    ].map(({ row, nums }) => (
+                      <React.Fragment key={row}>
                         <button
-                          key={amount}
                           type="button"
-                          onClick={() => setTakeoutPaymentAmount((previous) => String((parseInt(previous, 10) || 0) + amount))}
-                          className="min-h-[56px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                          onClick={() => setTakeoutPaymentAmount((previous) => String((parseInt(previous, 10) || 0) + row))}
+                          className="min-h-[50px] rounded-xl border border-gray-200 bg-white px-2 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
                         >
-                          +{amount.toLocaleString()}
+                          +{row.toLocaleString()}
                         </button>
-                      ))}
+                        {nums.map((number) => (
+                          <button
+                            key={number}
+                            type="button"
+                            onClick={() => setTakeoutPaymentAmount((previous) => `${previous}${number}`)}
+                            className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                          >
+                            {number}
+                          </button>
+                        ))}
+                      </React.Fragment>
+                    ))}
 
-                      <button
-                        type="button"
-                        onClick={() => setTakeoutPaymentAmount(String(takeoutCartTotal))}
-                        className="min-h-[56px] rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
-                      >
-                        ちょうど
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {[7, 8, 9, 4, 5, 6, 1, 2, 3].map((number) => (
-                        <button
-                          key={number}
-                          type="button"
-                          onClick={() => setTakeoutPaymentAmount((previous) => `${previous}${number}`)}
-                          className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                        >
-                          {number}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setTakeoutPaymentAmount((previous) => `${previous}0`)}
-                        className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                      >
-                        0
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTakeoutPaymentAmount((previous) => `${previous}00`)}
-                        className="min-h-[56px] rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
-                      >
-                        00
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTakeoutPaymentAmount((previous) => previous.slice(0, -1))}
-                        className="min-h-[56px] rounded-xl border border-red-100 bg-red-50 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
-                      >
-                        削除
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTakeoutPaymentAmount(String(takeoutCartTotal))}
+                      className="min-h-[50px] rounded-xl border border-blue-200 bg-blue-50 px-2 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                    >
+                      ちょうど
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTakeoutPaymentAmount((previous) => `${previous}0`)}
+                      className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-xl font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTakeoutPaymentAmount((previous) => `${previous}00`)}
+                      className="min-h-[50px] rounded-xl border border-gray-200 bg-white text-lg font-bold text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-95"
+                    >
+                      00
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTakeoutPaymentAmount((previous) => previous.slice(0, -1))}
+                      className="min-h-[50px] rounded-xl border border-red-100 bg-red-50 text-sm font-black text-red-500 shadow-sm transition-all hover:bg-red-100 active:scale-95"
+                    >
+                      削除
+                    </button>
                   </div>
                 </div>
               ) : (
                 takeoutPaymentSplit.isSplit ? (
-                  <div className="mb-3 flex min-h-[360px] flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
+                  <div className="mb-3 flex min-h-[200px] flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
                     <div className="mb-1 text-center text-sm font-black text-blue-700">
                       現金・{getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}の分割会計
                     </div>
@@ -2384,7 +2434,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     </p>
                   </div>
                 ) : (
-                <div className={`mb-3 flex min-h-[360px] flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
+                <div className={`mb-3 flex min-h-[200px] flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
                   selectedTakeoutPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-400'
                 }`}>
                   {!takeoutPaymentMethod && (
@@ -2485,28 +2535,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     {lineDiscountTarget && (() => {
       const targetLineAmount = Number(lineDiscountTarget.takeoutPrice || 0) * Number(lineDiscountTarget.quantity || 0);
-      const currentPct = lineDiscountTarget.lineDiscount?.type === 'percent'
-        ? Number(lineDiscountTarget.lineDiscount.value) || 0
-        : 0;
       const category = lineDiscountCategory === 'promo_expense' ? 'promo_expense' : 'sales_discount';
       const categoryLabel = category === 'promo_expense' ? '販促費' : '売上値引き';
+      const mode = lineDiscountMode === 'amount' ? 'amount' : 'percent';
       const closeModal = () => { setLineDiscountTargetId(null); setLineDiscountManualValue(''); };
-      const inputPct = Math.max(0, Math.min(100, Number(lineDiscountManualValue) || 0));
-      const previewDiscount = inputPct > 0 ? Math.floor(targetLineAmount * (inputPct / 100)) : 0;
+      const switchMode = (next) => { setLineDiscountMode(next); setLineDiscountManualValue(''); };
+      const rawNum = Number(lineDiscountManualValue) || 0;
+      const inputPct = mode === 'percent' ? Math.max(0, Math.min(100, rawNum)) : 0;
+      const inputAmount = mode === 'amount' ? Math.max(0, Math.min(targetLineAmount, Math.floor(rawNum))) : 0;
+      const previewDiscount = mode === 'percent'
+        ? (inputPct > 0 ? Math.floor(targetLineAmount * (inputPct / 100)) : 0)
+        : inputAmount;
 
       const appendDigit = (digit) => setLineDiscountManualValue((prev) => {
         const base = (prev && prev !== '0') ? prev : '';
-        const next = (base + digit).slice(0, 3);
-        return String(Math.min(100, Number(next) || 0));
+        if (mode === 'percent') {
+          const next = (base + digit).slice(0, 3);
+          return String(Math.min(100, Number(next) || 0));
+        }
+        const next = (base + digit).slice(0, 7);
+        return String(Math.min(targetLineAmount, Number(next) || 0));
       });
       const backspaceDigit = () => setLineDiscountManualValue((prev) => String(prev || '').slice(0, -1));
       const applyManual = () => {
-        if (inputPct <= 0) return;
+        if (previewDiscount <= 0) return;
         applyLineDiscount(lineDiscountTarget.id, {
-          type: 'percent',
-          value: inputPct,
+          type: mode,
+          value: mode === 'percent' ? inputPct : inputAmount,
           discountId: null,
-          name: `${categoryLabel} ${inputPct}%引き`,
+          name: mode === 'percent'
+            ? `${categoryLabel} ${inputPct}%引き`
+            : `${categoryLabel} ¥${inputAmount.toLocaleString()}引き`,
           accountingCategory: category
         });
         closeModal();
@@ -2567,8 +2626,36 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               </div>
 
               <div>
+                <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">割引方法</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'percent', label: '％割引' },
+                    { id: 'amount', label: '金額割引' }
+                  ].map((option) => {
+                    const isSelected = mode === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => switchMode(option.id)}
+                        className={`rounded-xl border-2 px-4 py-3 text-sm font-black transition-all active:scale-95 ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-slate-100 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">割引率</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    {mode === 'amount' ? '割引額' : '割引率'}
+                  </span>
                   {previewDiscount > 0 && (
                     <span className="text-sm font-black text-orange-600">
                       -¥{previewDiscount.toLocaleString()} → ¥{(targetLineAmount - previewDiscount).toLocaleString()}
@@ -2576,8 +2663,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   )}
                 </div>
                 <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
+                  {mode === 'amount' && (
+                    <span className="mr-1 text-2xl font-black text-slate-300">￥</span>
+                  )}
                   <span className="font-mono text-4xl font-black text-slate-800">{lineDiscountManualValue || '0'}</span>
-                  <span className="ml-1 text-2xl font-black text-slate-300">%</span>
+                  {mode === 'percent' && (
+                    <span className="ml-1 text-2xl font-black text-slate-300">%</span>
+                  )}
                 </div>
               </div>
 
@@ -2623,14 +2715,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
               <button
                 type="button"
-                disabled={inputPct <= 0}
+                disabled={previewDiscount <= 0}
                 onClick={applyManual}
                 className="flex h-14 w-full items-center justify-center rounded-xl bg-orange-500 font-black text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
               >
                 {categoryLabel}で適用
               </button>
 
-              {currentPct > 0 && (
+              {lineDiscountTarget.lineDiscount && (
                 <button
                   type="button"
                   onClick={() => { clearLineDiscount(lineDiscountTarget.id); closeModal(); }}

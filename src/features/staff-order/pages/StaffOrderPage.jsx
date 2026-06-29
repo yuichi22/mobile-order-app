@@ -72,6 +72,81 @@ const normalizeTableItems = (layoutItems = []) => (
 
 const getMenuPrice = (item) => Number(item.price ?? item.unitPrice ?? 0);
 
+// ===== メニューオプション (顧客注文側 CustomerApp.jsx と同じデータ形式) =====
+// item.optionGroups: [{ id, name, selectionType: 'single'|'multiple', required, minSelect, sortOrder, options: [{ id, name, price, sortOrder }] }]
+// selectedOptions(フラット): [{ groupId, groupName, optionId, name, price }]
+
+const hasSelectableMenuOptions = (item) => (
+  Array.isArray(item?.optionGroups)
+  && item.optionGroups.some((group) => (
+    Array.isArray(group?.options)
+    && group.options.some((option) => String(option?.name || '').trim())
+  ))
+);
+
+const getSortedOptionGroups = (item) => (
+  Array.isArray(item?.optionGroups)
+    ? [...item.optionGroups]
+        .filter((group) => Array.isArray(group.options) && group.options.length > 0)
+        .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0))
+        .map((group) => ({
+          ...group,
+          options: [...(group.options || [])]
+            .filter((option) => String(option.name || '').trim())
+            .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0))
+        }))
+    : []
+);
+
+const buildDefaultOptionSelections = (item) => {
+  const groups = getSortedOptionGroups(item);
+
+  return groups.reduce((result, group) => {
+    const groupId = group.id || group.name;
+    const firstOption = Array.isArray(group.options) ? group.options[0] : null;
+
+    if (!groupId || !firstOption) return result;
+
+    // 単一選択は先頭を初期選択。複数選択は必須のときだけ先頭を初期選択。
+    const shouldDefaultSelect =
+      group.selectionType !== 'multiple'
+      || group.required === true;
+
+    if (!shouldDefaultSelect) return result;
+
+    const optionId = firstOption.id || firstOption.name;
+
+    return {
+      ...result,
+      [groupId]: [{
+        groupId,
+        groupName: group.name || 'オプション',
+        optionId,
+        name: firstOption.name,
+        price: Number(firstOption.price || 0)
+      }]
+    };
+  }, {});
+};
+
+const flattenSelectedOptions = (selections) => (
+  Object.values(selections || {})
+    .flat()
+    .filter((option) => option && option.name)
+);
+
+const getSelectedOptionsTotal = (options = []) => (
+  options.reduce((sum, option) => sum + (Number(option?.price) || 0), 0)
+);
+
+// 通常価格行のマージ用シグネチャ。オプションが完全一致する行だけ同一視する。
+const buildStaffOptionSignature = (options = []) => (
+  options
+    .map((option) => `${option.groupId || option.groupName || ''}:${option.optionId || option.name || ''}`)
+    .sort()
+    .join(',')
+);
+
 const isStaffOrderMenuItemCustomerVisible = (item, todayKey = getTodayKey()) => {
   const visibility = item?.customerVisibility || 'visible';
 
@@ -825,6 +900,10 @@ const StaffOrderPage = ({ storeId }) => {
   const [replaceSetPriceTarget, setReplaceSetPriceTarget] = useState(null);
   const [crossSellSettings, setCrossSellSettings] = useState(null);
   const [isWideMapViewport, setIsWideMapViewport] = useState(false);
+  // メニューオプション選択モーダル
+  const [optionModalItem, setOptionModalItem] = useState(null);
+  const [optionModalPriceMode, setOptionModalPriceMode] = useState('auto');
+  const [optionSelections, setOptionSelections] = useState({});
 
   const storeName = settings?.name || '店舗';
 
@@ -1354,12 +1433,18 @@ const StaffOrderPage = ({ storeId }) => {
     );
   };
 
-  const addToCart = (item, preferredPriceMode = 'auto') => {
+  const addToCart = (item, preferredPriceMode = 'auto', optionsPayload = null) => {
     setCompletedOrderId('');
     setError('');
 
     const itemId = String(item.id || '').trim();
     if (!itemId) return;
+
+    const selectedOptions = Array.isArray(optionsPayload?.selectedOptions)
+      ? optionsPayload.selectedOptions
+      : [];
+    const optionsTotal = getSelectedOptionsTotal(selectedOptions);
+    const optionSignature = buildStaffOptionSignature(selectedOptions);
 
     setCart((current) => {
       const currentCart = Array.isArray(current) ? current : [];
@@ -1376,10 +1461,12 @@ const StaffOrderPage = ({ storeId }) => {
       }
 
       const appliedPriceMode = canUseCrossSellPrice ? 'crossSell' : 'normal';
-      const unitPrice = canUseCrossSellPrice ? Number(item.crossSellPrice) : normalPrice;
+      const baseUnitPrice = canUseCrossSellPrice ? Number(item.crossSellPrice) : normalPrice;
+      const unitPrice = baseUnitPrice + optionsTotal;
+      // セット価格行は常にユニーク cartId。通常価格行はオプションが完全一致する行だけ同一視する。
       const cartId = appliedPriceMode === 'crossSell'
         ? `${itemId}:crossSell:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
-        : itemId;
+        : (optionSignature ? `${itemId}::${optionSignature}` : itemId);
 
       const nextCartItem = {
         id: itemId,
@@ -1388,11 +1475,14 @@ const StaffOrderPage = ({ storeId }) => {
         quantity: 1,
         unitPrice,
         price: unitPrice,
+        baseUnitPrice,
+        optionTotal: optionsTotal,
+        optionsTotal,
         originalPrice: canUseCrossSellPrice ? normalPrice : null,
         category: item.category || item.categoryId || '',
         categoryId: item.categoryId || item.category || '',
         kitchenName: item.kitchenName || '',
-        selectedOptions: [],
+        selectedOptions,
         allowsTakeout: item.allowsTakeout !== false,
         allergens: item.allergens || [],
         serviceTiming: '',
@@ -1420,7 +1510,7 @@ const StaffOrderPage = ({ storeId }) => {
       }
 
       const existing = currentCart.find((cartItem) => (
-        getCartLineKey(cartItem) === itemId
+        getCartLineKey(cartItem) === cartId
         && cartItem.appliedPriceMode !== 'crossSell'
       ));
 
@@ -1437,6 +1527,100 @@ const StaffOrderPage = ({ storeId }) => {
 
       return nextCart;
     });
+  };
+
+  const toggleOptionSelection = (group, option) => {
+    const groupId = group.id || group.name;
+    const optionId = option.id || option.name;
+    const isMultiple = group.selectionType === 'multiple';
+
+    setOptionSelections((current) => {
+      const currentGroupSelections = Array.isArray(current[groupId])
+        ? current[groupId]
+        : [];
+
+      const entry = {
+        groupId,
+        groupName: group.name || 'オプション',
+        optionId,
+        name: option.name,
+        price: Number(option.price || 0)
+      };
+
+      if (!isMultiple) {
+        return { ...current, [groupId]: [entry] };
+      }
+
+      const exists = currentGroupSelections.some((selected) => String(selected.optionId) === String(optionId));
+
+      return {
+        ...current,
+        [groupId]: exists
+          ? currentGroupSelections.filter((selected) => String(selected.optionId) !== String(optionId))
+          : [...currentGroupSelections, entry]
+      };
+    });
+  };
+
+  const isOptionSelected = (group, option) => {
+    const groupId = group.id || group.name;
+    const optionId = option.id || option.name;
+    const currentGroupSelections = Array.isArray(optionSelections[groupId])
+      ? optionSelections[groupId]
+      : [];
+
+    return currentGroupSelections.some((selected) => String(selected.optionId) === String(optionId));
+  };
+
+  const getMissingRequiredOptionGroups = (item) => (
+    getSortedOptionGroups(item).filter((group) => {
+      if (group.required !== true) return false;
+
+      const groupId = group.id || group.name;
+      const selectedCount = Array.isArray(optionSelections[groupId])
+        ? optionSelections[groupId].length
+        : 0;
+
+      return selectedCount < Math.max(Number(group.minSelect || 1), 1);
+    })
+  );
+
+  const openMenuOptionModal = (item, preferredPriceMode = 'auto') => {
+    setCompletedOrderId('');
+    setError('');
+    setOptionSelections(buildDefaultOptionSelections(item));
+    setOptionModalPriceMode(preferredPriceMode);
+    setOptionModalItem(item);
+  };
+
+  const closeMenuOptionModal = () => {
+    setOptionModalItem(null);
+    setOptionModalPriceMode('auto');
+    setOptionSelections({});
+  };
+
+  const confirmMenuOptionModal = () => {
+    if (!optionModalItem) return;
+    if (getMissingRequiredOptionGroups(optionModalItem).length > 0) return;
+
+    const selectedOptions = flattenSelectedOptions(optionSelections);
+    addToCart(optionModalItem, optionModalPriceMode, { selectedOptions });
+    closeMenuOptionModal();
+  };
+
+  // 商品追加の入口。変更モード中は差し替えを優先し、オプションがある商品はモーダルを挟む。
+  const requestAddToCart = (item, preferredPriceMode = 'auto') => {
+    if (isReplaceMode) {
+      handleReplaceSetPriceItem(item);
+      return;
+    }
+
+    if (hasSelectableMenuOptions(item)) {
+      openMenuOptionModal(item, preferredPriceMode);
+      return;
+    }
+
+    addToCart(item, preferredPriceMode);
   };
 
   const changeQuantity = (cartLineKey, delta) => {
@@ -1903,7 +2087,7 @@ const StaffOrderPage = ({ storeId }) => {
                           return;
                         }
 
-                        addToCart(item, activePriceMode);
+                        requestAddToCart(item, activePriceMode);
                       }}
                       className={`rounded-[1.5rem] border p-5 text-left shadow-sm transition-all active:scale-[0.98] ${
                         isReplaceMode
@@ -1997,7 +2181,7 @@ const StaffOrderPage = ({ storeId }) => {
                                 return;
                               }
 
-                              addToCart(item, activePriceMode);
+                              requestAddToCart(item, activePriceMode);
                             }}
                             onKeyDown={(event) => {
                               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -2009,7 +2193,7 @@ const StaffOrderPage = ({ storeId }) => {
                                 return;
                               }
 
-                              addToCart(item, activePriceMode);
+                              requestAddToCart(item, activePriceMode);
                             }}
                             className={`flex h-11 items-center justify-center rounded-2xl text-white shadow-sm active:scale-95 ${
                               isReplaceMode
@@ -2115,6 +2299,11 @@ const StaffOrderPage = ({ storeId }) => {
                             <p className="mt-1 text-sm font-bold text-slate-500">
                               {formatMoney(item.unitPrice)} × {item.quantity}
                             </p>
+                            {Array.isArray(item.selectedOptions) && item.selectedOptions.length > 0 && (
+                              <p className="mt-1 text-[11px] font-bold text-slate-400">
+                                {item.selectedOptions.map((option) => option.name).join(' / ')}
+                              </p>
+                            )}
                             {item.appliedPriceMode === 'crossSell' && (
                               <p className="mt-1 inline-flex rounded-full bg-orange-100 px-2 py-1 text-[11px] font-black text-orange-700">
                                 {item.priceLabelText || 'セット価格'}
@@ -2219,6 +2408,153 @@ const StaffOrderPage = ({ storeId }) => {
           </section>
         )}
       </main>
+
+      {optionModalItem && (() => {
+        const isSetPriceModal = optionModalPriceMode === 'crossSell';
+        const modalBasePrice = isSetPriceModal
+          ? Number(optionModalItem.crossSellPrice)
+          : getMenuPrice(optionModalItem);
+        const modalSelectedOptions = flattenSelectedOptions(optionSelections);
+        const modalOptionsTotal = getSelectedOptionsTotal(modalSelectedOptions);
+        const modalTotalPrice = modalBasePrice + modalOptionsTotal;
+        const hasMissingRequired = getMissingRequiredOptionGroups(optionModalItem).length > 0;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
+            <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] bg-white shadow-2xl sm:rounded-[1.75rem]">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-6 py-5">
+                <div className="min-w-0">
+                  <p className="text-lg font-black leading-snug text-slate-900">
+                    {optionModalItem.name || '商品'}
+                  </p>
+                  <div className="mt-2">
+                    {isSetPriceModal ? (
+                      <span className="inline-flex rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">
+                        セット価格 {formatMoney(modalBasePrice)}
+                      </span>
+                    ) : (
+                      <span className="text-xl font-black text-blue-600">
+                        {formatMoney(modalBasePrice)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeMenuOptionModal}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-400"
+                  aria-label="閉じる"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="space-y-6">
+                  {getSortedOptionGroups(optionModalItem).map((group) => (
+                    <section key={group.id || group.name}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-black text-slate-900">
+                            {group.name || 'オプション'}
+                          </h4>
+                          <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+                            {group.selectionType === 'multiple' ? '複数選択できます' : '1つ選択してください'}
+                          </p>
+                        </div>
+
+                        {group.required === true && (
+                          <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-600">
+                            必須
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {group.options.map((option) => {
+                          const selected = isOptionSelected(group, option);
+
+                          return (
+                            <button
+                              key={option.id || option.name}
+                              type="button"
+                              onClick={() => toggleOptionSelection(group, option)}
+                              className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition-all active:scale-[0.99] ${
+                                selected
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700'
+                                  : 'border-slate-100 bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-black">
+                                  {option.name}
+                                </div>
+                                {Number(option.price || 0) > 0 && (
+                                  <div className="mt-0.5 text-xs font-bold text-slate-400">
+                                    +{formatMoney(Number(option.price || 0))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
+                                  selected
+                                    ? 'border-blue-500 bg-blue-500 text-white'
+                                    : 'border-slate-300 bg-white text-transparent'
+                                }`}
+                              >
+                                ✓
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="shrink-0 border-t border-slate-100 bg-white px-6 pt-4"
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+              >
+                <div className="mb-4 flex items-end justify-between">
+                  <span className="text-sm font-black text-slate-500">合計</span>
+                  <span className="text-2xl font-black text-slate-900">
+                    {formatMoney(modalTotalPrice)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={closeMenuOptionModal}
+                    className="flex h-14 items-center justify-center rounded-2xl bg-slate-100 text-base font-black text-slate-700 active:scale-95"
+                  >
+                    キャンセル
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={confirmMenuOptionModal}
+                    disabled={hasMissingRequired}
+                    className="flex h-14 items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:bg-slate-300 disabled:shadow-none"
+                  >
+                    カートに追加
+                  </button>
+                </div>
+
+                {hasMissingRequired && (
+                  <p className="mt-3 text-center text-xs font-bold text-orange-600">
+                    必須オプションを選択してください
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

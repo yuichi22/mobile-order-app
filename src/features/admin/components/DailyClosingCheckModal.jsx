@@ -164,6 +164,7 @@ const DailyClosingCheckModal = ({
   dateKey,
   summary,
   discountList = [],
+  couponUsageList = [],
   changeFundAmount = 0,
   closedDailyData = null,
   onSaveChangeFundAmount,
@@ -171,6 +172,16 @@ const DailyClosingCheckModal = ({
   onConfirm,
   isProcessing
 }) => {
+  // 使われた全割引(全体＋単品/全区分)。無ければ従来の売上値引リストにフォールバック。
+  const couponSource = (Array.isArray(couponUsageList) && couponUsageList.length > 0)
+    ? couponUsageList
+    : discountList;
+  // 枚数で照合できるのは「金額クーポン(券面あり)」のみ。% / 手入力 / 単品割引は金額表示のみ。
+  const resolveUnitValue = (discount) => Number(
+    discount?.unitValue ?? getCouponUnitValue(discount)
+  ) || 0;
+  const isCountableCoupon = (discount) => (discount?.type === 'amount') && resolveUnitValue(discount) > 0;
+
   const [denominations, setDenominations] = useState(() => (
     DENOMINATIONS.reduce((acc, item) => {
       acc[item.key] = '';
@@ -179,7 +190,7 @@ const DailyClosingCheckModal = ({
   ));
 
   const [couponCounts, setCouponCounts] = useState(() => (
-    discountList.reduce((acc, discount) => {
+    couponSource.reduce((acc, discount) => {
       acc[discount.id || discount.name] = '';
       return acc;
     }, {})
@@ -188,7 +199,7 @@ const DailyClosingCheckModal = ({
   const expectedCashAmount = Number(summary?.cashSales || 0);
   const expectedCardAmount = Number(summary?.cardSales || 0);
   const expectedQrAmount = Number(summary?.qrSales || 0);
-  const expectedCouponAmount = Number(summary?.discountTotal || 0);
+  const expectedCouponAmount = couponSource.reduce((sum, d) => sum + Number(d?.amount || 0), 0);
 
   const [cardActualAmountInput, setCardActualAmountInput] = useState('');
   const [qrActualAmountInput, setQrActualAmountInput] = useState('');
@@ -213,7 +224,7 @@ const DailyClosingCheckModal = ({
     );
 
     setCouponCounts(
-      discountList.reduce((acc, discount, index) => {
+      couponSource.reduce((acc, discount, index) => {
         const id = discount.id || discount.name || `discount_${index}`;
         const savedItem = Array.isArray(savedCouponCheck?.items)
           ? savedCouponCheck.items.find((item) => item?.id === id)
@@ -243,7 +254,8 @@ const DailyClosingCheckModal = ({
 
     setChangeFundAmountInput(String(Number(changeFundAmount || 0) || ''));
     setIsEditingChangeFund(false);
-  }, [isOpen, closedDailyData, discountList, changeFundAmount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, closedDailyData, discountList, couponUsageList, changeFundAmount]);
 
   const actualCashAmount = useMemo(() => (
     DENOMINATIONS.reduce((sum, item) => (
@@ -252,19 +264,23 @@ const DailyClosingCheckModal = ({
   ), [denominations]);
 
   const couponCheckItems = useMemo(() => (
-    discountList.map((discount, index) => {
+    couponSource.map((discount, index) => {
       const id = discount.id || discount.name || `discount_${index}`;
       const name = discount.name || '値引き';
       const expectedCount = Number(discount.quantity || discount.count || 0);
       const expectedAmount = Number(discount.amount || 0);
-      const unitValue = getCouponUnitValue(discount);
-      const actualCount = toNumber(couponCounts[id]);
-      const actualAmount = actualCount * unitValue;
+      const countable = isCountableCoupon(discount);
+      const unitValue = countable ? resolveUnitValue(discount) : 0;
+      // 金額クーポン(券面あり)だけ枚数で照合。% / 手入力 / 単品割引は記録額をそのまま採用(差額なし)。
+      const actualCount = countable ? toNumber(couponCounts[id]) : 0;
+      const actualAmount = countable ? actualCount * unitValue : expectedAmount;
 
       return {
         id,
         name,
+        category: discount.category || discount.accountingCategory || 'sales_discount',
         type: discount.type || '',
+        countable,
         value: unitValue,
         expectedCount,
         expectedAmount,
@@ -273,7 +289,7 @@ const DailyClosingCheckModal = ({
         difference: actualAmount - expectedAmount
       };
     })
-  ), [couponCounts, discountList]);
+  ), [couponCounts, couponSource]);
 
   const actualCouponAmount = couponCheckItems.reduce((sum, item) => sum + item.actualAmount, 0);
   const actualCardAmount = toNumber(cardActualAmountInput);
@@ -577,19 +593,37 @@ const DailyClosingCheckModal = ({
                     クーポン・値引きの利用はありません
                   </div>
                 ) : (
-                  couponCheckItems.map((item) => (
+                  couponCheckItems.map((item) => {
+                    const categoryLabel = item.category === 'promo_expense'
+                      ? '販促費'
+                      : item.category === 'voucher_payment'
+                        ? '金券/売掛'
+                        : '売上値引';
+                    const typeLabel = item.type === 'amount'
+                      ? '金額'
+                      : item.type === 'percent'
+                        ? '％割引'
+                        : item.type === 'manual'
+                          ? '手入力'
+                          : '値引';
+                    return (
                     <div
                       key={item.id}
                       className="rounded-xl bg-gray-50 p-3"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-gray-800">
-                            {item.name}
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-black text-gray-800">
+                              {item.name}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-gray-400">
+                              {categoryLabel}・{typeLabel}
+                            </span>
                           </div>
                           <div className="mt-1 text-[11px] font-bold text-gray-400">
                             システム：{item.expectedCount}件 / {formatCurrency(item.expectedAmount)}
-                            {item.value > 0 && (
+                            {item.countable && item.value > 0 && (
                               <span className="ml-2">
                                 券面 {formatCurrency(item.value)}
                               </span>
@@ -597,39 +631,51 @@ const DailyClosingCheckModal = ({
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            readOnly
-                            value={couponCounts[item.id] || ''}
-                            onClick={() => openNumericModal({
-                              target: { type: 'coupon', id: item.id },
-                              title: `${item.name}の枚数`,
-                              description: 'クーポン・値引きの確認枚数を入力してください',
-                              value: couponCounts[item.id] || '',
-                              suffix: '枚'
-                            })}
-                            className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                            placeholder="0"
-                          />
-                          <span className="text-[9px] font-bold text-gray-400">枚</span>
-                        </div>
+                        {item.countable ? (
+                          <div className="flex shrink-0 items-center gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              readOnly
+                              value={couponCounts[item.id] || ''}
+                              onClick={() => openNumericModal({
+                                target: { type: 'coupon', id: item.id },
+                                title: `${item.name}の枚数`,
+                                description: 'クーポンの確認枚数を入力してください',
+                                value: couponCounts[item.id] || '',
+                                suffix: '枚'
+                              })}
+                              className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                              placeholder="0"
+                            />
+                            <span className="text-[9px] font-bold text-gray-400">枚</span>
+                          </div>
+                        ) : (
+                          <div className="shrink-0 text-right">
+                            <div className="text-sm font-black text-gray-700">
+                              {formatCurrency(item.expectedAmount)}
+                            </div>
+                            <div className="text-[9px] font-bold text-gray-400">自動記録（枚数照合なし）</div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs font-bold">
-                        <span className="text-gray-400">
-                          実確認額：{formatCurrency(item.actualAmount)}
-                        </span>
-                        <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        {item.difference === 0 && <CheckCircle2 size={13} />}
-                        差額：{item.difference > 0 ? '+' : ''}
-                        {formatCurrency(item.difference)}
-                        </span>
-                      </div>
+                      {item.countable && (
+                        <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs font-bold">
+                          <span className="text-gray-400">
+                            実確認額：{formatCurrency(item.actualAmount)}
+                          </span>
+                          <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {item.difference === 0 && <CheckCircle2 size={13} />}
+                          差額：{item.difference > 0 ? '+' : ''}
+                          {formatCurrency(item.difference)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </section>

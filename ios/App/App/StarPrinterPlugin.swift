@@ -249,10 +249,12 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         if !str("invoiceNumber").isEmpty { center("登録番号: " + str("invoiceNumber")) }
         divider()
 
-        // 5. 日付 / No / レジ区分
+        // 5. 日付 / No / テーブル / 使用レジ名
         if !str("issuedAtText").isEmpty { text(str("issuedAtText")) }
         if !str("receiptNo").isEmpty { text("No: " + str("receiptNo")) }
         if !str("tableName").isEmpty { text(str("tableName")) }
+        // 複数レジ運用でどの端末の会計かを区別するため、使用レジ名を印字する。
+        if !str("registerName").isEmpty { text("レジ: " + str("registerName")) }
 
         // 6. 宛名（手書き欄・右寄せの下線＋様）。上下に余白。
         _ = printerBuilder.actionFeedLine(1)
@@ -276,8 +278,18 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
 
         // 金額
         lr("小計", yen(r["subtotal"]))
-        let discount = (r["discount"] as? NSNumber)?.intValue ?? 0
-        if discount > 0 { lr("値引き", "-¥" + numberWithComma(discount)) }
+        // 割引内訳（%割引・スタンプカード等）を名前付きで個別行に印字する。
+        // discounts 配列があればそれを優先し、無ければ旧来の単一 discount 行へフォールバックする。
+        if let discountLines = r["discounts"] as? [[String: Any]], !discountLines.isEmpty {
+            for line in discountLines {
+                let label = (line["label"] as? String) ?? "値引き"
+                let amount = (line["amount"] as? NSNumber)?.intValue ?? 0
+                if amount > 0 { lr(label, "-¥" + numberWithComma(amount)) }
+            }
+        } else {
+            let discount = (r["discount"] as? NSNumber)?.intValue ?? 0
+            if discount > 0 { lr("値引き", "-¥" + numberWithComma(discount)) }
+        }
         lr("(内消費税)", yen(r["tax"]))
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 2, height: 1))
         lr("合計", yen(r["total"]))

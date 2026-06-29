@@ -4,6 +4,7 @@ import { Printer, Wifi, Download, Barcode } from 'lucide-react';
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import {
   LABEL_SYMBOLOGY_OPTIONS,
+  MEDIA_SENSOR_OPTIONS,
   getLabelPrinterSettings,
   buildLabelPrintPayload
 } from '../../../../shared/utils/labelPrinterSettings';
@@ -217,6 +218,23 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
               onChange={(event) => update({ printDensity: Number(event.target.value) || 0 })}
               className={numberInputClass}
             />
+          </label>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">用紙センサー</span>
+            <select
+              value={draft.mediaSensor}
+              onChange={(event) => update({ mediaSensor: event.target.value })}
+              className={numberInputClass}
+            >
+              {MEDIA_SENSOR_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 

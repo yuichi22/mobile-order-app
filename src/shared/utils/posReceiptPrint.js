@@ -28,6 +28,30 @@ const toDate = (value) => {
   return null;
 };
 
+// レシートに名前付きで並べる割引行を作る。
+// 通常割引(%/円=sales_discount)・販促費(スタンプカード等=promo_expense)・
+// クーポン(voucher_payment)を、それぞれ表示名と金額で1行ずつにまとめる。
+const buildDiscountLines = (data = {}) => {
+  const lines = [];
+  const pushLine = (entry, fallbackLabel) => {
+    const amount = Number(entry?.amount || 0) || 0;
+    if (amount <= 0) return;
+    lines.push({ label: entry.label || entry.name || fallbackLabel, amount });
+  };
+
+  const applied = Array.isArray(data.appliedDiscounts) && data.appliedDiscounts.length > 0
+    ? data.appliedDiscounts
+    : (data.appliedDiscount ? [data.appliedDiscount] : []);
+  applied.forEach((discount) => pushLine(discount, '値引き'));
+
+  (Array.isArray(data.promoExpenseItems) ? data.promoExpenseItems : [])
+    .forEach((item) => pushLine(item, '販促値引き'));
+  (Array.isArray(data.vouchers) ? data.vouchers : [])
+    .forEach((item) => pushLine(item, 'クーポン'));
+
+  return lines;
+};
+
 const normalizeItems = (items = []) => {
   if (!Array.isArray(items)) return [];
 
@@ -89,6 +113,8 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
       data.tableDisplayName ||
       data.tableName ||
       (data.tableId ? `テーブル ${data.tableId}` : ''),
+    // 使用レジ名（例: メインレジ1）。複数iPad/レジでどの端末の会計かを区別するため印字する。
+    registerName: data.registerName || data.registerLabel || '',
     receiptNo:
       data.receiptNo ||
       data.receiptNumber ||
@@ -101,6 +127,8 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     items,
     subtotal,
     discount: data.discountAmount || data.totals?.discount || 0,
+    // 割引内訳（%割引・スタンプカード等）を名前付きで個別行に印字する。
+    discounts: buildDiscountLines(data),
     tax,
     taxAmountReduced: data.taxAmountReduced || 0,
     taxAmountStandard: data.taxAmountStandard || 0,

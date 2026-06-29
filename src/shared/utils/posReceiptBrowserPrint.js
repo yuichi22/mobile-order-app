@@ -49,6 +49,14 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
   const storeName = escapeReceiptHtml(payload.storeName || 'Akuto Order System');
   const issuedAtText = escapeReceiptHtml(payload.issuedAtText || new Date().toLocaleString('ja-JP'));
   const tableName = escapeReceiptHtml(payload.tableName || payload.tableDisplayName || '');
+  const registerName = escapeReceiptHtml(payload.registerName || '');
+  // 割引内訳（%割引・スタンプカード等）。配列が無ければ合計1行へフォールバックする。
+  const discountLines = Array.isArray(payload.discounts) ? payload.discounts.filter((line) => Number(line?.amount || 0) > 0) : [];
+  const discountRows = discountLines.length > 0
+    ? discountLines.map((line) => `<div class="row"><span>${escapeReceiptHtml(line.label || '値引き')}</span><span>-¥${formatAmount(line.amount)}</span></div>`).join('')
+    : (Number(payload.discount || payload.discountAmount || 0) > 0
+      ? `<div class="row"><span>値引き</span><span>-¥${formatAmount(payload.discount || payload.discountAmount)}</span></div>`
+      : '');
   const paymentMethod = escapeReceiptHtml(payload.paymentMethod || '');
   const hideRecipientAndProviso = payload.hideRecipientAndProviso === true;
   const recipientLabel = escapeReceiptHtml(payload.recipientLabel || (payload.recipientName ? `${payload.recipientName} 様` : '様'));
@@ -167,6 +175,7 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
           <div class="section">
             <div class="row"><span>発行日時</span><span>${issuedAtText}</span></div>
             ${tableName ? `<div class="row"><span>テーブル</span><span>${tableName}</span></div>` : ''}
+            ${registerName ? `<div class="row"><span>レジ</span><span>${registerName}</span></div>` : ''}
             ${paymentMethod ? `<div class="row"><span>支払い方法</span><span>${paymentMethod}</span></div>` : ''}
             ${receiptScopeLabel ? `<div class="row"><span>区分</span><span>${receiptScopeLabel}</span></div>` : ''}
             ${hideRecipientAndProviso ? '' : `<div class="handwrite"><span>宛名：</span><span>${recipientLabel}</span></div>`}
@@ -179,7 +188,7 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
 
           <div class="section">
             <div class="row"><span>小計</span><span>¥${formatAmount(payload.subtotal || payload.subTotal)}</span></div>
-            ${Number(payload.discount || payload.discountAmount || 0) > 0 ? `<div class="row"><span>値引き</span><span>-¥${formatAmount(payload.discount || payload.discountAmount)}</span></div>` : ''}
+            ${discountRows}
             ${Number(payload.taxAmountReduced || 0) > 0 ? `<div class="row"><span>消費税 8%</span><span>¥${formatAmount(payload.taxAmountReduced)}</span></div>` : ''}
             ${Number(payload.taxAmountStandard || 0) > 0 ? `<div class="row"><span>消費税 10%</span><span>¥${formatAmount(payload.taxAmountStandard)}</span></div>` : ''}
             ${Number(payload.taxAmountReduced || 0) === 0 && Number(payload.taxAmountStandard || 0) === 0 ? `<div class="row"><span>うち消費税</span><span>¥${formatAmount(payload.tax || payload.taxAmount)}</span></div>` : ''}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, documentId, getDocs, query, where, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../../../shared/api/firebase/client';
 
@@ -254,43 +254,54 @@ export const useDailyTransactions = ({ storeId, targetDate }) => {
             return leftTime - rightTime;
           });
 
-        const transactionsWithOrders = await Promise.all(
-          fetched.map(async (transaction) => {
-            const orderIds = getLinkedOrderIds(transaction);
+        // 紐づく注文を一括取得(N+1回避)。全取引の注文IDをまとめ、documentId in で
+        // 30件チャンクのバッチ取得にする。挙動は従来と同じで往復回数だけ削減する。
+        const allOrderIds = Array.from(new Set(
+          fetched.flatMap((transaction) => getLinkedOrderIds(transaction))
+        )).filter(Boolean);
 
-            if (orderIds.length === 0) {
-              return {
-                ...transaction,
-                orderAnalyticsRecords: []
-              };
-            }
+        const orderMap = new Map();
+        if (allOrderIds.length > 0) {
+          const ordersCollection = collection(db, 'stores', storeId, 'orders');
+          const chunks = [];
+          for (let i = 0; i < allOrderIds.length; i += 30) {
+            chunks.push(allOrderIds.slice(i, i + 30));
+          }
+          const orderSnapshots = await Promise.all(
+            chunks.map((chunk) => getDocs(query(ordersCollection, where(documentId(), 'in', chunk))))
+          );
+          orderSnapshots.forEach((snapshot) => {
+            snapshot.forEach((orderDoc) => {
+              orderMap.set(orderDoc.id, { id: orderDoc.id, ...orderDoc.data() });
+            });
+          });
+        }
 
-            const orderSnapshots = await Promise.all(
-              orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
-            );
+        const transactionsWithOrders = fetched.map((transaction) => {
+          const orderIds = getLinkedOrderIds(transaction);
 
-            const existingOrders = orderSnapshots
-              .filter((orderSnapshot) => orderSnapshot.exists())
-              .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
+          if (orderIds.length === 0) {
+            return { ...transaction, orderAnalyticsRecords: [] };
+          }
 
-            const amountByOrderId = allocateTransactionAmountByOrder(
-              transaction,
-              existingOrders.map((order) => order.id)
-            );
+          const existingOrders = orderIds
+            .map((orderId) => orderMap.get(orderId))
+            .filter(Boolean);
 
-            const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
-              order,
-              transaction,
-              amountByOrderId[order.id] || 0,
-              getTransactionItemsForOrder(transaction, order.id)
-            ));
+          const amountByOrderId = allocateTransactionAmountByOrder(
+            transaction,
+            existingOrders.map((order) => order.id)
+          );
 
-            return {
-              ...transaction,
-              orderAnalyticsRecords
-            };
-          })
-        );
+          const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
+            order,
+            transaction,
+            amountByOrderId[order.id] || 0,
+            getTransactionItemsForOrder(transaction, order.id)
+          ));
+
+          return { ...transaction, orderAnalyticsRecords };
+        });
 
         if (!isActive) return;
 

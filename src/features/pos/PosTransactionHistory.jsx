@@ -11,6 +11,8 @@ import { collection, limit, onSnapshot, orderBy, query, doc, getDocs, increment,
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { useStoreSettings } from '../store/hooks';
+import { pushInventoryToShopify } from '../store/services/storeDataService';
+import { getAuth } from 'firebase/auth';
 
 const formatInvoiceNumber = (value) => {
   const normalized = String(value || '').trim();
@@ -653,6 +655,22 @@ export const PosTransactionHistory = ({
       batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), updatePayload);
       await batch.commit();
 
+      // 取消で在庫を戻したretail商品を Shopify へ反映する(在庫連携ON=prodのみ。関数側でゲート)。
+      // 戻し後のFirestore在庫を絶対値pushするので、Shopify側も戻って増える。
+      if (restoreByProduct.size > 0) {
+        const restoredProductIds = [...restoreByProduct.keys()];
+        void (async () => {
+          try {
+            const idToken = await getAuth().currentUser?.getIdToken?.();
+            if (idToken) {
+              await pushInventoryToShopify({ storeId, productIds: restoredProductIds, idToken });
+            }
+          } catch (shopifyError) {
+            console.error('Shopify在庫反映エラー(取消):', shopifyError);
+          }
+        })();
+      }
+
       // ローカル(getDocs取得)を即時反映。
       const localPatch = {
         ...transaction,
@@ -1117,6 +1135,14 @@ export const PosTransactionHistory = ({
           discountAmount: Number(transaction.discountAmount || 0),
           promoExpenseAmount: Number(transaction.promoExpenseAmount || 0),
           voucherAmount: Number(transaction.voucherAmount || 0),
+          // 再印刷レシートでも使用レジ名・割引内訳を出すため、取引の元データを引き継ぐ。
+          registerName: transaction.registerName || '',
+          registerMode: transaction.registerMode || '',
+          appliedDiscounts: Array.isArray(transaction.appliedDiscounts) && transaction.appliedDiscounts.length > 0
+            ? transaction.appliedDiscounts
+            : (transaction.appliedDiscount ? [transaction.appliedDiscount] : []),
+          promoExpenseItems: Array.isArray(transaction.promoExpenseItems) ? transaction.promoExpenseItems : [],
+          vouchers: Array.isArray(transaction.vouchers) ? transaction.vouchers : [],
           discountLabelName: String(transaction.appliedDiscount?.name || transaction.discountName || '').trim(),
           promoLabelName: (Array.isArray(transaction.promoExpenseItems)
             ? transaction.promoExpenseItems.map((entry) => entry?.name).filter(Boolean).join('、')
@@ -1667,15 +1693,28 @@ export const PosTransactionHistory = ({
 
       if (selectedPaidDate && transactionDate !== selectedPaidDate) return;
 
-      const method = getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod);
-      if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
-      if (!base[method]) return;
+      // 分割会計(現金＋カード/QR)は payments[] の内訳を手段ごとに加算する。
+      // 締め/日計(dailyClosingHelpers)と同じ集計にして、履歴と締めの支払方法別をズラさない。
+      // 単一手段・旧データ(payments無し)は従来通り会計総額を1手段に加算する。
+      //   totalAmount が 0 の取引(全額売掛・0円会計など)は実際の決済額が0なので 0 とする。
+      //   `||` だと 0 を欠損扱いして totalPrice/raw を拾い、締め/日計(totalAmount基準)と乖離する。
+      //   旧データで totalAmount 自体が無い場合のみ totalPrice/amount にフォールバックする。
+      const paymentEntries = Array.isArray(transaction.payments) && transaction.payments.length > 0
+        ? transaction.payments.map((payment) => ({
+            method: getPaymentMethodKey(payment.method),
+            amount: Number(payment.amount || 0)
+          }))
+        : [{
+            method: getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod),
+            amount: Number(transaction.totalAmount ?? transaction.totalPrice ?? transaction.amount ?? 0)
+          }];
 
-      // totalAmount が 0 の取引(全額売掛・0円会計など)は実際の決済額が0なので 0 とする。
-      // `||` だと 0 を欠損扱いして totalPrice/raw を拾い、締め/日計(totalAmount基準)と乖離する。
-      // 旧データで totalAmount 自体が無い場合のみ totalPrice/amount にフォールバックする。
-      base[method].count += 1;
-      base[method].total += Number(transaction.totalAmount ?? transaction.totalPrice ?? transaction.amount ?? 0);
+      paymentEntries.forEach(({ method, amount }) => {
+        if (paidPaymentFilter !== 'all' && method !== paidPaymentFilter) return;
+        if (!base[method]) return;
+        base[method].count += 1;
+        base[method].total += amount;
+      });
     });
 
     return [base.cash, base.card, base.qr];

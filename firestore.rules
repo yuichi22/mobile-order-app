@@ -254,6 +254,12 @@ service cloud.firestore {
         }
       }
 
+      // 採番カウンタ(店内インストアコード等)。商品登録はmanager操作なので write=manager。
+      match /counters/{counterId} {
+        allow read: if isPlatformAdmin() || isStoreStaff(storeId);
+        allow write: if isPlatformAdmin() || isStoreManager(storeId);
+      }
+
       match /productCategories/{categoryId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreManager(storeId);

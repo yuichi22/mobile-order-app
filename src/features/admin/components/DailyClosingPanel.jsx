@@ -82,6 +82,8 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
   // 同一部門レジの締め状況 {registerId: true}。
   const [registerClosedMap, setRegisterClosedMap] = useState({});
+  // 自レジの締め保存内容(金種・クーポン・カード/QR実績)。締めモーダルの初期値に使う。
+  const [ownRegisterClosing, setOwnRegisterClosing] = useState(null);
   const [closingReloadKey, setClosingReloadKey] = useState(0);
   // 部門振り分け・売り場集計用の商品カテゴリーマスター。
   const [productCategories, setProductCategories] = useState([]);
@@ -272,6 +274,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   useEffect(() => {
     if (!storeId || !dateKey) {
       setRegisterClosedMap({});
+      setOwnRegisterClosing(null);
       return undefined;
     }
     let active = true;
@@ -280,17 +283,21 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
         const snap = await getDocs(collection(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers'));
         if (!active) return;
         const map = {};
+        const rid = String(activeRegister?.id || '');
+        let own = null;
         snap.forEach((docSnap) => {
           if (docSnap.data()?.status === 'closed') map[docSnap.id] = true;
+          if (rid && docSnap.id === rid) own = { id: docSnap.id, ...docSnap.data() };
         });
         setRegisterClosedMap(map);
+        setOwnRegisterClosing(own);
       } catch (error) {
         console.error('Failed to load register closings:', error);
-        if (active) setRegisterClosedMap({});
+        if (active) { setRegisterClosedMap({}); setOwnRegisterClosing(null); }
       }
     })();
     return () => { active = false; };
-  }, [storeId, dateKey, closingReloadKey]);
+  }, [storeId, dateKey, activeRegister?.id, closingReloadKey]);
 
   useEffect(() => {
     if (!storeId || !dateKey) {
@@ -1302,8 +1309,9 @@ const handleCloseDay = async (closingCheck = {}) => {
         dateKey={dateKey}
         summary={registerSummary}
         discountList={discountList}
+        couponUsageList={registerSummary?.couponUsageList || []}
         changeFundAmount={changeFundAmount}
-        closedDailyData={closedDailyData}
+        closedDailyData={ownRegisterClosing || closedDailyData}
         onSaveChangeFundAmount={handleSaveChangeFundAmount}
         isProcessing={isClosing}
         onClose={() => {

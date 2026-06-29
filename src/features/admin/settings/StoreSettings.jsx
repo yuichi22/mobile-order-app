@@ -2080,10 +2080,17 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           blank={blankBrand}
           items={productMaster?.brands || []}
           suppliers={productMaster?.suppliers || []}
+          productSalesAreas={productMaster?.productSalesAreas || []}
           onSaveSupplier={productMaster?.saveSupplier}
           fields={[
             { id: 'name', label: 'ブランド名' },
             { id: 'supplierId', label: '仕入先', type: 'supplierSelect' },
+            {
+              id: 'defaultSalesAreaId',
+              label: 'デフォルト売り場',
+              type: 'salesAreaSelect',
+              helpText: '新規商品登録でこのブランドを選ぶと、ここで指定した売り場が分類モーダルに初期選択された状態で開きます。未設定の場合は従来通り売り場未選択で開きます。'
+            },
             {
               id: 'effectiveCostRate',
               label: '適用掛け率 %',

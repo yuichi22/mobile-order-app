@@ -28,7 +28,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
 import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
@@ -173,6 +173,9 @@ export const blankBrand = {
   name: '',
   kana: '',
   note: '',
+  // ブランド既定の売り場。新規商品登録時の初期売り場として使う（フェーズ2の既存商品一括適用でも同じ引き当てに使える）。
+  defaultSalesAreaId: '',
+  defaultSalesAreaName: '',
   isActive: true
 };
 
@@ -742,28 +745,38 @@ const formatMasterTaxRateLabel = (item = {}, defaultTaxRate = 10) => {
 
 const classNames = (...values) => values.filter(Boolean).join(' ');
 
-const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown, onFocus, onCompositionStart, inputMode }, ref) => (
-  <input
-    ref={ref}
-    type={type}
-    value={value ?? ''}
-    onChange={(event) => onChange(event.target.value)}
-    onKeyDown={onKeyDown}
-    onFocus={onFocus}
-    onCompositionStart={onCompositionStart}
-    placeholder={placeholder}
-    // inputMode を明示指定できる。バーコード窓は 'numeric' を渡し、iPadで日本語IME(かな)
-    // キーボードを出さない＝スキャナ入力がIME変換で壊れるのを防ぐ。
-    inputMode={inputMode ?? (type === 'number' ? 'decimal' : undefined)}
-    autoCapitalize={inputMode ? 'off' : undefined}
-    autoCorrect={inputMode ? 'off' : undefined}
-    spellCheck={inputMode ? false : undefined}
-    className={classNames(
-      'h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-      className
-    )}
-  />
-));
+const TableTextInput = forwardRef(({ value, onChange, type = 'text', className = '', placeholder = '', onKeyDown, onFocus, onCompositionStart, inputMode, leftButton }, ref) => {
+  const inputEl = (
+    <input
+      ref={ref}
+      type={type}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      onFocus={onFocus}
+      onCompositionStart={onCompositionStart}
+      placeholder={placeholder}
+      // inputMode を明示指定できる。バーコード窓は 'numeric' を渡し、iPadで日本語IME(かな)
+      // キーボードを出さない＝スキャナ入力がIME変換で壊れるのを防ぐ。
+      inputMode={inputMode ?? (type === 'number' ? 'decimal' : undefined)}
+      autoCapitalize={inputMode ? 'off' : undefined}
+      autoCorrect={inputMode ? 'off' : undefined}
+      spellCheck={inputMode ? false : undefined}
+      className={classNames(
+        'h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+        leftButton ? 'pl-14' : '',
+        className
+      )}
+    />
+  );
+  if (!leftButton) return inputEl;
+  return (
+    <div className="relative">
+      <div className="absolute left-1 top-1/2 z-10 -translate-y-1/2">{leftButton}</div>
+      {inputEl}
+    </div>
+  );
+});
 
 const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty = false }) => {
   const isEmpty = !String(value || '').trim();
@@ -895,37 +908,92 @@ const ProductMasterTable = ({
 }) => {
   const [draftRows, setDraftRows] = useState({});
   // バーコードラベル印刷（東芝テック B-EV4T / 印刷ブリッジ経由）
-  const [labelCopies, setLabelCopies] = useState({}); // { [productId]: 枚数 }
-  const [labelPrintingId, setLabelPrintingId] = useState('');
+  const [labelQtyModalProduct, setLabelQtyModalProduct] = useState(null); // 手動印刷の枚数モーダル対象商品
+  const [labelQtyValue, setLabelQtyValue] = useState(1);
+  const [labelErrorItems, setLabelErrorItems] = useState(null); // 失敗時の再印刷対象(items配列)
+  const [labelBusy, setLabelBusy] = useState(false);
 
-  const handlePrintLabel = async (product) => {
-    if (!product || labelPrintingId) return;
+  // バーコードに符号化する値(設定 barcodeSource に従い 品番 or JAN)を返す。
+  const resolveBarcodeData = (product) => {
+    const sku = String(product?.sku || product?.productCode || '').trim();
+    const jan = String(product?.barcode || '').trim();
+    return labelPrinterSettings?.barcodeSource === 'barcode' ? jan : sku;
+  };
 
-    const barcode = String(product.barcode || '').trim();
-    if (!barcode) {
-      window.alert('この商品にはバーコードが登録されていません。バーコード欄を入力して保存してください。');
-      return;
-    }
+  // 商品から印刷用ラベルitemを作る。バー符号化データが無ければnull。
+  const buildLabelItemFromProduct = (product, copies) => {
+    const barcodeData = resolveBarcodeData(product);
+    if (!barcodeData) return null;
+    return {
+      barcode: String(product?.barcode || '').trim(), // JAN(barcodeSource=barcode用)
+      sku: String(product?.sku || product?.productCode || '').trim(), // 品番(表示＋barcodeSource=sku用)
+      name: product?.name || product?.productGroupName || '',
+      price: product?.priceTaxIncluded ?? product?.price ?? product?.priceTaxExcluded ?? '',
+      colorName: product?.colorName || '',
+      size: product?.size || '',
+      copies: Math.max(1, Math.min(999, Number(copies || 1)))
+    };
+  };
 
-    if (!labelPrinterSettings?.printerIp) {
-      window.alert('ラベルプリンタのIPが未設定です。設定 > ラベルプリンタ設定で接続先を設定してください。');
-      return;
-    }
+  // ラベルitem配列をブリッジへ送信(中核)。失敗はthrow。
+  const sendLabelsToBridge = async (items) => {
+    const normalized = (Array.isArray(items) ? items : []).filter(Boolean);
+    if (normalized.length === 0) return;
+    const payload = buildLabelPrintPayload(labelPrinterSettings, normalized);
+    await printLabelViaBridge(payload, { labelPrinterSettings });
+  };
 
-    const copies = Math.max(1, Math.min(999, Number(labelCopies[product.id] || 1)));
-    const price = product.priceTaxIncluded ?? product.price ?? product.priceTaxExcluded ?? '';
-
-    setLabelPrintingId(product.id);
+  // 印刷を試行。失敗したら「プリンターを接続してください」ダイアログ(再試行/キャンセル)を出す。
+  const tryPrintLabels = async (items) => {
+    const normalized = (Array.isArray(items) ? items : []).filter(Boolean);
+    if (normalized.length === 0) return;
+    setLabelBusy(true);
     try {
-      const payload = buildLabelPrintPayload(labelPrinterSettings, [
-        { barcode, name: product.name || '', price, copies }
-      ]);
-      await printLabelViaBridge(payload, { labelPrinterSettings });
+      await sendLabelsToBridge(normalized);
+      setLabelErrorItems(null);
     } catch (error) {
-      window.alert(`ラベル印刷に失敗しました: ${error?.message || error}`);
+      console.error('[label print] failed', error);
+      setLabelErrorItems(normalized); // 再試行できるよう対象を保持
     } finally {
-      setLabelPrintingId('');
+      setLabelBusy(false);
     }
+  };
+
+  // 手動: 商品行のボタン→枚数モーダルを開く
+  const openLabelQtyModal = (product) => {
+    if (!resolveBarcodeData(product)) {
+      const sourceLabel = labelPrinterSettings?.barcodeSource === 'barcode' ? 'バーコード(JAN)' : '品番';
+      window.alert(`この商品には${sourceLabel}が登録されていません。${sourceLabel}欄を入力して保存してください。`);
+      return;
+    }
+    setLabelQtyValue(1);
+    setLabelQtyModalProduct(product);
+  };
+
+  const closeLabelQtyModal = () => {
+    if (labelBusy) return;
+    setLabelQtyModalProduct(null);
+  };
+
+  // 手動: モーダルの「印刷」
+  const confirmLabelQtyPrint = async () => {
+    if (!labelQtyModalProduct || labelBusy) return;
+    const item = buildLabelItemFromProduct(labelQtyModalProduct, labelQtyValue);
+    if (!item) return;
+    setLabelQtyModalProduct(null);
+    await tryPrintLabels([item]);
+  };
+
+  // 失敗ダイアログ: 「印刷する」(再試行)
+  const retryLabelPrint = async () => {
+    if (labelBusy || !labelErrorItems) return;
+    await tryPrintLabels(labelErrorItems);
+  };
+
+  // 失敗ダイアログ: 「キャンセル」
+  const cancelLabelError = () => {
+    if (labelBusy) return;
+    setLabelErrorItems(null);
   };
 
   const [recentlySavedRows, setRecentlySavedRows] = useState({});
@@ -946,6 +1014,8 @@ const ProductMasterTable = ({
   const [stockInHistoryError, setStockInHistoryError] = useState('');
   const [inventoryAdjustModalRow, setInventoryAdjustModalRow] = useState(null);
   const [inventoryAdjustValue, setInventoryAdjustValue] = useState('');
+  // 在庫管理をしない(サービス/手数料等)。ON=販売しても在庫を減らさず固定。
+  const [inventoryAdjustUnmanaged, setInventoryAdjustUnmanaged] = useState(false);
   const [inventoryAdjustNote, setInventoryAdjustNote] = useState('');
   const [inventoryAdjustSaving, setInventoryAdjustSaving] = useState(false);
   const [inventoryAdjustHistoryRecords, setInventoryAdjustHistoryRecords] = useState([]);
@@ -1116,6 +1186,40 @@ const ProductMasterTable = ({
     supplierId: brand?.supplierId || '',
     supplierName: getBrandSupplierName(brand)
   });
+
+  // ブランドの既定売り場を、現存する売場名に解決する。id優先（売場改名にも追従）→ 保存済み名が現存する場合のみ採用。
+  // 売場が見つからなければ空文字（=未設定として従来通り）。フェーズ2の既存商品一括適用でも同じ引き当てを再利用できる。
+  const resolveBrandDefaultSalesAreaName = (brand) => {
+    if (!brand) return '';
+    const byId = brand.defaultSalesAreaId
+      ? productSalesAreas.find((area) => area.id === brand.defaultSalesAreaId)
+      : null;
+    if (byId?.name) return String(byId.name).trim();
+
+    const storedName = String(brand.defaultSalesAreaName || '').trim();
+    if (storedName && productSalesAreas.some((area) => String(area.name || '').trim() === storedName)) {
+      return storedName;
+    }
+    return '';
+  };
+
+  // 新規商品登録の行にブランドを反映するパッチ。既定売り場があれば売場を初期選択し、配下分類（グループ/カテゴリー/サブ）はリセットする。
+  // 既定売り場が無い場合は従来通り売場・分類に触れない。既存商品の編集には使わない（新規登録専用）。
+  const buildNewProductBrandPatch = (brand) => {
+    const patch = buildBrandPatch(brand);
+    const defaultSalesAreaName = resolveBrandDefaultSalesAreaName(brand);
+    if (!defaultSalesAreaName) return patch;
+
+    return {
+      ...patch,
+      salesAreaName: defaultSalesAreaName,
+      categoryGroupId: '',
+      categoryGroupName: '',
+      categoryId: '',
+      categoryName: '',
+      subCategoryName: ''
+    };
+  };
 
   const getGroupProductGroupId = (group) => (
     String(
@@ -1675,7 +1779,7 @@ const ProductMasterTable = ({
     )));
   };
 
-  const addNewSkuRow = () => {
+  const addNewSkuRow = async () => {
     const sourceRow = newSkuRows.length > 0
       ? newSkuRows[newSkuRows.length - 1]
       : {
@@ -1694,14 +1798,12 @@ const ProductMasterTable = ({
       };
 
     const nextSkuRowIndex = newSkuRows.length + 1;
+    const rowId = `__new_sku_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+    // 行は即座に追加して待たせない(楽観的UI)。フォーカスもすぐ移す。
     setNewSkuRows((current) => [
       ...current,
-      {
-        ...sourceRow,
-        id: `__new_sku_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        barcode: ''
-      }
+      { ...sourceRow, id: rowId, barcode: '' }
     ]);
 
     requestAnimationFrame(() => {
@@ -1712,6 +1814,20 @@ const ProductMasterTable = ({
         el.setSelectionRange(len, len);
       }
     });
+
+    // 主行(または直近のSKU行)がインストアコード(先頭2のEAN-13)なら、採番は非同期で行い
+    // 完了後に該当行へ反映する(発行のトランザクション往復で行追加を待たせない)。
+    const refBarcode = String(newRow.barcode || sourceRow.barcode || '').trim();
+    if (storeId && /^2\d{12}$/.test(refBarcode)) {
+      try {
+        const code = await issueInstoreBarcode(storeId);
+        setNewSkuRows((current) => current.map((skuRow) => (
+          skuRow.id === rowId ? { ...skuRow, barcode: code } : skuRow
+        )));
+      } catch (error) {
+        console.error('failed to issue instore barcode for new SKU row', error);
+      }
+    }
   };
 
   const clearNewProductEntry = () => {
@@ -1809,6 +1925,9 @@ const ProductMasterTable = ({
         return next;
       });
       onSaved?.();
+    } catch (error) {
+      console.error('failed to save product', error);
+      alert(`保存に失敗しました: ${error?.message || error}`);
     } finally {
       setSavingKey('');
     }
@@ -1941,6 +2060,17 @@ const ProductMasterTable = ({
     }, null) || primaryProduct;
 
     const nextSku = createSkuDraftFromProduct(getDraft(primaryProduct), getDraft(lastProduct));
+
+    // インストアコード(先頭2のEAN-13)を使っている商品グループは、追加SKUにも自動で採番する。
+    const sourceBarcode = String(primaryProduct.barcode || lastProduct.barcode || '').trim();
+    if (storeId && /^2\d{12}$/.test(sourceBarcode)) {
+      try {
+        nextSku.barcode = await issueInstoreBarcode(storeId);
+      } catch (error) {
+        console.error('failed to issue instore barcode for SKU', error);
+      }
+    }
+
     setSavingKey(`sku:${primaryProduct.id}`);
 
     try {
@@ -2170,12 +2300,21 @@ const ProductMasterTable = ({
     if (!window.confirm(message)) return;
 
     setProductMasterBulkSaving(true);
+    // 入庫自動印刷: ラベルON かつ 入庫数>0 の商品を入庫枚数ぶん収集する。
+    const autoLabelItems = [];
+    let saveSucceeded = false;
 
     try {
       for (const row of editedProductRows) {
         const payload = buildProductSavePayload(row);
         await onSaveProduct(payload);
         rememberSavedProduct(payload);
+
+        const stockInQuantity = Math.max(Number(row.stockInQuantityDraft || 0), 0);
+        if (payload.labelEnabled && stockInQuantity > 0) {
+          const labelItem = buildLabelItemFromProduct(payload, stockInQuantity);
+          if (labelItem) autoLabelItems.push(labelItem);
+        }
       }
 
       setDraftRows((current) => {
@@ -2187,11 +2326,18 @@ const ProductMasterTable = ({
       });
 
       onSaved?.();
+      saveSucceeded = true;
     } catch (error) {
       console.error('failed to save edited product rows', error);
       alert(`商品マスター更新に失敗しました: ${error?.message || error}`);
     } finally {
       setProductMasterBulkSaving(false);
+    }
+
+    // 入庫が確定した後にラベルを自動印刷する。
+    // 入庫は止めない方針のため、印刷失敗時は失敗ダイアログ(再試行/キャンセル)のみ出す。
+    if (saveSucceeded && autoLabelItems.length > 0) {
+      await tryPrintLabels(autoLabelItems);
     }
   };
 
@@ -2437,6 +2583,7 @@ const ProductMasterTable = ({
   const openInventoryAdjustModal = async (product) => {
     setInventoryAdjustModalRow(product);
     setInventoryAdjustValue(String(Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0)));
+    setInventoryAdjustUnmanaged(Boolean(product.inventoryUnmanaged));
     setInventoryAdjustNote('');
     setInventoryAdjustHistoryRecords([]);
     setInventoryAdjustHistoryError('');
@@ -2457,6 +2604,7 @@ const ProductMasterTable = ({
     if (inventoryAdjustSaving) return;
     setInventoryAdjustModalRow(null);
     setInventoryAdjustValue('');
+    setInventoryAdjustUnmanaged(false);
     setInventoryAdjustNote('');
     setInventoryAdjustHistoryRecords([]);
     setInventoryAdjustHistoryError('');
@@ -2465,10 +2613,16 @@ const ProductMasterTable = ({
   const saveInventoryAdjustment = async () => {
     if (!inventoryAdjustModalRow?.id) return;
 
+    const adjustedProductId = inventoryAdjustModalRow.id;
+    const beforeUnmanaged = Boolean(inventoryAdjustModalRow.inventoryUnmanaged);
+    const unmanaged = inventoryAdjustUnmanaged;
     const beforeQuantity = Math.max(Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0), 0);
     const afterQuantity = Math.max(Number(inventoryAdjustValue || 0), 0);
+    // 在庫管理をしない時は数量入力を無効化しているので数量変更は扱わない。
+    const quantityChanged = !unmanaged && afterQuantity !== beforeQuantity;
+    const flagChanged = unmanaged !== beforeUnmanaged;
 
-    if (afterQuantity === beforeQuantity) {
+    if (!quantityChanged && !flagChanged) {
       closeInventoryAdjustModal();
       return;
     }
@@ -2476,32 +2630,44 @@ const ProductMasterTable = ({
     setInventoryAdjustSaving(true);
 
     try {
-      const adjustedProductId = inventoryAdjustModalRow.id;
-      await adjustProductInventory(storeId, adjustedProductId, {
-        quantity: afterQuantity,
-        note: inventoryAdjustNote.trim()
-      });
+      if (flagChanged) {
+        // 在庫管理フラグは商品docへ直接保存(数量変更なしでも保存できる)。
+        await setDoc(
+          doc(db, 'stores', storeId, 'products', adjustedProductId),
+          { inventoryUnmanaged: unmanaged, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
 
-      // 手動在庫調整も Shopify へ push（在庫連携ON=prodのみ で実反映。サーバ側でゲート）。
-      // ドリフト源を塞ぐため fire-and-forget。失敗しても在庫調整自体は成功扱い。
-      (async () => {
-        try {
-          const idToken = await getAuth().currentUser?.getIdToken?.();
-          await pushInventoryToShopify({ storeId, productIds: [adjustedProductId], idToken });
-        } catch (pushError) {
-          console.warn('failed to push adjusted inventory to Shopify', pushError);
-        }
-      })();
+      if (quantityChanged) {
+        await adjustProductInventory(storeId, adjustedProductId, {
+          quantity: afterQuantity,
+          note: inventoryAdjustNote.trim()
+        });
+
+        // 手動在庫調整も Shopify へ push（在庫連携ON=prodのみ で実反映。サーバ側でゲート）。
+        // ドリフト源を塞ぐため fire-and-forget。失敗しても在庫調整自体は成功扱い。
+        (async () => {
+          try {
+            const idToken = await getAuth().currentUser?.getIdToken?.();
+            await pushInventoryToShopify({ storeId, productIds: [adjustedProductId], idToken });
+          } catch (pushError) {
+            console.warn('failed to push adjusted inventory to Shopify', pushError);
+          }
+        })();
+      }
 
       rememberSavedProduct({
         ...inventoryAdjustModalRow,
-        inventoryQuantity: afterQuantity,
-        quantity: afterQuantity
+        inventoryUnmanaged: unmanaged,
+        ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {})
       });
 
-      const records = await getProductInventoryAdjustmentHistory(storeId, inventoryAdjustModalRow.id);
+      const records = await getProductInventoryAdjustmentHistory(storeId, adjustedProductId);
       setInventoryAdjustHistoryRecords(records);
-      setInventoryAdjustModalRow((current) => (current ? { ...current, inventoryQuantity: afterQuantity, quantity: afterQuantity } : current));
+      setInventoryAdjustModalRow((current) => (current
+        ? { ...current, inventoryUnmanaged: unmanaged, ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {}) }
+        : current));
       setInventoryAdjustNote('');
 
       onSaved?.();
@@ -2615,9 +2781,10 @@ const ProductMasterTable = ({
                       value={row.brandId}
                       brands={brands}
                       suppliers={suppliers}
+                      productSalesAreas={getSalesAreaOptions()}
                       onSaveBrand={onSaveBrand}
                       onSaveSupplier={onSaveSupplier}
-                      onChange={(value, brand) => update(buildBrandPatch(brand))}
+                      onChange={(value, brand) => update(buildNewProductBrandPatch(brand))}
                       onSelected={() => {
                         requestAnimationFrame(() => {
                           newProductNameInputRef.current?.focus();
@@ -2765,6 +2932,24 @@ const ProductMasterTable = ({
               onCompositionStart={() => update({ barcode: '' })}
               placeholder="バーコード"
               inputMode="numeric"
+              leftButton={(
+                <button
+                  type="button"
+                  title="店内(インストア)コードを発行"
+                  onClick={async () => {
+                    if (!storeId) return;
+                    try {
+                      const code = await issueInstoreBarcode(storeId);
+                      update({ barcode: code });
+                    } catch (error) {
+                      alert(`インストアコードの発行に失敗しました: ${error?.message || error}`);
+                    }
+                  }}
+                  className="h-7 rounded-md bg-indigo-600 px-2 text-[11px] font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+                >
+                  発行
+                </button>
+              )}
             />
           </div>
 
@@ -2857,10 +3042,14 @@ const ProductMasterTable = ({
               type="button"
               onClick={() => openInventoryAdjustModal(row)}
               disabled={isNew}
-              className="flex h-9 w-full items-center justify-end rounded-lg border border-slate-200 bg-blue-50 px-2 text-sm font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title="在庫調整"
+              className={`flex h-9 w-full items-center justify-end rounded-lg border border-slate-200 px-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                row.inventoryUnmanaged
+                  ? 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              }`}
+              title={row.inventoryUnmanaged ? '在庫管理をしない(調整で変更可)' : '在庫調整'}
             >
-              {Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
+              {row.inventoryUnmanaged ? '管理外' : Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
             </button>
           </div>
 
@@ -2895,27 +3084,16 @@ const ProductMasterTable = ({
 
           <div>
             <FieldLabel>ラベル</FieldLabel>
-            <div className="flex h-9 items-center justify-center gap-1">
-              <input
-                type="number"
-                min={1}
-                max={999}
-                value={labelCopies[row.id] ?? 1}
-                onChange={(event) =>
-                  setLabelCopies((prev) => ({ ...prev, [row.id]: event.target.value }))
-                }
-                disabled={isNew}
-                title="印刷枚数"
-                className="h-8 w-10 rounded-md border border-slate-200 px-1 text-center text-[11px] font-black text-slate-700 outline-none transition focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-              />
+            <div className="flex h-9 items-center justify-center">
               <button
                 type="button"
-                onClick={() => handlePrintLabel(row)}
-                disabled={isNew || labelPrintingId === row.id}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => openLabelQtyModal(row)}
+                disabled={isNew}
+                className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                 title="バーコードラベルを印刷"
               >
-                {labelPrintingId === row.id ? <LoadingSpinner size={13} /> : <Barcode size={13} />}
+                <Barcode size={13} />
+                印刷
               </button>
             </div>
           </div>
@@ -3159,7 +3337,9 @@ const ProductMasterTable = ({
                   <div>
                     <p className="text-xs font-bold text-slate-500">現在の在庫数</p>
                     <p className="mt-1 text-2xl font-black text-slate-900">
-                      {Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0).toLocaleString()}
+                      {inventoryAdjustUnmanaged
+                        ? <span className="text-slate-400">管理外</span>
+                        : Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0).toLocaleString()}
                     </p>
                   </div>
 
@@ -3167,12 +3347,30 @@ const ProductMasterTable = ({
                     <label className="text-xs font-bold text-slate-500">修正後の在庫数</label>
                     <input
                       type="number"
-                      value={inventoryAdjustValue}
+                      value={inventoryAdjustUnmanaged ? '' : inventoryAdjustValue}
                       onChange={(event) => setInventoryAdjustValue(event.target.value)}
-                      className="h-11 w-32 rounded-xl border-2 border-slate-200 bg-white px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-orange-400"
+                      disabled={inventoryAdjustUnmanaged}
+                      placeholder={inventoryAdjustUnmanaged ? '管理外' : ''}
+                      className="h-11 w-32 rounded-xl border-2 border-slate-200 bg-white px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-orange-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                 </div>
+
+                {/* 在庫管理をしない: サービス/手数料等。ON=販売しても在庫を減らさず固定。 */}
+                <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={inventoryAdjustUnmanaged}
+                    onChange={(event) => setInventoryAdjustUnmanaged(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-slate-800">在庫管理をしない</span>
+                    <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                      サービス・ラッピング手数料など。販売しても在庫が減りません（在庫は固定）。
+                    </span>
+                  </span>
+                </label>
 
                 <div className="mt-3">
                   <label className="text-xs font-bold text-slate-500">メモ(任意)</label>
@@ -3193,7 +3391,7 @@ const ProductMasterTable = ({
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {inventoryAdjustSaving ? <LoadingSpinner size={14} /> : null}
-                    在庫数を更新
+                    保存
                   </button>
                 </div>
               </div>
@@ -3236,11 +3434,131 @@ const ProductMasterTable = ({
       : null
   );
 
+  // 手動ラベル印刷: 枚数選択モーダル(枚数だけ)
+  const labelQtyModalNode = (
+    typeof document !== 'undefined' && labelQtyModalProduct
+      ? createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 px-5 py-10 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-slate-50 px-6 py-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Label Print</p>
+              <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">ラベル印刷</h3>
+              <p className="mt-1 truncate text-xs font-bold text-slate-500">
+                {labelQtyModalProduct.name || labelQtyModalProduct.productGroupName || labelQtyModalProduct.sku || labelQtyModalProduct.id}
+              </p>
+              <p className="mt-0.5 font-mono text-[11px] font-bold text-slate-400">
+                {String(resolveBarcodeData(labelQtyModalProduct) || '')}
+              </p>
+            </div>
+
+            <div className="px-6 py-6">
+              <label className="block text-center">
+                <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-400">印刷枚数</span>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLabelQtyValue((value) => Math.max(1, Number(value || 1) - 1))}
+                    disabled={labelBusy}
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={labelQtyValue}
+                    onChange={(event) => setLabelQtyValue(event.target.value)}
+                    disabled={labelBusy}
+                    className="h-14 w-24 rounded-2xl border-2 border-slate-200 bg-white text-center text-2xl font-black text-slate-900 outline-none focus:border-orange-400 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setLabelQtyValue((value) => Math.min(999, Number(value || 1) + 1))}
+                    disabled={labelBusy}
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    ＋
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-2 border-t border-slate-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeLabelQtyModal}
+                disabled={labelBusy}
+                className="h-12 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-sm font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={confirmLabelQtyPrint}
+                disabled={labelBusy}
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+              >
+                {labelBusy ? <LoadingSpinner size={16} /> : <Barcode size={16} />}
+                印刷する
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)
+      : null
+  );
+
+  // ラベル印刷失敗ダイアログ: プリンター接続を促し、再試行/キャンセル
+  const labelErrorModalNode = (
+    typeof document !== 'undefined' && labelErrorItems
+      ? createPortal((
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 px-5 py-10 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="px-6 py-6 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+                <Barcode size={22} />
+              </div>
+              <h3 className="text-lg font-black tracking-tight text-slate-900">プリンターを接続してください</h3>
+              <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+                ラベルプリンターに接続できませんでした。プリンターの電源・LAN接続・印刷ブリッジ・IP設定を確認してから、もう一度印刷してください。
+              </p>
+              <p className="mt-2 text-xs font-bold text-slate-400">
+                対象: {labelErrorItems.reduce((sum, item) => sum + Number(item.copies || 1), 0)} 枚
+              </p>
+            </div>
+            <div className="flex gap-2 border-t border-slate-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={cancelLabelError}
+                disabled={labelBusy}
+                className="h-12 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-sm font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={retryLabelPrint}
+                disabled={labelBusy}
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+              >
+                {labelBusy ? <LoadingSpinner size={16} /> : <Barcode size={16} />}
+                印刷する
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)
+      : null
+  );
+
   return (
     <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
       {stockInHistoryModalNode}
       {inventoryAdjustModalNode}
+      {labelQtyModalNode}
+      {labelErrorModalNode}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
@@ -3393,6 +3711,7 @@ const ProductMasterTable = ({
                               value={primaryDraft.brandId || ''}
                               brands={brands}
                               suppliers={suppliers}
+                              productSalesAreas={getSalesAreaOptions()}
                               onSaveBrand={onSaveBrand}
                               onSaveSupplier={onSaveSupplier}
                               onChange={(value, brand) => updatePrimary(buildBrandPatch(brand))}
@@ -4489,6 +4808,7 @@ const ProductBrandModalSelect = ({
   onChange,
   brands = [],
   suppliers = [],
+  productSalesAreas = [],
   onSaveBrand,
   onSaveSupplier,
   onSelected,
@@ -4523,9 +4843,23 @@ const ProductBrandModalSelect = ({
           supplierName: supplier?.name || ''
         })
       },
+      // ブランド既定の売り場。新規商品登録時の初期売り場として使う。
+      {
+        id: 'defaultSalesAreaId',
+        label: 'デフォルト売り場',
+        type: 'modalSelect',
+        options: productSalesAreas,
+        placeholder: '売り場を選択',
+        searchPlaceholder: '売り場名・IDで検索',
+        getOptionLabel: (option) => option.name || option.id,
+        getOptionSubLabel: (option) => option.id,
+        buildPatch: (salesArea) => ({
+          defaultSalesAreaName: salesArea?.name || ''
+        })
+      },
       { id: 'note', label: 'メモ', type: 'textarea', rows: 4 }
     ]}
-    createInitialValue={{ name: '', kana: '', supplierId: '', supplierName: '', note: '', isActive: true }}
+    createInitialValue={{ name: '', kana: '', supplierId: '', supplierName: '', defaultSalesAreaId: '', defaultSalesAreaName: '', note: '', isActive: true }}
     getOptionLabel={(option) => option.name || option.id}
     getOptionSubLabel={(option) => {
       const supplier = suppliers.find((supplierItem) => supplierItem.id === option?.supplierId) || null;
@@ -5061,6 +5395,10 @@ export const SimpleMasterPanel = ({
         ...(draft.supplierId !== undefined ? {
           supplierId: String(draft.supplierId || '').trim(),
           supplierName: suppliers.find((supplier) => supplier.id === draft.supplierId)?.name || String(draft.supplierName || '').trim()
+        } : {}),
+        ...(draft.defaultSalesAreaId !== undefined ? {
+          defaultSalesAreaId: String(draft.defaultSalesAreaId || '').trim(),
+          defaultSalesAreaName: productSalesAreas.find((area) => area.id === draft.defaultSalesAreaId)?.name || String(draft.defaultSalesAreaName || '').trim()
         } : {}),
         ...(draft.supplierSmaregiId !== undefined ? { supplierSmaregiId: String(draft.supplierSmaregiId || '').trim() } : {}),
         ...(draft.stocktakingTypeCode !== undefined ? { stocktakingTypeCode: String(draft.stocktakingTypeCode || '').trim() } : {})
@@ -5801,6 +6139,32 @@ export const SimpleMasterPanel = ({
                   onSaved?.();
                 }}
               />
+            ) : field.type === 'salesAreaSelect' ? (
+              <div key={field.id}>
+                <PosModalSelect
+                  label={field.label}
+                  value={draft[field.id]}
+                  options={productSalesAreas}
+                  disabled={!canEdit}
+                  placeholder="売り場を選択"
+                  searchPlaceholder="売り場名・IDで検索"
+                  getOptionLabel={(option) => option.name || option.id}
+                  getOptionSubLabel={(option) => option.id}
+                  onChange={(value, salesArea) => {
+                    setDraft((current) => ({
+                      ...current,
+                      [field.id]: value,
+                      defaultSalesAreaName: salesArea?.name || ''
+                    }));
+                    onSaved?.();
+                  }}
+                />
+                {field.helpText && (
+                  <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+                    {field.helpText}
+                  </p>
+                )}
+              </div>
             ) : field.type === 'effectiveCostRateDisplay' ? (
               <SimpleDisplayField
                 key={field.id}

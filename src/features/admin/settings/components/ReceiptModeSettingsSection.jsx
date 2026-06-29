@@ -27,14 +27,19 @@ const buildStarTestReceipt = (modeLabel, cfg = {}, settings = {}) => ({
   issuedAtText: new Date().toLocaleString('ja-JP'),
   receiptNo: 'TEST-0001',
   tableName: `${modeLabel} 接続テスト`,
+  registerName: settings.activeRegisterName || `${modeLabel}（テスト）`,
   items: [
     { name: 'テスト商品A', quantity: 1, totalPrice: 100 },
     { name: 'テスト商品B', quantity: 2, totalPrice: 300 }
   ],
   subtotal: 400,
-  discount: 0,
-  tax: 36,
-  total: 400,
+  // 割引内訳の印字確認用サンプル（%割引＋スタンプカード）。
+  discounts: [
+    { label: '10%割引', amount: 40 },
+    { label: 'スタンプカード', amount: 50 }
+  ],
+  tax: 28,
+  total: 310,
   paymentMethod: '現金'
 });
 

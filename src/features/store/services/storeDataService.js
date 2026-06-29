@@ -13,6 +13,7 @@ import {
   orderBy,
   where,
   limit,
+  runTransaction,
   writeBatch
 } from 'firebase/firestore';
 
@@ -329,8 +330,53 @@ export const saveProductGroup = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'productGroups', itemData);
 };
 
+// EAN-13 のチェックデジット(末尾1桁)を計算する。digits12 は先頭12桁の数字文字列。
+const ean13CheckDigit = (digits12) => {
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const n = Number(digits12[i]) || 0;
+    sum += i % 2 === 0 ? n : n * 3;
+  }
+  return String((10 - (sum % 10)) % 10);
+};
+
+// 店内(インストア)コードを採番する。GS1の店内用枠「先頭2」を使い、実商品JANと衝突しない。
+// 形式: EAN-13 = "2" + 連番(11桁ゼロ埋め) + チェックデジット。カウンタはトランザクションで原子的に加算。
+export const issueInstoreBarcode = async (storeId) => {
+  if (!isValidStoreId(storeId)) throw new Error('storeId が不正です');
+  const counterRef = doc(db, 'stores', storeId, 'counters', 'instoreBarcode');
+  const next = await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(counterRef);
+    const current = snapshot.exists() ? Number(snapshot.data().next || 0) : 0;
+    const value = current + 1;
+    tx.set(counterRef, { next: value, updatedAt: serverTimestamp() }, { merge: true });
+    return value;
+  });
+  const body = `2${String(next).padStart(11, '0')}`; // 12桁
+  return `${body}${ean13CheckDigit(body)}`;
+};
+
 export const saveProductMasterItem = async (storeId, itemData) => {
   const productId = itemData.id || doc(storeCollectionRef(storeId, 'products')).id;
+
+  // バーコードはユニーク制約。同じバーコードを持つ別商品が既にあれば登録/更新を弾く。
+  // (空バーコードは対象外＝複数許可)
+  const barcode = String(itemData.barcode || '').trim();
+  if (barcode) {
+    const dupSnapshot = await getDocs(query(
+      storeCollectionRef(storeId, 'products'),
+      where('barcode', '==', barcode),
+      limit(5)
+    ));
+    const conflict = dupSnapshot.docs.find((snapshotDoc) => snapshotDoc.id !== productId);
+    if (conflict) {
+      const conflictName = conflict.data()?.name || '別の商品';
+      const error = new Error(`このバーコード（${barcode}）は既に「${conflictName}」で登録されています。バーコードは商品ごとに固有である必要があります。`);
+      error.code = 'duplicate-barcode';
+      throw error;
+    }
+  }
+
   const productGroupId = itemData.productGroupId || itemData.groupId || '';
 
   const stockInQuantity = Math.max(Number(itemData.stockInQuantityDraft || 0), 0);

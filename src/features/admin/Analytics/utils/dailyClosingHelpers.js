@@ -402,6 +402,51 @@ const addDiscountCounts = (summary, transaction) => {
   });
 };
 
+// 締めモーダルのクーポン確認用に、使われた全割引(全体＋単品/全区分)を集約する。
+// 金額クーポン(type=amount かつ券面あり)は枚数照合可、% / 手入力 / 単品割引は金額のみ表示。
+const addCouponUsageEntry = (summary, entry) => {
+  const amount = Number(entry?.amount || 0);
+  if (amount <= 0) return;
+  const category = entry.accountingCategory === 'promo_expense' || entry.accountingCategory === 'voucher_payment'
+    ? entry.accountingCategory
+    : 'sales_discount';
+  const type = entry.type || '';
+  const unitValue = type === 'amount' ? Number(entry.value || 0) : 0;
+  const id = `${entry.id || entry.discountId || entry.name || 'discount'}__${category}__${type || 'x'}`;
+  if (!summary.couponUsage[id]) {
+    summary.couponUsage[id] = {
+      id,
+      name: entry.name || entry.label || '値引き',
+      category,
+      type,
+      unitValue,
+      count: 0,
+      amount: 0
+    };
+  }
+  summary.couponUsage[id].count += Math.max(1, Number(entry.quantity ?? entry.count ?? 1) || 1);
+  summary.couponUsage[id].amount += amount;
+};
+
+const addCouponUsage = (summary, transaction) => {
+  const applied = Array.isArray(transaction.appliedDiscounts) && transaction.appliedDiscounts.length > 0
+    ? transaction.appliedDiscounts
+    : (transaction.appliedDiscount ? [transaction.appliedDiscount] : []);
+
+  applied.forEach((discount) => {
+    if (Array.isArray(discount?.items) && discount.items.length > 0) {
+      discount.items.forEach((item) => addCouponUsageEntry(summary, { ...item, type: item.type || discount.type }));
+    } else {
+      addCouponUsageEntry(summary, discount);
+    }
+  });
+
+  // 商品個別割引(単品)。lineDiscount は % なので type=percent 扱い。
+  if (Array.isArray(transaction.lineDiscountItems)) {
+    transaction.lineDiscountItems.forEach((item) => addCouponUsageEntry(summary, { ...item, type: item.type || 'percent' }));
+  }
+};
+
 const addDiscounts = (summary, transaction) => {
   const transactionDiscountTotal = Number(transaction.discountAmount || 0);
 
@@ -819,6 +864,8 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     discounts: {},
     promoExpenses: {},
     vouchers: {},
+    // 締めモーダルのクーポン確認用: 使われた全割引(全体＋単品/全区分)を集約。
+    couponUsage: {},
     items: {},
     categories: {},
     periods: {}
@@ -858,6 +905,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     addDepartmentAmount(summary, transaction);
     addDiscounts(summary, transaction);
     addDiscountCounts(summary, transaction);
+    addCouponUsage(summary, transaction);
     addSettlementAdjustments(summary, transaction);
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
@@ -924,6 +972,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
       .sort((left, right) => right.amount - left.amount),
 
     voucherList: Object.values(summary.vouchers)
+      .sort((left, right) => right.amount - left.amount),
+
+    couponUsageList: Object.values(summary.couponUsage)
       .sort((left, right) => right.amount - left.amount),
 
     itemList: Object.values(summary.items)

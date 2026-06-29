@@ -2012,6 +2012,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
         receiptType: isSessionComplete ? 'final' : 'partial',
         receiptScopeLabel: isSessionComplete ? '最終会計' : '個別会計',
         title: '領収書',
+        // レシートに使用レジ名・割引内訳を出すため、会計データと同じ値を渡す。
+        registerName: registerContext.name,
+        registerMode: registerContext.registerMode || 'order',
+        appliedDiscounts: appliedDiscount ? [appliedDiscount] : [],
         items: consolidatedItems,
         subTotal: Number(subTotal),
         taxAmount: Number(taxAmount),
@@ -2340,6 +2344,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
 
       <PosRegisterLeft
         orders={orders}
+        tableDisplayName={tableDisplayName}
         checkoutSelectionMode={checkoutSelectionMode}
         selectedItemKeys={activeSelectedItemKeys}
         paidItemKeys={paidItemKeys}
