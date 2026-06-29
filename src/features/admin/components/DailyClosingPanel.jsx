@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import {
+  AlertTriangle,
   BadgeJapaneseYen,
-  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -70,6 +70,30 @@ const getInitialAmountDisplayMode = () => {
   }
 };
 
+// 締めデータに金種/カード/QR/クーポンいずれかの実査差額があるか。
+// レジボタンや「このレジの売上」枠の色（差額なし=薄緑 / 差額あり=薄赤）判定に使う。
+const closingHasDifference = (data) => {
+  const cash = data?.cashCheck ? Number(data.cashCheck.difference || 0) : 0;
+  const card = data?.externalPaymentCheck ? Number(data.externalPaymentCheck.cardDifference || 0) : 0;
+  const qr = data?.externalPaymentCheck ? Number(data.externalPaymentCheck.qrDifference || 0) : 0;
+  const coupon = data?.couponCheck ? Number(data.couponCheck.difference || 0) : 0;
+  return cash !== 0 || card !== 0 || qr !== 0 || coupon !== 0;
+};
+
+// レジボタンの配色。
+// 該当レジ(self): 未締め=黒 / 締め済み差額なし=薄緑 / 締め済み差額あり=薄赤。
+// 他レジ:        未締め=薄グレー / 締め済み差額なし=薄緑 / 締め済み差額あり=薄赤。
+const registerButtonColorClass = ({ closed, hasDifference, isSelf }) => {
+  if (!closed) {
+    return isSelf
+      ? 'bg-gray-900 text-white hover:bg-black'
+      : 'bg-slate-100 text-slate-400 hover:bg-slate-200';
+  }
+  return hasDifference
+    ? 'bg-red-50 text-red-700 hover:bg-red-100'
+    : 'bg-green-50 text-green-700 hover:bg-green-100';
+};
+
 const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [closingStatus, setClosingStatus] = useState(null);
@@ -82,8 +106,13 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
   // 同一部門レジの締め状況 {registerId: true}。
   const [registerClosedMap, setRegisterClosedMap] = useState({});
-  // 自レジの締め保存内容(金種・クーポン・カード/QR実績)。締めモーダルの初期値に使う。
-  const [ownRegisterClosing, setOwnRegisterClosing] = useState(null);
+  // 締め済みレジの差額有無 {registerId: hasDifference}。ボタン配色に使う。
+  const [registerDiffMap, setRegisterDiffMap] = useState({});
+  // 締めツールバーで表示対象に選んでいるレジ。既定=自レジ(activeRegister)。
+  // 他レジを選ぶとそのレジの締め内容(サマリ・金種・状況)を閲覧表示する。
+  const [selectedRegisterId, setSelectedRegisterId] = useState(null);
+  // 選択中レジの締め保存内容(金種・クーポン・カード/QR実績)。締めモーダルの初期値に使う。
+  const [selectedRegisterClosing, setSelectedRegisterClosing] = useState(null);
   const [closingReloadKey, setClosingReloadKey] = useState(0);
   // 部門振り分け・売り場集計用の商品カテゴリーマスター。
   const [productCategories, setProductCategories] = useState([]);
@@ -148,6 +177,23 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     [registerOptions, activeDepartment]
   );
 
+  // 表示対象レジの正規化: 既定=自レジ。選択が同一部門外/未設定なら自レジへ戻す。
+  useEffect(() => {
+    const ownId = activeRegister?.id || null;
+    setSelectedRegisterId((prev) => {
+      if (prev && departmentRegisters.some((register) => register.id === prev)) return prev;
+      return ownId;
+    });
+  }, [activeRegister?.id, departmentRegisters]);
+
+  // 締めサマリ/締めデータ/釣り銭/締めモーダルは「選択中レジ」基準で読み書きする。
+  const selectedRegister = useMemo(
+    () => departmentRegisters.find((register) => register.id === selectedRegisterId) || activeRegister,
+    [departmentRegisters, selectedRegisterId, activeRegister]
+  );
+  // 選択中レジが自レジ（端末の登録レジ）か。締め実行・修正は自レジの時だけ許可する。
+  const isSelectedOwnRegister = (selectedRegister?.id || null) === (activeRegister?.id || null);
+
   const departmentOptions = useMemo(
     () => getAvailableDepartments(settings?.departments || []),
     [settings?.departments]
@@ -178,7 +224,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
         const settingsSnapshot = await getDoc(settingsRef);
         if (cancelled || !settingsSnapshot.exists()) return;
         const data = settingsSnapshot.data() || {};
-        const registerId = String(activeRegister?.id || '');
+        const registerId = String(selectedRegister?.id || '');
         const byRegister = data.changeFundByRegister || {};
         const amount = registerId && byRegister[registerId] !== undefined
           ? Number(byRegister[registerId] || 0)
@@ -190,7 +236,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     };
     loadChangeFund();
     return () => { cancelled = true; };
-  }, [storeId, activeRegister?.id, closingReloadKey]);
+  }, [storeId, selectedRegister?.id, closingReloadKey]);
 
   // 商品カテゴリーの所属部門でアイテム単位に振り分けるリゾルバ。
   const resolveItemDepartment = useMemo(
@@ -255,10 +301,10 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     [filteredTransactions, periods]
   );
 
-  // 締めは自レジ単位。締めモーダル/レジ別締めデータは自レジの取引のみで集計する。
+  // 締めは「選択中レジ」単位。締めモーダル/レジ別締めデータは選択中レジの取引のみで集計する。
   const registerTransactions = useMemo(
-    () => transactions.filter((transaction) => String(transaction.registerId || '') === String(activeRegister?.id || '')),
-    [transactions, activeRegister]
+    () => transactions.filter((transaction) => String(transaction.registerId || '') === String(selectedRegister?.id || '')),
+    [transactions, selectedRegister]
   );
   const registerSummary = useMemo(
     () => buildDailyClosingSummary(registerTransactions, periods),
@@ -274,7 +320,8 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   useEffect(() => {
     if (!storeId || !dateKey) {
       setRegisterClosedMap({});
-      setOwnRegisterClosing(null);
+      setRegisterDiffMap({});
+      setSelectedRegisterClosing(null);
       return undefined;
     }
     let active = true;
@@ -283,21 +330,27 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
         const snap = await getDocs(collection(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers'));
         if (!active) return;
         const map = {};
-        const rid = String(activeRegister?.id || '');
-        let own = null;
+        const diffMap = {};
+        const rid = String(selectedRegister?.id || '');
+        let selected = null;
         snap.forEach((docSnap) => {
-          if (docSnap.data()?.status === 'closed') map[docSnap.id] = true;
-          if (rid && docSnap.id === rid) own = { id: docSnap.id, ...docSnap.data() };
+          const data = docSnap.data() || {};
+          if (data.status === 'closed') {
+            map[docSnap.id] = true;
+            diffMap[docSnap.id] = closingHasDifference(data);
+          }
+          if (rid && docSnap.id === rid) selected = { id: docSnap.id, ...data };
         });
         setRegisterClosedMap(map);
-        setOwnRegisterClosing(own);
+        setRegisterDiffMap(diffMap);
+        setSelectedRegisterClosing(selected);
       } catch (error) {
         console.error('Failed to load register closings:', error);
-        if (active) { setRegisterClosedMap({}); setOwnRegisterClosing(null); }
+        if (active) { setRegisterClosedMap({}); setRegisterDiffMap({}); setSelectedRegisterClosing(null); }
       }
     })();
     return () => { active = false; };
-  }, [storeId, dateKey, activeRegister?.id, closingReloadKey]);
+  }, [storeId, dateKey, selectedRegister?.id, closingReloadKey]);
 
   useEffect(() => {
     if (!storeId || !dateKey) {
@@ -428,8 +481,36 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     : [];
 
   const isClosed = closingStatus === 'closed' || closedDailyData?.status === 'closed';
-  // 自レジが締め済みか（レジ別締め状況）。
+  // 自レジが締め済みか（締め処理ボタンの状態に使用）。
   const isOwnClosed = Boolean(activeRegister?.id && registerClosedMap[activeRegister.id]);
+  // 選択中レジが締め済みか（印刷ボタンの表示に使用）。
+  const isSelectedClosed = Boolean(selectedRegister?.id && registerClosedMap[selectedRegister.id]);
+
+  // 最上部インジケーター: 選択中レジの売上合計＋支払/区分別内訳と締め差額。
+  // 実査差額があるのは現金/カード/QRのみ。値引き/スタンプカード/売掛は金額のみ表示。
+  // difference が null = 実査なし（その項目は「—」表示）。0=差額なし、それ以外=差額あり。
+  const selectedCashCheck = selectedRegisterClosing?.cashCheck || null;
+  const selectedExternalCheck = selectedRegisterClosing?.externalPaymentCheck || null;
+  const selectedCouponCheck = selectedRegisterClosing?.couponCheck || null;
+  const cashDifference = selectedCashCheck ? Number(selectedCashCheck.difference || 0) : null;
+  const cardDifference = selectedExternalCheck ? Number(selectedExternalCheck.cardDifference || 0) : null;
+  const qrDifference = selectedExternalCheck ? Number(selectedExternalCheck.qrDifference || 0) : null;
+  // クーポン確認の差額は値引き/スタンプカード(販促費)/売掛(金券)をまとめた値。区分別には割れないため全体バッジにのみ反映する。
+  const couponDifference = selectedCouponCheck ? Number(selectedCouponCheck.difference || 0) : null;
+  // 現金/カード/QR は締めモーダルで常に確認するため常時表示。
+  // 値引き/スタンプカード/売掛 はモーダルと同じく「利用があるとき(金額>0)のみ」表示する。
+  const registerIndicatorItems = [
+    { key: 'cash', label: '現金', amount: Number(registerSummary?.cashSales || 0), difference: cashDifference, always: true },
+    { key: 'card', label: 'カード', amount: Number(registerSummary?.cardSales || 0), difference: cardDifference, always: true },
+    { key: 'qr', label: 'QR', amount: Number(registerSummary?.qrSales || 0), difference: qrDifference, always: true },
+    { key: 'discount', label: '値引き', amount: Number(registerSummary?.discountTotal || 0), difference: null, always: false },
+    { key: 'stamp', label: 'スタンプカード', amount: Number(registerSummary?.promoExpenseTotal || 0), difference: null, always: false },
+    { key: 'voucher', label: '売掛', amount: Number(registerSummary?.voucherTotal || 0), difference: null, always: false }
+  ].filter((item) => item.always || item.amount > 0);
+  const registerSalesTotal = Number(registerSummary?.totalSales || 0);
+  const hasAnyRegisterDifference = [cashDifference, cardDifference, qrDifference, couponDifference]
+    .some((difference) => difference !== null && difference !== 0);
+  // 同一部門の他レジ（自レジ以外）。締めツールバーで左側にボタン表示する。
   const otherDepartmentRegisters = departmentRegisters.filter((register) => register.id !== activeRegister?.id);
 
   const handleDateInputChange = (event) => {
@@ -451,19 +532,21 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     dateInputRef.current.click();
   };
 
+  // 印刷は「選択中レジ」の締め内容を出力する（サマリ・各内訳・金種/カード/QR/クーポン実績）。
   const handlePrint = () => {
     printDailyClosingReceipt({
       dateKey,
-      summary,
-      paymentMethodList,
-      taxBreakdownList,
-      discountList,
-      promoExpenseList,
-      voucherList,
-      timeSlotList,
-      categoryList,
-      departmentList,
-      closedDailyData,
+      summary: registerSummary,
+      paymentMethodList: Array.isArray(registerSummary?.paymentMethodList) ? registerSummary.paymentMethodList : [],
+      taxBreakdownList: Array.isArray(registerSummary?.taxBreakdownList) ? registerSummary.taxBreakdownList : [],
+      discountList: Array.isArray(registerSummary?.discountList) ? registerSummary.discountList : [],
+      promoExpenseList: Array.isArray(registerSummary?.promoExpenseList) ? registerSummary.promoExpenseList : [],
+      voucherList: Array.isArray(registerSummary?.voucherList) ? registerSummary.voucherList : [],
+      timeSlotList: Array.isArray(registerSummary?.timeSlotList) ? registerSummary.timeSlotList : [],
+      categoryList: Array.isArray(registerSummary?.categoryList) ? registerSummary.categoryList : [],
+      departmentList: Array.isArray(registerSummary?.departmentList) ? registerSummary.departmentList : [],
+      closedDailyData: selectedRegisterClosing,
+      registerName: selectedRegister?.name || '',
       settings
     });
   };
@@ -490,9 +573,12 @@ const handleSaveChangeFundAmount = async (nextAmount) => {
   setChangeFundAmount(normalizedAmount);
 };
 
-const openClosingModal = () => {
+// レジボタンのクリック: 表示対象レジを切り替えて締め内容モーダルを開く。
+// 自レジ=締め実行可、他レジ=閲覧のみ（モーダルは readOnly={!isSelectedOwnRegister} で制御）。
+const openRegisterDetail = (register) => {
   // 売上0のレジでも締め状況を記録できるよう、件数では無効化しない。
   if (!storeId || isClosing || loading) return;
+  if (register?.id) setSelectedRegisterId(register.id);
   setIsCheckModalOpen(true);
 };
 
@@ -538,6 +624,11 @@ const buildClosingPayload = (sum, txns, closingCheck = {}) => ({
 
 const handleCloseDay = async (closingCheck = {}) => {
   if (!storeId || isClosing) return;
+  // 締め実行・修正は自レジのみ（他レジ閲覧中は実行不可）。
+  if (!isSelectedOwnRegister) {
+    window.alert('他のレジの締め処理はこの端末からは実行できません。各レジの端末で締めてください。');
+    return;
+  }
   const registerId = String(activeRegister?.id || '');
   if (!registerId) {
     window.alert('使用レジが未設定です。基本設定でレジを選択してください。');
@@ -603,6 +694,7 @@ const handleCloseDay = async (closingCheck = {}) => {
     setClosedDailyData(legacyStatus === 'closed' ? legacyPayload : null);
     setClosingStatus(legacyStatus === 'closed' ? 'closed' : null);
     setRegisterClosedMap((prev) => ({ ...prev, [registerId]: true }));
+    setRegisterDiffMap((prev) => ({ ...prev, [registerId]: closingHasDifference(registerPayload) }));
     setClosingReloadKey((key) => key + 1);
     setIsCheckModalOpen(false);
   } catch (error) {
@@ -616,7 +708,8 @@ const handleCloseDay = async (closingCheck = {}) => {
   return (
     <div className="mt-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+        {/* 1. 部門セレクター（使用レジ／部門切替／表示中件数）。分析画面と同じカード枠。 */}
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
           {/* 使用レジ（固定表示・大きめテキスト） */}
           <div className="rounded-xl bg-slate-900 px-4 py-2 text-base font-black text-white">
             {activeRegister?.name || 'レジ'}
@@ -672,27 +765,98 @@ const handleCloseDay = async (closingCheck = {}) => {
             </button>
           )}
         </div>
-      <div className="mb-5 flex flex-col gap-4 border-b border-gray-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-black text-orange-500">
-            <CalendarDays size={15} />
-            日計表
+
+        {/* 2. このレジの売上（分析対象期間と同サイズの枠。左=売上内訳、右=日付）。
+            枠色: 未締め=オレンジ / 締め済み差額なし=薄緑 / 締め済み差額あり=薄赤。 */}
+        <div
+          className={`mt-4 flex flex-col gap-3 rounded-2xl border p-4 xl:flex-row xl:items-center xl:justify-between ${
+            !isSelectedClosed
+              ? 'border-orange-100 bg-orange-50/40'
+              : hasAnyRegisterDifference
+                ? 'border-red-200 bg-red-50/50'
+                : 'border-green-200 bg-green-50/50'
+          }`}
+        >
+          {/* 左: 売上合計＋差額有無＋区分別（モーダルにある項目のみ） */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="mr-1 flex items-center gap-2">
+              <div className="flex flex-col leading-tight">
+                <span className="text-[10px] font-black text-slate-400">このレジの売上</span>
+                <span className="text-lg font-black text-slate-900">
+                  {formatCurrency(registerSalesTotal)}
+                </span>
+              </div>
+              {!isSelectedClosed ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                  <LockKeyhole size={12} />
+                  未締め
+                </span>
+              ) : hasAnyRegisterDifference ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-black text-red-600">
+                  <AlertTriangle size={12} />
+                  差額あり
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-black text-green-700">
+                  <CheckCircle2 size={12} />
+                  差額なし
+                </span>
+              )}
+            </div>
+
+            {registerIndicatorItems.map((item) => {
+              const hasCheck = item.difference !== null;
+              const isMatched = hasCheck && item.difference === 0;
+              const isMismatched = hasCheck && item.difference !== 0;
+              return (
+                <div
+                  key={item.key}
+                  className={`flex items-center gap-2 rounded-xl px-3 py-1.5 ring-1 ${
+                    isMismatched
+                      ? 'bg-red-50 ring-red-200'
+                      : isMatched
+                        ? 'bg-green-50 ring-green-100'
+                        : 'bg-white ring-slate-100'
+                  }`}
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-[10px] font-black text-slate-400">{item.label}</span>
+                    <span className="text-sm font-black text-slate-900">
+                      {formatCurrency(item.amount)}
+                    </span>
+                  </div>
+                  {isMismatched ? (
+                    <span className="inline-flex items-center gap-0.5 rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-black text-red-600">
+                      <AlertTriangle size={11} />
+                      {item.difference > 0 ? '+' : ''}{formatCurrency(item.difference)}
+                    </span>
+                  ) : isMatched ? (
+                    <span className="inline-flex items-center rounded-md bg-green-100 px-1 py-0.5 text-green-600">
+                      <CheckCircle2 size={13} />
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-black text-slate-300">—</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          {/* 右: 日付ステッパー（分析画面と同じ白ピル） */}
+          <div className="flex shrink-0 items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => shiftDailyClosingDate(-1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
               aria-label="前の日"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={20} strokeWidth={3} />
             </button>
 
             <button
               type="button"
               onClick={openDatePicker}
-              className="min-w-[180px] rounded-full border border-gray-200 bg-white px-5 py-2 text-center text-lg font-black text-gray-900 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50"
+              className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-700"
             >
               {dateKey}
             </button>
@@ -701,10 +865,10 @@ const handleCloseDay = async (closingCheck = {}) => {
               type="button"
               onClick={() => shiftDailyClosingDate(1)}
               disabled={isTargetDateToday}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="次の日"
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={20} strokeWidth={3} />
             </button>
 
             <input
@@ -716,70 +880,74 @@ const handleCloseDay = async (closingCheck = {}) => {
               className="sr-only"
             />
           </div>
-
-          <p className="mt-2 text-xs font-bold text-gray-400">
-            会計済み取引をもとに日計を集計します。
-          </p>
         </div>
 
-        {isOwnDepartmentView && (
-        <div className="flex flex-row flex-wrap items-center gap-2 sm:justify-end">
-          {/* 同一部門の他レジの締め状況（表示のみ・左側） */}
-          {otherDepartmentRegisters.map((register) => {
-            const closed = Boolean(registerClosedMap[register.id]);
-            return (
-              <div
-                key={register.id}
-                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black ${
-                  closed ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-400'
-                }`}
-              >
-                {closed ? <CheckCircle2 size={14} /> : <LockKeyhole size={14} />}
-                {register.name}{closed ? '締め処理済み' : '未締め'}
-              </div>
-            );
-          })}
-
-          {isOwnClosed && (
+        {/* 3. 各レジのボタン列（右寄せ・分析の印刷ボタン位置）。区切り線でサマリと分離。
+            並び: 他のレジ → 該当レジ → 印刷。
+            配色: 該当レジ 未締め=黒 / 締め済み差額なし=薄緑 / 差額あり=薄赤。
+                  他レジ 未締め=薄グレー / 締め済み差額なし=薄緑 / 差額あり=薄赤。
+            サイズで自レジ(大)と他レジ(小)を区別。選択中レジは枠線(ring)でハイライト。 */}
+        <div className="mb-5 mt-4 flex flex-wrap items-center justify-end gap-2 border-b border-gray-100 pb-5">
+          {isOwnDepartmentView && (
             <>
-              <div className="rounded-xl bg-gray-50 px-4 py-2 text-right text-xs font-bold text-gray-500">
-                {dateKey} の日計
-              </div>
+              {/* 他のレジ（小・クリックで閲覧表示） */}
+              {otherDepartmentRegisters.map((register) => {
+                const closed = Boolean(registerClosedMap[register.id]);
+                const hasDifference = Boolean(registerDiffMap[register.id]);
+                const isSelected = selectedRegister?.id === register.id;
+                return (
+                  <button
+                    key={register.id}
+                    type="button"
+                    onClick={() => openRegisterDetail(register)}
+                    disabled={loading || isClosing}
+                    className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                      registerButtonColorClass({ closed, hasDifference, isSelf: false })
+                    } ${isSelected ? 'ring-2 ring-offset-1 ring-slate-900' : ''}`}
+                  >
+                    {closed ? <CheckCircle2 size={14} /> : <LockKeyhole size={14} />}
+                    {register.name}{closed ? '締め済み' : '未締め'}
+                  </button>
+                );
+              })}
 
+              {/* 該当レジ（大・締め処理／修正） */}
               <button
                 type="button"
-                onClick={handlePrint}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+                onClick={() => openRegisterDetail(activeRegister)}
+                disabled={loading || isClosing || isLoadingClosedDaily}
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                  registerButtonColorClass({
+                    closed: isOwnClosed,
+                    hasDifference: Boolean(activeRegister?.id && registerDiffMap[activeRegister.id]),
+                    isSelf: true
+                  })
+                } ${isSelectedOwnRegister ? 'ring-2 ring-offset-1 ring-slate-900' : ''}`}
               >
-                <Printer size={15} />
-                印刷
+                {isClosing || isLoadingClosedDaily ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : isOwnClosed ? (
+                  <CheckCircle2 size={16} />
+                ) : (
+                  <LockKeyhole size={16} />
+                )}
+                {activeRegister?.name || 'レジ'}{isOwnClosed ? '締め処理済み・修正' : '締め処理'}
               </button>
+
+              {/* 印刷（選択中レジが締め済みのとき。選択中レジの締め内容を印刷） */}
+              {isSelectedClosed && (
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition-colors hover:bg-black"
+                >
+                  <Printer size={17} strokeWidth={2.7} />
+                  印刷
+                </button>
+              )}
             </>
           )}
-
-          {/* 自レジの締め処理（操作可・黒地・右端） */}
-          <button
-            type="button"
-            onClick={openClosingModal}
-            disabled={loading || isClosing || isLoadingClosedDaily}
-            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-sm transition-colors ${
-              isOwnClosed
-                ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                : 'bg-gray-900 text-white hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-300'
-            }`}
-          >
-            {isClosing || isLoadingClosedDaily ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : isOwnClosed ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <LockKeyhole size={16} />
-            )}
-            {activeRegister?.name || 'レジ'}{isOwnClosed ? '締め処理済み・修正' : '締め処理'}
-          </button>
         </div>
-        )}
-      </div>
 
       {loading ? (
         <div className="flex h-40 items-center justify-center text-sm font-bold text-gray-400">
@@ -1307,11 +1475,13 @@ const handleCloseDay = async (closingCheck = {}) => {
       <DailyClosingCheckModal
         isOpen={isCheckModalOpen}
         dateKey={dateKey}
+        registerName={selectedRegister?.name || ''}
+        readOnly={!isSelectedOwnRegister}
         summary={registerSummary}
-        discountList={discountList}
+        discountList={Array.isArray(registerSummary?.discountList) ? registerSummary.discountList : []}
         couponUsageList={registerSummary?.couponUsageList || []}
         changeFundAmount={changeFundAmount}
-        closedDailyData={ownRegisterClosing || closedDailyData}
+        closedDailyData={selectedRegisterClosing}
         onSaveChangeFundAmount={handleSaveChangeFundAmount}
         isProcessing={isClosing}
         onClose={() => {

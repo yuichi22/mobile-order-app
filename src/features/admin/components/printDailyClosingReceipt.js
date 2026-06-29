@@ -171,6 +171,7 @@ export const printDailyClosingReceipt = ({
   categoryList = [],
   departmentList = [],
   closedDailyData = null,
+  registerName = '',
   settings = {}
 }) => {
   const receiptWindow = window.open('', '_blank', 'width=420,height=760');
@@ -322,6 +323,7 @@ export const printDailyClosingReceipt = ({
 
           ${section(`
             ${row('日付', dateKey, 'bold')}
+            ${registerName ? row('レジ', registerName, 'bold') : ''}
             ${row('発行日時', formatDateTime())}
             ${closedDailyData?.closedAt ? row('締め保存', '保存済み') : ''}
           `)}

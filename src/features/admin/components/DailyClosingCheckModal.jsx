@@ -162,6 +162,9 @@ const NumericInputModal = ({
 const DailyClosingCheckModal = ({
   isOpen,
   dateKey,
+  registerName = '',
+  // readOnly=true は他レジの締め内容を閲覧表示するモード。入力・締め実行は不可。
+  readOnly = false,
   summary,
   discountList = [],
   couponUsageList = [],
@@ -323,6 +326,8 @@ const DailyClosingCheckModal = ({
   };
 
   const openNumericModal = ({ target, title, description = '', value = '', suffix = '' }) => {
+    // 閲覧モードでは数字入力を開かない（他レジの締め内容は変更不可）。
+    if (readOnly) return;
     setNumericModal({
       target,
       title,
@@ -412,13 +417,20 @@ const DailyClosingCheckModal = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-black text-orange-500">
               <CheckCircle2 size={15} />
-              締め処理
+              {readOnly ? '締め内容（閲覧）' : '締め処理'}
+              {registerName && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">
+                  {registerName}
+                </span>
+              )}
             </div>
             <h2 className="mt-1 text-xl font-black text-gray-900">
-              {dateKey} の締め確認
+              {dateKey} の{readOnly ? '締め内容' : '締め確認'}
             </h2>
             <p className="mt-1 text-xs font-bold text-gray-400">
-              金種・カード端末・QR決済サイト・クーポン枚数を確認してから日計を保存します。
+              {readOnly
+                ? '他のレジの締め内容です。この端末からは閲覧のみで、変更・締め保存はできません。'
+                : '金種・カード端末・QR決済サイト・クーポン枚数を確認してから日計を保存します。'}
             </p>
           </div>
 
@@ -497,16 +509,18 @@ const DailyClosingCheckModal = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChangeFundAmountInput(String(normalizedChangeFundAmount || ''));
-                      setIsEditingChangeFund((previous) => !previous);
-                    }}
-                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
-                  >
-                    変更
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChangeFundAmountInput(String(normalizedChangeFundAmount || ''));
+                        setIsEditingChangeFund((previous) => !previous);
+                      }}
+                      className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
+                    >
+                      変更
+                    </button>
+                  )}
                 </div>
 
                 {isEditingChangeFund && (
@@ -867,22 +881,24 @@ const DailyClosingCheckModal = ({
             disabled={isProcessing}
             className="h-12 rounded-xl px-6 text-sm font-black text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-50"
           >
-            キャンセル
+            {readOnly ? '閉じる' : 'キャンセル'}
           </button>
 
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isProcessing}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gray-900 px-8 text-sm font-black text-white shadow-sm transition-colors hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {isProcessing ? (
-              <Loader2 size={17} className="animate-spin" />
-            ) : (
-              <CheckCircle2 size={17} />
-            )}
-            確認してこの日を締める
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gray-900 px-8 text-sm font-black text-white shadow-sm transition-colors hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {isProcessing ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={17} />
+              )}
+              確認してこの日を締める
+            </button>
+          )}
         </div>
       </div>
     </div>
