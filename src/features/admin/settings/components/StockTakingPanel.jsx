@@ -65,6 +65,7 @@ const StockTakingPanel = ({ storeId }) => {
   const [items, setItems] = useState([]);
   const [starting, setStarting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [finalizeProgress, setFinalizeProgress] = useState(null);
   const [finalizeResults, setFinalizeResults] = useState(null);
   const [finalizeError, setFinalizeError] = useState('');
 
@@ -112,9 +113,12 @@ const StockTakingPanel = ({ storeId }) => {
 
     setFinalizing(true);
     setFinalizeError('');
+    setFinalizeProgress({ done: 0, total: 0 });
 
     try {
-      const results = await finalizeStocktake(storeId, activeStocktake.id);
+      const results = await finalizeStocktake(storeId, activeStocktake.id, (done, total) => {
+        setFinalizeProgress({ done, total });
+      });
       setFinalizeResults(results);
 
       // 棚卸し確定で在庫が変わった商品を Shopify へ push（在庫連携ON=prodのみ で実反映。サーバ側でゲート）。
@@ -140,6 +144,7 @@ const StockTakingPanel = ({ storeId }) => {
       setFinalizeError(`棚卸し終了処理に失敗しました: ${error?.message || error}`);
     } finally {
       setFinalizing(false);
+      setFinalizeProgress(null);
     }
   };
 
@@ -193,6 +198,31 @@ const StockTakingPanel = ({ storeId }) => {
                 棚卸し終了
               </button>
             </div>
+
+            {finalizing && finalizeProgress ? (
+              <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
+                {finalizeProgress.total > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs font-black text-rose-600">
+                      <span>在庫を反映中…</span>
+                      <span>
+                        {finalizeProgress.done.toLocaleString()} / {finalizeProgress.total.toLocaleString()}
+                        （{Math.round((finalizeProgress.done / finalizeProgress.total) * 100)}%）
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-rose-100">
+                      <div
+                        className="h-full rounded-full bg-rose-500 transition-all duration-300"
+                        style={{ width: `${Math.round((finalizeProgress.done / finalizeProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs font-black text-rose-600">準備中…（商品データを取得しています）</p>
+                )}
+                <p className="mt-2 text-[11px] font-bold text-rose-400">この画面を閉じずにお待ちください。</p>
+              </div>
+            ) : null}
 
             <div className="mt-4 grid grid-cols-3 gap-3 text-center">
               <div className="rounded-2xl bg-slate-50 p-4">

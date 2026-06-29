@@ -9,7 +9,8 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 
 import { db } from '../../../shared/api/firebase/client';
@@ -478,87 +479,94 @@ export const getStocktakeRecountItems = async (storeId, stocktakeId) => {
 // カウント済み商品 = 倉庫数 + 店頭バックグラウンド棚数 を在庫に反映。
 // 一度もカウントされなかった商品は在庫を0に更新。
 // 反映結果(商品ごとの前後在庫数)を配列で返す(CSV出力用)。
-export const finalizeStocktake = async (storeId, stocktakeId) => {
+// 大規模店(数万商品)でも実用的になるよう writeBatch でまとめ書きし、
+// onProgress(done, total) で進捗を通知する(per-item getDoc はせず全商品スナップから引く)。
+export const finalizeStocktake = async (storeId, stocktakeId, onProgress) => {
   if (!isValidStoreId(storeId) || !stocktakeId) throw new Error('invalid arguments');
+
+  const reportProgress = (done, total) => {
+    if (typeof onProgress === 'function') onProgress(done, total);
+  };
 
   const itemsSnapshot = await getDocs(stocktakeItemsRef(storeId, stocktakeId));
   const allProductsSnapshot = await getDocs(storeCollectionRef(storeId, 'products'));
   const countedItemIds = new Set(itemsSnapshot.docs.map((docSnap) => docSnap.id));
+  // 商品データは全商品スナップから引く(per-item getDoc を排除)。
+  const productMap = new Map(allProductsSnapshot.docs.map((docSnap) => [docSnap.id, docSnap.data()]));
   const results = [];
 
+  // 書き込み対象を組み立てる(カウント済み + 未カウントで在庫>0)。
+  const tasks = [];
   for (const docSnap of itemsSnapshot.docs) {
     const item = docSnap.data();
     const warehouseQuantity = Math.max(Number(item.warehouseQuantity || 0), 0);
     const storefrontQuantity = Math.max(Number(item.storefrontShelfQuantity || 0), 0);
-    const finalQuantity = warehouseQuantity + storefrontQuantity;
-
-    const productRef = doc(db, 'stores', storeId, 'products', docSnap.id);
-    const productSnap = await getDoc(productRef);
-    const productData = productSnap.exists() ? productSnap.data() : {};
-    const beforeQuantity = Math.max(Number(productData.inventoryQuantity ?? productData.quantity ?? 0), 0);
-
-    await setDoc(productRef, {
-      inventoryQuantity: finalQuantity,
-      quantity: finalQuantity,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    await setDoc(
-      doc(db, 'stores', storeId, 'inventory', docSnap.id),
-      { productId: docSnap.id, quantity: finalQuantity, updatedAt: serverTimestamp() },
-      { merge: true }
-    );
-
-    results.push({
-      productId: docSnap.id,
-      name: item.name || productData.name || '',
-      sku: item.sku || productData.sku || productData.productCode || '',
-      barcode: item.barcode || productData.barcode || '',
-      warehouseQuantity,
-      storefrontQuantity,
-      storefrontConfirmedQuantity: item.storefrontConfirmedQuantity != null
-        ? Math.max(Number(item.storefrontConfirmedQuantity), 0)
-        : null,
-      // 販売数は「確定数 − 現在の店頭数」で導出(集計フィールド非依存)。
-      soldDuringStocktake: item.storefrontConfirmedQuantity != null
-        ? Math.max(Math.max(Number(item.storefrontConfirmedQuantity), 0) - storefrontQuantity, 0)
-        : 0,
-      beforeQuantity,
-      finalQuantity
-    });
+    tasks.push({ productId: docSnap.id, item, warehouseQuantity, storefrontQuantity, finalQuantity: warehouseQuantity + storefrontQuantity });
   }
-
   for (const productDoc of allProductsSnapshot.docs) {
     if (countedItemIds.has(productDoc.id)) continue;
-
     const productData = productDoc.data();
-    const beforeQuantity = Math.max(Number(productData.inventoryQuantity ?? productData.quantity ?? 0), 0);
+    // 正・負どちらも 0 にそろえる(マイナス在庫の自動修正を含む)。0 のままは書き込み不要。
+    const rawBefore = Number(productData.inventoryQuantity ?? productData.quantity ?? 0);
+    if (rawBefore === 0) continue;
+    tasks.push({ productId: productDoc.id, item: null, warehouseQuantity: 0, storefrontQuantity: 0, finalQuantity: 0 });
+  }
 
-    if (beforeQuantity === 0) continue;
+  const total = tasks.length;
+  reportProgress(0, total);
 
-    await setDoc(doc(db, 'stores', storeId, 'products', productDoc.id), {
-      inventoryQuantity: 0,
-      quantity: 0,
+  const MAX_OPS = 480; // Firestore batch 上限500。1商品=2書き込み。
+  let batch = writeBatch(db);
+  let ops = 0;
+  let processed = 0;
+
+  for (const task of tasks) {
+    const productData = productMap.get(task.productId) || {};
+    // 生の値(マイナスも含む)。Shopify push の変更判定(before≠final)で負→0を拾うため。
+    const beforeQuantity = Number(productData.inventoryQuantity ?? productData.quantity ?? 0);
+
+    batch.set(doc(db, 'stores', storeId, 'products', task.productId), {
+      inventoryQuantity: task.finalQuantity,
+      quantity: task.finalQuantity,
       updatedAt: serverTimestamp()
     }, { merge: true });
-
-    await setDoc(
-      doc(db, 'stores', storeId, 'inventory', productDoc.id),
-      { productId: productDoc.id, quantity: 0, updatedAt: serverTimestamp() },
-      { merge: true }
-    );
+    batch.set(doc(db, 'stores', storeId, 'inventory', task.productId), {
+      productId: task.productId,
+      quantity: task.finalQuantity,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    ops += 2;
 
     results.push({
-      productId: productDoc.id,
-      name: productData.name || '',
-      sku: productData.sku || productData.productCode || '',
-      barcode: productData.barcode || '',
-      warehouseQuantity: 0,
-      storefrontQuantity: 0,
+      productId: task.productId,
+      name: task.item?.name || productData.name || '',
+      sku: task.item?.sku || productData.sku || productData.productCode || '',
+      barcode: task.item?.barcode || productData.barcode || '',
+      warehouseQuantity: task.warehouseQuantity,
+      storefrontQuantity: task.storefrontQuantity,
+      storefrontConfirmedQuantity: task.item?.storefrontConfirmedQuantity != null
+        ? Math.max(Number(task.item.storefrontConfirmedQuantity), 0)
+        : null,
+      // 販売数は「確定数 − 現在の店頭数」で導出(集計フィールド非依存)。
+      soldDuringStocktake: task.item?.storefrontConfirmedQuantity != null
+        ? Math.max(Math.max(Number(task.item.storefrontConfirmedQuantity), 0) - task.storefrontQuantity, 0)
+        : 0,
       beforeQuantity,
-      finalQuantity: 0
+      finalQuantity: task.finalQuantity
     });
+
+    processed += 1;
+
+    if (ops >= MAX_OPS) {
+      await batch.commit();
+      batch = writeBatch(db);
+      ops = 0;
+      reportProgress(processed, total);
+    }
   }
+
+  if (ops > 0) await batch.commit();
+  reportProgress(processed, total);
 
   await setDoc(stocktakeDocRef(storeId, stocktakeId), {
     status: 'completed',
