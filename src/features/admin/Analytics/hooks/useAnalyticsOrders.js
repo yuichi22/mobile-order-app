@@ -230,38 +230,21 @@ export const useAnalyticsOrders = ({
         };
       };
 
-      const mergeDocsById = (...docLists) => {
-        const map = new Map();
-
-        docLists.flat().forEach((docSnap) => {
-          if (!docSnap?.id || map.has(docSnap.id)) return;
-          map.set(docSnap.id, docSnap);
-        });
-
-        return Array.from(map.values());
-      };
-
       try {
+        // 取引は paidAt(売上日時) の単一レンジクエリで取得する。会計取引は必ず
+        // paidAt を持つ(POSの会計時に serverTimestamp で付与)ため、旧来の timestamp 併用
+        // (paidAt 欠落の保険)は不要。クエリを1本にして読み取り量を約半減させる。
         const paidAtQuery = query(
           transactionsCollection,
           where('paidAt', '>=', startTimestamp),
           where('paidAt', '<=', endTimestamp)
         );
 
-        const timestampQuery = query(
-          transactionsCollection,
-          where('timestamp', '>=', startTimestamp),
-          where('timestamp', '<=', endTimestamp)
-        );
-
-        const [paidAtSnapshot, timestampSnapshot] = await Promise.all([
-          getDocs(paidAtQuery),
-          getDocs(timestampQuery)
-        ]);
+        const paidAtSnapshot = await getDocs(paidAtQuery);
 
         if (!isActive) return;
 
-        const fetched = mergeDocsById(paidAtSnapshot.docs, timestampSnapshot.docs)
+        const fetched = paidAtSnapshot.docs
           .map(mapTransactionDoc)
           .filter((transaction) => transaction.isPaid !== false);
 
