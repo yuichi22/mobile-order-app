@@ -201,3 +201,85 @@ export const splitTransactionsByDepartment = (transactions = [], resolveItemDepa
   });
   return out;
 };
+
+// 分析(Analytics)用: order 単位の配分レコード(orderAnalyticsRecords)を持つ取引配列を、
+// 選択部門の item だけに絞り込んで再構成する。日計の splitTransactionByDepartment と
+// 同じ「商品カテゴリーの所属部門」判定(buildItemDepartmentResolver)を使う。
+//
+// 分析の集計(buildAnalyticsSummary)は、取引そのものではなく各 orderAnalyticsRecord の
+// totalAmount / items を起点に動く。そこで取引スライスではなく order レコード単位で部門を絞り、
+// 金額は「その order 内の選択部門 item の税込合計比率」で按分する。これにより部門別売上は
+// 日計(transactionTotal × 部門item比率)と一致する。
+//
+// - departmentId === 'all' は元配列をそのまま返す（従来挙動を完全維持）。
+// - 選択部門の item を1つも含まない取引は除外する（客数・会計数からも外れる）。
+// - orderAnalyticsRecords を持たない取引(POS直販など)は transaction.items / totalAmount を
+//   同じ比率で按分する（splitTransactionByDepartment と同じ考え方）。
+export const filterAnalyticsOrdersByDepartment = (orders = [], resolveItemDepartment, departmentId) => {
+  if (!departmentId || departmentId === 'all' || typeof resolveItemDepartment !== 'function') {
+    return orders || [];
+  }
+  const targetId = String(departmentId);
+
+  const fallbackDepartmentOf = (transaction) => (
+    transaction?.departmentId
+      ? { id: transaction.departmentId, name: transaction.departmentName || transaction.departmentId }
+      : null
+  );
+
+  // items を選択部門で絞り、税込合計比率(按分用)を返す。
+  const pickItems = (items, fallbackDepartment) => {
+    const list = Array.isArray(items) ? items : [];
+    const kept = [];
+    let keptTotal = 0;
+    let allTotal = 0;
+    list.forEach((item) => {
+      const lineTotal = getItemLineTotal(item);
+      allTotal += lineTotal;
+      const dept = resolveItemDepartment(item, fallbackDepartment) || { id: 'unassigned' };
+      if (String(dept.id || '') === targetId) {
+        kept.push(item);
+        keptTotal += lineTotal;
+      }
+    });
+    return { kept, ratio: allTotal > 0 ? keptTotal / allTotal : 1 };
+  };
+
+  const out = [];
+  (orders || []).forEach((transaction) => {
+    const fallbackDepartment = fallbackDepartmentOf(transaction);
+    const records = Array.isArray(transaction.orderAnalyticsRecords)
+      ? transaction.orderAnalyticsRecords
+      : [];
+
+    if (records.length > 0) {
+      const nextRecords = records
+        .map((record) => {
+          const { kept, ratio } = pickItems(record.items, fallbackDepartment);
+          if (kept.length === 0) return null;
+          return {
+            ...record,
+            items: kept,
+            totalAmount: Math.round(num(record.totalAmount) * ratio)
+          };
+        })
+        .filter(Boolean);
+
+      if (nextRecords.length === 0) return; // 選択部門の売上なし → 取引ごと除外
+      out.push({ ...transaction, orderAnalyticsRecords: nextRecords });
+      return;
+    }
+
+    // orderAnalyticsRecords が無い取引(POS直販など)は取引自体を按分する。
+    const { kept, ratio } = pickItems(transaction.items, fallbackDepartment);
+    if (kept.length === 0) return;
+    out.push({
+      ...transaction,
+      items: kept,
+      totalAmount: Math.round(num(transaction.totalAmount ?? transaction.totalPrice ?? 0) * ratio),
+      orderAnalyticsRecords: []
+    });
+  });
+
+  return out;
+};

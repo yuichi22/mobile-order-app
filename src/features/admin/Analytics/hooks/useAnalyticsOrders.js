@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, documentId, getDocs, query, where, Timestamp } from 'firebase/firestore';
 
 import { db } from '../../../../shared/api/firebase/client';
 import { toDate } from '../utils/analyticsHelpers';
@@ -162,7 +162,8 @@ export const useAnalyticsOrders = ({
   period,
   currentDate,
   customRange,
-  weeklyBaseDate
+  weeklyBaseDate,
+  selectedPeriodId = 'all'
 }) => {
   const [orders, setOrders] = useState([]);
 
@@ -264,43 +265,74 @@ export const useAnalyticsOrders = ({
           .map(mapTransactionDoc)
           .filter((transaction) => transaction.isPaid !== false);
 
-        const withOrderAnalyticsRecords = await Promise.all(
-          fetched.map(async (transaction) => {
-            const orderIds = getLinkedOrderIds(transaction);
+        // 月次・週次・任意期間（かつ提供時間帯フィルタ無し）は、グラフの粒度が日/週/月のため
+        // order単位の「時刻」配分が不要。注文の取得を丸ごと省いて表示を高速化する。
+        // 集計(buildAnalyticsSummary)は orderAnalyticsRecords が空なら取引レベル
+        // (totalAmount/items/取引日時)で同値に集計する。order取得が要るのは日次の
+        // 時間帯グラフと、提供時間帯フィルタ(selectedPeriodId)使用時のみ。
+        const needsOrderRecords =
+          period === 'daily'
+          || (Boolean(selectedPeriodId) && String(selectedPeriodId) !== 'all');
 
-            if (orderIds.length === 0) {
-              return {
-                ...transaction,
-                orderAnalyticsRecords: []
-              };
-            }
+        if (!needsOrderRecords) {
+          if (isActive) {
+            setOrders(fetched.map((transaction) => ({ ...transaction, orderAnalyticsRecords: [] })));
+          }
+          return;
+        }
 
-            const orderSnapshots = await Promise.all(
-              orderIds.map((orderId) => getDoc(doc(db, 'stores', storeId, 'orders', orderId)))
-            );
+        // 紐づく注文を一括取得(N+1回避)。全取引の注文IDをまとめ、documentId in の
+        // 30件チャンクでバッチ取得する。日次(useDailyTransactions)と同じ最適化で、
+        // 月次・週次のように取引が多い期間の往復回数を大幅に削減する。
+        const allOrderIds = Array.from(new Set(
+          fetched.flatMap((transaction) => getLinkedOrderIds(transaction))
+        )).filter(Boolean);
 
-            const existingOrders = orderSnapshots
-              .filter((orderSnapshot) => orderSnapshot.exists())
-              .map((orderSnapshot) => ({ id: orderSnapshot.id, ...orderSnapshot.data() }));
+        const orderMap = new Map();
+        if (allOrderIds.length > 0) {
+          const ordersCollection = collection(db, 'stores', storeId, 'orders');
+          const chunks = [];
+          for (let i = 0; i < allOrderIds.length; i += 30) {
+            chunks.push(allOrderIds.slice(i, i + 30));
+          }
+          const orderSnapshots = await Promise.all(
+            chunks.map((chunk) => getDocs(query(ordersCollection, where(documentId(), 'in', chunk))))
+          );
 
-            const amountByOrderId = allocateTransactionAmountByOrder(
-              transaction,
-              existingOrders.map((order) => order.id)
-            );
+          if (!isActive) return;
 
-            const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
-              order,
-              transaction,
-              amountByOrderId[order.id] || 0,
-              getTransactionItemsForOrder(transaction, order.id)
-            ));
+          orderSnapshots.forEach((snapshot) => {
+            snapshot.forEach((orderDoc) => {
+              orderMap.set(orderDoc.id, { id: orderDoc.id, ...orderDoc.data() });
+            });
+          });
+        }
 
-            return {
-              ...transaction,
-              orderAnalyticsRecords
-            };
-          })
-        );
+        const withOrderAnalyticsRecords = fetched.map((transaction) => {
+          const orderIds = getLinkedOrderIds(transaction);
+
+          if (orderIds.length === 0) {
+            return { ...transaction, orderAnalyticsRecords: [] };
+          }
+
+          const existingOrders = orderIds
+            .map((orderId) => orderMap.get(orderId))
+            .filter(Boolean);
+
+          const amountByOrderId = allocateTransactionAmountByOrder(
+            transaction,
+            existingOrders.map((order) => order.id)
+          );
+
+          const orderAnalyticsRecords = existingOrders.map((order) => buildOrderAnalyticsRecord(
+            order,
+            transaction,
+            amountByOrderId[order.id] || 0,
+            getTransactionItemsForOrder(transaction, order.id)
+          ));
+
+          return { ...transaction, orderAnalyticsRecords };
+        });
 
         if (isActive) {
           setOrders(withOrderAnalyticsRecords);
@@ -316,7 +348,7 @@ export const useAnalyticsOrders = ({
     return () => {
       isActive = false;
     };
-  }, [storeId, period, currentDate, customRange, weeklyBaseDate]);
+  }, [storeId, period, currentDate, customRange, weeklyBaseDate, selectedPeriodId]);
 
   return orders;
 };

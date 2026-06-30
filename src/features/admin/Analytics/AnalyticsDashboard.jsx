@@ -1,9 +1,13 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 
+import { db } from '../../../shared/api/firebase/client';
 import { useAuth } from '../../../app/providers/useAuth';
-import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData } from '../../store/hooks';
+import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData, useStoreSettings } from '../../store/hooks';
+import { getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
+import { buildItemDepartmentResolver, filterAnalyticsOrdersByDepartment } from './utils/departmentAttribution';
 
 import CustomRangePicker from './components/CustomRangePicker';
 import RankingView from './components/RankingView';
@@ -137,10 +141,16 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     start: new Date(),
     end: new Date()
   });
+  // 分析も部門単位で表示。既定=自レジの部門、'all'=全体（日計と同じ方式）。
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
+  // 部門振り分け用の商品カテゴリーマスター（当日中はほぼ不変なので一度だけ取得）。
+  const [productCategories, setProductCategories] = useState([]);
+  const [productCategoryGroups, setProductCategoryGroups] = useState([]);
 
   const { menuItems = [] } = useMenuData(storeId);
   const { categories = [] } = useCategoryData(storeId);
   const { periods = [] } = usePeriodData(storeId);
+  const { settings: storeSettings } = useStoreSettings(storeId);
   const {
     weeklyBaseDate,
     weeklyBaseDateKey,
@@ -194,11 +204,78 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     period,
     currentDate: effectiveAnalyticsDate,
     customRange,
-    weeklyBaseDate
+    weeklyBaseDate,
+    selectedPeriodId: effectiveSelectedPeriodId
   });
 
+  // 部門振り分け用に商品カテゴリー/グループを取得（日計パネルと同じ）。
+  useEffect(() => {
+    let cancelled = false;
+    const loadCategoryMaster = async () => {
+      if (!storeId) {
+        setProductCategories([]);
+        setProductCategoryGroups([]);
+        return;
+      }
+      try {
+        const [catSnap, groupSnap] = await Promise.all([
+          getDocs(collection(db, 'stores', storeId, 'productCategories')),
+          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups'))
+        ]);
+        if (cancelled) return;
+        setProductCategories(catSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+        setProductCategoryGroups(groupSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+      } catch (error) {
+        console.error('Failed to load category master (Analytics):', error);
+      }
+    };
+    loadCategoryMaster();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
+  // この端末の登録レジ→所属部門。分析は既定でこの部門を表示する。
+  const activeRegister = useMemo(
+    () => getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments),
+    [storeId, storeSettings?.registers, storeSettings?.departments]
+  );
+  const activeDepartment = useMemo(
+    () => getDepartmentById(activeRegister?.departmentId, storeSettings?.departments),
+    [activeRegister, storeSettings?.departments]
+  );
+  const departmentOptions = useMemo(
+    () => getAvailableDepartments(storeSettings?.departments || []),
+    [storeSettings?.departments]
+  );
+
+  // 既定表示を自部門に一度だけ寄せる（その後はユーザー操作を優先）。
+  const didInitDeptFilter = useRef(false);
+  useEffect(() => {
+    if (didInitDeptFilter.current) return;
+    if (!storeSettings?.departments && !storeSettings?.registers) return;
+    didInitDeptFilter.current = true;
+    setSelectedDepartmentId(activeDepartment?.id || 'all');
+  }, [activeDepartment, storeSettings?.departments, storeSettings?.registers]);
+
+  // 商品カテゴリーの所属部門でアイテムを振り分けるリゾルバ（日計と同一ロジック）。
+  const resolveItemDepartment = useMemo(
+    () => buildItemDepartmentResolver({
+      productCategories,
+      productCategoryGroups,
+      departments: storeSettings?.departments || []
+    }),
+    [productCategories, productCategoryGroups, storeSettings?.departments]
+  );
+
+  // 選択部門で order レコードを絞った分析入力（'all' は全件＝従来挙動）。
+  const departmentFilteredOrders = useMemo(
+    () => filterAnalyticsOrdersByDepartment(orders, resolveItemDepartment, selectedDepartmentId),
+    [orders, resolveItemDepartment, selectedDepartmentId]
+  );
+
   const analytics = useAnalyticsSummary({
-    orders,
+    orders: departmentFilteredOrders,
     period,
     currentDate: effectiveAnalyticsDate,
     customRange,
@@ -242,6 +319,11 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
           setIsDayOfWeekMode={setIsDayOfWeekMode}
           weeklyBaseDateKey={weeklyBaseDateKey}
           isWeeklyFallbackYesterday={isFallbackYesterday}
+          departmentOptions={departmentOptions}
+          selectedDepartmentId={selectedDepartmentId}
+          setSelectedDepartmentId={setSelectedDepartmentId}
+          activeDepartment={activeDepartment}
+          activeRegister={activeRegister}
         >
           {period === 'custom' && (
             <CustomRangePicker

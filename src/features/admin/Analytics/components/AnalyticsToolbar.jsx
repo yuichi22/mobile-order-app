@@ -102,7 +102,12 @@ const AnalyticsToolbar = ({
   shiftDate,
   setCurrentDate,
   isDayOfWeekMode,
-  setIsDayOfWeekMode
+  setIsDayOfWeekMode,
+  departmentOptions = [],
+  selectedDepartmentId = 'all',
+  setSelectedDepartmentId,
+  activeDepartment = null,
+  activeRegister = null
 }) => {
   const dateInputRef = useRef(null);
   const monthInputRef = useRef(null);
@@ -139,8 +144,66 @@ const AnalyticsToolbar = ({
       ? formatWeeklyLabel(currentDate)
       : formatDailyLabel(currentDate);
 
+  const isOwnDepartmentView = selectedDepartmentId === (activeDepartment?.id || '');
+
   return (
     <div className="mb-6 space-y-4 print:hidden">
+      {/* 部門セレクタ（日計と同じ方式: 自部門を大きく、その他は小さく、全体を併設） */}
+      {setSelectedDepartmentId && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+          {/* 使用レジ（固定表示） */}
+          <div className="rounded-xl bg-slate-900 px-4 py-2 text-base font-black text-white">
+            {activeRegister?.name || 'レジ'}
+          </div>
+
+          {/* 部門ボタン（自部門は大きく、その他は小さく。選択中は黒） */}
+          {departmentOptions.map((dept) => {
+            const isSelected = selectedDepartmentId === dept.id;
+            const isOwn = dept.id === activeDepartment?.id;
+            return (
+              <button
+                key={dept.id}
+                type="button"
+                onClick={() => setSelectedDepartmentId(dept.id)}
+                className={`rounded-xl font-black transition ${
+                  isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
+                } ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                {dept.name}
+              </button>
+            );
+          })}
+
+          {/* 全体（小さくグレー、選択中は黒） */}
+          <button
+            type="button"
+            onClick={() => setSelectedDepartmentId('all')}
+            className={`rounded-xl px-3 py-2 text-xs font-black transition ${
+              selectedDepartmentId === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+          >
+            全体
+          </button>
+
+          {/* 自部門に戻る（自部門/全体以外を表示中のみ） */}
+          {!isOwnDepartmentView && activeDepartment?.id && (
+            <button
+              type="button"
+              onClick={() => setSelectedDepartmentId(activeDepartment.id)}
+              className="ml-auto rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+            >
+              自部門に戻る
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-orange-50/40 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-black text-orange-500">
