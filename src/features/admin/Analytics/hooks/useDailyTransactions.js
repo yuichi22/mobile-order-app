@@ -254,28 +254,40 @@ export const useDailyTransactions = ({ storeId, targetDate }) => {
             return leftTime - rightTime;
           });
 
-        // 紐づく注文を一括取得(N+1回避)。全取引の注文IDをまとめ、documentId in で
-        // 30件チャンクのバッチ取得にする。挙動は従来と同じで往復回数だけ削減する。
+        if (!isActive) return;
+
+        // フェーズ1: 取引本体だけで即時表示する。
+        // 売上・支払方法・原価/粗利・割引・税は取引(items)から計算でき、時間帯別も
+        // 取引の periodId で暫定集計できる(buildDailyClosingSummary のフォールバック)。
+        // 注文(orderAnalyticsRecords)取得を待たずに描画し、遅い回線での体感を改善する。
+        setTransactions(fetched.map((transaction) => ({ ...transaction, orderAnalyticsRecords: [] })));
+        setLoading(false);
+
+        // フェーズ2: 紐づく注文を背景取得し、時間帯別を「提供/注文時刻ベース」に精緻化する。
+        // 注文紐付けが無ければフェーズ1で確定なので、ここで終了する。
         const allOrderIds = Array.from(new Set(
           fetched.flatMap((transaction) => getLinkedOrderIds(transaction))
         )).filter(Boolean);
 
-        const orderMap = new Map();
-        if (allOrderIds.length > 0) {
-          const ordersCollection = collection(db, 'stores', storeId, 'orders');
-          const chunks = [];
-          for (let i = 0; i < allOrderIds.length; i += 30) {
-            chunks.push(allOrderIds.slice(i, i + 30));
-          }
-          const orderSnapshots = await Promise.all(
-            chunks.map((chunk) => getDocs(query(ordersCollection, where(documentId(), 'in', chunk))))
-          );
-          orderSnapshots.forEach((snapshot) => {
-            snapshot.forEach((orderDoc) => {
-              orderMap.set(orderDoc.id, { id: orderDoc.id, ...orderDoc.data() });
-            });
-          });
+        if (allOrderIds.length === 0) return;
+
+        const ordersCollection = collection(db, 'stores', storeId, 'orders');
+        const chunks = [];
+        for (let i = 0; i < allOrderIds.length; i += 30) {
+          chunks.push(allOrderIds.slice(i, i + 30));
         }
+        const orderSnapshots = await Promise.all(
+          chunks.map((chunk) => getDocs(query(ordersCollection, where(documentId(), 'in', chunk))))
+        );
+
+        if (!isActive) return;
+
+        const orderMap = new Map();
+        orderSnapshots.forEach((snapshot) => {
+          snapshot.forEach((orderDoc) => {
+            orderMap.set(orderDoc.id, { id: orderDoc.id, ...orderDoc.data() });
+          });
+        });
 
         const transactionsWithOrders = fetched.map((transaction) => {
           const orderIds = getLinkedOrderIds(transaction);
@@ -306,7 +318,6 @@ export const useDailyTransactions = ({ storeId, targetDate }) => {
         if (!isActive) return;
 
         setTransactions(transactionsWithOrders);
-        setLoading(false);
       } catch (error) {
         console.error('Firestore Error (DailyTransactions):', error);
         if (isActive) {
