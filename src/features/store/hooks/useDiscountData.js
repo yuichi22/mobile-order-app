@@ -18,7 +18,13 @@ export const useDiscountData = (storeId) => {
     return subscribeToDiscounts(
       storeId,
       (items) => {
-        setDiscounts(items);
+        // 並び順(sortOrder)昇順。未設定は末尾へ。安定ソートで同値は元の順序を維持。
+        const sorted = [...(items || [])].sort((a, b) => {
+          const ao = Number.isFinite(Number(a?.sortOrder)) ? Number(a.sortOrder) : Number.MAX_SAFE_INTEGER;
+          const bo = Number.isFinite(Number(b?.sortOrder)) ? Number(b.sortOrder) : Number.MAX_SAFE_INTEGER;
+          return ao - bo;
+        });
+        setDiscounts(sorted);
         setLoading(false);
       },
       (error) => {

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
+  ChevronUp,
   Edit,
   Keyboard,
   Percent,
@@ -49,6 +51,32 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
   const [discountType, setDiscountType] = useState('amount');
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingDiscount, setDeletingDiscount] = useState(null);
+  const [isReordering, setIsReordering] = useState(false);
+
+  // 並び替え: index の割引を direction(-1=上/+1=下)へ移動し sortOrder を採番して保存する。
+  const moveDiscount = async (index, direction) => {
+    if (isReordering) return;
+    const target = index + direction;
+    if (target < 0 || target >= discounts.length) return;
+
+    const reordered = [...discounts];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+
+    setIsReordering(true);
+    try {
+      await Promise.all(
+        reordered
+          .map((discount, order) => (
+            Number(discount.sortOrder) !== order
+              ? onSave({ ...discount, sortOrder: order })
+              : null
+          ))
+          .filter(Boolean)
+      );
+    } finally {
+      setIsReordering(false);
+    }
+  };
 
   const startCreating = () => {
     setEditingDiscount(createBlankDiscount());
@@ -357,7 +385,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
             <table className="w-full table-fixed border-collapse text-left">
               <thead className="bg-gray-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                 <tr>
-                  <th className="w-20 px-4 py-5 text-center">#</th>
+                  <th className="w-28 px-4 py-5 text-center">並び順</th>
                   <th className="w-24 px-4 py-5 text-center">形式</th>
                   <th className="px-4 py-5">名称</th>
                   <th className="w-[22%] px-4 py-5 text-left">割引内容</th>
@@ -389,10 +417,32 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                     }}
                     className="group cursor-pointer transition-colors hover:bg-orange-50/30"
                   >
-                    <td className="px-4 py-5 text-center">
-                      <span className="font-mono text-base font-black text-gray-300">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
+                    <td className="px-2 py-5">
+                      <div className="flex items-center justify-center gap-2" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            disabled={index === 0 || isReordering}
+                            onClick={() => moveDiscount(index, -1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label="上へ移動"
+                          >
+                            <ChevronUp size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === discounts.length - 1 || isReordering}
+                            onClick={() => moveDiscount(index, 1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label="下へ移動"
+                          >
+                            <ChevronDown size={15} />
+                          </button>
+                        </div>
+                        <span className="font-mono text-base font-black text-gray-300">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                      </div>
                     </td>
 
                     <td className="px-4 py-5 text-center">
