@@ -90,7 +90,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
     .map((entry) => entry.value);
 };
 
-export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, storeId }) => {
+export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -795,6 +795,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, st
     setPaymentAmount('');
     setPaymentMethod('');
   }, [checkoutSelectionMode, currentPayTargetSignature, totalAmount]);
+
+  // 次の会計を右ペインで開始したら、前回の会計完了トーストを親に閉じてもらう。
+  // お支払額(paymentAmount)は現金のみで立つため、全支払方法で立つ paymentMethod を
+  // トリガーにする。会計完了時 paymentMethod は値が変わらない(現金/カード等はそのまま)ので
+  // effect が再実行されず誤爆しない。会計対象が変わると paymentMethod は '' にリセットされ
+  // (上の reset 用 effect)、次の会計で支払方法を選び直した時に発火する。
+  useEffect(() => {
+    if (paymentMethod !== '') {
+      onCheckoutAmountEntered?.();
+    }
+  }, [paymentMethod]);
 
   const getCancellableOrderItemEntries = (order) => {
     if (!order?.items || !Array.isArray(order.items)) return [];

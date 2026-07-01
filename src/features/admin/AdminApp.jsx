@@ -259,6 +259,14 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     setPaymentResultToast(null);
   };
 
+  // 次の会計で右ペインにお支払額が入った時点で、前回の会計完了トーストを自動で閉じる。
+  // 会計完了時は支払額フィールドが '' にリセットされてからトーストが出るため、
+  // 下位(PosMain/PosRegister)から届くこの通知は必ず「新しい会計の開始」を表し、
+  // 同一取引の直後に誤って消えることはない。setState は冪等なので入力中に複数回来ても無害。
+  const handleCheckoutAmountEntered = () => {
+    setPaymentResultToast((current) => (current ? null : current));
+  };
+
   const handlePaymentResultToast = (payload) => {
     if (!payload) {
       setPaymentResultToast(null);
@@ -640,6 +648,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   registerMode={registerMode}
                   onBack={!showAdminHeader ? onBack : undefined}
                   onPaymentResult={handlePaymentResultToast}
+                  onCheckoutAmountEntered={handleCheckoutAmountEntered}
                 />
               )}
 
@@ -649,6 +658,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onBack={() => setPosView('scan')}
                   onComplete={handlePosComplete}
                   onPaymentResult={handlePaymentResultToast}
+                  onCheckoutAmountEntered={handleCheckoutAmountEntered}
                   storeId={storeId}
                 />
               )}

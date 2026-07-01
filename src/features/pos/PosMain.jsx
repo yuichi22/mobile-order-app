@@ -158,7 +158,7 @@ const computeCartLineFigures = (item, modeTax, registerMode) => {
   };
 };
 
-export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, registerMode = 'order' }) => {
+export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, onCheckoutAmountEntered, registerMode = 'order' }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
 
   // この端末の登録レジ(基本設定)＝自レジ。履歴は既定でこのレジ。全レジ一覧は「その他のレジ」選択用。
@@ -217,6 +217,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
   const [takeoutDiscountType, setTakeoutDiscountType] = useState('none');
+  // 次の会計を右ペインで開始したら、前回の会計完了トーストを親に閉じてもらう。
+  // 現金以外(カード/QR/掛け)でも確実に発火するよう、カート・支払方法・お支払額の
+  // いずれかが立った時点をトリガーにする。会計完了時はこれら全てが同一バッチで
+  // 空/'' にリセットされる(setTakeoutCart([])/setTakeoutPaymentMethod('')/
+  // setTakeoutPaymentAmount('') → onPaymentResult)ため、同一取引で誤爆しない（POSモードのみ）。
+  useEffect(() => {
+    if (registerMode !== 'pos') return;
+    if (takeoutCart.length > 0 || takeoutPaymentMethod !== '' || takeoutPaymentAmount !== '') {
+      onCheckoutAmountEntered?.();
+    }
+  }, [takeoutCart.length, takeoutPaymentMethod, takeoutPaymentAmount, registerMode]);
   const [takeoutDiscountValue, setTakeoutDiscountValue] = useState(0);
   const [takeoutSelectedDiscount, setTakeoutSelectedDiscount] = useState(null);
   const [takeoutDiscountQuantities, setTakeoutDiscountQuantities] = useState({});
