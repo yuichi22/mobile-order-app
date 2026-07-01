@@ -3085,13 +3085,9 @@ async function issueReceiptForOrder({
 
 
 
-const markSessionHasOrders = (transaction, sessionRef) => {
-  transaction.set(sessionRef, {
-    hasOrders: true,
-    lastActivityAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp()
-  }, { merge: true });
-};
+// NOTE: 以前は createPostpayOrder のトランザクション内で session ドキュメントを
+// 書き込む markSessionHasOrders ヘルパを使っていたが、hot-doc 競合対策(案1)により
+// コミット後のトランザクション外書き込みに移したため廃止。
 
 
 
@@ -5107,60 +5103,59 @@ export const createPostpayOrder = onRequest(
         });
       }
 
+      // 混雑時の hot-doc 競合対策(案1): session / table / settings はトランザクションの
+      // read-set に含めず、素の get で事前検証する。これにより同一セッションへの同時注文が
+      // session ドキュメントを read+write で奪い合って ABORTED になるのを防ぐ。
+      // 在庫整合が必要な menuItem の read/write だけをトランザクション内に残す。
+      const storeRef = db.collection('stores').doc(storeId);
+      const normalizedTableId = String(tableId || '').trim();
+
+      const sessionRef = storeRef.collection('sessions').doc(sessionId);
+      const tableRef = storeRef.collection('tables').doc(normalizedTableId);
+      const settingsRef = storeRef.collection('settings').doc('basic');
+
+      const [sessionSnapshot, tableSnapshot, settingsSnapshot] = await Promise.all([
+        sessionRef.get(),
+        tableRef.get(),
+        settingsRef.get()
+      ]);
+
+      if (!sessionSnapshot.exists) {
+        throw new Error('セッション情報が見つかりません。');
+      }
+
+      const sessionData = sessionSnapshot.data() || {};
+      const tableData = tableSnapshot.exists ? tableSnapshot.data() || {} : {};
+      const storeData = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+
+      if (
+        sessionData.status === 'ended' ||
+        sessionData.status === 'completed' ||
+        sessionData.status === 'archived' ||
+        sessionData.status === 'locked' ||
+        sessionData.status === 'disabled'
+      ) {
+        throw new Error('このセッションでは注文できません。');
+      }
+
+      const tableDisplayName = String(
+        tableData.tableDisplayName ||
+        tableData.displayName ||
+        tableData.name ||
+        sessionData.tableDisplayName ||
+        sessionData.tableName ||
+        ''
+      ).trim();
+
+      const sessionPartySize = Number(sessionData.partySize || 0);
+      const normalizedPartySize =
+        sessionPartySize > 0
+          ? Math.min(20, sessionPartySize)
+          : requestedPartySize > 0
+            ? Math.min(20, requestedPartySize)
+            : null;
+
       const result = await db.runTransaction(async (transaction) => {
-        const storeRef = db.collection('stores').doc(storeId);
-
-        const normalizedTableId = String(tableId || '').trim();
-
-        const sessionRef = storeRef
-          .collection('sessions')
-          .doc(sessionId);
-
-        const tableRef = storeRef
-          .collection('tables')
-          .doc(normalizedTableId);
-
-        const settingsRef = storeRef.collection('settings').doc('basic');
-
-        const sessionSnapshot = await transaction.get(sessionRef);
-        const tableSnapshot = await transaction.get(tableRef);
-        const settingsSnapshot = await transaction.get(settingsRef);
-        const storeData = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
-
-        if (!sessionSnapshot.exists) {
-          throw new Error('セッション情報が見つかりません。');
-        }
-
-        const sessionData = sessionSnapshot.data() || {};
-        const tableData = tableSnapshot.exists ? tableSnapshot.data() || {} : {};
-
-        const tableDisplayName = String(
-          tableData.tableDisplayName ||
-          tableData.displayName ||
-          tableData.name ||
-          sessionData.tableDisplayName ||
-          sessionData.tableName ||
-          ''
-        ).trim();
-
-        const sessionPartySize = Number(sessionData.partySize || 0);
-        const normalizedPartySize =
-          sessionPartySize > 0
-            ? Math.min(20, sessionPartySize)
-            : requestedPartySize > 0
-              ? Math.min(20, requestedPartySize)
-              : null;
-
-        if (
-          sessionData.status === 'ended' ||
-          sessionData.status === 'completed' ||
-          sessionData.status === 'archived' ||
-          sessionData.status === 'locked' ||
-          sessionData.status === 'disabled'
-        ) {
-          throw new Error('このセッションでは注文できません。');
-        }
-
         const menuRefs = normalizedCart.map((item) => ({
           cartItem: item,
           ref: db
@@ -5325,11 +5320,22 @@ export const createPostpayOrder = onRequest(
             : {})
         });
 
-                // [createPostpayOrder] mark session hasOrders
-        markSessionHasOrders(transaction, sessionRef);
+        return { orderId: orderRef.id };
+      }, { maxAttempts: 10 });
 
-return { orderId: orderRef.id };
-      });
+      // 案1: session の活動状況更新はコミット後にトランザクション外で行う。
+      // hasOrders は autoVacate 側が orders 実データを必ず再確認する設計のため、
+      // ここでの厳密なトランザクション整合は不要。txn 外に出すことで session
+      // ドキュメントの hot-doc 競合を避ける。失敗しても注文成立は妨げない。
+      try {
+        await sessionRef.set({
+          hasOrders: true,
+          lastActivityAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (markError) {
+        console.warn('[createPostpayOrder] post-commit session activity update failed', markError);
+      }
 
       return res.status(200).json({
         ok: true,

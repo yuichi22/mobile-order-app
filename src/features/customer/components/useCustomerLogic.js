@@ -755,28 +755,53 @@ const {
       return;
     }
 
-    const unavailableItem = safeCart.find((item) => !menuItemsById[item.id]);
-    if (unavailableItem) {
-      showToast(`${unavailableItem.name} は現在注文できません`, 'error');
-      return;
-    }
+    // 混雑時にメニュー購読が未完了/一瞬空になると menuItemsById が空になり、
+    // カート内商品が「存在しない」と誤判定されて「〇〇は現在注文できません」の
+    // 赤エラーが出てしまう。事前チェックはメニューがロード済みのときだけ行い、
+    // 未ロード時は弾かずサーバ側の再検証（存在/売り切れ/在庫）に委ねる。
+    const menuReady = !menuLoading && Object.keys(menuItemsById).length > 0;
 
-    const soldOutItem = safeCart.find((item) => menuItemsById[item.id]?.isSoldOut);
-    if (soldOutItem) {
-      showToast(`${soldOutItem.name} は売り切れのため注文できません`, 'error');
-      return;
-    }
+    if (menuReady) {
+      const unavailableItem = safeCart.find((item) => !menuItemsById[item.id]);
+      if (unavailableItem) {
+        if (import.meta.env.DEV) {
+          console.warn('[placeOrder] availability guard', {
+            reason: 'item-not-in-loaded-menu',
+            itemId: unavailableItem.id,
+            itemName: unavailableItem.name,
+            menuCount: Object.keys(menuItemsById).length,
+            menuLoading,
+            storeId
+          });
+        }
+        showToast(`${unavailableItem.name} は現在注文できません`, 'error');
+        return;
+      }
 
-    const exceededLimitedItem = safeCart.find((item) => {
-      const latestItem = menuItemsById[item.id];
-      if (!latestItem || !Number.isFinite(latestItem.remainingQuantity)) return false;
-      return item.quantity > latestItem.remainingQuantity;
-    });
+      const soldOutItem = safeCart.find((item) => menuItemsById[item.id]?.isSoldOut);
+      if (soldOutItem) {
+        showToast(`${soldOutItem.name} は売り切れのため注文できません`, 'error');
+        return;
+      }
 
-    if (exceededLimitedItem) {
-      const latestItem = menuItemsById[exceededLimitedItem.id];
-      showToast(`${exceededLimitedItem.name} の残りは ${latestItem.remainingQuantity} 点です`, 'error');
-      return;
+      const exceededLimitedItem = safeCart.find((item) => {
+        const latestItem = menuItemsById[item.id];
+        if (!latestItem || !Number.isFinite(latestItem.remainingQuantity)) return false;
+        return item.quantity > latestItem.remainingQuantity;
+      });
+
+      if (exceededLimitedItem) {
+        const latestItem = menuItemsById[exceededLimitedItem.id];
+        showToast(`${exceededLimitedItem.name} の残りは ${latestItem.remainingQuantity} 点です`, 'error');
+        return;
+      }
+    } else if (import.meta.env.DEV) {
+      console.warn('[placeOrder] menu not ready, skipping client pre-check (server will validate)', {
+        menuLoading,
+        menuCount: Object.keys(menuItemsById).length,
+        storeId,
+        cartItemIds: safeCart.map((item) => item.id)
+      });
     }
 
     const externalCustomer = user?.spaceOsCustomerUid
