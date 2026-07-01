@@ -1395,7 +1395,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutSelectedDiscount({
       id: discount?.id || 'manual_full',
       name: discount?.name || '手入力',
-      type: 'amount',
+      // 締めで定型金額(枚数照合)と区別するため元の種類を残す。
+      type: discount?.type || 'manual',
       value: fullAmount,
       accountingCategory: discount?.accountingCategory || 'voucher_payment',
       count: 1,

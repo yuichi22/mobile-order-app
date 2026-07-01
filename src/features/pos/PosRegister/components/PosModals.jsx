@@ -574,7 +574,8 @@ export const PosModals = ({
             name: isPercent
               ? `${manualTarget.name || '手入力'} ${pct}%引き`
               : (manualTarget.name || '手入力'),
-            type: 'amount',
+            // 締めで「定型金額(枚数照合)」と区別するため元の種類を残す。
+            type: manualTarget.type || 'manual',
             value,
             accountingCategory: manualTarget.accountingCategory || 'sales_discount',
             count: 1,

@@ -272,17 +272,25 @@ const DailyClosingCheckModal = ({
       const name = discount.name || '値引き';
       const expectedCount = Number(discount.quantity || discount.count || 0);
       const expectedAmount = Number(discount.amount || 0);
-      const countable = isCountableCoupon(discount);
+      const category = discount.category || discount.accountingCategory || 'sales_discount';
+      // 締めの確認方法:
+      //  count  = 定型金額(券面あり) → 枚数で照合
+      //  amount = 金券/売掛区分の変動額(手入力・全額売掛・%) → 金額を確認
+      //  auto   = 売上値引/販促費など → 記録のみ(照合なし)
+      const mode = isCountableCoupon(discount)
+        ? 'count'
+        : (category === 'voucher_payment' ? 'amount' : 'auto');
+      const countable = mode === 'count';
       const unitValue = countable ? resolveUnitValue(discount) : 0;
-      // 金額クーポン(券面あり)だけ枚数で照合。% / 手入力 / 単品割引は記録額をそのまま採用(差額なし)。
       const actualCount = countable ? toNumber(couponCounts[id]) : 0;
       const actualAmount = countable ? actualCount * unitValue : expectedAmount;
 
       return {
         id,
         name,
-        category: discount.category || discount.accountingCategory || 'sales_discount',
+        category,
         type: discount.type || '',
+        mode,
         countable,
         value: unitValue,
         expectedCount,
@@ -619,7 +627,11 @@ const DailyClosingCheckModal = ({
                         ? '％割引'
                         : item.type === 'manual'
                           ? '手入力'
-                          : '値引';
+                          : item.type === 'manual_percent'
+                            ? '手入力%'
+                            : item.type === 'full_credit'
+                              ? '売掛'
+                              : '値引';
                     return (
                     <div
                       key={item.id}
@@ -645,7 +657,7 @@ const DailyClosingCheckModal = ({
                           </div>
                         </div>
 
-                        {item.countable ? (
+                        {item.mode === 'count' ? (
                           <div className="flex shrink-0 items-center gap-2">
                             <input
                               type="text"
@@ -665,12 +677,19 @@ const DailyClosingCheckModal = ({
                             />
                             <span className="text-[9px] font-bold text-gray-400">枚</span>
                           </div>
+                        ) : item.mode === 'amount' ? (
+                          <div className="shrink-0 text-right">
+                            <div className="text-sm font-black text-amber-700">
+                              {formatCurrency(item.expectedAmount)}
+                            </div>
+                            <div className="text-[9px] font-black text-amber-600">金額を確認</div>
+                          </div>
                         ) : (
                           <div className="shrink-0 text-right">
                             <div className="text-sm font-black text-gray-700">
                               {formatCurrency(item.expectedAmount)}
                             </div>
-                            <div className="text-[9px] font-bold text-gray-400">自動記録（枚数照合なし）</div>
+                            <div className="text-[9px] font-bold text-gray-400">自動記録（照合なし）</div>
                           </div>
                         )}
                       </div>
