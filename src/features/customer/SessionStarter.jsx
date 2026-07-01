@@ -5,46 +5,13 @@ import { signInAnonymously } from 'firebase/auth';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import { auth, initializeAuth } from '../../shared/api/firebase/client';
 import { prefetchCustomerStoreData } from '../store/services/storePrefetchService';
-import { preflightCustomerEntry } from './services/customerSessionService';
-import {
-  clearStoredTableEntryGuard,
-  getStoredTableEntryGuard,
-  setStoredTableEntryGuard
-} from './utils/entryGuards';
-import { getStoredParticipantIdentityForTable } from './utils/participantIdentity';
-
-const ENTRY_PREFLIGHT_TIMEOUT_MS = 12000;
+import { getStoredTableEntryGuard } from './utils/entryGuards';
 
 const safeGetStoredTableEntryGuard = (tableContext) => {
   try {
     return getStoredTableEntryGuard(tableContext);
   } catch (error) {
     console.warn('[SessionStarter] getStoredTableEntryGuard failed', error);
-    return null;
-  }
-};
-
-const safeSetStoredTableEntryGuard = (tableContext, sessionId) => {
-  try {
-    setStoredTableEntryGuard(tableContext, sessionId);
-  } catch (error) {
-    console.warn('[SessionStarter] setStoredTableEntryGuard failed', error);
-  }
-};
-
-const safeClearStoredTableEntryGuard = (tableContext) => {
-  try {
-    clearStoredTableEntryGuard(tableContext);
-  } catch (error) {
-    console.warn('[SessionStarter] clearStoredTableEntryGuard failed', error);
-  }
-};
-
-const safeGetStoredParticipantIdentityForTable = ({ storeId, tableId }) => {
-  try {
-    return getStoredParticipantIdentityForTable({ storeId, tableId });
-  } catch (error) {
-    console.warn('[SessionStarter] getStoredParticipantIdentityForTable failed', error);
     return null;
   }
 };
@@ -68,32 +35,6 @@ const warmUpCustomerAuth = () => {
   });
 
   return authWarmUpPromise;
-};
-
-const withTimeout = (promise, timeoutMs, timeoutMessage) => {
-  let timeoutId = null;
-
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
-  });
-
-  return Promise.race([promise, timeoutPromise])
-    .then((result) => {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-
-      return result;
-    })
-    .catch((error) => {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-
-      throw error;
-    });
 };
 
 const LoadingSurface = ({ children = null }) => (
@@ -151,78 +92,31 @@ const SessionStarter = ({ tableId, storeId, tableToken, onEntryReady }) => {
       setStatus(nextStatus);
     };
 
-    const startEntry = async () => {
+    const startEntry = () => {
       try {
-        // preflight と並列に匿名認証を先行実行（await しない）。
+        // QR直後に匿名認証を先行ウォームアップ（await しない）。
+        // customer 画面の bootstrap 到達時に認証済み状態を再利用できる。
         warmUpCustomerAuth();
 
+        // 以前は tableToken があると preflightCustomerEntry で占有/無効/停止を
+        // 事前判定してから進んでいたが、bootstrapCustomerSession が
+        // open(created)/restore/occupied/disabled/stopped/error を返す上位互換のため、
+        // preflight を廃止して直接 customer 画面へ進み、bootstrap を単一の判定源にする。
+        // Cloud Function 1往復＋コールドスタート源(preflight)を削減できる。
+        // 占有・無効・停止・エラーの画面は customer 側(entryBootstrapStatus)で表示される。
         const existingGuard = safeGetStoredTableEntryGuard(tableContext);
-
         if (existingGuard) {
           safeSetStatus('occupied');
           return;
         }
 
-        const storedParticipantIdentity = safeGetStoredParticipantIdentityForTable({
-          storeId,
-          tableId
-        });
-
-        if (!tableToken) {
-          prefetchCustomerStoreData(storeId).catch(() => {});
-
-          if (isMounted && typeof onEntryReady === 'function') {
-            onEntryReady();
-          }
-
-          return;
-        }
-
-        safeSetStatus('checking');
         prefetchCustomerStoreData(storeId).catch(() => {});
 
-        const result = await withTimeout(
-          preflightCustomerEntry({
-            storeId,
-            tableId,
-            tableToken,
-            participantToken: storedParticipantIdentity?.participantToken || ''
-          }),
-          ENTRY_PREFLIGHT_TIMEOUT_MS,
-          'テーブル情報の確認に時間がかかっています。'
-        );
-
-        if (!isMounted) return;
-
-        if (result?.action === 'open' || result?.action === 'restore') {
-          safeClearStoredTableEntryGuard(tableContext);
-
-          if (typeof onEntryReady === 'function') {
-            onEntryReady();
-          }
-
-          return;
+        if (isMounted && typeof onEntryReady === 'function') {
+          onEntryReady();
         }
-
-        if (result?.action === 'occupied') {
-          safeSetStoredTableEntryGuard(tableContext, result.sessionId);
-          safeSetStatus('occupied');
-          return;
-        }
-
-        if (result?.action === 'disabled') {
-          safeSetStatus('disabled');
-          return;
-        }
-
-        if (result?.action === 'stopped') {
-          safeSetStatus('stopped');
-          return;
-        }
-
-        safeSetStatus('error');
       } catch (error) {
-        console.error('Session start preflight error:', error);
+        console.error('Session start entry error:', error);
 
         if (!isMounted) return;
 
