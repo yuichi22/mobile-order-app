@@ -10,11 +10,14 @@ import {
   hasPrefetchedStoreData,
   readPrefetchedMenuItems
 } from '../services/storePrefetchService';
+import { useSubscriptionWatchdog } from './useSubscriptionWatchdog';
 
 export const useMenuData = (storeId) => {
   const hasStoreId = isValidStoreId(storeId);
   const [menuItems, setMenuItems] = useState(() => (hasStoreId ? readPrefetchedMenuItems(storeId) : []));
   const [loading, setLoading] = useState(() => hasStoreId && !hasPrefetchedStoreData(storeId));
+
+  const retryNonce = useSubscriptionWatchdog({ loading, active: hasStoreId, setLoading });
 
   useEffect(() => {
     if (!hasStoreId) return undefined;
@@ -30,7 +33,7 @@ export const useMenuData = (storeId) => {
         setLoading(false);
       }
     );
-  }, [hasStoreId, storeId]);
+  }, [hasStoreId, storeId, retryNonce]);
 
   const updateMenu = async (itemData) => {
     if (!hasStoreId) return;

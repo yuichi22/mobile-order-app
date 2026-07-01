@@ -13,11 +13,14 @@ import {
   hasPrefetchedStoreData,
   readPrefetchedBusinessSettings
 } from '../services/storePrefetchService';
+import { useSubscriptionWatchdog } from './useSubscriptionWatchdog';
 
 export const useBusinessSettings = (storeId) => {
   const hasStoreId = isValidStoreId(storeId);
   const [settings, setSettings] = useState(() => (hasStoreId ? readPrefetchedBusinessSettings(storeId) : DEFAULT_BUSINESS_SETTINGS));
   const [loading, setLoading] = useState(() => hasStoreId && !hasPrefetchedStoreData(storeId));
+
+  const retryNonce = useSubscriptionWatchdog({ loading, active: hasStoreId, setLoading });
 
   useEffect(() => {
     if (!hasStoreId) return undefined;
@@ -33,7 +36,7 @@ export const useBusinessSettings = (storeId) => {
         setLoading(false);
       }
     );
-  }, [hasStoreId, storeId]);
+  }, [hasStoreId, storeId, retryNonce]);
 
   const updateSettings = async (newSettings) => {
     if (!hasStoreId) return;

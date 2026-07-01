@@ -9,11 +9,14 @@ import {
   hasPrefetchedStoreData,
   readPrefetchedPeriods
 } from '../services/storePrefetchService';
+import { useSubscriptionWatchdog } from './useSubscriptionWatchdog';
 
 export const usePeriodData = (storeId) => {
   const hasStoreId = isValidStoreId(storeId);
   const [periods, setPeriods] = useState(() => (hasStoreId ? readPrefetchedPeriods(storeId) : []));
   const [loading, setLoading] = useState(() => hasStoreId && !hasPrefetchedStoreData(storeId));
+
+  const retryNonce = useSubscriptionWatchdog({ loading, active: hasStoreId, setLoading });
 
   useEffect(() => {
     if (!hasStoreId) return undefined;
@@ -29,7 +32,7 @@ export const usePeriodData = (storeId) => {
         setLoading(false);
       }
     );
-  }, [hasStoreId, storeId]);
+  }, [hasStoreId, storeId, retryNonce]);
 
   const updatePeriods = async (newList) => {
     if (!hasStoreId) return;

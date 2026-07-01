@@ -15,7 +15,11 @@ import { auth, db, initializeAuth } from '../../../shared/api/firebase/client';
 import { getBusinessStatus } from '../../../shared/utils/businessHours';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { useBusinessSettings, useCategoryData, useMenuData, usePeriodData } from '../../store/hooks';
-import { prefetchCustomerStoreData } from '../../store/services/storePrefetchService';
+import {
+  hasPrefetchedStoreData,
+  prefetchCustomerStoreData,
+  readPrefetchedStoreSettings
+} from '../../store/services/storePrefetchService';
 import { useCustomerCart } from '../hooks/useCustomerCart';
 import { useCustomerCurrentPeriod } from '../hooks/useCustomerCurrentPeriod';
 import { useTableMenuOverride } from '../hooks/useTableMenuOverride';
@@ -46,6 +50,10 @@ import {
 } from '../utils/sessionInvite';
 
 const BOOTSTRAP_TIMEOUT_MS = 12000;
+
+// settings/basic の getDoc が宙吊りになり basicSettings が埋まらない
+// （＝黒文字の既定フォールバックのまま）状態を復旧するためのリトライ間隔。
+const BASIC_SETTINGS_WATCHDOG_MS = 6000;
 
 const withTimeout = (promise, timeoutMs, timeoutMessage) => {
   let timeoutId = null;
@@ -206,7 +214,16 @@ export const useCustomerLogic = (
   const [inviteToken, setInviteToken] = useState('');
   const [isMembershipRestoring, setIsMembershipRestoring] = useState(false);
 
-  const [basicSettings, setBasicSettings] = useState(null);
+  // 同一タブでのセッション切替直後は sessionStorage の prefetch が残っているので、
+  // getDoc の完了を待たずにテーマ色/ロゴを即座に反映して黒文字表示を避ける。
+  const [basicSettings, setBasicSettings] = useState(() => (
+    storeId && hasPrefetchedStoreData(storeId) ? readPrefetchedStoreSettings(storeId) : null
+  ));
+  // どの storeId まで getDoc が確定したかを保持し、派生値で loaded を判定する
+  // （effect 本体での同期 setState を避けるため）。
+  const [basicSettingsLoadedStoreId, setBasicSettingsLoadedStoreId] = useState(null);
+  const [basicSettingsRetryNonce, setBasicSettingsRetryNonce] = useState(0);
+  const basicSettingsLoaded = Boolean(storeId) && basicSettingsLoadedStoreId === storeId;
 
   // 人数モーダル判定の正規ソース。
   // sessions/{sessionId}.partySize があるかどうかを見る。
@@ -225,9 +242,12 @@ export const useCustomerLogic = (
         if (!isMounted) return;
 
         setBasicSettings(snapshot.exists() ? snapshot.data() : null);
+        setBasicSettingsLoadedStoreId(storeId);
       } catch (error) {
         console.error('Error loading basic settings:', error);
-        if (isMounted) setBasicSettings(null);
+        if (!isMounted) return;
+        // エラー(permission等)は解決済みとして扱い、宙吊り(未解決)のみをリトライ対象にする。
+        setBasicSettingsLoadedStoreId(storeId);
       }
     };
 
@@ -236,7 +256,18 @@ export const useCustomerLogic = (
     return () => {
       isMounted = false;
     };
-  }, [storeId]);
+  }, [storeId, basicSettingsRetryNonce]);
+
+  // getDoc が onNext/onError どちらも返さず basicSettings が確定しない場合に再取得する。
+  useEffect(() => {
+    if (!storeId || basicSettingsLoaded) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setBasicSettingsRetryNonce((nonce) => nonce + 1);
+    }, BASIC_SETTINGS_WATCHDOG_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [storeId, basicSettingsLoaded, basicSettingsRetryNonce]);
 
   useEffect(() => {
     if (!storeId) return undefined;
