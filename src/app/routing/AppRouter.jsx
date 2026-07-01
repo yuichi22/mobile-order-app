@@ -365,6 +365,13 @@ const AppRouter = () => {
     return (
       <Suspense fallback={<RouteLoader />}>
         <CustomerPage
+          // セッションIDが変わったら CustomerPage を作り直す(remount)。
+          // 同一タブでの会計後→別テーブルや、退席→招待QRで別セッション参加のとき、
+          // 前セッションの状態(isSessionEnded=終了画面/contentLoading/basicSettings 等)が
+          // 残って「ご利用ありがとうございました」が挟まる・固まるのを防ぐ。
+          key={resolvedSessionId
+            ? `session:${activeStoreId || ''}:${resolvedSessionId}`
+            : `entry:${activeStoreId || ''}:${resolvedTableId || ''}`}
           sessionId={resolvedSessionId}
           storeId={activeStoreId}
           entryTableId={resolvedTableId || pendingSessionNavigation?.tableId || null}
