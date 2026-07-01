@@ -368,7 +368,8 @@ export const PosModals = ({
                     const currentDiscountType = discount.type || 'amount';
                     const unitValue = Number(discount.value) || 0;
                     const isAmountDiscount = currentDiscountType === 'amount';
-                    const isManual = currentDiscountType === 'manual';
+                    const isManual = currentDiscountType === 'manual' || currentDiscountType === 'manual_percent';
+                    const isManualPercent = currentDiscountType === 'manual_percent';
                     const discountKey = discount.id || discount.name;
                     const quantity = Math.max(0, Number(discountQuantities?.[discountKey] || 0));
                     const lineTotal = isAmountDiscount ? unitValue * quantity : 0;
@@ -422,7 +423,7 @@ export const PosModals = ({
                           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold text-gray-400">
                             <span>
                               {isManual
-                                ? '会計時に金額入力'
+                                ? (isManualPercent ? '会計時に％入力' : '会計時に金額入力')
                                 : isAmountDiscount
                                   ? `1枚 ${unitValue.toLocaleString()}円`
                                   : `${unitValue}%割引`}
@@ -444,7 +445,7 @@ export const PosModals = ({
                               className="flex h-8 items-center gap-1 rounded-lg bg-sky-100 px-3 text-xs font-black text-sky-700 transition-colors hover:bg-sky-200 active:scale-95"
                             >
                               <Keyboard size={14} />
-                              金額入力
+                              {isManualPercent ? '％入力' : '金額入力'}
                             </button>
                           ) : isAmountDiscount ? (
                             <>
@@ -537,14 +538,22 @@ export const PosModals = ({
       )}
 
       {showDiscountModal && manualTarget && (() => {
+        const isPercent = manualTarget.type === 'manual_percent';
         const base = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
         const raw = Number(manualValue) || 0;
-        const amt = Math.max(0, Math.min(base, Math.floor(raw)));
+        const pct = isPercent ? Math.max(0, Math.min(100, Math.floor(raw))) : 0;
+        const amt = isPercent
+          ? Math.floor(base * (pct / 100))
+          : Math.max(0, Math.min(base, Math.floor(raw)));
         const remaining = Math.max(0, base - amt);
         const categoryLabel = getAccountingCategoryLabel(manualTarget.accountingCategory || 'sales_discount');
         const closeManual = () => { setManualTarget(null); setManualValue(''); };
         const append = (digit) => setManualValue((prev) => {
           const b = (prev && prev !== '0') ? prev : '';
+          if (isPercent) {
+            const next = (b + digit).slice(0, 3);
+            return String(Math.min(100, Number(next) || 0));
+          }
           const next = (b + digit).slice(0, 9);
           return String(Math.min(base, Number(next) || 0));
         });
@@ -562,7 +571,9 @@ export const PosModals = ({
           // 数量選択済みの金額クーポンと手入力額を束ねて併用する。
           const manualItem = {
             id: manualTarget.id || 'manual_discount',
-            name: manualTarget.name || '手入力',
+            name: isPercent
+              ? `${manualTarget.name || '手入力'} ${pct}%引き`
+              : (manualTarget.name || '手入力'),
             type: 'amount',
             value,
             accountingCategory: manualTarget.accountingCategory || 'sales_discount',
@@ -589,7 +600,7 @@ export const PosModals = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/70">
                     <Keyboard size={14} />
-                    手入力 / {categoryLabel}
+                    手入力 {isPercent ? '％指定' : '金額指定'} / {categoryLabel}
                   </div>
                   <h3 className="mt-1 truncate text-lg font-black">{manualTarget.name || '手入力'}</h3>
                   <p className="text-xs font-bold text-white/80">対象金額 ¥{base.toLocaleString()}</p>
@@ -605,28 +616,33 @@ export const PosModals = ({
               </div>
 
               <div className="space-y-4 p-6">
-                <button
-                  type="button"
-                  onClick={() => applyManualAmount(true)}
-                  disabled={base <= 0}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
-                >
-                  <HandCoins size={16} />
-                  全額 ¥{base.toLocaleString()} で会計
-                </button>
+                {!isPercent && (
+                  <button
+                    type="button"
+                    onClick={() => applyManualAmount(true)}
+                    disabled={base <= 0}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                  >
+                    <HandCoins size={16} />
+                    全額 ¥{base.toLocaleString()} で会計
+                  </button>
+                )}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">入力金額</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                      {isPercent ? '入力割引率' : '入力金額'}
+                    </span>
                     {amt > 0 && (
                       <span className="text-sm font-black text-sky-600">
-                        充当 -¥{amt.toLocaleString()} / 残り ¥{remaining.toLocaleString()}
+                        {isPercent ? `${pct}% = ` : ''}充当 -¥{amt.toLocaleString()} / 残り ¥{remaining.toLocaleString()}
                       </span>
                     )}
                   </div>
                   <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
-                    <span className="mr-1 text-2xl font-black text-slate-300">￥</span>
+                    {!isPercent && <span className="mr-1 text-2xl font-black text-slate-300">￥</span>}
                     <span className="font-mono text-4xl font-black text-slate-800">{manualValue || '0'}</span>
+                    {isPercent && <span className="ml-1 text-2xl font-black text-slate-300">%</span>}
                   </div>
                 </div>
 
@@ -676,7 +692,7 @@ export const PosModals = ({
                   onClick={() => applyManualAmount(false)}
                   className="flex h-14 w-full items-center justify-center rounded-xl bg-slate-900 font-black text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 >
-                  ¥{amt.toLocaleString()} を充当{remaining > 0 ? `（残り ¥${remaining.toLocaleString()} は他の決済）` : ''}
+                  {isPercent ? `${pct}% = ` : ''}¥{amt.toLocaleString()} を充当{remaining > 0 ? `（残り ¥${remaining.toLocaleString()} は他の決済）` : ''}
                 </button>
 
                 <button

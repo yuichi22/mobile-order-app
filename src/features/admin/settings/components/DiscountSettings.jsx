@@ -166,65 +166,76 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                     <label className="mb-5 block text-sm font-black uppercase tracking-widest text-gray-500">
                       割引タイプ
                     </label>
-                    <div className="flex gap-4">
+                    <div className="space-y-6">
                       {[
                         {
-                          id: 'percent',
-                          label: 'パーセント (%)',
-                          icon: <Percent size={24} />
+                          title: '定型タイプ',
+                          hint: '登録した固定値',
+                          types: [
+                            { id: 'percent', label: '％', icon: <Percent size={22} /> },
+                            { id: 'amount', label: '金額', icon: <span className="text-xl font-black">¥</span> }
+                          ]
                         },
                         {
-                          id: 'amount',
-                          label: '固定金額値引き (円)',
-                          icon: <span className="text-xl font-black">¥</span>
-                        },
-                        {
-                          id: 'manual',
-                          label: '手入力 (会計時に金額入力)',
-                          icon: <Keyboard size={24} />
+                          title: '手入力タイプ',
+                          hint: '会計時に入力',
+                          types: [
+                            { id: 'manual_percent', label: '％指定', icon: <Keyboard size={22} /> },
+                            { id: 'manual', label: '金額指定', icon: <Keyboard size={22} /> }
+                          ]
                         }
-                      ].map((type) => {
-                        const isSelected = discountType === type.id;
+                      ].map((group) => (
+                        <div key={group.title}>
+                          <div className="mb-2 flex items-baseline gap-2 px-1">
+                            <span className="text-xs font-black uppercase tracking-widest text-gray-500">{group.title}</span>
+                            <span className="text-[11px] font-bold text-gray-400">{group.hint}</span>
+                          </div>
+                          <div className="flex gap-4">
+                            {group.types.map((type) => {
+                              const isSelected = discountType === type.id;
 
-                        return (
-                          <button
-                            key={type.id}
-                            type="button"
-                            onClick={() => setDiscountType(type.id)}
-                            className={`relative flex min-h-[188px] flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl border-2 px-6 py-8 text-center transition-all ${
-                              isSelected
-                                ? 'border-orange-500 bg-orange-50/50 shadow-xl shadow-orange-100 ring-1 ring-orange-500'
-                                : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-gray-50/30'
-                            }`}
-                          >
-                            <div
-                              className={`absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full transition-all ${
-                                isSelected ? 'scale-100 bg-orange-500 text-white' : 'scale-50 bg-gray-100 text-transparent'
-                              }`}
-                            >
-                              <Check size={12} strokeWidth={4} />
-                            </div>
-                            <div
-                              className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
-                                isSelected
-                                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-                                  : 'bg-gray-50 text-gray-400'
-                              }`}
-                            >
-                              {type.icon}
-                            </div>
-                            <span className={`text-lg font-black leading-tight ${isSelected ? 'text-orange-950' : 'text-gray-500'}`}>
-                              {type.label}
-                            </span>
-                          </button>
-                        );
-                      })}
+                              return (
+                                <button
+                                  key={type.id}
+                                  type="button"
+                                  onClick={() => setDiscountType(type.id)}
+                                  className={`relative flex min-h-[120px] flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 px-6 py-6 text-center transition-all ${
+                                    isSelected
+                                      ? 'border-orange-500 bg-orange-50/50 shadow-xl shadow-orange-100 ring-1 ring-orange-500'
+                                      : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-gray-50/30'
+                                  }`}
+                                >
+                                  <div
+                                    className={`absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full transition-all ${
+                                      isSelected ? 'scale-100 bg-orange-500 text-white' : 'scale-50 bg-gray-100 text-transparent'
+                                    }`}
+                                  >
+                                    <Check size={12} strokeWidth={4} />
+                                  </div>
+                                  <div
+                                    className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all ${
+                                      isSelected
+                                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
+                                        : 'bg-gray-50 text-gray-400'
+                                    }`}
+                                  >
+                                    {type.icon}
+                                  </div>
+                                  <span className={`text-lg font-black leading-tight ${isSelected ? 'text-orange-950' : 'text-gray-500'}`}>
+                                    {type.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-10">
-                  {discountType === 'manual' ? (
+                  {(discountType === 'manual' || discountType === 'manual_percent') ? (
                     <div>
                       <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">
                         割引内容
@@ -232,8 +243,9 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-5 text-sm font-bold leading-relaxed text-gray-500">
                         <Keyboard size={20} className="mt-0.5 shrink-0 text-orange-500" />
                         <span>
-                          金額は会計時にテンキーで入力します。会計画面の「割引・売掛を適用」に表示され、
-                          「全額で会計」または金額入力で一部充当（残額は他の決済へ）できます。
+                          {discountType === 'manual_percent'
+                            ? '割引率(％)は会計時にテンキーで入力します。会計画面の「割引・売掛を適用」に表示され、指定した％分を値引きします。'
+                            : '金額は会計時にテンキーで入力します。会計画面の「割引・売掛を適用」に表示され、「全額で会計」または金額入力で一部充当（残額は他の決済へ）できます。'}
                         </span>
                       </div>
                     </div>
@@ -389,7 +401,9 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                           className="flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg ring-4 ring-white"
                           style={{ backgroundColor: discount.type === 'percent' ? '#f97316' : '#64748b' }}
                         >
-                          {discount.type === 'percent' ? (
+                          {discount.type === 'manual' || discount.type === 'manual_percent' ? (
+                            <Keyboard size={18} />
+                          ) : discount.type === 'percent' ? (
                             <Percent size={18} />
                           ) : (
                             <span className="text-base font-black">¥</span>
@@ -406,7 +420,15 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
 
                     <td className="px-4 py-5">
                       <div className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-100/50 bg-orange-50 px-4 leading-none">
-                        {discount.type === 'percent' ? (
+                        {discount.type === 'manual_percent' ? (
+                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-orange-700">
+                            ％指定（手入力）
+                          </span>
+                        ) : discount.type === 'manual' ? (
+                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-orange-700">
+                            金額指定（手入力）
+                          </span>
+                        ) : discount.type === 'percent' ? (
                           <span className="inline-flex items-center gap-0 leading-none">
                             <span className="inline-flex items-center text-[16px] font-bold leading-none text-orange-700">
                               {discount.value}%
