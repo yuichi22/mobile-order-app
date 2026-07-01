@@ -1,9 +1,11 @@
 import { initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
-  getAuth,
+  browserSessionPersistence,
+  indexedDBLocalPersistence,
+  inMemoryPersistence,
+  initializeAuth as firebaseInitializeAuth,
   onAuthStateChanged,
-  setPersistence,
   signInWithCustomToken
 } from "firebase/auth";
 import {
@@ -36,7 +38,19 @@ const firebaseConfig = {
 const region = import.meta.env.VITE_FUNCTIONS_REGION || "asia-northeast1";
 
 export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// アプリ内ブラウザ(LINE等)やプライベートモードでは IndexedDB / localStorage が
+// 使えず、単一の persistence だと認証初期化や匿名サインインが失敗/ハングして
+// QR読み込み後に真っ白/ローディングのまま止まる。永続化はフォールバック配列で
+// 初期化し、利用可能なストレージ(最終的にメモリ)へ自動で降格させる。
+export const auth = firebaseInitializeAuth(app, {
+  persistence: [
+    indexedDBLocalPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+    inMemoryPersistence
+  ]
+});
 
 // Firestore は永続ローカルキャッシュを有効化する。
 // 2回目以降はキャッシュから即描画→裏で最新化。コールド接続/電波弱でも待たされにくい。
@@ -56,8 +70,6 @@ export const db = initFirestore();
 export const functionsApi = getFunctions(app, region);
 export const storage = getStorage(app);
 
-let persistencePromise = null;
-
 const runtimeAppId =
   typeof globalThis !== "undefined" && typeof globalThis.__app_id !== "undefined"
     ? globalThis.__app_id
@@ -71,16 +83,9 @@ const initialAuthToken =
 export const appId = runtimeAppId;
 export const firebaseProjectId = firebaseConfig.projectId;
 
-export const ensureSessionPersistence = async () => {
-  if (!persistencePromise) {
-    persistencePromise = setPersistence(auth, browserLocalPersistence).catch((error) => {
-      persistencePromise = null;
-      throw error;
-    });
-  }
-
-  await persistencePromise;
-};
+// persistence は initializeAuth 時にフォールバック配列で確定済みのため、ここでは何もしない。
+// 呼び出し側の互換性維持のため関数は残す（await しても即座に解決する）。
+export const ensureSessionPersistence = async () => {};
 
 export const waitForAuthReady = async () => {
   if (typeof auth.authStateReady === "function") {

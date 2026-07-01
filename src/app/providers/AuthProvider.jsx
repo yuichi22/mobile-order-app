@@ -26,6 +26,12 @@ import { AuthContext } from './AuthContext';
 import { normalizeUserRole, USER_ROLES } from '../../shared/utils/roles';
 import { normalizeStoreAccessStatus } from '../../shared/utils/storeAccess';
 
+// 認証初期化(persistence / onAuthStateChanged / プロフィール取得)が何らかの理由で
+// 完了しなくても、この時間で必ず描画に進ませる保険。アプリ内ブラウザ(LINE等)や
+// プライベートモードで IndexedDB が刺さると loading が永久 true になり画面が
+// 真っ白のまま固まる事象への対策。
+const AUTH_INIT_WATCHDOG_MS = 5000;
+
 const createOwnerSeed = () => ({
   role: USER_ROLES.OWNER,
   storeId: `store_${Math.random().toString(36).substring(2, 7)}`
@@ -173,19 +179,28 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    let unsubscribe = () => {};
     let isMounted = true;
+    let settled = false;
 
-    const setupAuthListener = async () => {
-      try {
-        await ensureSessionPersistence();
-      } catch (error) {
-        console.error('Auth persistence setup error:', error);
-      }
+    const finishLoading = () => {
+      if (!isMounted || settled) return;
+      settled = true;
+      setLoading(false);
+    };
 
-      if (!isMounted) return;
+    // persistence はベストエフォート。ここで await してブロックすると、IndexedDB が
+    // 使えない環境(アプリ内ブラウザ/プライベートモード)で認証リスナー登録前に固まり、
+    // loading が永久 true → 画面が真っ白のままになる。await せず並行実行する。
+    // sign-in 側(initializeAuth)は別途 ensureSessionPersistence を await するため、
+    // 永続化の適用タイミングは担保される。
+    ensureSessionPersistence().catch((error) => {
+      console.error('Auth persistence setup error:', error);
+    });
 
-      unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // 認証初期化が完了しなくても一定時間で必ず描画に進ませる保険。
+    const watchdog = window.setTimeout(finishLoading, AUTH_INIT_WATCHDOG_MS);
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
         setCurrentUser(user);
 
         const params = new URLSearchParams(window.location.search);
@@ -212,7 +227,7 @@ export const AuthProvider = ({ children }) => {
                 setStoreId(null);
                 setRole(null);
                 setProfileName('');
-                setLoading(false);
+                finishLoading();
                 return;
               }
             }
@@ -248,14 +263,12 @@ export const AuthProvider = ({ children }) => {
         setStoreId(detectedStoreId);
         setRole(detectedRole);
         setStoreAccessStatus(detectedStoreAccessStatus);
-        setLoading(false);
+        finishLoading();
       });
-    };
-
-    setupAuthListener();
 
     return () => {
       isMounted = false;
+      window.clearTimeout(watchdog);
       unsubscribe();
     };
   }, []);
