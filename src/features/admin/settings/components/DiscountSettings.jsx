@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Check,
   Edit,
+  Keyboard,
   Percent,
   Plus,
   Save,
@@ -176,6 +177,11 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                           id: 'amount',
                           label: '固定金額値引き (円)',
                           icon: <span className="text-xl font-black">¥</span>
+                        },
+                        {
+                          id: 'manual',
+                          label: '手入力 (会計時に金額入力)',
+                          icon: <Keyboard size={24} />
                         }
                       ].map((type) => {
                         const isSelected = discountType === type.id;
@@ -218,23 +224,38 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                 </div>
 
                 <div className="space-y-10">
-                  <div>
-                    <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">
-                      割引内容 ({discountType === 'percent' ? 'パーセント' : '円'})
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        name="value"
-                        defaultValue={editingDiscount.value}
-                        required
-                        className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-6 pr-14 text-3xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
-                      />
-                      <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-black text-gray-300">
-                        {discountType === 'percent' ? '%' : '円'}
-                      </span>
+                  {discountType === 'manual' ? (
+                    <div>
+                      <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">
+                        割引内容
+                      </label>
+                      <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-5 text-sm font-bold leading-relaxed text-gray-500">
+                        <Keyboard size={20} className="mt-0.5 shrink-0 text-orange-500" />
+                        <span>
+                          金額は会計時にテンキーで入力します。会計画面の「割引・売掛を適用」に表示され、
+                          「全額で会計」または金額入力で一部充当（残額は他の決済へ）できます。
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">
+                        割引内容 ({discountType === 'percent' ? 'パーセント' : '円'})
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          name="value"
+                          defaultValue={editingDiscount.value}
+                          required
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-6 pr-14 text-3xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
+                        />
+                        <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-black text-gray-300">
+                          {discountType === 'percent' ? '%' : '円'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="mb-5 block text-sm font-black uppercase tracking-widest text-gray-500">

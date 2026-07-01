@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Calculator, Check, ChevronRight, HandCoins, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Calculator, Check, ChevronLeft, ChevronRight, HandCoins, Keyboard, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
 
 const getAccountingCategoryLabel = (category) => {
   if (category === 'promo_expense') return '販促費';
@@ -27,6 +27,7 @@ export const PosModals = ({
   discountQuantities,
   setDiscountQuantities,
   onFullCreditCheckout,
+  onManualFullCheckout,
   showAbortModal,
   setShowAbortModal,
   abortReason = 'manual_abort',
@@ -36,6 +37,10 @@ export const PosModals = ({
   tableId,
   tableDisplayName
 }) => {
+  // 手入力タイプの割引を選んだ時のテンキー入力対象と入力値。
+  const [manualTarget, setManualTarget] = useState(null);
+  const [manualValue, setManualValue] = useState('');
+
   const splitResult = useMemo(() => {
     const count = Number(splitCount) || 1;
     if (count <= 0) return { perPerson: 0, remainder: 0 };
@@ -69,6 +74,61 @@ export const PosModals = ({
     setDiscountValue(0);
     setSelectedDiscount?.(null);
     setDiscountQuantities?.({});
+  };
+
+  // 数量指定された金額クーポンを items 配列に変換する(手入力との併用でも再利用)。
+  const buildSelectedAmountDiscounts = () => discounts
+    .map((discount) => {
+      const type = discount.type || 'amount';
+      const key = discount.id || discount.name;
+      const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
+      const unitValue = Number(discount.value) || 0;
+      if (type !== 'amount' || quantity <= 0) return null;
+      return {
+        id: discount.id || null,
+        name: discount.name || '値引き',
+        type,
+        value: unitValue,
+        accountingCategory: discount.accountingCategory || 'sales_discount',
+        count: quantity,
+        quantity,
+        amount: unitValue * quantity
+      };
+    })
+    .filter(Boolean);
+
+  // 複数の金額値引き(クーポン＋手入力)を1つの選択割引(items付き)にまとめる。
+  const commitCombinedAmountDiscounts = (items) => {
+    const combined = (items || []).filter((item) => item && Number(item.amount || 0) > 0);
+    if (combined.length === 0) {
+      setDiscountType('none');
+      setDiscountValue(0);
+      setSelectedDiscount?.(null);
+      setDiscountQuantities?.({});
+      setShowDiscountModal(false);
+      return;
+    }
+    const total = combined.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const single = combined.length === 1;
+    const totalQuantity = combined.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+    setDiscountType('amount');
+    setDiscountValue(total);
+    setSelectedDiscount?.({
+      id: single ? combined[0].id : 'multiple_coupons',
+      name: single ? combined[0].name : `${combined.length}種類の割引/クーポン`,
+      type: 'amount',
+      accountingCategory: single ? (combined[0].accountingCategory || 'sales_discount') : 'mixed',
+      value: single ? combined[0].value : 0,
+      count: totalQuantity,
+      quantity: totalQuantity,
+      amount: total,
+      items: combined,
+      label: single
+        ? `${combined[0].name} × ${combined[0].quantity}枚`
+        : `${combined.length}種類 / ${totalQuantity}枚`
+    });
+    setDiscountQuantities?.({});
+    setShowDiscountModal(false);
   };
 
   // 全額売掛を適用。amount経路 + voucher_payment区分で、値引き前の支払全額を売掛として計上する。
@@ -116,66 +176,7 @@ export const PosModals = ({
       return;
     }
 
-    const selectedAmountDiscounts = discounts
-      .map((discount) => {
-        const type = discount.type || 'amount';
-        const key = discount.id || discount.name;
-        const quantity = Math.max(0, Number(discountQuantities?.[key] || 0));
-        const unitValue = Number(discount.value) || 0;
-        if (type !== 'amount' || quantity <= 0) return null;
-        return {
-          id: discount.id || null,
-          name: discount.name || '値引き',
-          type,
-          value: unitValue,
-          accountingCategory: discount.accountingCategory || 'sales_discount',
-          count: quantity,
-          quantity,
-          amount: unitValue * quantity
-        };
-      })
-      .filter(Boolean);
-
-    const totalAmountDiscount = selectedAmountDiscounts.reduce(
-      (sum, discount) => sum + Number(discount.amount || 0),
-      0
-    );
-
-    if (totalAmountDiscount <= 0) {
-      setDiscountType('none');
-      setDiscountValue(0);
-      setSelectedDiscount?.(null);
-      setShowDiscountModal(false);
-      return;
-    }
-
-    const displayName = selectedAmountDiscounts.length === 1
-      ? selectedAmountDiscounts[0].name
-      : `${selectedAmountDiscounts.length}種類のクーポン`;
-    const totalQuantity = selectedAmountDiscounts.reduce(
-      (sum, discount) => sum + Number(discount.quantity || 0),
-      0
-    );
-
-    setDiscountType('amount');
-    setDiscountValue(totalAmountDiscount);
-    setSelectedDiscount?.({
-      id: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].id : 'multiple_coupons',
-      name: displayName,
-      type: 'amount',
-      accountingCategory: selectedAmountDiscounts.length === 1
-        ? selectedAmountDiscounts[0].accountingCategory || 'sales_discount'
-        : 'mixed',
-      value: selectedAmountDiscounts.length === 1 ? selectedAmountDiscounts[0].value : 0,
-      count: totalQuantity,
-      quantity: totalQuantity,
-      amount: totalAmountDiscount,
-      items: selectedAmountDiscounts,
-      label: selectedAmountDiscounts.length === 1
-        ? `${selectedAmountDiscounts[0].name} × ${selectedAmountDiscounts[0].quantity}枚`
-        : `${displayName} / ${totalQuantity}枚`
-    });
-    setShowDiscountModal(false);
+    commitCombinedAmountDiscounts(buildSelectedAmountDiscounts());
   };
 
   const isAllItemsCancelledAbort = abortReason === 'all_items_cancelled';
@@ -308,12 +309,28 @@ export const PosModals = ({
       )}
 
       {showDiscountModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-800">
-              <Percent size={20} className="text-orange-500" />
-              割引・売掛を適用
-            </h3>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setShowDiscountModal(false)}
+        >
+          <div
+            className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+                <Percent size={20} className="text-orange-500" />
+                割引・売掛を適用
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowDiscountModal(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                aria-label="閉じる"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
             <div className="mb-4 space-y-2">
               <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-2">
@@ -332,12 +349,8 @@ export const PosModals = ({
                     : '全額を売掛にする'}
                 </button>
               </div>
-              <p className="px-1 text-[10px] font-bold leading-relaxed text-gray-400">
-                % 割引は商品ごとの「単品割引」で適用します。下のリストは登録済みの金額クーポン/金券、全額売掛は支払全額を売掛(後日回収)として計上します。
-              </p>
             </div>
 
-            <div className="mb-2 px-1 text-[11px] font-black text-gray-400">登録済みの割引/金券</div>
             <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-400">
               <div>項目名</div>
               <div className="text-center">数量</div>
@@ -355,6 +368,7 @@ export const PosModals = ({
                     const currentDiscountType = discount.type || 'amount';
                     const unitValue = Number(discount.value) || 0;
                     const isAmountDiscount = currentDiscountType === 'amount';
+                    const isManual = currentDiscountType === 'manual';
                     const discountKey = discount.id || discount.name;
                     const quantity = Math.max(0, Number(discountQuantities?.[discountKey] || 0));
                     const lineTotal = isAmountDiscount ? unitValue * quantity : 0;
@@ -377,16 +391,22 @@ export const PosModals = ({
                       updateQuantity(isAmountDiscount ? quantity + 1 : 1);
                     };
 
+                    const openManual = () => {
+                      setManualTarget(discount);
+                      setManualValue('');
+                    };
+                    const handleRowActivate = isManual ? openManual : incrementQuantity;
+
                     return (
                       <div
                         key={discountKey}
                         role="button"
                         tabIndex={0}
-                        onClick={incrementQuantity}
+                        onClick={handleRowActivate}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            incrementQuantity();
+                            handleRowActivate();
                           }
                         }}
                         className={`grid cursor-pointer grid-cols-[1fr_120px_100px] items-center gap-2 rounded-xl border px-2 py-3 transition-all ${
@@ -401,9 +421,11 @@ export const PosModals = ({
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold text-gray-400">
                             <span>
-                              {isAmountDiscount
-                                ? `1枚 ${unitValue.toLocaleString()}円`
-                                : `${unitValue}%割引`}
+                              {isManual
+                                ? '会計時に金額入力'
+                                : isAmountDiscount
+                                  ? `1枚 ${unitValue.toLocaleString()}円`
+                                  : `${unitValue}%割引`}
                             </span>
                             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
                               {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
@@ -415,7 +437,16 @@ export const PosModals = ({
                           className="flex items-center justify-center gap-1"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          {isAmountDiscount ? (
+                          {isManual ? (
+                            <button
+                              type="button"
+                              onClick={openManual}
+                              className="flex h-8 items-center gap-1 rounded-lg bg-sky-100 px-3 text-xs font-black text-sky-700 transition-colors hover:bg-sky-200 active:scale-95"
+                            >
+                              <Keyboard size={14} />
+                              金額入力
+                            </button>
+                          ) : isAmountDiscount ? (
                             <>
                               <button
                                 type="button"
@@ -458,11 +489,13 @@ export const PosModals = ({
                         </div>
 
                         <div className="text-right font-mono text-sm font-black text-orange-700">
-                          {isAmountDiscount
-                            ? `-${lineTotal.toLocaleString()}円`
-                            : isSelectedPercent
-                              ? `${unitValue}%`
-                              : '-'}
+                          {isManual
+                            ? '手入力'
+                            : isAmountDiscount
+                              ? `-${lineTotal.toLocaleString()}円`
+                              : isSelectedPercent
+                                ? `${unitValue}%`
+                                : '-'}
                         </div>
                       </div>
                     );
@@ -472,48 +505,192 @@ export const PosModals = ({
             </div>
 
             <div className="shrink-0 border-t border-gray-100 pt-4">
-              <div className="mb-3 rounded-xl bg-orange-50 px-4 py-3">
-                <div className="flex items-center justify-between text-sm font-black text-orange-900">
-                  <span>適用予定額</span>
-                  <span className="font-mono">
-                    {previewPercentLabel ? `${previewPercentLabel} = ` : ''}-{previewDiscountAmount.toLocaleString()}円
-                  </span>
-                </div>
-                <div className="mt-1 text-[11px] font-bold text-orange-600">
-                  項目名を押すと数量が1増えます。
-                </div>
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-orange-50 px-4 py-3 text-sm font-black text-orange-900">
+                <span>適用予定額</span>
+                <span className="font-mono">
+                  {previewPercentLabel ? `${previewPercentLabel} = ` : ''}-{previewDiscountAmount.toLocaleString()}円
+                </span>
               </div>
 
-              <button
-                type="button"
-                onClick={applyDiscountSelection}
-                className="mb-3 flex w-full items-center justify-center rounded-xl bg-orange-500 py-3 font-black text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.99]"
-              >
-                適用
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  resetDiscountSelection();
-                  setShowDiscountModal(false);
-                }}
-                className="mb-2 w-full rounded-xl bg-gray-100 py-3 font-bold text-gray-600 transition-colors hover:bg-gray-200"
-              >
-                リセット
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowDiscountModal(false)}
-                className="w-full py-2 text-sm text-gray-400 hover:text-gray-600"
-              >
-                キャンセル
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetDiscountSelection();
+                    setShowDiscountModal(false);
+                  }}
+                  className="w-1/3 rounded-xl bg-gray-100 py-3 font-bold text-gray-600 transition-colors hover:bg-gray-200"
+                >
+                  リセット
+                </button>
+                <button
+                  type="button"
+                  onClick={applyDiscountSelection}
+                  className="flex flex-1 items-center justify-center rounded-xl bg-orange-500 py-3 font-black text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.99]"
+                >
+                  適用
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {showDiscountModal && manualTarget && (() => {
+        const base = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
+        const raw = Number(manualValue) || 0;
+        const amt = Math.max(0, Math.min(base, Math.floor(raw)));
+        const remaining = Math.max(0, base - amt);
+        const categoryLabel = getAccountingCategoryLabel(manualTarget.accountingCategory || 'sales_discount');
+        const closeManual = () => { setManualTarget(null); setManualValue(''); };
+        const append = (digit) => setManualValue((prev) => {
+          const b = (prev && prev !== '0') ? prev : '';
+          const next = (b + digit).slice(0, 9);
+          return String(Math.min(base, Number(next) || 0));
+        });
+        const backspace = () => setManualValue((prev) => String(prev || '').slice(0, -1));
+
+        const applyManualAmount = (isFull) => {
+          const value = isFull ? base : amt;
+          if (value <= 0) return;
+          if (isFull && onManualFullCheckout) {
+            closeManual();
+            setShowDiscountModal(false);
+            onManualFullCheckout({ ...manualTarget, amount: value });
+            return;
+          }
+          // 数量選択済みの金額クーポンと手入力額を束ねて併用する。
+          const manualItem = {
+            id: manualTarget.id || 'manual_discount',
+            name: manualTarget.name || '手入力',
+            type: 'amount',
+            value,
+            accountingCategory: manualTarget.accountingCategory || 'sales_discount',
+            count: 1,
+            quantity: 1,
+            amount: value
+          };
+          closeManual();
+          commitCombinedAmountDiscounts([...buildSelectedAmountDiscounts(), manualItem]);
+        };
+
+        const keypadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'back'];
+
+        return (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            onClick={closeManual}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b bg-sky-500 px-6 py-4 text-white">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/70">
+                    <Keyboard size={14} />
+                    手入力 / {categoryLabel}
+                  </div>
+                  <h3 className="mt-1 truncate text-lg font-black">{manualTarget.name || '手入力'}</h3>
+                  <p className="text-xs font-bold text-white/80">対象金額 ¥{base.toLocaleString()}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeManual}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition-all hover:bg-white/20 active:scale-95"
+                  aria-label="閉じる"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-6">
+                <button
+                  type="button"
+                  onClick={() => applyManualAmount(true)}
+                  disabled={base <= 0}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                >
+                  <HandCoins size={16} />
+                  全額 ¥{base.toLocaleString()} で会計
+                </button>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">入力金額</span>
+                    {amt > 0 && (
+                      <span className="text-sm font-black text-sky-600">
+                        充当 -¥{amt.toLocaleString()} / 残り ¥{remaining.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
+                    <span className="mr-1 text-2xl font-black text-slate-300">￥</span>
+                    <span className="font-mono text-4xl font-black text-slate-800">{manualValue || '0'}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {keypadKeys.map((key) => {
+                    if (key === 'C') {
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setManualValue('')}
+                          className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-base font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                        >
+                          C
+                        </button>
+                      );
+                    }
+                    if (key === 'back') {
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={backspace}
+                          className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                          aria-label="1文字削除"
+                        >
+                          <ChevronLeft size={22} />
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => append(key)}
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-2xl font-black text-slate-800 transition-all hover:border-sky-200 hover:bg-sky-50/40 active:scale-95"
+                      >
+                        {key}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={amt <= 0}
+                  onClick={() => applyManualAmount(false)}
+                  className="flex h-14 w-full items-center justify-center rounded-xl bg-slate-900 font-black text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                  ¥{amt.toLocaleString()} を充当{remaining > 0 ? `（残り ¥${remaining.toLocaleString()} は他の決済）` : ''}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeManual}
+                  className="w-full py-2 text-sm font-bold text-gray-400 hover:text-gray-600"
+                >
+                  戻る
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showAbortModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md animate-in fade-in">
           <div className="animate-in zoom-in-95 w-full max-w-sm rounded-[2.5rem] border border-gray-100 bg-white p-10 text-center shadow-2xl">

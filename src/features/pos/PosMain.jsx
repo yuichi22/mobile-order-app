@@ -83,13 +83,17 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
 
 const POS_HOLD_STORAGE_VERSION = 1;
 
-const getPosHoldStorageKey = (storeId) => `akuto-pos-holds:${storeId || 'unknown'}`;
+// 保留はレジ単位で保持する。storeIdのみだと同一端末/同一店舗の別レジ(例: ORDERレジのPOSモードと
+// 物販レジ)が同じキーを共有し、保留が他レジに混ざってしまうため registerId をキーに含める。
+const getPosHoldStorageKey = (storeId, registerId) => (
+  `akuto-pos-holds:${storeId || 'unknown'}:${registerId || 'default'}`
+);
 
-const readPosHoldsFromStorage = (storeId) => {
+const readPosHoldsFromStorage = (storeId, registerId) => {
   if (typeof window === 'undefined' || !storeId) return [];
 
   try {
-    const raw = window.localStorage.getItem(getPosHoldStorageKey(storeId));
+    const raw = window.localStorage.getItem(getPosHoldStorageKey(storeId, registerId));
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
@@ -100,11 +104,14 @@ const readPosHoldsFromStorage = (storeId) => {
   }
 };
 
-const writePosHoldsToStorage = (storeId, holds) => {
+const writePosHoldsToStorage = (storeId, registerId, holds) => {
   if (typeof window === 'undefined' || !storeId) return;
 
   try {
-    window.localStorage.setItem(getPosHoldStorageKey(storeId), JSON.stringify(Array.isArray(holds) ? holds : []));
+    window.localStorage.setItem(
+      getPosHoldStorageKey(storeId, registerId),
+      JSON.stringify(Array.isArray(holds) ? holds : [])
+    );
   } catch (error) {
     console.warn('[PosMain] failed to write POS holds', error);
   }
@@ -233,12 +240,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   useEffect(() => {
     if (registerMode !== 'pos' || !storeId) return;
-    setPosHolds(readPosHoldsFromStorage(storeId));
-  }, [registerMode, storeId]);
+    setPosHolds(readPosHoldsFromStorage(storeId, activeRegister?.id));
+  }, [registerMode, storeId, activeRegister?.id]);
 
   const savePosHolds = (nextHolds) => {
     setPosHolds(nextHolds);
-    writePosHoldsToStorage(storeId, nextHolds);
+    writePosHoldsToStorage(storeId, activeRegister?.id, nextHolds);
   };
 
   const posCategoryNameMap = useMemo(() => {
@@ -1377,10 +1384,34 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPendingTakeoutFullCredit(true);
   };
 
+  // 全額手入力(指定区分)のワンタップ会計。全額売掛と同じ「適用→確定」パターンを使う。
+  const requestTakeoutManualFullCheckout = (discount) => {
+    if (takeoutCart.length === 0 || isTakeoutSubmitting) return;
+    const fullAmount = Math.max(0, Math.floor(Number(takeoutSubtotalAfterLine) || 0));
+    if (fullAmount <= 0) return;
+
+    setTakeoutDiscountType('amount');
+    setTakeoutDiscountValue(fullAmount);
+    setTakeoutSelectedDiscount({
+      id: discount?.id || 'manual_full',
+      name: discount?.name || '手入力',
+      type: 'amount',
+      value: fullAmount,
+      accountingCategory: discount?.accountingCategory || 'voucher_payment',
+      count: 1,
+      quantity: 1,
+      amount: fullAmount
+    });
+    setTakeoutDiscountQuantities({});
+    setTakeoutPaymentMethod('credit');
+    setTakeoutPaymentAmount('0');
+    setPendingTakeoutFullCredit(true);
+  };
+
   useEffect(() => {
     if (!pendingTakeoutFullCredit) return;
-    // 全額売掛の状態が反映され、支払方法も売掛に切り替わってから確定する。
-    if (takeoutSelectedDiscount?.id !== 'full_credit' || takeoutPaymentMethod !== 'credit') return;
+    // 全額売掛/全額手入力の状態が反映され、支払方法も売掛に切り替わってから確定する。
+    if (!takeoutSelectedDiscount || takeoutPaymentMethod !== 'credit') return;
     setPendingTakeoutFullCredit(false);
     handleSubmitTakeoutTransaction();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2524,6 +2555,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       discountQuantities={takeoutDiscountQuantities}
       setDiscountQuantities={setTakeoutDiscountQuantities}
       onFullCreditCheckout={requestTakeoutFullCreditCheckout}
+      onManualFullCheckout={requestTakeoutManualFullCheckout}
       showAbortModal={false}
       setShowAbortModal={() => {}}
       abortReason="manual_abort"
