@@ -127,7 +127,6 @@ const CustomerApp = ({
     myTotal,
     grandTotal,
     inviteUrl,
-    inviteQrUrl,
     crossSellSettings,
     confirmAddToCart,
     decreaseCartItem,
@@ -3059,7 +3058,6 @@ if (shouldWaitForSessionBeforeWelcome) {
       {isInviteModalOpen && (
         <InviteModal
           inviteUrl={inviteUrl}
-          qrApiUrl={inviteQrUrl}
           onClose={() => setIsInviteModalOpen(false)}
         />
       )}

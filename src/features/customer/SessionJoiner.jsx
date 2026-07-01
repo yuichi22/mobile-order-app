@@ -4,7 +4,7 @@ import { signInAnonymously } from 'firebase/auth';
 
 import { auth, initializeAuth } from '../../shared/api/firebase/client';
 import CustomerLoadingScreen from './components/CustomerLoadingScreen';
-import { joinCustomerSession, preflightJoinCustomerSession } from './services/customerJoinService';
+import { joinCustomerSession } from './services/customerJoinService';
 import { clearStoredTableEntryGuardsForSession } from './utils/entryGuards';
 import {
   getStoredParticipantIdentityForSession,
@@ -45,31 +45,14 @@ const SessionJoiner = ({ sessionId, storeId, inviteToken, onJoin }) => {
       try {
         const storedParticipantIdentity = getStoredParticipantIdentityForSession(sessionId);
 
-        const initializeAuthPromise = withTimeout(
+        // preflightJoinCustomerSession は廃止し、joinCustomerSession を単一判定源にする。
+        // join は stopped/missing-invite/invalid-invite/missing/closed をエラー応答で返す
+        // 上位互換のため、往復を1回削減できる（読み込み高速化）。
+        await withTimeout(
           initializeAuth(),
           SESSION_JOIN_TIMEOUT_MS,
           '参加情報の確認に時間がかかっています。'
         );
-
-        const preflightResult = await withTimeout(
-          preflightJoinCustomerSession({
-            storeId,
-            sessionId,
-            inviteToken
-          }),
-          SESSION_JOIN_TIMEOUT_MS,
-          '参加情報の確認に時間がかかっています。'
-        );
-
-        if (preflightResult.action === 'stopped') {
-          throw new Error('この店舗は現在利用停止中です。');
-        }
-
-        if (preflightResult.action !== 'open') {
-          throw new Error('セッションに参加できません');
-        }
-
-        await initializeAuthPromise;
 
         let user = auth.currentUser;
         if (!user) {

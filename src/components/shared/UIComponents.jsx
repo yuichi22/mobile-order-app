@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Minus, Plus, QrCode, UserPlus, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 import { getAllergenLabel } from '../../shared/constants/menuMetadata';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -236,29 +237,21 @@ export const OptionsModal = ({
   );
 };
 
-const InviteQrContent = ({ qrApiUrl }) => {
-  const [isQrImageLoaded, setIsQrImageLoaded] = useState(false);
+const InviteQrContent = ({ inviteUrl }) => (
+  // QRは外部サービス(api.qrserver.com)への画像リクエストをやめ、クライアント側で
+  // 即時生成する。招待URLが用意できた瞬間に表示でき、第三者ネットワーク依存も無くなる。
+  <div className="mb-4 flex h-52 w-52 items-center justify-center rounded-xl border-2 border-orange-100 bg-white p-2">
+    {inviteUrl ? (
+      <QRCodeSVG value={inviteUrl} size={192} level="M" />
+    ) : (
+      <div className="flex h-48 w-48 items-center justify-center text-orange-600">
+        <LoadingSpinner size={32} />
+      </div>
+    )}
+  </div>
+);
 
-  return (
-    <div className="mb-4 flex h-52 w-52 items-center justify-center rounded-xl border-2 border-orange-100 bg-white p-2">
-      {qrApiUrl && (
-        <img
-          src={qrApiUrl}
-          alt="参加用QRコード"
-          className={`h-48 w-48 mix-blend-multiply ${isQrImageLoaded ? 'block' : 'hidden'}`}
-          onLoad={() => setIsQrImageLoaded(true)}
-        />
-      )}
-      {(!qrApiUrl || !isQrImageLoaded) && (
-        <div className="flex h-48 w-48 items-center justify-center text-orange-600">
-          <LoadingSpinner size={32} />
-        </div>
-      )}
-    </div>
-  );
-};
-
-export const InviteModal = ({ qrApiUrl, onClose }) => {
+export const InviteModal = ({ inviteUrl, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 animate-in fade-in duration-200">
       <div className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
@@ -274,7 +267,7 @@ export const InviteModal = ({ qrApiUrl, onClose }) => {
             <br />
             同じテーブルで一緒に注文できます。
           </p>
-          <InviteQrContent key={qrApiUrl || 'loading'} qrApiUrl={qrApiUrl} />
+          <InviteQrContent key={inviteUrl || 'loading'} inviteUrl={inviteUrl} />
         </div>
       </div>
     </div>
