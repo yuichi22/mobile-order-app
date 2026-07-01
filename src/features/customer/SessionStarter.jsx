@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Lock } from 'lucide-react';
+import { signInAnonymously } from 'firebase/auth';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import { auth, initializeAuth } from '../../shared/api/firebase/client';
 import { prefetchCustomerStoreData } from '../store/services/storePrefetchService';
 import { preflightCustomerEntry } from './services/customerSessionService';
 import {
@@ -45,6 +47,27 @@ const safeGetStoredParticipantIdentityForTable = ({ storeId, tableId }) => {
     console.warn('[SessionStarter] getStoredParticipantIdentityForTable failed', error);
     return null;
   }
+};
+
+// QR 読み込み直後に匿名認証を先行ウォームアップしておく。
+// 従来は preflight 完了後、customer 画面の bootstrap で初めて認証していたため
+// 直列に数百ms〜1秒積み上がっていた。preflight と並列に進めて体感待ちを短縮する。
+let authWarmUpPromise = null;
+const warmUpCustomerAuth = () => {
+  if (authWarmUpPromise) return authWarmUpPromise;
+
+  authWarmUpPromise = (async () => {
+    await initializeAuth();
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
+  })().catch((error) => {
+    // 失敗しても後続の bootstrap 側で再度認証を試みるので握りつぶす。
+    authWarmUpPromise = null;
+    console.warn('[SessionStarter] auth warm-up failed', error);
+  });
+
+  return authWarmUpPromise;
 };
 
 const withTimeout = (promise, timeoutMs, timeoutMessage) => {
@@ -130,6 +153,9 @@ const SessionStarter = ({ tableId, storeId, tableToken, onEntryReady }) => {
 
     const startEntry = async () => {
       try {
+        // preflight と並列に匿名認証を先行実行（await しない）。
+        warmUpCustomerAuth();
+
         const existingGuard = safeGetStoredTableEntryGuard(tableContext);
 
         if (existingGuard) {
