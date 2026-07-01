@@ -519,24 +519,40 @@ export const PosTransactionHistory = ({
   }, [viewedRegisterMode, isViewingOtherRegister]);
   const { settings } = useStoreSettings(storeId);
 
-  // 会計後キャンセル（全額/一部）。cancelTarget=対象の生取引、cancelQty={明細index:取消数量}。
+  // 会計後キャンセル（全額/一部）。cancelTarget={transactions:[束ねた全取引], entries:[{key,txnId,index,item}]}、
+  // cancelQty={`${txnId}#${index}`:取消数量}。同一テーブルの個別会計をまとめた履歴伝票は塊ごと取消する。
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelQty, setCancelQty] = useState({});
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
 
   const openCancelModal = (ticket) => {
-    const txId = ticket?.sourceTransactionId
-      || (Array.isArray(ticket?.sourceTransactionIds) && ticket.sourceTransactionIds.length === 1
-        ? ticket.sourceTransactionIds[0] : '');
-    const transaction = transactions.find((item) => item.id === txId);
-    if (!transaction || !Array.isArray(transaction.items) || transaction.items.length === 0) {
+    // 同一テーブルの個別会計をまとめた履歴伝票では、束ねた全取引の明細を取消対象にする。
+    // (履歴表示の ticket.items は消費統合されて元取引との対応が失われるため、
+    //  取消は元取引の生 items から txnId+index 付きで組み立てる)
+    const txIds = Array.isArray(ticket?.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0
+      ? ticket.sourceTransactionIds
+      : (ticket?.sourceTransactionId ? [ticket.sourceTransactionId] : []);
+    const targetTransactions = txIds
+      .map((txId) => transactions.find((item) => item.id === txId))
+      .filter((tx) => tx && Array.isArray(tx.items) && tx.items.length > 0);
+
+    if (targetTransactions.length === 0) {
       window.alert('取消対象の取引明細が見つかりません。');
       return;
     }
+
+    const entries = [];
     const initial = {};
-    transaction.items.forEach((item, index) => { initial[index] = 0; });
-    setCancelTarget(transaction);
+    targetTransactions.forEach((tx) => {
+      tx.items.forEach((item, index) => {
+        const key = `${tx.id}#${index}`;
+        entries.push({ key, txnId: tx.id, index, item });
+        initial[key] = 0;
+      });
+    });
+
+    setCancelTarget({ ticketId: ticket?.id || '', transactions: targetTransactions, entries });
     setCancelQty(initial);
     setCancelReason('');
   };
@@ -550,46 +566,84 @@ export const PosTransactionHistory = ({
 
   const executeCancellation = async () => {
     if (!cancelTarget || isCancelling || !storeId) return;
-    const transaction = cancelTarget;
-    const items = Array.isArray(transaction.items) ? transaction.items : [];
+    const targetTransactions = Array.isArray(cancelTarget.transactions) ? cancelTarget.transactions : [];
+    if (targetTransactions.length === 0) return;
     const num = (value) => Number(value || 0);
 
-    const cancelledEntries = [];
+    // 束ねた各取引ごとに「取消後の明細」と取消記録を算出する。取消数量は
+    // cancelQty[`${txnId}#${index}`] で取引×明細単位に持つ。
+    const perTransaction = [];
+    const restoreByProduct = new Map();
     let anyCancel = false;
 
-    const updatedItems = items.map((item, index) => {
-      const qty = num(item.quantity) || 1;
-      const cQty = Math.min(Math.max(num(cancelQty[index]), 0), qty);
-      if (cQty <= 0) return item;
-      anyCancel = true;
-      const remainingQty = qty - cQty;
-      const ratio = qty > 0 ? remainingQty / qty : 0;
-      const scale = (value) => Math.round(num(value) * ratio);
-      cancelledEntries.push({
-        name: item.name || '商品',
-        // 在庫戻し先は実商品docのID。明細の id は `product:<docId>`(UI用キー)なので
-        // productId を優先し、保険で `product:` プレフィックスを剥がす(既存取引も救済)。
-        productId: String(item.productId || item.id || '').replace(/^product:/, ''),
-        sourceType: item.sourceType || '',
-        quantity: cQty,
-        amount: num(item.totalPrice) - scale(item.totalPrice)
+    targetTransactions.forEach((transaction) => {
+      const items = Array.isArray(transaction.items) ? transaction.items : [];
+      const cancelledEntries = [];
+      let txnHasCancel = false;
+
+      const updatedItems = items.map((item, index) => {
+        const key = `${transaction.id}#${index}`;
+        const qty = num(item.quantity) || 1;
+        const cQty = Math.min(Math.max(num(cancelQty[key]), 0), qty);
+        if (cQty <= 0) return item;
+        txnHasCancel = true;
+        anyCancel = true;
+        const remainingQty = qty - cQty;
+        const ratio = qty > 0 ? remainingQty / qty : 0;
+        const scale = (value) => Math.round(num(value) * ratio);
+        cancelledEntries.push({
+          name: item.name || '商品',
+          // 在庫戻し先は実商品docのID。明細の id は `product:<docId>`(UI用キー)なので
+          // productId を優先し、保険で `product:` プレフィックスを剥がす(既存取引も救済)。
+          productId: String(item.productId || item.id || '').replace(/^product:/, ''),
+          sourceType: item.sourceType || '',
+          quantity: cQty,
+          amount: num(item.totalPrice) - scale(item.totalPrice)
+        });
+        if (remainingQty <= 0) return null;
+        return {
+          ...item,
+          quantity: remainingQty,
+          totalPrice: scale(item.totalPrice),
+          taxIncludedAmount: scale(item.taxIncludedAmount),
+          salesTaxIncludedAmount: scale(item.salesTaxIncludedAmount),
+          salesTaxExcludedAmount: scale(item.salesTaxExcludedAmount),
+          salesTaxAmount: scale(item.salesTaxAmount),
+          costTaxIncludedAmount: scale(item.costTaxIncludedAmount),
+          costTaxExcludedAmount: scale(item.costTaxExcludedAmount),
+          costTaxAmount: scale(item.costTaxAmount),
+          grossProfitTaxIncluded: scale(item.grossProfitTaxIncluded),
+          grossProfitTaxExcluded: scale(item.grossProfitTaxExcluded)
+        };
+      }).filter((item) => item !== null);
+
+      if (!txnHasCancel) return; // この取引は取消なし → 更新しない
+
+      // 残った明細から取引合計を再計算（日計は純額で自動整合）。
+      const sumBy = (key) => updatedItems.reduce((sum, item) => sum + num(item[key]), 0);
+      const taxByType = (type) => updatedItems
+        .filter((item) => item.salesTaxRateType === type)
+        .reduce((sum, item) => sum + (num(item.salesTaxIncludedAmount) - num(item.salesTaxExcludedAmount)), 0);
+      const cancelledTotal = cancelledEntries.reduce((sum, entry) => sum + num(entry.amount), 0);
+
+      cancelledEntries.forEach((entry) => {
+        if (entry.sourceType === 'retail' && entry.productId) {
+          restoreByProduct.set(entry.productId, (restoreByProduct.get(entry.productId) || 0) + entry.quantity);
+        }
       });
-      if (remainingQty <= 0) return null;
-      return {
-        ...item,
-        quantity: remainingQty,
-        totalPrice: scale(item.totalPrice),
-        taxIncludedAmount: scale(item.taxIncludedAmount),
-        salesTaxIncludedAmount: scale(item.salesTaxIncludedAmount),
-        salesTaxExcludedAmount: scale(item.salesTaxExcludedAmount),
-        salesTaxAmount: scale(item.salesTaxAmount),
-        costTaxIncludedAmount: scale(item.costTaxIncludedAmount),
-        costTaxExcludedAmount: scale(item.costTaxExcludedAmount),
-        costTaxAmount: scale(item.costTaxAmount),
-        grossProfitTaxIncluded: scale(item.grossProfitTaxIncluded),
-        grossProfitTaxExcluded: scale(item.grossProfitTaxExcluded)
-      };
-    }).filter((item) => item !== null);
+
+      perTransaction.push({
+        transaction,
+        updatedItems,
+        cancelledEntries,
+        cancelledTotal,
+        totalAmount: sumBy('totalPrice'),
+        subTotal: sumBy('salesTaxExcludedAmount'),
+        taxAmountStandard: taxByType('standard'),
+        taxAmountReduced: taxByType('reduced'),
+        fullyCancelled: updatedItems.length === 0
+      });
+    });
 
     if (!anyCancel) {
       window.alert('取消する数量を選択してください。');
@@ -600,13 +654,7 @@ export const PosTransactionHistory = ({
     try {
       const batch = writeBatch(db);
 
-      // 在庫を戻す（retail商品のみ）。
-      const restoreByProduct = new Map();
-      cancelledEntries.forEach((entry) => {
-        if (entry.sourceType === 'retail' && entry.productId) {
-          restoreByProduct.set(entry.productId, (restoreByProduct.get(entry.productId) || 0) + entry.quantity);
-        }
-      });
+      // 在庫を戻す（retail商品のみ／全取引分をまとめて）。
       restoreByProduct.forEach((qty, productId) => {
         batch.update(doc(db, 'stores', storeId, 'products', productId), {
           inventoryQuantity: increment(qty),
@@ -615,49 +663,57 @@ export const PosTransactionHistory = ({
         });
       });
 
-      // 残った明細から取引合計を再計算（日計は純額で自動整合）。
-      const sumBy = (key) => updatedItems.reduce((sum, item) => sum + num(item[key]), 0);
-      const taxByType = (type) => updatedItems
-        .filter((item) => item.salesTaxRateType === type)
-        .reduce((sum, item) => sum + (num(item.salesTaxIncludedAmount) - num(item.salesTaxExcludedAmount)), 0);
-      const totalAmount = sumBy('totalPrice');
-      const subTotal = sumBy('salesTaxExcludedAmount');
-      const taxAmountStandard = taxByType('standard');
-      const taxAmountReduced = taxByType('reduced');
-      const cancelledTotal = cancelledEntries.reduce((sum, entry) => sum + num(entry.amount), 0);
-      const fullyCancelled = updatedItems.length === 0;
+      // 取引ごとに更新内容を作成しバッチに積む＋ローカル反映用パッチを用意。
+      const localPatches = new Map();
+      perTransaction.forEach(({
+        transaction, updatedItems, cancelledEntries, cancelledTotal,
+        totalAmount, subTotal, taxAmountStandard, taxAmountReduced, fullyCancelled
+      }) => {
+        const cancellationLog = {
+          cancelledAt: new Date().toISOString(),
+          reason: cancelReason.trim(),
+          amount: cancelledTotal,
+          type: fullyCancelled ? 'full' : 'partial',
+          items: cancelledEntries
+        };
+        const nextCancellations = [
+          ...(Array.isArray(transaction.cancellations) ? transaction.cancellations : []),
+          cancellationLog
+        ];
+        const updatePayload = {
+          items: updatedItems,
+          totalAmount,
+          subTotal,
+          taxAmountStandard,
+          taxAmountReduced,
+          taxAmount: taxAmountStandard + taxAmountReduced,
+          cancellations: nextCancellations,
+          hasCancellations: true,
+          updatedAt: serverTimestamp()
+        };
+        if (fullyCancelled) {
+          updatePayload.status = 'cancelled';
+          updatePayload.paymentStatus = 'cancelled';
+          updatePayload.isPaid = false;
+          updatePayload.voidedAt = serverTimestamp();
+        }
+        batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), updatePayload);
+        localPatches.set(transaction.id, {
+          ...transaction,
+          items: updatedItems,
+          totalAmount,
+          subTotal,
+          taxAmountStandard,
+          taxAmountReduced,
+          taxAmount: taxAmountStandard + taxAmountReduced,
+          cancellations: nextCancellations,
+          hasCancellations: true,
+          ...(fullyCancelled
+            ? { status: 'cancelled', paymentStatus: 'cancelled', isPaid: false, voidedAt: new Date() }
+            : {})
+        });
+      });
 
-      const cancellationLog = {
-        cancelledAt: new Date().toISOString(),
-        reason: cancelReason.trim(),
-        amount: cancelledTotal,
-        type: fullyCancelled ? 'full' : 'partial',
-        items: cancelledEntries
-      };
-      const nextCancellations = [
-        ...(Array.isArray(transaction.cancellations) ? transaction.cancellations : []),
-        cancellationLog
-      ];
-
-      const updatePayload = {
-        items: updatedItems,
-        totalAmount,
-        subTotal,
-        taxAmountStandard,
-        taxAmountReduced,
-        taxAmount: taxAmountStandard + taxAmountReduced,
-        cancellations: nextCancellations,
-        hasCancellations: true,
-        updatedAt: serverTimestamp()
-      };
-      if (fullyCancelled) {
-        updatePayload.status = 'cancelled';
-        updatePayload.paymentStatus = 'cancelled';
-        updatePayload.isPaid = false;
-        updatePayload.voidedAt = serverTimestamp();
-      }
-
-      batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), updatePayload);
       await batch.commit();
 
       // 取消で在庫を戻したretail商品を Shopify へ反映する(在庫連携ON=prodのみ。関数側でゲート)。
@@ -677,21 +733,7 @@ export const PosTransactionHistory = ({
       }
 
       // ローカル(getDocs取得)を即時反映。
-      const localPatch = {
-        ...transaction,
-        items: updatedItems,
-        totalAmount,
-        subTotal,
-        taxAmountStandard,
-        taxAmountReduced,
-        taxAmount: taxAmountStandard + taxAmountReduced,
-        cancellations: nextCancellations,
-        hasCancellations: true,
-        ...(fullyCancelled
-          ? { status: 'cancelled', paymentStatus: 'cancelled', isPaid: false, voidedAt: new Date() }
-          : {})
-      };
-      setTransactions((prev) => prev.map((item) => (item.id === transaction.id ? localPatch : item)));
+      setTransactions((prev) => prev.map((item) => (localPatches.has(item.id) ? localPatches.get(item.id) : item)));
       setCancelTarget(null);
       setCancelQty({});
       setCancelReason('');
@@ -705,10 +747,10 @@ export const PosTransactionHistory = ({
 
   const cancelRefundTotal = (() => {
     if (!cancelTarget) return 0;
-    const items = Array.isArray(cancelTarget.items) ? cancelTarget.items : [];
-    return items.reduce((sum, item, index) => {
+    const entries = Array.isArray(cancelTarget.entries) ? cancelTarget.entries : [];
+    return entries.reduce((sum, { key, item }) => {
       const qty = Number(item.quantity || 0) || 1;
-      const c = Math.min(Math.max(Number(cancelQty[index] || 0), 0), qty);
+      const c = Math.min(Math.max(Number(cancelQty[key] || 0), 0), qty);
       if (c <= 0) return sum;
       const remaining = qty - c;
       const total = Number(item.totalPrice || 0);
@@ -719,7 +761,7 @@ export const PosTransactionHistory = ({
   const selectAllForCancel = () => {
     if (!cancelTarget) return;
     const all = {};
-    (cancelTarget.items || []).forEach((item, index) => { all[index] = Number(item.quantity || 0) || 1; });
+    (cancelTarget.entries || []).forEach(({ key, item }) => { all[key] = Number(item.quantity || 0) || 1; });
     setCancelQty(all);
   };
 
@@ -2414,7 +2456,7 @@ export const PosTransactionHistory = ({
                         </div>
                         )}
 
-                        {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length === 1)) && (
+                        {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0)) && (
                           <button
                             type="button"
                             onClick={(event) => {
@@ -2700,11 +2742,11 @@ export const PosTransactionHistory = ({
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-5">
-              {(cancelTarget.items || []).map((item, index) => {
+              {(cancelTarget.entries || []).map(({ key, item }) => {
                 const qty = Number(item.quantity || 0) || 1;
-                const sel = Math.min(Math.max(Number(cancelQty[index] || 0), 0), qty);
+                const sel = Math.min(Math.max(Number(cancelQty[key] || 0), 0), qty);
                 return (
-                  <div key={index} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div key={key} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-gray-800">{item.name || '商品'}</div>
                       <div className="text-xs font-bold text-gray-400">
@@ -2714,7 +2756,7 @@ export const PosTransactionHistory = ({
                     <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setCancelQty((prev) => ({ ...prev, [index]: Math.max(sel - 1, 0) }))}
+                        onClick={() => setCancelQty((prev) => ({ ...prev, [key]: Math.max(sel - 1, 0) }))}
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white font-black text-gray-600 hover:bg-gray-50"
                       >
                         −
@@ -2722,7 +2764,7 @@ export const PosTransactionHistory = ({
                       <span className="w-7 text-center text-base font-black tabular-nums text-gray-900">{sel}</span>
                       <button
                         type="button"
-                        onClick={() => setCancelQty((prev) => ({ ...prev, [index]: Math.min(sel + 1, qty) }))}
+                        onClick={() => setCancelQty((prev) => ({ ...prev, [key]: Math.min(sel + 1, qty) }))}
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white font-black text-red-500 hover:bg-red-50"
                       >
                         ＋
