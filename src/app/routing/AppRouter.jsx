@@ -3,7 +3,7 @@ import { ShieldAlert } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../providers/useAuth';
-import CustomerLoadingScreen from '../../features/customer/components/CustomerLoadingScreen';
+import AppLoading from '../../shared/components/feedback/AppLoading';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
 import {
   canAccessAdminPanel,
@@ -48,7 +48,7 @@ const AdminPage = lazyWithRetry(loadAdminPage, 'admin-page');
 const PlatformAdminPage = lazyWithRetry(loadPlatformAdminPage, 'platform-admin-page');
 const PlatformSignupPage = lazyWithRetry(loadPlatformSignupPage, 'platform-signup-page');
 
-const RouteLoader = () => <CustomerLoadingScreen message="読み込み中..." />;
+const RouteLoader = () => <AppLoading />;
 
 const QR_NAVIGATION_TIMEOUT_MS = 1800;
 
@@ -365,13 +365,6 @@ const AppRouter = () => {
     return (
       <Suspense fallback={<RouteLoader />}>
         <CustomerPage
-          // セッションIDが変わったら CustomerPage を作り直す(remount)。
-          // 同一タブでの会計後→別テーブルや、退席→招待QRで別セッション参加のとき、
-          // 前セッションの状態(isSessionEnded=終了画面/contentLoading/basicSettings 等)が
-          // 残って「ご利用ありがとうございました」が挟まる・固まるのを防ぐ。
-          key={resolvedSessionId
-            ? `session:${activeStoreId || ''}:${resolvedSessionId}`
-            : `entry:${activeStoreId || ''}:${resolvedTableId || ''}`}
           sessionId={resolvedSessionId}
           storeId={activeStoreId}
           entryTableId={resolvedTableId || pendingSessionNavigation?.tableId || null}

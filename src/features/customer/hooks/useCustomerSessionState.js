@@ -6,6 +6,7 @@ import { auth, db, initializeAuth } from '../../../shared/api/firebase/client';
 import { hashToken } from '../../../shared/utils/tableAccess';
 import { preflightCustomerSession } from '../services/customerSessionService';
 import { getStoredParticipantIdentityForSession } from '../utils/participantIdentity';
+import { useSubscriptionWatchdog } from '../../store/hooks/useSubscriptionWatchdog';
 
 export const useCustomerSessionState = ({ sessionId, storeId }) => {
   const hasSessionContext = Boolean(sessionId && storeId);
@@ -15,11 +16,26 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
   const [tableDisplayName, setTableDisplayName] = useState('');
   const [sessionStatus, setSessionStatus] = useState('initializing');
   const [sessionHostId, setSessionHostId] = useState(null);
-  const [isSessionEnded, setIsSessionEnded] = useState(false);
+  // 「終了(ended)」は boolean ではなく "どの sessionId が終了したか" で保持する。
+  // こうすると sessionId が別セッションへ変わった瞬間に isSessionEnded が自動的に
+  // false になり(派生値)、前セッションの「ご利用ありがとうございました」画面が
+  // 新セッションに残って挟まる/固まる問題を、remount 無し(＝通常入場の速度を保ったまま)で防げる。
+  const [endedSessionId, setEndedSessionId] = useState(null);
   const [sessionError, setSessionError] = useState('');
   const [shouldSubscribeSession, setShouldSubscribeSession] = useState(() => hasSessionContext);
   const [participantTokenHash, setParticipantTokenHash] = useState('');
   const [isCurrentUserSessionMember, setIsCurrentUserSessionMember] = useState(null);
+
+  // 現在の sessionId が終了状態のときだけ true（前セッションの ended 値は自動で無効化）。
+  const isSessionEnded = Boolean(endedSessionId && endedSessionId === sessionId);
+
+  // セッション購読(onSnapshot)が宙吊りで loading が張り付いたときの保険。
+  // 一定時間で loading を解除し、retryNonce を進めて購読を張り直す。
+  const sessionRetryNonce = useSubscriptionWatchdog({
+    loading,
+    active: hasSessionContext && shouldSubscribeSession,
+    setLoading
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -73,7 +89,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
         if (preflightResult?.action === 'missing') {
           setUser(null);
           setSessionError('');
-          setIsSessionEnded(true);
+          setEndedSessionId(sessionId);
           setSessionStatus('invalid');
           setShouldSubscribeSession(false);
           setIsCurrentUserSessionMember(false);
@@ -90,7 +106,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
             ''
           );
           setSessionError('');
-          setIsSessionEnded(true);
+          setEndedSessionId(sessionId);
           setSessionStatus('ended');
           setShouldSubscribeSession(false);
           setIsCurrentUserSessionMember(false);
@@ -156,7 +172,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
       (snapshot) => {
         if (!snapshot.exists()) {
           setSessionError('');
-          setIsSessionEnded(true);
+          setEndedSessionId(sessionId);
           setIsCurrentUserSessionMember(false);
           setLoading(false);
           return;
@@ -180,7 +196,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
 
         setSessionStatus(data.status);
         setSessionError('');
-        setIsSessionEnded(data.status !== 'active');
+        setEndedSessionId(data.status !== 'active' ? sessionId : null);
         setSessionHostId(data.hostUserId);
 
         if (data.tableId) {
@@ -198,7 +214,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
       },
       (error) => {
         setLoading(false);
-        setIsSessionEnded(false);
+        setEndedSessionId(null);
         setSessionStatus('error');
         setIsCurrentUserSessionMember(false);
         setSessionError(
@@ -208,7 +224,7 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
         );
       }
     );
-  }, [hasSessionContext, participantTokenHash, sessionId, shouldSubscribeSession, storeId, user]);
+  }, [hasSessionContext, participantTokenHash, sessionId, sessionRetryNonce, shouldSubscribeSession, storeId, user]);
 
   return {
     user,

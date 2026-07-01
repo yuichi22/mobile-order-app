@@ -17,6 +17,7 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 
 import NotificationToast from '../../shared/components/feedback/NotificationToast';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import AppLoading from '../../shared/components/feedback/AppLoading';
 import InviteModal from '../../shared/components/modals/InviteModal';
 import CustomerHeader from './components/CustomerHeader';
 import MenuLayoutRenderer from './components/MenuLayoutRenderer';
@@ -1831,11 +1832,7 @@ const shouldCompactReceiptItems = (receipt) => (
 const receiptModal = receiptModalContent;
 
 if (shouldWaitForSessionBeforeWelcome) {
-  return (
-    <div className="flex h-screen items-center justify-center bg-white">
-      <LoadingSpinner size={24} colorClass="text-gray-300" />
-    </div>
-  );
+  return <AppLoading />;
 }
 
   if (sessionStartTimedOut && storeId && entryTableId && !sessionId) {
@@ -1868,11 +1865,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
 
   if (shouldWaitForPartySizeCheck) {
-  return (
-    <div className="flex h-screen items-center justify-center bg-white">
-      <LoadingSpinner size={24} colorClass="text-gray-300" />
-    </div>
-  );
+  return <AppLoading />;
 }
 /*
   if (shouldWaitForWelcomeSettings) {
@@ -1884,19 +1877,11 @@ if (shouldWaitForSessionBeforeWelcome) {
   }
 */
   if (loading && !keepVisibleDuringSessionHydration && !isWelcomeOpen) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-white">
-        <LoadingSpinner size={28} colorClass="text-gray-300" />
-      </div>
-    );
+    return <AppLoading />;
   }
 
   if (contentLoading && !keepVisibleDuringSessionHydration && !isWelcomeOpen) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-white">
-        <LoadingSpinner size={28} colorClass="text-gray-300" />
-      </div>
-    );
+    return <AppLoading />;
   }
 
   if (sessionStatus === 'stopped') {

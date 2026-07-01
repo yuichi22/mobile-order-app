@@ -25,6 +25,7 @@ import { createOwnerAccount } from '../../features/auth/services/ownerRegistrati
 import { AuthContext } from './AuthContext';
 import { normalizeUserRole, USER_ROLES } from '../../shared/utils/roles';
 import { normalizeStoreAccessStatus } from '../../shared/utils/storeAccess';
+import AppLoading from '../../shared/components/feedback/AppLoading';
 
 // 認証初期化(persistence / onAuthStateChanged / プロフィール取得)が何らかの理由で
 // 完了しなくても、この時間で必ず描画に進ませる保険。アプリ内ブラウザ(LINE等)や
@@ -277,7 +278,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? <AppLoading /> : children}
     </AuthContext.Provider>
   );
 };

@@ -3,7 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { signInAnonymously } from 'firebase/auth';
 
 import { auth, initializeAuth } from '../../shared/api/firebase/client';
-import CustomerLoadingScreen from './components/CustomerLoadingScreen';
+import AppLoading from '../../shared/components/feedback/AppLoading';
 import { joinCustomerSession } from './services/customerJoinService';
 import { clearStoredTableEntryGuardsForSession } from './utils/entryGuards';
 import {
@@ -121,7 +121,7 @@ const SessionJoiner = ({ sessionId, storeId, inviteToken, onJoin }) => {
     );
   }
 
-  return <CustomerLoadingScreen message="読み込み中..." />;
+  return <AppLoading />;
 };
 
 export default SessionJoiner;

@@ -3,6 +3,7 @@ import { AlertCircle, Lock } from 'lucide-react';
 import { signInAnonymously } from 'firebase/auth';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import AppLoading from '../../shared/components/feedback/AppLoading';
 import { auth, initializeAuth } from '../../shared/api/firebase/client';
 import { prefetchCustomerStoreData } from '../store/services/storePrefetchService';
 import { getStoredTableEntryGuard } from './utils/entryGuards';
@@ -197,7 +198,7 @@ const SessionStarter = ({ tableId, storeId, tableToken, onEntryReady }) => {
     );
   }
 
-  return <LoadingSurface />;
+  return <AppLoading />;
 };
 
 export default SessionStarter;
