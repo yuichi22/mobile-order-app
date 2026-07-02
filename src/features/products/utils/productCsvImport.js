@@ -510,7 +510,7 @@ export const buildProductCsvPreview = ({
       reorderQuantity: normalizeCsvNumber(record.reorderQuantity, 0),
       orderLot,
       reorderLot: orderLot,
-      labelEnabled: normalizeCsvBoolean(record.labelEnabled, true),
+      labelEnabled: normalizeCsvBoolean(record.labelEnabled, false),
       shopifyCreateEnabled: normalizeCsvBoolean(record.shopifyCreateEnabled, false),
       note: normalizeCsvText(record.note),
       isActive: true,

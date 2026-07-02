@@ -1962,6 +1962,10 @@ const ProductMasterTable = ({
       || `product_group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const newGroupCode = primaryGroupDraft.groupCode || newProductGroupId;
 
+    // 入庫自動印刷: ラベルON かつ 入庫数>0 の行を入庫枚数ぶん収集する(既存商品の一括保存と同じ挙動)。
+    const autoLabelItems = [];
+    let saveSucceeded = false;
+
     try {
       for (const [index, row] of targetRows.entries()) {
         const mergedDraft = {
@@ -1983,16 +1987,30 @@ const ProductMasterTable = ({
           shopifyEnabled: Boolean(primaryGroupDraft.shopifyCreateEnabled || primaryGroupDraft.shopifyEnabled)
         };
 
-        await onSaveProduct(buildProductSavePayload(mergedDraft));
+        const payload = buildProductSavePayload(mergedDraft);
+        await onSaveProduct(payload);
+
+        const stockInQuantity = Math.max(Number(mergedDraft.stockInQuantityDraft || 0), 0);
+        if (payload.labelEnabled && stockInQuantity > 0) {
+          const labelItem = buildLabelItemFromProduct(payload, stockInQuantity);
+          if (labelItem) autoLabelItems.push(labelItem);
+        }
       }
 
       clearNewProductEntry();
       onSaved?.();
+      saveSucceeded = true;
     } catch (error) {
       console.error('failed to save new product rows', error);
       alert(`新規商品登録に失敗しました: ${error?.message || error}`);
     } finally {
       setSavingKey(null);
+    }
+
+    // 入庫確定後にラベルを自動印刷する(既存商品と同じ)。入庫は止めない方針のため、
+    // 印刷失敗時は失敗ダイアログ(再試行/キャンセル)のみ出す。
+    if (saveSucceeded && autoLabelItems.length > 0) {
+      await tryPrintLabels(autoLabelItems);
     }
   };
 
