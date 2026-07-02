@@ -3,9 +3,16 @@
     "source": "functions",
     "runtime": "nodejs22"
   },
-  "firestore": {
-    "rules": "firestore.rules"
-  },
+  "firestore": [
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "main",
+      "rules": "firestore.rules"
+    }
+  ],
   "hosting": {
     "target": "app",
     "public": "dist",

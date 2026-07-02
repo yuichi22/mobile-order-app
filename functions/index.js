@@ -13,7 +13,9 @@ import Stripe from 'stripe';
 initializeApp();
 
 const REGION = 'asia-northeast1';
-const db = getFirestore();
+// ★ 名前付きDB 'main'(asia-northeast1) を使用。(default) は旧 nam5(米国)で放置。
+const FIRESTORE_DATABASE_ID = 'main';
+const db = getFirestore(FIRESTORE_DATABASE_ID);
 const adminAuth = getAuth();
 const TOKYO_DATE_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
@@ -2665,6 +2667,7 @@ export const deleteStoreMember = onRequest({ region: REGION, cors: true, invoker
 export const syncLimitedMenuStock = onDocumentWritten(
   {
     region: REGION,
+    database: FIRESTORE_DATABASE_ID,
     document: 'stores/{storeId}/orders/{orderId}'
   },
   async (event) => {
@@ -6382,6 +6385,7 @@ const areStringArraysEqualIgnoreOrder = (left = [], right = []) => {
 export const syncProductSearchKeywords = onDocumentWritten(
   {
     region: 'asia-northeast1',
+    database: FIRESTORE_DATABASE_ID,
     document: 'stores/{storeId}/products/{productId}'
   },
   async (event) => {
@@ -7248,6 +7252,7 @@ const executeProductCsvFunctionWritesForWorker = async ({
 export const processProductCsvImportJob = onDocumentWritten(
   {
     region: REGION,
+    database: FIRESTORE_DATABASE_ID,
     document: 'stores/{storeId}/importJobs/{jobId}',
     timeoutSeconds: 540,
     memory: '1GiB'
@@ -7269,7 +7274,7 @@ export const processProductCsvImportJob = onDocumentWritten(
     }
 
     const storagePath = String(after.storagePath || '').trim();
-    const jobRef = getFirestore()
+    const jobRef = getFirestore(FIRESTORE_DATABASE_ID)
       .collection('stores')
       .doc(storeId)
       .collection('importJobs')
@@ -7294,7 +7299,7 @@ export const processProductCsvImportJob = onDocumentWritten(
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
-      const storeRef = getFirestore().collection('stores').doc(storeId);
+      const storeRef = getFirestore(FIRESTORE_DATABASE_ID).collection('stores').doc(storeId);
       const [
         taxPriceSettingsDoc,
         categoryGroupSnapshot,
@@ -7331,7 +7336,7 @@ export const processProductCsvImportJob = onDocumentWritten(
         }, { merge: true });
 
         const saveSummary = await executeProductCsvFunctionWritesForWorker({
-          db: getFirestore(),
+          db: getFirestore(FIRESTORE_DATABASE_ID),
           storeId,
           jobId,
           writePlan: functionWritePlan,

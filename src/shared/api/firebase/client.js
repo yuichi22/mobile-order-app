@@ -55,14 +55,16 @@ export const auth = firebaseInitializeAuth(app, {
 // Firestore は永続ローカルキャッシュを有効化する。
 // 2回目以降はキャッシュから即描画→裏で最新化。コールド接続/電波弱でも待たされにくい。
 // IndexedDB が使えない環境(プライベートモード等)では既定(メモリ)へフォールバック。
+// ★ 名前付きDB 'main'(asia-northeast1) を使用。(default) は旧 nam5(米国)で放置。
+const FIRESTORE_DATABASE_ID = "main";
 const initFirestore = () => {
   try {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-    });
+    }, FIRESTORE_DATABASE_ID);
   } catch (error) {
     console.warn("[firebase] persistent cache unavailable, falling back to memory cache", error);
-    return getFirestore(app);
+    return getFirestore(app, FIRESTORE_DATABASE_ID);
   }
 };
 
