@@ -466,19 +466,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     if (!matchedProduct && storeId) {
       try {
         const productsRef = collection(db, 'stores', storeId, 'products');
-        const candidates = Array.from(new Set([rawCode, normalizedCode])).filter(Boolean);
-        for (const term of candidates) {
-          const termLower = String(term).trim().toLowerCase();
-          const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(30)));
-          if (snapshot.empty) continue;
 
-          const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-          const eq = (product, field) => String(product?.[field] || '').trim().toLowerCase() === termLower;
-          const resolved = docs.find((product) => eq(product, 'barcode'))
-            || docs.find((product) => eq(product, 'sku') || eq(product, 'productCode'))
-            || docs[0];
+        // まず barcode 単一フィールドの完全一致で直接引く。
+        // searchKeywords はサーバ trigger(syncProductSearchKeywords)が後追いで生成するため、
+        // 新規登録直後は空でヒットしないことがある(＝新規商品がスキャンで反応しない原因)。
+        // barcode 直接クエリは trigger 非依存で確実。保存時の重複チェックと同じクエリ
+        // (=店舗スコープの自動 単一フィールドインデックスで動作)。
+        const barcodeSnapshot = await getDocs(
+          query(productsRef, where('barcode', '==', rawCode), limit(5))
+        );
+        if (!barcodeSnapshot.empty) {
+          const docs = barcodeSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          const resolved = docs.find((product) => String(product?.barcode || '').trim() === rawCode) || docs[0];
           matchedProduct = buildResolvedPosProduct(resolved);
-          break;
+        }
+
+        // それでも無ければ従来の searchKeywords(品番/SKU/前方一致・品名断片)で引く。
+        if (!matchedProduct) {
+          const candidates = Array.from(new Set([rawCode, normalizedCode])).filter(Boolean);
+          for (const term of candidates) {
+            const termLower = String(term).trim().toLowerCase();
+            const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(30)));
+            if (snapshot.empty) continue;
+
+            const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            const eq = (product, field) => String(product?.[field] || '').trim().toLowerCase() === termLower;
+            const resolved = docs.find((product) => eq(product, 'barcode'))
+              || docs.find((product) => eq(product, 'sku') || eq(product, 'productCode'))
+              || docs[0];
+            matchedProduct = buildResolvedPosProduct(resolved);
+            break;
+          }
         }
       } catch (error) {
         console.error('[pos barcode lookup]', error);
