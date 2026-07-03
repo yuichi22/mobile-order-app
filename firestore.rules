@@ -508,6 +508,16 @@ service cloud.firestore {
         allow update, delete: if isStoreStaff(storeId);
       }
 
+      // 注文が弾かれた事象の調査用テレメトリ。顧客(匿名サインイン)が作成でき、
+      // 閲覧はスタッフのみ。個人情報は含めない。キー数上限で肥大化を防ぐ。
+      match /orderBlockEvents/{eventId} {
+        allow read: if isStoreStaff(storeId);
+        allow create: if signedIn()
+          && request.resource.data.reason is string
+          && request.resource.data.keys().size() < 20;
+        allow update, delete: if isStoreStaff(storeId);
+      }
+
       match /receipts/{receiptId} {
         allow read: if isStoreStaff(storeId)
           || isSessionMember(storeId, resource.data.sessionId)

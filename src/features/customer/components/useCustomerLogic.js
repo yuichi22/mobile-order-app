@@ -763,6 +763,30 @@ const {
     return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(inviteUrl)}`;
   }, [inviteUrl]);
 
+  // 注文ボタンが「弾かれた」事象を記録する(原因調査用の恒久テレメトリ)。
+  // 発火はエラー時のみ＝低頻度。fire-and-forget・個人情報なし・失敗は無視(注文UXは止めない)。
+  const recordOrderBlockEvent = (reason, details = {}) => {
+    try {
+      if (!storeId) return;
+      addDoc(collection(db, 'stores', storeId, 'orderBlockEvents'), {
+        reason,
+        sessionId: sessionId || '',
+        tableId: resolvedTableNumber || '',
+        participantId: customerParticipantId || '',
+        menuLoading: Boolean(menuLoading),
+        menuCount: Object.keys(menuItemsById).length,
+        currentPeriodId: currentPeriod?.id || '',
+        currentPeriodName: currentPeriod?.name || '',
+        cartItemIds: safeCart.map((item) => item.id),
+        clientTime: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        ...details
+      }).catch(() => {});
+    } catch {
+      /* テレメトリ失敗は無視 */
+    }
+  };
+
   const placeOrder = async () => {
     if (!sessionId) {
       showToast('セッション準備中です。少し待ってからお試しください。', 'error');
@@ -782,6 +806,7 @@ const {
     }
 
     if (!businessStatus.isTakingOrders) {
+      recordOrderBlockEvent('not-taking-orders', { businessMessage: businessStatus.message });
       showToast(businessStatus.message, 'error');
       return;
     }
@@ -805,12 +830,17 @@ const {
             storeId
           });
         }
+        recordOrderBlockEvent('item-not-in-menu', {
+          itemId: unavailableItem.id,
+          itemName: unavailableItem.name
+        });
         showToast(`${unavailableItem.name} は現在注文できません`, 'error');
         return;
       }
 
       const soldOutItem = safeCart.find((item) => menuItemsById[item.id]?.isSoldOut);
       if (soldOutItem) {
+        recordOrderBlockEvent('sold-out', { itemId: soldOutItem.id, itemName: soldOutItem.name });
         showToast(`${soldOutItem.name} は売り切れのため注文できません`, 'error');
         return;
       }
@@ -823,6 +853,12 @@ const {
 
       if (exceededLimitedItem) {
         const latestItem = menuItemsById[exceededLimitedItem.id];
+        recordOrderBlockEvent('stock-exceeded', {
+          itemId: exceededLimitedItem.id,
+          itemName: exceededLimitedItem.name,
+          remaining: latestItem.remainingQuantity,
+          requested: exceededLimitedItem.quantity
+        });
         showToast(`${exceededLimitedItem.name} の残りは ${latestItem.remainingQuantity} 点です`, 'error');
         return;
       }
