@@ -995,6 +995,13 @@ const handleCloseDay = async (closingCheck = {}) => {
                 <span className="mx-1 text-orange-300">/</span>
                 内税 {formatCurrency(summary?.totalTaxAmount)}
               </div>
+              {Number(summary?.cancelReturnTotal || 0) !== 0 && (
+                <div className="mt-1 border-t border-orange-200/60 pt-1 text-[11px] font-black text-red-500">
+                  取消・返品 {formatCurrency(summary?.cancelReturnTotal)}
+                  <span className="mx-1 text-orange-300">/</span>
+                  <span className="text-gray-600">純売上 {formatCurrency(Number(summary?.totalSales || 0) + Number(summary?.cancelReturnTotal || 0))}</span>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">

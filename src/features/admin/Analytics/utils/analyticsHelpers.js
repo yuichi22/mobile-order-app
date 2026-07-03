@@ -530,6 +530,10 @@ export const buildAnalyticsSummary = ({
 
   (orders || []).forEach((record) => {
     if (record?.isPaid === false) return;
+    // 反対仕訳(締め後の取消/返品/支払訂正を当日にマイナス計上した伝票)は、売上/客数/件数の
+    // 集計に混ぜない(件数・客数の水増しや不意のネット化を防ぐ)。取消・返品の別掲は締め集計側で行う。
+    // 正準定義は features/pos/corrections/correctionModel.js と同義。
+    if (record?.isReversal === true || Boolean(record?.reversalOf)) return;
 
     const recordDate = getRecordDate(record);
     const guestCount = getRecordGuestCount(record);
