@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronDown, ChevronLeft, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut
+  CheckCircle2, ChevronDown, ChevronLeft, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut, RotateCcw
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -532,6 +532,10 @@ export const PosTransactionHistory = ({
   const [cancelQty, setCancelQty] = useState({});
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+  // 取消モード: 'cancel'(会計取消) or 'return'(返品)。返品は在庫を戻す/戻さないを選べる。
+  const [cancelMode, setCancelMode] = useState('cancel');
+  const [returnRestoreStock, setReturnRestoreStock] = useState(true);
+  const isReturnMode = cancelMode === 'return';
 
   // 締め状態(dailyClosings/{dateKey}.status)。対象伝票の営業日がロック済み(締め後/過去日)なら
   // 取消は「その場減額」ではなく「操作日のマイナス伝票(反対仕訳)」で計上する(設計 D1/P1)。
@@ -549,7 +553,7 @@ export const PosTransactionHistory = ({
     return () => unsubscribe();
   }, [storeId]);
 
-  const openCancelModal = (ticket) => {
+  const openCancelModal = (ticket, mode = 'cancel') => {
     // 同一テーブルの個別会計をまとめた履歴伝票では、束ねた全取引の明細を取消対象にする。
     // (履歴表示の ticket.items は消費統合されて元取引との対応が失われるため、
     //  取消は元取引の生 items から txnId+index 付きで組み立てる)
@@ -574,11 +578,14 @@ export const PosTransactionHistory = ({
     const entries = [];
     const initial = {};
     targetTransactions.forEach((tx) => {
+      // 割引後率(取引の純額 / 明細グロス合計)。返金額を割引後にするため各行に持たせる。
+      const grossTotal = (tx.items || []).reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0) || 0;
+      const netRatio = grossTotal > 0 ? (Number(tx.totalAmount) || 0) / grossTotal : 1;
       tx.items.forEach((item, index) => {
         const maxQty = (Number(item.quantity || 0) || 1) - reversedQtyOf(tx, index);
         if (maxQty <= 0) return; // 全数取消済みの明細は出さない
         const key = `${tx.id}#${index}`;
-        entries.push({ key, txnId: tx.id, index, item, maxQty });
+        entries.push({ key, txnId: tx.id, index, item, maxQty, netRatio });
         initial[key] = 0;
       });
     });
@@ -588,6 +595,8 @@ export const PosTransactionHistory = ({
       return;
     }
 
+    setCancelMode(mode === 'return' ? 'return' : 'cancel');
+    setReturnRestoreStock(true);
     setCancelTarget({ ticketId: ticket?.id || '', transactions: targetTransactions, entries });
     setCancelQty(initial);
     setCancelReason('');
@@ -598,6 +607,7 @@ export const PosTransactionHistory = ({
     setCancelTarget(null);
     setCancelQty({});
     setCancelReason('');
+    setCancelMode('cancel');
   };
 
   // --- 取消の取消(戻す) ---------------------------------------------------
@@ -735,6 +745,10 @@ export const PosTransactionHistory = ({
     if (targetTransactions.length === 0) return;
     const num = (value) => Number(value || 0);
 
+    // 取消 or 返品。返品は「在庫を戻す/戻さない」を選べる(取消は常に戻す)。
+    const correctionType = isReturnMode ? CORRECTION_TYPES.RETURN : CORRECTION_TYPES.CANCEL;
+    const shouldRestoreStock = !isReturnMode || returnRestoreStock;
+
     // 束ねた各取引ごとに「取消後の明細」と取消記録を算出する。取消数量は
     // cancelQty[`${txnId}#${index}`] で取引×明細単位に持つ。
     const today = getJstBusinessDate();
@@ -758,6 +772,12 @@ export const PosTransactionHistory = ({
         .filter((entry) => Number(entry?.itemIndex) === index)
         .reduce((sum, entry) => sum + Math.abs(Number(entry?.quantity || 0)), 0);
 
+      // 割引反映用の純額率: 明細は割引前グロス(item.totalPrice)を持つが、実際の決済額は
+      // transaction.totalAmount(割引後・税込)。取消/返品金額はこの純額率で割引後にする。
+      const grossTotal = items.reduce((sum, it) => sum + num(it.totalPrice), 0) || 0;
+      const txnNet = num(transaction.totalAmount);
+      const netRatio = grossTotal > 0 ? txnNet / grossTotal : 1;
+
       const updatedItems = items.map((item, index) => {
         const key = `${transaction.id}#${index}`;
         const qty = num(item.quantity) || 1;
@@ -770,6 +790,7 @@ export const PosTransactionHistory = ({
         const remainingQty = qty - cQty;
         const ratio = qty > 0 ? remainingQty / qty : 0;
         const scale = (value) => Math.round(num(value) * ratio);
+        const grossPortion = num(item.totalPrice) - scale(item.totalPrice); // 取消ぶんの割引前グロス
         cancelledEntries.push({
           name: item.name || '商品',
           // 在庫戻し先は実商品docのID。明細の id は `product:<docId>`(UI用キー)なので
@@ -778,7 +799,8 @@ export const PosTransactionHistory = ({
           sourceType: item.sourceType || '',
           index,
           quantity: cQty,
-          amount: num(item.totalPrice) - scale(item.totalPrice)
+          grossAmount: grossPortion,
+          amount: Math.round(grossPortion * netRatio) // 割引後の返金額
         });
         if (remainingQty <= 0) return null;
         return {
@@ -799,18 +821,23 @@ export const PosTransactionHistory = ({
 
       if (!txnHasCancel) return; // この取引は取消なし → 更新しない
 
-      // 残った明細から取引合計を再計算（日計は純額で自動整合）。
-      const sumBy = (key) => updatedItems.reduce((sum, item) => sum + num(item[key]), 0);
-      const taxByType = (type) => updatedItems
-        .filter((item) => item.salesTaxRateType === type)
-        .reduce((sum, item) => sum + (num(item.salesTaxIncludedAmount) - num(item.salesTaxExcludedAmount)), 0);
-      const cancelledTotal = cancelledEntries.reduce((sum, entry) => sum + num(entry.amount), 0);
+      // 返金額・残額を「取引の純額(割引後)」を基準に按分する(割引を正しく反映)。
+      const cancelledTotal = cancelledEntries.reduce((sum, entry) => sum + num(entry.amount), 0); // 割引後の返金額
+      const grossCancelled = cancelledEntries.reduce((sum, entry) => sum + num(entry.grossAmount), 0);
+      const ratioCancelled = grossTotal > 0 ? grossCancelled / grossTotal : 1;
+      const remainingRatio = Math.max(0, 1 - ratioCancelled);
+      const refundSubTotal = Math.round(num(transaction.subTotal) * ratioCancelled);
+      const refundTaxStandard = Math.round(num(transaction.taxAmountStandard) * ratioCancelled);
+      const refundTaxReduced = Math.round(num(transaction.taxAmountReduced) * ratioCancelled);
 
-      cancelledEntries.forEach((entry) => {
-        if (entry.sourceType === 'retail' && entry.productId) {
-          restoreByProduct.set(entry.productId, (restoreByProduct.get(entry.productId) || 0) + entry.quantity);
-        }
-      });
+      // 在庫戻し(retailのみ)。返品で「戻さない」を選んだ時は在庫を戻さない。
+      if (shouldRestoreStock) {
+        cancelledEntries.forEach((entry) => {
+          if (entry.sourceType === 'retail' && entry.productId) {
+            restoreByProduct.set(entry.productId, (restoreByProduct.get(entry.productId) || 0) + entry.quantity);
+          }
+        });
+      }
 
       // 対象伝票の営業日がロック済み(締め後/過去日)か。ロック時は元伝票を触らず反対仕訳。
       const locked = isDayLocked(transaction.businessDate, { closings: closingsByDate, today });
@@ -821,11 +848,21 @@ export const PosTransactionHistory = ({
         updatedItems,
         cancelledEntries,
         reversalSourceEntries,
-        cancelledTotal,
-        totalAmount: sumBy('totalPrice'),
-        subTotal: sumBy('salesTaxExcludedAmount'),
-        taxAmountStandard: taxByType('standard'),
-        taxAmountReduced: taxByType('reduced'),
+        netRatio,
+        cancelledTotal, // 割引後の返金額
+        refundSubTotal,
+        refundTaxStandard,
+        refundTaxReduced,
+        // 一部取消(その場減額)後に残す取引の各額(純額ベースで按分)。
+        remaining: {
+          totalAmount: txnNet - cancelledTotal,
+          subTotal: num(transaction.subTotal) - refundSubTotal,
+          taxAmountStandard: num(transaction.taxAmountStandard) - refundTaxStandard,
+          taxAmountReduced: num(transaction.taxAmountReduced) - refundTaxReduced,
+          discountAmount: Math.round(num(transaction.discountAmount) * remainingRatio),
+          promoExpenseAmount: Math.round(num(transaction.promoExpenseAmount) * remainingRatio),
+          voucherAmount: Math.round(num(transaction.voucherAmount) * remainingRatio)
+        },
         fullyCancelled: updatedItems.length === 0
       });
     });
@@ -852,28 +889,25 @@ export const PosTransactionHistory = ({
       const localPatches = new Map();
       const newReversalTxns = [];
       perTransaction.forEach(({
-        transaction, locked, updatedItems, cancelledEntries, reversalSourceEntries, cancelledTotal,
-        totalAmount, subTotal, taxAmountStandard, taxAmountReduced, fullyCancelled
+        transaction, locked, updatedItems, cancelledEntries, reversalSourceEntries,
+        netRatio, cancelledTotal, refundSubTotal, refundTaxStandard, refundTaxReduced, remaining, fullyCancelled
       }) => {
         if (locked) {
           // 締め後/過去日: 元伝票は数値を触らず、操作日付のマイナス伝票(反対仕訳)を新規作成する。
-          const reversalItems = buildReversalItems(reversalSourceEntries);
-          const absSum = (key) => reversalItems.reduce((sum, it) => sum + Math.abs(num(it[key])), 0);
-          const taxAbsByType = (type) => reversalItems
-            .filter((it) => it.salesTaxRateType === type)
-            .reduce((sum, it) => sum + Math.abs(num(it.salesTaxIncludedAmount) - num(it.salesTaxExcludedAmount)), 0);
+          // 明細は割引後(netRatio)にスケールし、合計は取引の純額按分を使う(割引を正しく反映)。
+          const reversalItems = buildReversalItems(reversalSourceEntries, netRatio);
           const totals = {
             totalAmount: cancelledTotal,
-            subTotal: absSum('salesTaxExcludedAmount'),
-            taxAmountReduced: taxAbsByType('reduced'),
-            taxAmountStandard: taxAbsByType('standard'),
-            taxAmount: taxAbsByType('reduced') + taxAbsByType('standard')
+            subTotal: refundSubTotal,
+            taxAmountReduced: refundTaxReduced,
+            taxAmountStandard: refundTaxStandard,
+            taxAmount: refundTaxReduced + refundTaxStandard
           };
           const reversalPayload = buildReversalTransaction({
             original: transaction,
             reversalItems,
             totals,
-            correctionType: CORRECTION_TYPES.CANCEL,
+            correctionType,
             reason: cancelReason.trim(),
             operator,
             businessDate: today
@@ -937,19 +971,27 @@ export const PosTransactionHistory = ({
           reason: cancelReason.trim(),
           amount: cancelledTotal,
           type: fullyCancelled ? 'full' : 'partial',
+          correctionType,
           items: cancelledEntries
         };
         const nextCancellations = [
           ...(Array.isArray(transaction.cancellations) ? transaction.cancellations : []),
           cancellationLog
         ];
+        // 残額は取引の純額(割引後)ベースで按分した値を使う(割引を保つ)。
+        const remainingFields = {
+          totalAmount: remaining.totalAmount,
+          subTotal: remaining.subTotal,
+          taxAmountStandard: remaining.taxAmountStandard,
+          taxAmountReduced: remaining.taxAmountReduced,
+          taxAmount: remaining.taxAmountStandard + remaining.taxAmountReduced,
+          discountAmount: remaining.discountAmount,
+          promoExpenseAmount: remaining.promoExpenseAmount,
+          voucherAmount: remaining.voucherAmount
+        };
         const updatePayload = {
           items: updatedItems,
-          totalAmount,
-          subTotal,
-          taxAmountStandard,
-          taxAmountReduced,
-          taxAmount: taxAmountStandard + taxAmountReduced,
+          ...remainingFields,
           cancellations: nextCancellations,
           hasCancellations: true,
           updatedAt: serverTimestamp()
@@ -964,11 +1006,7 @@ export const PosTransactionHistory = ({
         localPatches.set(transaction.id, {
           ...transaction,
           items: updatedItems,
-          totalAmount,
-          subTotal,
-          taxAmountStandard,
-          taxAmountReduced,
-          taxAmount: taxAmountStandard + taxAmountReduced,
+          ...remainingFields,
           cancellations: nextCancellations,
           hasCancellations: true,
           ...(fullyCancelled
@@ -1020,14 +1058,15 @@ export const PosTransactionHistory = ({
   const cancelRefundTotal = (() => {
     if (!cancelTarget) return 0;
     const entries = Array.isArray(cancelTarget.entries) ? cancelTarget.entries : [];
-    return entries.reduce((sum, { key, item, maxQty }) => {
+    return entries.reduce((sum, { key, item, maxQty, netRatio }) => {
       const qty = Number(item.quantity || 0) || 1;
       const cap = Number(maxQty ?? qty);
       const c = Math.min(Math.max(Number(cancelQty[key] || 0), 0), cap);
       if (c <= 0) return sum;
       const remaining = qty - c;
       const total = Number(item.totalPrice || 0);
-      return sum + (total - Math.round((total * remaining) / qty));
+      const grossPortion = total - Math.round((total * remaining) / qty);
+      return sum + Math.round(grossPortion * (Number(netRatio ?? 1))); // 割引後の返金額
     }, 0);
   })();
 
@@ -1592,6 +1631,7 @@ export const PosTransactionHistory = ({
           id: `cancel-${transaction.id}-${index}`,
           status: 'cancelled',
           correctionKind: 'in_place',
+          correctionType: cancellation.correctionType || 'cancel',
           sourceTransactionId: transaction.id,
           sourceTransactionIds: [transaction.id],
           tableId: transaction.tableId || 'takeout',
@@ -1622,6 +1662,7 @@ export const PosTransactionHistory = ({
           id: `reversal-${transaction.id}`,
           status: 'cancelled',
           correctionKind: 'reversal',
+          correctionType: transaction.correctionType || 'cancel',
           reversalTxnId: transaction.id,
           reversalOf: transaction.reversalOf || '',
           businessDate: transaction.businessDate || '',
@@ -2547,6 +2588,7 @@ export const PosTransactionHistory = ({
             Array.isArray(ticket.reversalEntries) && ticket.reversalEntries[0]?.businessDate
           );
           const reversalOriginLabel = monthDay(ticket.originalBusinessDate);
+          const correctionWord = ticket.correctionType === 'return' ? '返品' : '取消';
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
           // 取消数量を商品名ごとに集計（商品行を「元の数量」で表示するために残数へ足し戻す）。
@@ -2624,8 +2666,8 @@ export const PosTransactionHistory = ({
                     >
                       {isCancelled
                         ? (isReversalCancel
-                          ? `締め後取消${reversalOriginLabel ? `（${reversalOriginLabel}分）` : ''}`
-                          : '取消')
+                          ? `締め後${correctionWord}${reversalOriginLabel ? `（${reversalOriginLabel}分）` : ''}`
+                          : correctionWord)
                         : isPaid ? '会計済み' : '未会計'}
                     </span>
                     {isReversedOriginal && (
@@ -2757,7 +2799,7 @@ export const PosTransactionHistory = ({
                         className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-white py-2.5 text-xs font-black text-amber-600 shadow-sm transition-colors hover:bg-amber-50"
                       >
                         <XCircle size={14} />
-                        この取消を戻す
+                        この{correctionWord}を戻す
                       </button>
                     )}
 
@@ -2843,17 +2885,30 @@ export const PosTransactionHistory = ({
                         )}
 
                         {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0)) && (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openCancelModal(ticket);
-                            }}
-                            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white py-2.5 text-xs font-black text-red-500 shadow-sm transition-colors hover:bg-red-50"
-                          >
-                            <XCircle size={14} />
-                            この会計を取消
-                          </button>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openCancelModal(ticket, 'cancel');
+                              }}
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white py-2.5 text-xs font-black text-red-500 shadow-sm transition-colors hover:bg-red-50"
+                            >
+                              <XCircle size={14} />
+                              この会計を取消
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openCancelModal(ticket, 'return');
+                              }}
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-white py-2.5 text-xs font-black text-teal-600 shadow-sm transition-colors hover:bg-teal-50"
+                            >
+                              <RotateCcw size={14} />
+                              返品
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -3132,9 +3187,11 @@ export const PosTransactionHistory = ({
           <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-[2rem] border border-red-100 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-5">
               <div className="min-w-0">
-                <h3 className="text-lg font-black text-gray-900">会計の取消</h3>
+                <h3 className="text-lg font-black text-gray-900">{isReturnMode ? '返品' : '会計の取消'}</h3>
                 <p className="mt-1 text-xs font-bold text-gray-400">
-                  取消する商品の数量を選んで確定します。在庫は自動で戻ります。
+                  {isReturnMode
+                    ? '返品する商品の数量を選んで確定します。'
+                    : '取消する商品の数量を選んで確定します。在庫は自動で戻ります。'}
                 </p>
                 {cancelTargetLocked && (
                   <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-black leading-snug text-amber-700">
@@ -3190,15 +3247,30 @@ export const PosTransactionHistory = ({
               <button
                 type="button"
                 onClick={selectAllForCancel}
-                className="mt-1 w-full rounded-xl bg-red-50 py-2 text-xs font-black text-red-600 hover:bg-red-100"
+                className={`mt-1 w-full rounded-xl py-2 text-xs font-black ${
+                  isReturnMode ? 'bg-teal-50 text-teal-600 hover:bg-teal-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                }`}
               >
-                全額取消（すべて選択）
+                {isReturnMode ? '全部返品（すべて選択）' : '全額取消（すべて選択）'}
               </button>
+
+              {isReturnMode && (
+                <button
+                  type="button"
+                  onClick={() => setReturnRestoreStock((prev) => !prev)}
+                  className="mt-2 flex w-full items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-black text-gray-700"
+                >
+                  <span>在庫を戻す（物販のみ）</span>
+                  <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${returnRestoreStock ? 'bg-teal-500' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${returnRestoreStock ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </span>
+                </button>
+              )}
 
               <textarea
                 value={cancelReason}
                 onChange={(event) => setCancelReason(event.target.value)}
-                placeholder="取消理由（任意）"
+                placeholder={isReturnMode ? '返品理由（任意）' : '取消理由（任意）'}
                 rows={2}
                 className="mt-2 w-full rounded-xl border border-gray-200 p-2 text-sm font-bold outline-none focus:border-red-300"
               />
@@ -3206,8 +3278,8 @@ export const PosTransactionHistory = ({
 
             <div className="border-t border-gray-100 p-5">
               <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-black text-gray-500">取消金額</span>
-                <span className="font-mono text-2xl font-black text-red-600">¥{cancelRefundTotal.toLocaleString()}</span>
+                <span className="text-xs font-black text-gray-500">{isReturnMode ? '返金額' : '取消金額'}</span>
+                <span className={`font-mono text-2xl font-black ${isReturnMode ? 'text-teal-600' : 'text-red-600'}`}>¥{cancelRefundTotal.toLocaleString()}</span>
               </div>
               <div className="flex gap-3">
                 <button
@@ -3222,9 +3294,13 @@ export const PosTransactionHistory = ({
                   type="button"
                   onClick={executeCancellation}
                   disabled={isCancelling || cancelRefundTotal <= 0}
-                  className="flex-1 rounded-2xl bg-red-500 py-4 text-sm font-black text-white shadow-lg shadow-red-100 transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
+                  className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${
+                    isReturnMode ? 'bg-teal-500 shadow-teal-100 hover:bg-teal-600' : 'bg-red-500 shadow-red-100 hover:bg-red-600'
+                  }`}
                 >
-                  {isCancelling ? '取消処理中...' : '取消を確定'}
+                  {isCancelling
+                    ? (isReturnMode ? '返品処理中...' : '取消処理中...')
+                    : (isReturnMode ? '返品を確定' : '取消を確定')}
                 </button>
               </div>
             </div>

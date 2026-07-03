@@ -41,13 +41,14 @@ const neg = (value) => -Math.abs(Number(value || 0));
 // 反対仕訳の明細行を、元取引の明細 + 取消数量から作る。
 // entries: [{ item, quantity }] (item は元 transaction.items の1要素、quantity は取消数)
 // 金額系は「取消数ぶんのマイナス」。数量もマイナスにして item分析が純額になるようにする。
-export const buildReversalItems = (entries = []) => (
+// netRatio: 割引後にスケールする率(取引の totalAmount / 明細グロス合計)。既定=1(割引なし)。
+export const buildReversalItems = (entries = [], netRatio = 1) => (
   entries
     .filter((entry) => entry && entry.item && Number(entry.quantity) > 0)
     .map(({ item, quantity }) => {
       const originalQty = Number(item.quantity || 0) || 1;
       const cancelQty = Math.min(Math.max(Number(quantity), 0), Math.max(originalQty, Number(quantity)));
-      const ratio = originalQty > 0 ? cancelQty / originalQty : 1;
+      const ratio = (originalQty > 0 ? cancelQty / originalQty : 1) * (Number(netRatio) || 1);
       const scaleNeg = (value) => neg(Math.round(Number(value || 0) * ratio));
       return {
         ...item,
