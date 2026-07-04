@@ -440,6 +440,27 @@ const DailyClosingCheckModal = ({
                 ? '他のレジの締め内容です。この端末からは閲覧のみで、変更・締め保存はできません。'
                 : '金種・カード端末・QR決済サイト・クーポン枚数を確認してから日計を保存します。'}
             </p>
+            {(Number(summary?.cancelReturnTotal || 0) !== 0
+              || (Array.isArray(summary?.methodAdjustments) && summary.methodAdjustments.length > 0)) && (
+              <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-black leading-relaxed">
+                <div className="mb-0.5 text-indigo-500">ドロワーに効いた調整（実査差額の参考）</div>
+                {Number(summary?.cancelReturnTotal || 0) !== 0 && (
+                  <div className="text-red-600">
+                    取消・返品 ¥{Number(summary.cancelReturnTotal || 0).toLocaleString()}
+                  </div>
+                )}
+                {(Array.isArray(summary?.methodAdjustments) ? summary.methodAdjustments : []).map((adj, i) => {
+                  const ml = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
+                  const md = String(adj.originalBusinessDate || '').split('-');
+                  const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
+                  return (
+                    <div key={`madj-${i}`} className="text-indigo-700">
+                      付替 {dateLabel}{ml(adj.from)}→{ml(adj.to)} ¥{Number(adj.amount || 0).toLocaleString()}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <button

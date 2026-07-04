@@ -708,68 +708,49 @@ const handleCloseDay = async (closingCheck = {}) => {
   return (
     <div className="mt-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
 
-        {/* 1. 部門セレクター（使用レジ／部門切替／表示中件数）。分析画面と同じカード枠。 */}
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
-          {/* 使用レジ（固定表示・大きめテキスト） */}
-          <div className="rounded-xl bg-slate-900 px-4 py-2 text-base font-black text-white">
-            {activeRegister?.name || 'レジ'}
-          </div>
-
-          {/* 部門ボタン（配置・名称は固定。自部門は大きく、その他は小さく。選択中は黒） */}
-          {departmentOptions.map((dept) => {
-            const isSelected = selectedDepartmentId === dept.id;
-            const isOwn = dept.id === activeDepartment?.id;
-            return (
-              <button
-                key={dept.id}
-                type="button"
-                onClick={() => setSelectedDepartmentId(dept.id)}
-                className={`rounded-xl font-black transition ${
-                  isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
-                } ${
-                  isSelected
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                }`}
-              >
-                {dept.name}
-              </button>
-            );
-          })}
-
-          {/* 全体（小さくグレー、選択中は黒） */}
+        {/* 日付（対象日）。レジ集計・締め・部門集計すべてに適用されるため、枠外・上に独立表示。 */}
+        <div className="mb-4 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => setSelectedDepartmentId('all')}
-            className={`rounded-xl px-3 py-2 text-xs font-black transition ${
-              selectedDepartmentId === 'all'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-            }`}
+            onClick={() => shiftDailyClosingDate(-1)}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-600"
+            aria-label="前の日"
           >
-            全体
+            <ChevronLeft size={20} strokeWidth={3} />
           </button>
 
-          <div className="ml-auto rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
-            表示中: {filteredTransactionCount}件 / 全{transactions.length}件
-          </div>
+          <button
+            type="button"
+            onClick={openDatePicker}
+            className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-700"
+          >
+            {dateKey}
+          </button>
 
-          {/* 自部門に戻る（一番右。自部門表示中は非表示） */}
-          {!isOwnDepartmentView && (
-            <button
-              type="button"
-              onClick={() => setSelectedDepartmentId(activeDepartment?.id || 'all')}
-              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
-            >
-              自部門に戻る
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => shiftDailyClosingDate(1)}
+            disabled={isTargetDateToday}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="次の日"
+          >
+            <ChevronRight size={20} strokeWidth={3} />
+          </button>
+
+          <input
+            ref={dateInputRef}
+            type="date"
+            max={todayDateValue}
+            value={toDateInputValue(targetDate)}
+            onChange={handleDateInputChange}
+            className="sr-only"
+          />
         </div>
 
-        {/* 2. このレジの売上（分析対象期間と同サイズの枠。左=売上内訳、右=日付）。
+        {/* レジ単位ブロック: 対象レジ(テキスト) + このレジの売上 + 締めボタン を同じ枠に。
             枠色: 未締め=オレンジ / 締め済み差額なし=薄緑 / 締め済み差額あり=薄赤。 */}
         <div
-          className={`mt-4 flex flex-col gap-3 rounded-2xl border p-4 xl:flex-row xl:items-center xl:justify-between ${
+          className={`flex flex-col gap-3 rounded-2xl border p-4 ${
             !isSelectedClosed
               ? 'border-orange-100 bg-orange-50/40'
               : hasAnyRegisterDifference
@@ -777,7 +758,16 @@ const handleCloseDay = async (closingCheck = {}) => {
                 : 'border-green-200 bg-green-50/50'
           }`}
         >
-          {/* 左: 売上合計＋差額有無＋区分別（モーダルにある項目のみ） */}
+          {/* 対象レジ（部門名＋レジ名のテキスト表示） */}
+          <div className="text-sm font-black text-slate-900">
+            {activeDepartment?.name ? (
+              <span className="text-slate-500">{activeDepartment.name}　</span>
+            ) : null}
+            {activeRegister?.name || 'レジ'}
+          </div>
+
+          {/* このレジの売上（既存レイアウト）。日付は枠外・上に独立表示。 */}
+          {/* 売上合計＋差額有無＋区分別（モーダルにある項目のみ） */}
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="mr-1 flex items-center gap-2">
               <div className="flex flex-col leading-tight">
@@ -840,56 +830,32 @@ const handleCloseDay = async (closingCheck = {}) => {
                 </div>
               );
             })}
+
+            {/* このレジに効いた取消・返品／支払方法訂正(付替え)。ドロワー突合の内訳。 */}
+            {(Number(registerSummary?.cancelReturnTotal || 0) !== 0
+              || (Array.isArray(registerSummary?.methodAdjustments) && registerSummary.methodAdjustments.length > 0)) && (
+              <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-black">
+                {Number(registerSummary?.cancelReturnTotal || 0) !== 0 && (
+                  <span className="text-red-500">取消・返品 {formatCurrency(registerSummary.cancelReturnTotal)}</span>
+                )}
+                {(Array.isArray(registerSummary?.methodAdjustments) ? registerSummary.methodAdjustments : []).map((adj, i) => {
+                  const ml = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
+                  const md = String(adj.originalBusinessDate || '').split('-');
+                  const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
+                  return (
+                    <span key={`radj-${i}`} className="text-indigo-500">
+                      付替 {dateLabel}{ml(adj.from)}→{ml(adj.to)} {formatCurrency(adj.amount)}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* 右: 日付ステッパー（分析画面と同じ白ピル） */}
-          <div className="flex shrink-0 items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => shiftDailyClosingDate(-1)}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
-              aria-label="前の日"
-            >
-              <ChevronLeft size={20} strokeWidth={3} />
-            </button>
 
-            <button
-              type="button"
-              onClick={openDatePicker}
-              className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-700"
-            >
-              {dateKey}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => shiftDailyClosingDate(1)}
-              disabled={isTargetDateToday}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="次の日"
-            >
-              <ChevronRight size={20} strokeWidth={3} />
-            </button>
-
-            <input
-              ref={dateInputRef}
-              type="date"
-              max={todayDateValue}
-              value={toDateInputValue(targetDate)}
-              onChange={handleDateInputChange}
-              className="sr-only"
-            />
-          </div>
-        </div>
-
-        {/* 3. 各レジのボタン列（右寄せ・分析の印刷ボタン位置）。区切り線でサマリと分離。
-            並び: 他のレジ → 該当レジ → 印刷。
-            配色: 該当レジ 未締め=黒 / 締め済み差額なし=薄緑 / 差額あり=薄赤。
-                  他レジ 未締め=薄グレー / 締め済み差額なし=薄緑 / 差額あり=薄赤。
-            サイズで自レジ(大)と他レジ(小)を区別。選択中レジは枠線(ring)でハイライト。 */}
-        <div className="mb-5 mt-4 flex flex-wrap items-center justify-end gap-2 border-b border-gray-100 pb-5">
+          {/* 締めボタン列（枠内下部・区切り線で分離）。並び: 他のレジ → 該当レジ → 印刷。 */}
           {isOwnDepartmentView && (
-            <>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-black/5 pt-3">
               {/* 他のレジ（小・クリックで閲覧表示） */}
               {otherDepartmentRegisters.map((register) => {
                 const closed = Boolean(registerClosedMap[register.id]);
@@ -934,7 +900,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                 {activeRegister?.name || 'レジ'}{isOwnClosed ? '締め処理済み・修正' : '締め処理'}
               </button>
 
-              {/* 印刷（選択中レジが締め済みのとき。選択中レジの締め内容を印刷） */}
+              {/* 印刷（選択中レジが締め済みのとき） */}
               {isSelectedClosed && (
                 <button
                   type="button"
@@ -945,9 +911,66 @@ const handleCloseDay = async (closingCheck = {}) => {
                   印刷
                 </button>
               )}
-            </>
+            </div>
           )}
         </div>
+
+        {/* 集計(部門)セレクター: 集計(テキスト) + 部門ボタン + 表示中件数。 */}
+        <div className="mb-5 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+          {/* 集計（テキスト表示） */}
+          <span className="mr-1 text-sm font-black text-slate-500">集計</span>
+
+          {/* 部門ボタン（配置・名称は固定。自部門は大きく、その他は小さく。選択中は黒） */}
+          {departmentOptions.map((dept) => {
+            const isSelected = selectedDepartmentId === dept.id;
+            const isOwn = dept.id === activeDepartment?.id;
+            return (
+              <button
+                key={dept.id}
+                type="button"
+                onClick={() => setSelectedDepartmentId(dept.id)}
+                className={`rounded-xl font-black transition ${
+                  isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
+                } ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                {dept.name}
+              </button>
+            );
+          })}
+
+          {/* 全体（小さくグレー、選択中は黒） */}
+          <button
+            type="button"
+            onClick={() => setSelectedDepartmentId('all')}
+            className={`rounded-xl px-3 py-2 text-xs font-black transition ${
+              selectedDepartmentId === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+          >
+            全体
+          </button>
+
+          <div className="ml-auto rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+            表示中: {filteredTransactionCount}件 / 全{transactions.length}件
+          </div>
+
+          {/* 自部門に戻る（一番右。自部門表示中は非表示） */}
+          {!isOwnDepartmentView && (
+            <button
+              type="button"
+              onClick={() => setSelectedDepartmentId(activeDepartment?.id || 'all')}
+              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+            >
+              自部門に戻る
+            </button>
+          )}
+        </div>
+
 
       {loading ? (
         <div className="flex h-40 items-center justify-center text-sm font-bold text-gray-400">
@@ -1000,6 +1023,21 @@ const handleCloseDay = async (closingCheck = {}) => {
                   取消・返品 {formatCurrency(summary?.cancelReturnTotal)}
                   <span className="mx-1 text-orange-300">/</span>
                   <span className="text-gray-600">純売上 {formatCurrency(Number(summary?.totalSales || 0) + Number(summary?.cancelReturnTotal || 0))}</span>
+                </div>
+              )}
+              {Array.isArray(summary?.methodAdjustments) && summary.methodAdjustments.length > 0 && (
+                <div className="mt-1 border-t border-orange-200/60 pt-1 text-[11px] font-black text-indigo-500">
+                  <div className="mb-0.5">支払方法訂正（付替え）</div>
+                  {summary.methodAdjustments.map((adj, i) => {
+                    const ml = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
+                    const md = String(adj.originalBusinessDate || '').split('-');
+                    const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
+                    return (
+                      <div key={`madj-${i}`} className="font-bold text-indigo-600">
+                        {dateLabel}{ml(adj.from)}→{ml(adj.to)} {formatCurrency(adj.amount)}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

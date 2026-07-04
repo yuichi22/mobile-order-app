@@ -813,9 +813,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     customerCount: 0,
     posCustomerCount: 0,
     totalSales: 0,
-    // 反対仕訳(締め後の取消/返品/支払訂正を当日にマイナス計上した伝票)の合計。
+    // 反対仕訳(締め後の取消/返品を当日にマイナス計上した伝票)の合計。
     // 総売上・件数・客数には含めず「取消・返品」として別掲する(設計 D5)。
     cancelReturnTotal: 0,
+    // 支払方法の付替え(締め後訂正)。監査用に from→to と金額・元営業日を別掲する。
+    methodAdjustments: [],
 
     sessionGuestCounts: new Map(),
     customerIdSet: new Set(),
@@ -874,8 +876,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     periods: {}
   };
 
-  // 反対仕訳(マイナス伝票)判定。正準定義は features/pos/corrections/correctionModel.js と同義。
-  const isReversalTxn = (t) => t?.isReversal === true || Boolean(t?.reversalOf);
+  // 反対仕訳(取消/返品のマイナス伝票)or 支払方法の付替え伝票。いずれも売上/件数/客数には
+  // 含めず、入金内訳(ドロワー)だけに効かせる。正準定義は correctionModel.js と同義。
+  const isReversalTxn = (t) => t?.isReversal === true || Boolean(t?.reversalOf) || t?.isMethodAdjustment === true;
 
   transactions.forEach((transaction) => {
     if (transaction.isPaid === false) return;
@@ -895,9 +898,21 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     }
 
     if (reversal) {
-      // 反対仕訳(締め後の取消/返品/支払訂正の当日計上)は「取消・返品」欄に別掲し、
-      // 総売上・件数・客数・商品/部門/税/割引などの売上系集計には含めない(D5)。
-      summary.cancelReturnTotal += totalAmount + settlementAdjustmentTotal;
+      if (transaction.isMethodAdjustment) {
+        // 支払方法の付替え(売上ゼロ・入金内訳の振替のみ)。監査用に記録。
+        const moved = Math.abs(Number((Array.isArray(transaction.payments) ? transaction.payments : [])
+          .find((p) => Number(p.amount) > 0)?.amount || 0));
+        summary.methodAdjustments.push({
+          from: transaction.methodFrom || '',
+          to: transaction.methodTo || '',
+          amount: moved,
+          originalBusinessDate: transaction.originalBusinessDate || ''
+        });
+      } else {
+        // 反対仕訳(締め後の取消/返品の当日計上)は「取消・返品」欄に別掲し、
+        // 総売上・件数・客数・商品/部門/税/割引などの売上系集計には含めない(D5)。
+        summary.cancelReturnTotal += totalAmount + settlementAdjustmentTotal;
+      }
       return;
     }
 

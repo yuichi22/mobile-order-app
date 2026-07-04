@@ -537,6 +537,12 @@ export const PosTransactionHistory = ({
   const [returnRestoreStock, setReturnRestoreStock] = useState(true);
   const isReturnMode = cancelMode === 'return';
 
+  // 支払方法の訂正。methodEditTarget={ticket, rows:[{txnId,currentMethod,amount,businessDate,isSplit}]}、
+  // methodEditChoices={txnId:新method}。当日=元伝票を直接訂正 / 締め後=当日付の付替え伝票。
+  const [methodEditTarget, setMethodEditTarget] = useState(null);
+  const [methodEditChoices, setMethodEditChoices] = useState({});
+  const [isEditingMethod, setIsEditingMethod] = useState(false);
+
   // 締め状態(dailyClosings/{dateKey}.status)。対象伝票の営業日がロック済み(締め後/過去日)なら
   // 取消は「その場減額」ではなく「操作日のマイナス伝票(反対仕訳)」で計上する(設計 D1/P1)。
   const [closingsByDate, setClosingsByDate] = useState({});
@@ -736,6 +742,163 @@ export const PosTransactionHistory = ({
       window.alert(`取消の戻しに失敗しました${error?.message ? `: ${error.message}` : ''}`);
     } finally {
       setIsUndoing(false);
+    }
+  };
+
+  // --- 支払方法の訂正 -----------------------------------------------------
+  const openMethodEditModal = (ticket) => {
+    const txIds = Array.isArray(ticket?.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0
+      ? ticket.sourceTransactionIds
+      : (ticket?.sourceTransactionId ? [ticket.sourceTransactionId] : []);
+    const rows = txIds
+      .map((txId) => transactions.find((item) => item.id === txId))
+      .filter((tx) => tx && !tx.isReversal && !tx.reversalOf && !tx.isMethodAdjustment)
+      .map((tx) => ({
+        txnId: tx.id,
+        currentMethod: getPaymentMethodKey(tx.paymentMethodGroup || tx.paymentMethod),
+        amount: Number(tx.totalAmount || 0),
+        businessDate: tx.businessDate || '',
+        isSplit: Array.isArray(tx.payments) && tx.payments.length > 1
+      }));
+    if (rows.length === 0) {
+      window.alert('支払方法を修正できる会計が見つかりません。');
+      return;
+    }
+    const initial = {};
+    rows.forEach((row) => { initial[row.txnId] = row.currentMethod; });
+    setMethodEditTarget({ ticket, rows });
+    setMethodEditChoices(initial);
+  };
+
+  const closeMethodEditModal = () => {
+    if (isEditingMethod) return;
+    setMethodEditTarget(null);
+    setMethodEditChoices({});
+  };
+
+  const executeMethodEdit = async () => {
+    if (!methodEditTarget || isEditingMethod || !storeId) return;
+    const today = getJstBusinessDate();
+    const opRegister = registers.find((register) => register.id === ownRegisterId) || null;
+    const changed = methodEditTarget.rows.filter(
+      (row) => !row.isSplit && methodEditChoices[row.txnId] && methodEditChoices[row.txnId] !== row.currentMethod
+    );
+    if (changed.length === 0) {
+      window.alert('変更する支払方法を選んでください。');
+      return;
+    }
+
+    setIsEditingMethod(true);
+    try {
+      const batch = writeBatch(db);
+      const localPatches = new Map();
+      const newAdjustmentTxns = [];
+      const methodLabel = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR決済' : m);
+
+      changed.forEach((row) => {
+        const transaction = transactions.find((item) => item.id === row.txnId);
+        if (!transaction) return;
+        const newMethod = methodEditChoices[row.txnId];
+        const locked = isDayLocked(row.businessDate, { closings: closingsByDate, today });
+
+        const adjustmentLog = {
+          from: row.currentMethod,
+          to: newMethod,
+          amount: Math.abs(Number(row.amount || 0)),
+          businessDate: today,
+          sameDay: !locked
+        };
+
+        if (!locked) {
+          // 当日・未締め: 元伝票の支払方法を直接訂正(その日の入金内訳が正しくなる)。
+          const nextAdjustments = [...(Array.isArray(transaction.methodAdjustments) ? transaction.methodAdjustments : []), adjustmentLog];
+          batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), {
+            paymentMethod: newMethod,
+            paymentMethodGroup: newMethod,
+            methodAdjustments: nextAdjustments,
+            methodCorrectedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          localPatches.set(transaction.id, {
+            ...transaction,
+            paymentMethod: newMethod,
+            paymentMethodGroup: newMethod,
+            methodAdjustments: nextAdjustments
+          });
+          return;
+        }
+
+        // 締め後: 過去日は動かさず、当日付の付替え伝票(売上ゼロ・方法振替)を起こす。
+        const amount = Math.abs(Number(row.amount || 0));
+        const adjRef = doc(collection(db, 'stores', storeId, 'transactions'));
+        const adjPayload = {
+          sessionId: transaction.sessionId || '',
+          tableId: transaction.tableId || '',
+          tableName: transaction.tableName || transaction.tableDisplayName || '',
+          registerId: ownRegisterId || transaction.registerId || '',
+          registerName: opRegister?.name || opRegister?.registerName || transaction.registerName || '',
+          departmentId: transaction.departmentId || '',
+          departmentName: transaction.departmentName || '',
+          registerMode: transaction.registerMode || 'order',
+          salesChannel: transaction.salesChannel || '',
+          isMethodAdjustment: true,
+          adjustmentOf: transaction.id,
+          originalBusinessDate: transaction.businessDate || '',
+          methodFrom: row.currentMethod,
+          methodTo: newMethod,
+          items: [],
+          totalAmount: 0,
+          subTotal: 0,
+          taxAmount: 0,
+          taxAmountReduced: 0,
+          taxAmountStandard: 0,
+          discountAmount: 0,
+          promoExpenseAmount: 0,
+          voucherAmount: 0,
+          settlementAdjustmentTotal: 0,
+          paymentMethod: 'mixed',
+          paymentMethodGroup: 'mixed',
+          payments: [
+            { method: row.currentMethod, amount: -amount },
+            { method: newMethod, amount }
+          ],
+          isSplitPayment: true,
+          customerIds: [],
+          guestCount: 0,
+          isPaid: true,
+          status: 'method_adjustment',
+          paymentStatus: 'method_adjustment',
+          businessDate: today,
+          reversalReason: `支払方法訂正: ${methodLabel(row.currentMethod)}→${methodLabel(newMethod)}`,
+          timestamp: serverTimestamp(),
+          paidAt: serverTimestamp(),
+          createdAt: serverTimestamp()
+        };
+        batch.set(adjRef, adjPayload);
+        newAdjustmentTxns.push({ ...adjPayload, id: adjRef.id, timestamp: new Date(), paidAt: new Date() });
+
+        // 元伝票(過去日)は金額不変、監査マーカーだけ付ける(履歴に「付替え済み」を出すため)。
+        const nextAdjustments = [...(Array.isArray(transaction.methodAdjustments) ? transaction.methodAdjustments : []), { ...adjustmentLog, adjustmentTxnId: adjRef.id }];
+        batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), {
+          methodAdjustments: nextAdjustments,
+          updatedAt: serverTimestamp()
+        });
+        localPatches.set(transaction.id, { ...transaction, methodAdjustments: nextAdjustments });
+      });
+
+      await batch.commit();
+
+      setTransactions((prev) => [
+        ...prev.map((item) => (localPatches.has(item.id) ? localPatches.get(item.id) : item)),
+        ...newAdjustmentTxns
+      ]);
+      setMethodEditTarget(null);
+      setMethodEditChoices({});
+    } catch (error) {
+      console.error('[pos method edit error]', error);
+      window.alert(`支払方法の訂正に失敗しました${error?.message ? `: ${error.message}` : ''}`);
+    } finally {
+      setIsEditingMethod(false);
     }
   };
 
@@ -1422,8 +1585,8 @@ export const PosTransactionHistory = ({
 
     const transactionTickets = transactions
       .filter((transaction) => transaction && transaction?.isPaid !== false)
-      // 反対仕訳(締め後取消のマイナス伝票)は「会計済み」ではなく「取消」タブに出す。
-      .filter((transaction) => !transaction.isReversal && !transaction.reversalOf)
+      // 反対仕訳(締め後取消)や支払方法の付替え伝票は「会計済み」履歴には出さない。
+      .filter((transaction) => !transaction.isReversal && !transaction.reversalOf && !transaction.isMethodAdjustment)
       .filter((transaction) => {
         // 表示中の登録レジの取引のみ（自レジ or 選択した他レジ）。
         if (ownRegisterId && !transactionMatchesViewingRegister(transaction)) return false;
@@ -1582,6 +1745,8 @@ export const PosTransactionHistory = ({
           reversalEntries: Array.isArray(transaction.reversalEntries) ? transaction.reversalEntries : [],
           hasReversal: transaction.hasReversal === true,
           reversalStatus: transaction.reversalStatus || '',
+          // 支払方法の訂正履歴(監査用)。履歴伝票に「現金→カード」を出す。
+          methodAdjustments: Array.isArray(transaction.methodAdjustments) ? transaction.methodAdjustments : [],
           isTakeout:
             transaction?.isTakeout === true ||
             transaction?.orderType === 'takeout' ||
@@ -1947,6 +2112,7 @@ export const PosTransactionHistory = ({
           // 束ねる各取引ぶんを下で集約するので初期化(重複防止)。
           cancellations: [],
           reversalEntries: [],
+          methodAdjustments: [],
           hasReversal: false,
           totalPrice: 0,
           subtotal: 0,
@@ -2011,6 +2177,10 @@ export const PosTransactionHistory = ({
       groupedTicket.reversalEntries = [
         ...(Array.isArray(groupedTicket.reversalEntries) ? groupedTicket.reversalEntries : []),
         ...(Array.isArray(ticket.reversalEntries) ? ticket.reversalEntries : [])
+      ];
+      groupedTicket.methodAdjustments = [
+        ...(Array.isArray(groupedTicket.methodAdjustments) ? groupedTicket.methodAdjustments : []),
+        ...(Array.isArray(ticket.methodAdjustments) ? ticket.methodAdjustments : [])
       ];
       groupedTicket.hasReversal = groupedTicket.hasReversal || ticket.hasReversal === true;
 
@@ -2589,6 +2759,8 @@ export const PosTransactionHistory = ({
           );
           const reversalOriginLabel = monthDay(ticket.originalBusinessDate);
           const correctionWord = ticket.correctionType === 'return' ? '返品' : '取消';
+          const methodAdjustments = Array.isArray(ticket.methodAdjustments) ? ticket.methodAdjustments : [];
+          const methodLabelOf = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
           // 取消数量を商品名ごとに集計（商品行を「元の数量」で表示するために残数へ足し戻す）。
@@ -2673,6 +2845,11 @@ export const PosTransactionHistory = ({
                     {isReversedOriginal && (
                       <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
                         {reversedOnLabel ? `${reversedOnLabel} ` : ''}取消済み
+                      </span>
+                    )}
+                    {isPaid && methodAdjustments.length > 0 && (
+                      <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                        支払方法訂正
                       </span>
                     )}
                     {isPaid && ticket.hasCancelledLinkedOrder && (
@@ -2910,6 +3087,20 @@ export const PosTransactionHistory = ({
                             </button>
                           </div>
                         )}
+
+                        {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0)) && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openMethodEditModal(ticket);
+                            }}
+                            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-black text-gray-500 shadow-sm transition-colors hover:bg-gray-50"
+                          >
+                            <CreditCard size={14} />
+                            支払方法を修正
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -3055,6 +3246,26 @@ export const PosTransactionHistory = ({
                                   <span className="shrink-0 font-black tabular-nums">
                                     −¥{Math.abs(Number(entry.amount || 0)).toLocaleString()}
                                   </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {methodAdjustments.length > 0 && (
+                          <div className="mt-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-3">
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-500">
+                              <CreditCard size={12} />
+                              支払方法の訂正
+                            </div>
+                            <ul className="space-y-1">
+                              {methodAdjustments.map((adj, ai) => (
+                                <li key={`madj-${ai}`} className="flex items-center justify-between text-sm text-indigo-700">
+                                  <span className="font-bold leading-tight">
+                                    {methodLabelOf(adj.from)} → {methodLabelOf(adj.to)}
+                                    {adj.sameDay ? '' : `（${monthDay(adj.businessDate)} 付替え）`}
+                                  </span>
+                                  <span className="shrink-0 font-black tabular-nums">¥{Number(adj.amount || 0).toLocaleString()}</span>
                                 </li>
                               ))}
                             </ul>
@@ -3348,6 +3559,81 @@ export const PosTransactionHistory = ({
               >
                 {isUndoing ? '戻し処理中...' : '取消を戻す'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {methodEditTarget && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
+          <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-[2rem] border border-gray-100 bg-white shadow-2xl">
+            <div className="border-b border-gray-100 p-5">
+              <h3 className="text-lg font-black text-gray-900">支払方法を修正</h3>
+              <p className="mt-1 text-xs font-bold text-gray-400">
+                打ち間違えた支払方法を正しい方法に変更します。締め済みの会計は、本日の付替え伝票で振り替えます（過去の売上は変わりません）。
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+              {methodEditTarget.rows.map((row) => {
+                const locked = isDayLocked(row.businessDate, { closings: closingsByDate, today: getJstBusinessDate() });
+                const methods = [
+                  { key: 'cash', label: '現金' },
+                  { key: 'card', label: 'カード' },
+                  { key: 'qr', label: 'QR' }
+                ];
+                return (
+                  <div key={row.txnId} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-black text-gray-500">
+                        支払い {formatShortOrderId(row.txnId)} / ¥{Number(row.amount || 0).toLocaleString()}
+                      </span>
+                      {locked && (
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-black text-amber-700">締め後→付替え</span>
+                      )}
+                    </div>
+                    {row.isSplit ? (
+                      <div className="text-xs font-bold text-gray-400">分割会計のため個別修正は非対応です。</div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {methods.map((m) => (
+                          <button
+                            key={m.key}
+                            type="button"
+                            onClick={() => setMethodEditChoices((prev) => ({ ...prev, [row.txnId]: m.key }))}
+                            className={`rounded-lg py-2 text-sm font-black transition-colors ${
+                              methodEditChoices[row.txnId] === m.key
+                                ? 'bg-gray-800 text-white'
+                                : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="border-t border-gray-100 p-5">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeMethodEditModal}
+                  disabled={isEditingMethod}
+                  className="flex-1 rounded-2xl bg-gray-100 py-4 text-sm font-black text-gray-500 hover:bg-gray-200 disabled:opacity-50"
+                >
+                  やめる
+                </button>
+                <button
+                  type="button"
+                  onClick={executeMethodEdit}
+                  disabled={isEditingMethod}
+                  className="flex-1 rounded-2xl bg-gray-800 py-4 text-sm font-black text-white shadow-lg transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {isEditingMethod ? '修正中...' : '支払方法を修正'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
