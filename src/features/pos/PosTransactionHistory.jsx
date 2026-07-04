@@ -567,7 +567,47 @@ export const PosTransactionHistory = ({
   };
   const [searchWord, setSearchWord] = useState('');
   const [searchPayment, setSearchPayment] = useState('all'); // all/cash/card/qr
+  const [searchDiscountId, setSearchDiscountId] = useState('all'); // 割引フィルタ(割引id)
+  const [searchCancelStatus, setSearchCancelStatus] = useState('all'); // all/cancelled/active
+  const [discountOptions, setDiscountOptions] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
+
+  // 割引マスターをモーダル初回オープン時に一度だけ読み込む(割引フィルタの選択肢)。
+  useEffect(() => {
+    if (!searchOpen || !storeId || discountOptions.length > 0) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'stores', storeId, 'discounts'));
+        if (active) setDiscountOptions(snap.docs.map((d) => ({ id: d.id, name: d.data()?.name || '(無名)' })));
+      } catch (error) {
+        console.error('[discount options load error]', error);
+      }
+    })();
+    return () => { active = false; };
+  }, [searchOpen, storeId, discountOptions.length]);
+
+  // 取引が特定の割引を使ったか(id一致)。appliedDiscounts/promoExpenseItems/vouchers/lineDiscount を横断。
+  const transactionUsedDiscount = (tx, discountId) => {
+    if (!discountId || discountId === 'all') return true;
+    const target = String(discountId);
+    const inList = (arr) => (Array.isArray(arr) ? arr : []).some((d) => (
+      String(d?.id || '') === target
+      || (Array.isArray(d?.items) && d.items.some((it) => String(it?.id || '') === target))
+    ));
+    if (inList(tx.appliedDiscounts) || inList(tx.promoExpenseItems) || inList(tx.vouchers)) return true;
+    if (String(tx.appliedDiscount?.id || '') === target) return true;
+    return (Array.isArray(tx.items) ? tx.items : []).some((it) => String(it?.lineDiscount?.id || '') === target);
+  };
+
+  // 取引が取消/返品済みか(元伝票側のマーカー)。
+  const transactionHasCancellation = (tx) => (
+    tx.hasReversal === true
+    || tx.status === 'cancelled'
+    || tx.paymentStatus === 'cancelled'
+    || tx.hasCancellations === true
+    || (Array.isArray(tx.cancellations) && tx.cancellations.length > 0)
+  );
   // searchMode: 検索結果を右ペイン全体に表示中。クリアで通常表示へ戻る。
   const [searchMode, setSearchMode] = useState(false);
   const [searchSummary, setSearchSummary] = useState('');
@@ -616,7 +656,7 @@ export const PosTransactionHistory = ({
     return () => { active = false; };
   }, [searchOpen, searchFrom, searchTo, storeId, viewingRegisterId, ownRegisterId]);
 
-  // ワード(商品名/バーコード/金額/伝票ID)＋支払方法で即時フィルタ(件数リアルタイム表示に使う)。
+  // ワード＋支払方法＋割引＋取消状態で即時フィルタ(件数リアルタイム表示に使う)。
   const previewResults = useMemo(() => {
     const word = searchWord.trim();
     const wordLower = word.toLowerCase();
@@ -624,6 +664,9 @@ export const PosTransactionHistory = ({
     const hasAmount = word !== '' && Number.isFinite(wordAmount) && wordAmount > 0;
     return searchRawResults.filter((tx) => {
       if (searchPayment !== 'all' && getPaymentMethodKey(tx.paymentMethodGroup || tx.paymentMethod) !== searchPayment) return false;
+      if (!transactionUsedDiscount(tx, searchDiscountId)) return false;
+      if (searchCancelStatus === 'cancelled' && !transactionHasCancellation(tx)) return false;
+      if (searchCancelStatus === 'active' && transactionHasCancellation(tx)) return false;
       if (!word) return true;
       const items = Array.isArray(tx.items) ? tx.items : [];
       if (items.some((it) => String(it?.name || '').toLowerCase().includes(wordLower))) return true;
@@ -632,7 +675,7 @@ export const PosTransactionHistory = ({
       if (String(tx.id).toLowerCase().includes(wordLower)) return true;
       return false;
     });
-  }, [searchRawResults, searchWord, searchPayment]);
+  }, [searchRawResults, searchWord, searchPayment, searchDiscountId, searchCancelStatus]);
 
   const clearHistorySearch = () => {
     setSearchMode(false);
@@ -645,9 +688,11 @@ export const PosTransactionHistory = ({
     if (!buildRangeFromTo(searchFrom, searchTo)) { window.alert('期間を正しく選んでください。'); return; }
     const word = searchWord.trim();
     const payLabel = searchPayment === 'all' ? '' : ` / ${formatPaymentMethod(searchPayment)}`;
+    const discLabel = searchDiscountId === 'all' ? '' : ` / ${discountOptions.find((d) => d.id === searchDiscountId)?.name || '割引'}`;
+    const cancelLabel = searchCancelStatus === 'cancelled' ? ' / 取消・返品あり' : searchCancelStatus === 'active' ? ' / 取消なし' : '';
     const rangeLabel = searchFrom === searchTo ? searchFrom : `${searchFrom}〜${searchTo}`;
     setSearchResults(previewResults);
-    setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${payLabel}`);
+    setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${payLabel}${discLabel}${cancelLabel}`);
     setSearchMode(true);
     setFilter('paid');
     setSearchOpen(false);
@@ -2762,7 +2807,7 @@ export const PosTransactionHistory = ({
           {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。開くたび初期状態(過去30日)に。 */}
           <button
             type="button"
-            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchOpen(true); }}
+            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchDiscountId('all'); setSearchCancelStatus('all'); setSearchOpen(true); }}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700"
           >
             <Search size={14} />
@@ -3466,49 +3511,36 @@ export const PosTransactionHistory = ({
 
                         <div className="mt-6 space-y-2 border-t-2 border-dashed border-gray-200 pt-4 text-xs font-bold text-gray-500">
                           {(() => {
-                            // 商品ごとのline割引は各商品の下に表示するため、合計表示からは差し引く。
-                            // (全体手入力値引きは廃止済みのため、line割引分を引くと通常はゼロ＝非表示)
-                            const sumLine = (cat) => (ticket.items || []).reduce((sum, it) => {
-                              const ld = it.lineDiscount;
-                              if (!ld || Number(ld.amount || 0) <= 0) return sum;
-                              const c = ld.accountingCategory === 'promo_expense' ? 'promo_expense'
-                                : ld.accountingCategory === 'voucher_payment' ? 'voucher_payment' : 'sales_discount';
-                              return c === cat ? sum + Number(ld.amount || 0) : sum;
-                            }, 0);
-                            const overallSales = Math.max(0, Number(ticket.discountAmount || 0) - sumLine('sales_discount'));
-                            const overallPromo = Math.max(0, Number(ticket.promoExpenseAmount || 0) - sumLine('promo_expense'));
-                            return (
-                              <>
-                                {overallSales > 0 && (
-                                  <div className="flex justify-between pb-1 text-red-500">
-                                    <div className="flex items-center gap-1">
-                                      <Tag size={12} />
-                                      <span>{ticket.discountLabelName ? `売上値引（${ticket.discountLabelName}）` : '売上値引'}</span>
-                                    </div>
-                                    <span className="tabular-nums">-¥{overallSales.toLocaleString()}</span>
-                                  </div>
-                                )}
-                                {overallPromo > 0 && (
-                                  <div className="flex justify-between pb-1 text-emerald-600">
-                                    <div className="flex items-center gap-1">
-                                      <Tag size={12} />
-                                      <span>{ticket.promoLabelName ? `販促費（${ticket.promoLabelName}）` : '販促費'}</span>
-                                    </div>
-                                    <span className="tabular-nums">-¥{overallPromo.toLocaleString()}</span>
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                          {Number(ticket.voucherAmount || 0) > 0 && (
-                            <div className="flex justify-between pb-1 text-sky-600">
-                              <div className="flex items-center gap-1">
-                                <Tag size={12} />
-                                <span>{ticket.voucherLabelName ? `金券/売掛（${ticket.voucherLabelName}）` : '金券/売掛'}</span>
+                            // 使用した割引を個別名で表示。多重クーポン(appliedDiscount.items)は内訳を展開して
+                            // 「スタンプカード値引き」「街のクーポン券」等を分けて出す。
+                            // 商品ごとのline割引は各商品の下に既出なのでここには含めない。
+                            const lines = [];
+                            const push = (name, amount, cat) => {
+                              const a = Number(amount || 0);
+                              if (name && a > 0) lines.push({ name, amount: a, cat });
+                            };
+                            const addEntry = (d) => {
+                              if (Array.isArray(d?.items) && d.items.length > 0) {
+                                d.items.forEach((it) => push(it.name, it.amount, it.accountingCategory));
+                              } else {
+                                push(d?.name, d?.amount, d?.accountingCategory);
+                              }
+                            };
+                            (Array.isArray(ticket.appliedDiscounts) ? ticket.appliedDiscounts : []).forEach(addEntry);
+                            (Array.isArray(ticket.promoExpenseItems) ? ticket.promoExpenseItems : []).forEach((d) => push(d.name, d.amount, 'promo_expense'));
+                            (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment'));
+                            const colorOf = (cat) => (cat === 'promo_expense' ? 'text-emerald-600'
+                              : cat === 'voucher_payment' ? 'text-sky-600' : 'text-red-500');
+                            return lines.map((line, i) => (
+                              <div key={`disc-${i}`} className={`flex justify-between pb-1 ${colorOf(line.cat)}`}>
+                                <div className="flex items-center gap-1">
+                                  <Tag size={12} />
+                                  <span>{line.name}</span>
+                                </div>
+                                <span className="tabular-nums">-¥{line.amount.toLocaleString()}</span>
                               </div>
-                              <span className="tabular-nums">-¥{Number(ticket.voucherAmount || 0).toLocaleString()}</span>
-                            </div>
-                          )}
+                            ));
+                          })()}
                           <div className="flex justify-between">
                             <span>小計 (税抜)</span>
                             <span className="tabular-nums">¥{Number(ticket.subtotal || 0).toLocaleString()}</span>
@@ -3946,6 +3978,40 @@ export const PosTransactionHistory = ({
                     }`}
                   >
                     {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 割引フィルタ（登録済み割引で絞る） */}
+              <div className="mb-3">
+                <select
+                  value={searchDiscountId}
+                  onChange={(e) => setSearchDiscountId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 outline-none focus:border-blue-400"
+                >
+                  <option value="all">すべての割引</option>
+                  {discountOptions.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 取消・返品フィルタ */}
+              <div className="mb-3 flex gap-1">
+                {[
+                  { key: 'all', label: 'すべて' },
+                  { key: 'cancelled', label: '取消・返品あり' },
+                  { key: 'active', label: '取消なし' }
+                ].map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setSearchCancelStatus(c.key)}
+                    className={`flex-1 rounded-lg py-2 text-xs font-black transition-colors ${
+                      searchCancelStatus === c.key ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {c.label}
                   </button>
                 ))}
               </div>
