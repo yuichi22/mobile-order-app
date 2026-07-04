@@ -3048,6 +3048,10 @@ export const PosTransactionHistory = ({
           const methodAdjustments = Array.isArray(ticket.methodAdjustments) ? ticket.methodAdjustments : [];
           const methodLabelOf = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
           const hasDifferentHistoryDate = isDifferentHistoryDate(ticket, isPaid, isCancelled);
+          // 表示用の「合計」は満額(金券/売掛の充当前)。totalPrice=受取額(全額金券だと0)なので
+          // voucherAmount を戻して満額にする。レシート表示と一致させる(集計・ドロワーは別ロジック)。
+          const ticketVoucherAmount = Number(ticket.voucherAmount || 0);
+          const ticketGrossTotal = Number(ticket.totalPrice || 0) + ticketVoucherAmount;
           const totalItemsCount = ticket.items?.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 0;
           // 取消数量を商品名ごとに集計（商品行を「元の数量」で表示するために残数へ足し戻す）。
           const cancelledByName = new Map();
@@ -3186,7 +3190,7 @@ export const PosTransactionHistory = ({
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
                     <span className="text-xl font-black leading-none tabular-nums text-gray-900">
-                      ¥{Number(ticket.totalPrice || 0).toLocaleString()}
+                      ¥{ticketGrossTotal.toLocaleString()}
                     </span>
                   </div>
 
@@ -3584,7 +3588,8 @@ export const PosTransactionHistory = ({
                             };
                             (Array.isArray(ticket.appliedDiscounts) ? ticket.appliedDiscounts : []).forEach(addEntry);
                             (Array.isArray(ticket.promoExpenseItems) ? ticket.promoExpenseItems : []).forEach((d) => push(d.name, d.amount, 'promo_expense', d.id));
-                            (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment', d.id));
+                            // 金券/売掛(voucher)は値引きではなく「お支払い(充当)」として合計の下に別表示するため、
+                            // ここ(値引き行)には含めない。
                             const colorOf = (cat) => (cat === 'promo_expense' ? 'text-emerald-600'
                               : cat === 'voucher_payment' ? 'text-sky-600' : 'text-red-500');
                             return lines.map((line, i) => (
@@ -3618,9 +3623,23 @@ export const PosTransactionHistory = ({
                         <div className="mt-4 flex items-end justify-between border-t-2 border-gray-800 pt-3">
                           <span className="font-black tracking-widest text-gray-800">合計 (税込)</span>
                           <span className="text-xl font-black tabular-nums text-gray-900">
-                            ¥{Number(ticket.totalPrice || 0).toLocaleString()}
+                            ¥{ticketGrossTotal.toLocaleString()}
                           </span>
                         </div>
+                        {ticketVoucherAmount > 0 && (
+                          <div className="mt-2 space-y-1 text-xs font-bold text-gray-500">
+                            <div className="flex justify-between text-sky-600">
+                              <span>お支払い（金券/売掛）</span>
+                              <span className="tabular-nums">¥{ticketVoucherAmount.toLocaleString()}</span>
+                            </div>
+                            {Number(ticket.totalPrice || 0) > 0 && (
+                              <div className="flex justify-between">
+                                <span>お支払い（現金/カード等）</span>
+                                <span className="tabular-nums">¥{Number(ticket.totalPrice || 0).toLocaleString()}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

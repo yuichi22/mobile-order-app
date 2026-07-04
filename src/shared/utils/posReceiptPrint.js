@@ -21,6 +21,26 @@ const formatPaymentMethodText = (data) => {
   return formatPaymentMethod(data?.paymentMethod);
 };
 
+// 支払い内訳テキスト。金券/売掛(voucherAmount)は「値引き」ではなく充当(お支払い)として
+// 現金/カード等と並べて表示する。金券/売掛が無い会計は従来表示のまま。
+export const buildTenderText = (data = {}) => {
+  const voucher = Math.max(0, Number(data.voucherAmount || 0) || 0);
+  if (voucher <= 0) return formatPaymentMethodText(data);
+
+  const lines = [];
+  if (Array.isArray(data.payments) && data.payments.length > 0) {
+    data.payments.forEach((payment) => {
+      const amount = Number(payment.amount || 0) || 0;
+      if (amount !== 0) lines.push(`${formatPaymentMethod(payment.method)} ¥${amount.toLocaleString()}`);
+    });
+  } else {
+    const base = Math.max(0, Number(data.totalAmount ?? 0) || 0);
+    if (base > 0) lines.push(`${formatPaymentMethod(data.paymentMethod)} ¥${base.toLocaleString()}`);
+  }
+  lines.push(`金券/売掛 ¥${voucher.toLocaleString()}`);
+  return lines.join(' / ');
+};
+
 const toDate = (value) => {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -28,9 +48,10 @@ const toDate = (value) => {
   return null;
 };
 
-// レシートに名前付きで並べる割引行を作る。
-// 通常割引(%/円=sales_discount)・販促費(スタンプカード等=promo_expense)・
-// クーポン(voucher_payment)を、それぞれ表示名と金額で1行ずつにまとめる。
+// レシートに名前付きで並べる「値引き」行を作る。
+// 通常割引(%/円=sales_discount)と販促費(スタンプカード等=promo_expense)は、顧客が実際に
+// 安くなる値引きとして合計を下げる。金券/売掛(voucher_payment)は値引きではなく「お支払い(充当)」
+// として扱うため、ここには含めない(buildTenderText 側で内訳表示)。
 const buildDiscountLines = (data = {}) => {
   const lines = [];
   const pushLine = (entry, fallbackLabel) => {
@@ -46,8 +67,6 @@ const buildDiscountLines = (data = {}) => {
 
   (Array.isArray(data.promoExpenseItems) ? data.promoExpenseItems : [])
     .forEach((item) => pushLine(item, '販促値引き'));
-  (Array.isArray(data.vouchers) ? data.vouchers : [])
-    .forEach((item) => pushLine(item, 'クーポン'));
 
   return lines;
 };
@@ -94,12 +113,15 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     data.totals?.tax ??
     Number(data.taxAmountReduced || 0) + Number(data.taxAmountStandard || 0);
 
-  const total =
+  // 領収書・レシートの「合計」は満額(金券/売掛の充当前)で表示する。
+  // 全額金券/売掛でも合計¥0にならず、満額が印字される(充当は支払い内訳に出す)。
+  const receivedTotal =
     data.totalAmount ??
     data.totalPrice ??
     data.total ??
     data.totals?.total ??
     0;
+  const total = Number(receivedTotal || 0) + Math.max(0, Number(data.voucherAmount || 0) || 0);
 
   return {
     title: data.title || '領収書',
@@ -133,6 +155,6 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     taxAmountReduced: data.taxAmountReduced || 0,
     taxAmountStandard: data.taxAmountStandard || 0,
     total,
-    paymentMethod: formatPaymentMethodText(data)
+    paymentMethod: buildTenderText(data)
   };
 };

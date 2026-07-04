@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, FileText, Printer } from 'lucide-react';
 import { issueReceipt, openCashDrawer, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
+import { buildTenderText } from '../../shared/utils/posReceiptPrint';
 import { getIdToken } from 'firebase/auth';
 import { auth } from '../../shared/api/firebase/client';
 
@@ -121,13 +122,21 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
   const totalTaxAmount = taxAmountReduced + taxAmountStandard || Number(data.taxAmount || 0);
   const paymentLabel = formatPaymentMethod(data.paymentMethod);
 
+  // 金券/売掛(voucherAmount)は値引きではなく「お支払い(充当)」扱い。
+  // 合計は満額(金券/売掛の充当前)で表示し、充当は支払い内訳に出す。
+  const voucherAmount = Math.max(0, Number(data.voucherAmount || 0));
+  const promoExpenseAmount = Math.max(0, Number(data.promoExpenseAmount || 0));
+  const receivedTotal = Number(data.totalAmount || 0);
+  const grossTotal = receivedTotal + voucherAmount; // 満額
+  const tenderText = buildTenderText(data);
+
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-gray-100 p-6">
       <div className="print:hidden w-full max-w-sm rounded-xl bg-white p-8 text-center shadow-xl">
         <CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-600" />
           <h2 className="mb-2 text-2xl font-bold text-gray-800">会計が完了しました</h2>
           <p className="mb-2 text-gray-500">
-            合計 ¥{Number(data.totalAmount || 0).toLocaleString()}
+            合計 ¥{grossTotal.toLocaleString()}
           </p>
 
           {issuedReceipt.receiptNo && (
@@ -147,14 +156,26 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               <span>-¥{Number(data.discountAmount || 0).toLocaleString()}</span>
             </div>
           )}
+          {promoExpenseAmount > 0 && (
+            <div className="flex justify-between text-red-500">
+              <span>販促値引き</span>
+              <span>-¥{promoExpenseAmount.toLocaleString()}</span>
+            </div>
+          )}
           <div className="mt-2 flex justify-between border-t pt-2 font-bold">
             <span>合計</span>
-            <span>¥{Number(data.totalAmount || 0).toLocaleString()}</span>
+            <span>¥{grossTotal.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between text-gray-400">
-            <span>おつり</span>
-            <span>¥{Number(data.changeAmount || 0).toLocaleString()}</span>
+          <div className="flex justify-between">
+            <span>お支払い</span>
+            <span>{tenderText}</span>
           </div>
+          {voucherAmount === 0 && (
+            <div className="flex justify-between text-gray-400">
+              <span>おつり</span>
+              <span>¥{Number(data.changeAmount || 0).toLocaleString()}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -260,6 +281,12 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               <span>-¥{Number(data.discountAmount || 0).toLocaleString()}</span>
             </div>
           )}
+          {promoExpenseAmount > 0 && (
+            <div className="flex justify-between">
+              <span>販促値引き</span>
+              <span>-¥{promoExpenseAmount.toLocaleString()}</span>
+            </div>
+          )}
           {taxAmountReduced > 0 && (
             <div className="flex justify-between">
               <span>消費税 {taxRateReduced}% (軽減税率)</span>
@@ -283,16 +310,25 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
         <div className="mb-4">
           <div className="mb-2 flex justify-between text-base font-bold">
             <span>合計</span>
-            <span>¥{Number(data.totalAmount || 0).toLocaleString()}</span>
+            <span>¥{grossTotal.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between">
-            <span>お預かり ({paymentLabel})</span>
-            <span>¥{(Number(data.totalAmount || 0) + Number(data.changeAmount || 0)).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>おつり</span>
-            <span>¥{Number(data.changeAmount || 0).toLocaleString()}</span>
-          </div>
+          {voucherAmount > 0 ? (
+            <div className="flex justify-between">
+              <span>お支払い</span>
+              <span>{tenderText}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between">
+                <span>お預かり ({paymentLabel})</span>
+                <span>¥{(Number(data.totalAmount || 0) + Number(data.changeAmount || 0)).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>おつり</span>
+                <span>¥{Number(data.changeAmount || 0).toLocaleString()}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-center text-[9px]">
