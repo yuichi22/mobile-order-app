@@ -492,7 +492,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const isSelectedClosed = Boolean(selectedRegister?.id && registerClosedMap[selectedRegister.id]);
 
   // 最上部インジケーター: 選択中レジの売上合計＋支払/区分別内訳と締め差額。
-  // 実査差額があるのは現金/カード/QRのみ。値引き/スタンプカード/売掛は金額のみ表示。
+  // 実査差額があるのは現金/カード/QRのみ。値引き/販促費/売掛は金額のみ表示。
   // difference が null = 実査なし（その項目は「—」表示）。0=差額なし、それ以外=差額あり。
   const selectedCashCheck = selectedRegisterClosing?.cashCheck || null;
   const selectedExternalCheck = selectedRegisterClosing?.externalPaymentCheck || null;
@@ -500,16 +500,17 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const cashDifference = selectedCashCheck ? Number(selectedCashCheck.difference || 0) : null;
   const cardDifference = selectedExternalCheck ? Number(selectedExternalCheck.cardDifference || 0) : null;
   const qrDifference = selectedExternalCheck ? Number(selectedExternalCheck.qrDifference || 0) : null;
-  // クーポン確認の差額は値引き/スタンプカード(販促費)/売掛(金券)をまとめた値。区分別には割れないため全体バッジにのみ反映する。
+  // クーポン確認の差額は値引き/販促費/売掛(金券)をまとめた値。区分別には割れないため全体バッジにのみ反映する。
   const couponDifference = selectedCouponCheck ? Number(selectedCouponCheck.difference || 0) : null;
   // 現金/カード/QR は締めモーダルで常に確認するため常時表示。
-  // 値引き/スタンプカード/売掛 はモーダルと同じく「利用があるとき(金額>0)のみ」表示する。
+  // 値引き/販促費/売掛 はモーダルと同じく「利用があるとき(金額>0)のみ」表示する。
   const registerIndicatorItems = [
     { key: 'cash', label: '現金', amount: Number(registerSummary?.cashSales || 0), difference: cashDifference, always: true },
     { key: 'card', label: 'カード', amount: Number(registerSummary?.cardSales || 0), difference: cardDifference, always: true },
     { key: 'qr', label: 'QR', amount: Number(registerSummary?.qrSales || 0), difference: qrDifference, always: true },
     { key: 'discount', label: '値引き', amount: Number(registerSummary?.discountTotal || 0), difference: null, always: false },
-    { key: 'stamp', label: 'スタンプカード', amount: Number(registerSummary?.promoExpenseTotal || 0), difference: null, always: false },
+    // promo_expense カテゴリの合計(スタンプカード値引き＋社割など)。個別内訳は下の販促費リストで確認。
+    { key: 'stamp', label: '販促費', amount: Number(registerSummary?.promoExpenseTotal || 0), difference: null, always: false },
     { key: 'voucher', label: '売掛', amount: Number(registerSummary?.voucherTotal || 0), difference: null, always: false }
   ].filter((item) => item.always || item.amount > 0);
   const registerSalesTotal = Number(registerSummary?.totalSales || 0);
