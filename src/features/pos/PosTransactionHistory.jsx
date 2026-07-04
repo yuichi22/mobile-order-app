@@ -657,6 +657,8 @@ export const PosTransactionHistory = ({
           };
         })
           .filter((tx) => !tx.isReversal && !tx.reversalOf && !tx.isMethodAdjustment)
+          // 会計済み一覧(paidSessionTickets)と件数を一致させるため、全額取消(isPaid=false)は除外。
+          .filter((tx) => tx.isPaid !== false)
           .filter((tx) => {
             // 選択した対象部門で絞る。'all'=全体は無絞り。
             if (searchDepartmentId === 'all') return true;
@@ -700,6 +702,17 @@ export const PosTransactionHistory = ({
       return false;
     });
   }, [searchRawResults, searchWord, searchPayment, searchDiscountId, searchCancelStatus]);
+
+  // 件数は「伝票(セッション)単位」で数える。分割/個別会計で同一セッションに複数取引がある
+  // 場合も1件。右ペインの伝票グルーピング(session単位)と件数を一致させる。
+  const previewTicketCount = useMemo(() => {
+    const keys = new Set();
+    previewResults.forEach((tx) => {
+      const sessionKey = String(tx.sourceSessionId || tx.sessionId || '').trim();
+      keys.add(sessionKey ? `session-${sessionKey}` : `tx-${tx.id}`);
+    });
+    return keys.size;
+  }, [previewResults]);
 
   const clearHistorySearch = () => {
     setSearchMode(false);
@@ -4073,7 +4086,7 @@ export const PosTransactionHistory = ({
                 ) : (
                   <>
                     <span>該当</span>
-                    <span className="text-blue-600">{previewResults.length}</span>
+                    <span className="text-blue-600">{previewTicketCount}</span>
                     <span>件</span>
                   </>
                 )}
@@ -4082,10 +4095,10 @@ export const PosTransactionHistory = ({
               <button
                 type="button"
                 onClick={executeHistorySearch}
-                disabled={isPreviewLoading || previewResults.length === 0}
+                disabled={isPreviewLoading || previewTicketCount === 0}
                 className="w-full rounded-xl bg-blue-600 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
-                {previewResults.length > 0 ? `この${previewResults.length}件を一覧表示` : '一覧表示'}
+                {previewTicketCount > 0 ? `この${previewTicketCount}件を一覧表示` : '一覧表示'}
               </button>
               <p className="mt-2 text-center text-[11px] font-bold text-gray-400">
                 期間・ワード・支払方法を変えると件数がリアルタイムに更新されます。
