@@ -570,6 +570,19 @@ export const PosTransactionHistory = ({
   const [searchDiscountId, setSearchDiscountId] = useState('all'); // 割引フィルタ(割引id)
   const [searchCancelStatus, setSearchCancelStatus] = useState('all'); // all/cancelled/active
   const [discountOptions, setDiscountOptions] = useState([]);
+  // 検索の対象部門。既定=自部門。'all'=全体(全部門横断)。
+  const [searchDepartmentId, setSearchDepartmentId] = useState(ownDepartmentId);
+  const departmentOptions = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(registers) ? registers : []).forEach((r) => {
+      const id = String(r?.departmentId || '');
+      if (id && !map.has(id)) map.set(id, r.departmentName || id);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [registers]);
+  const searchDeptLabel = searchDepartmentId === 'all'
+    ? '全体'
+    : (departmentOptions.find((d) => d.id === searchDepartmentId)?.name || ownDepartmentName || '部門');
   const [searchResults, setSearchResults] = useState([]);
 
   // 割引マスターをモーダル初回オープン時に一度だけ読み込む(割引フィルタの選択肢)。
@@ -644,7 +657,18 @@ export const PosTransactionHistory = ({
           };
         })
           .filter((tx) => !tx.isReversal && !tx.reversalOf && !tx.isMethodAdjustment)
-          .filter((tx) => transactionMatchesDepartment(tx));
+          .filter((tx) => {
+            // 選択した対象部門で絞る。'all'=全体は無絞り。
+            if (searchDepartmentId === 'all') return true;
+            const rid = String(tx?.registerId || '');
+            const deptIds = new Set((Array.isArray(registers) ? registers : [])
+              .filter((r) => String(r?.departmentId || '') === searchDepartmentId)
+              .map((r) => String(r.id)));
+            if (!rid) return true;
+            if (deptIds.size > 0 && deptIds.has(rid)) return true;
+            if (String(tx?.departmentId || '') === searchDepartmentId) return true;
+            return deptIds.size === 0;
+          });
         setSearchRawResults(rows);
       } catch (error) {
         console.error('[history search preview error]', error);
@@ -654,7 +678,7 @@ export const PosTransactionHistory = ({
       }
     })();
     return () => { active = false; };
-  }, [searchOpen, searchFrom, searchTo, storeId, viewingRegisterId, ownRegisterId]);
+  }, [searchOpen, searchFrom, searchTo, storeId, viewingRegisterId, ownRegisterId, searchDepartmentId, registers]);
 
   // ワード＋支払方法＋割引＋取消状態で即時フィルタ(件数リアルタイム表示に使う)。
   const previewResults = useMemo(() => {
@@ -689,7 +713,7 @@ export const PosTransactionHistory = ({
     const word = searchWord.trim();
     const payLabel = searchPayment === 'all' ? '' : ` / ${formatPaymentMethod(searchPayment)}`;
     const discLabel = searchDiscountId === 'all' ? '' : ` / ${discountOptions.find((d) => d.id === searchDiscountId)?.name || '割引'}`;
-    const cancelLabel = searchCancelStatus === 'cancelled' ? ' / 取消・返品あり' : searchCancelStatus === 'active' ? ' / 取消なし' : '';
+    const cancelLabel = searchCancelStatus === 'cancelled' ? ' / 取消・返品' : searchCancelStatus === 'active' ? ' / 通常' : '';
     const rangeLabel = searchFrom === searchTo ? searchFrom : `${searchFrom}〜${searchTo}`;
     setSearchResults(previewResults);
     setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${payLabel}${discLabel}${cancelLabel}`);
@@ -2770,7 +2794,7 @@ export const PosTransactionHistory = ({
             {searchMode ? (
               <span className="truncate text-sm font-black text-gray-800">
                 <span className="mr-1 text-xs font-bold text-gray-400">対象</span>
-                {ownDepartmentName || '部門'}
+                {searchDeptLabel}
               </span>
             ) : (
               <>
@@ -2807,7 +2831,7 @@ export const PosTransactionHistory = ({
           {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。開くたび初期状態(過去30日)に。 */}
           <button
             type="button"
-            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchDiscountId('all'); setSearchCancelStatus('all'); setSearchOpen(true); }}
+            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchDiscountId('all'); setSearchCancelStatus('all'); setSearchDepartmentId(ownDepartmentId); setSearchOpen(true); }}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700"
           >
             <Search size={14} />
@@ -3893,6 +3917,25 @@ export const PosTransactionHistory = ({
             </div>
 
             <div className="border-b border-gray-100 p-5">
+              {/* 対象部門（全体＋各部門）。既定=自部門。 */}
+              <div className="mb-3">
+                <div className="mb-1 text-[10px] font-black text-gray-400">対象部門</div>
+                <div className="flex flex-wrap gap-1">
+                  {[{ id: 'all', name: '全体' }, ...departmentOptions].map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setSearchDepartmentId(d.id)}
+                      className={`rounded-lg px-3 py-2 text-xs font-black transition-colors ${
+                        searchDepartmentId === d.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* 期間: [過去30日] と [日付から〜日付まで] を同サイズで並べ、選択中を青で示す。 */}
               <div className="mb-5 flex items-stretch gap-2">
                 {/* 過去30日(既定=青 / 日付指定中はグレー) */}
@@ -3994,7 +4037,7 @@ export const PosTransactionHistory = ({
                 <select
                   value={searchDiscountId}
                   onChange={(e) => setSearchDiscountId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 outline-none focus:border-blue-400"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400"
                 >
                   <option value="all">すべての割引</option>
                   {discountOptions.map((d) => (
@@ -4007,8 +4050,8 @@ export const PosTransactionHistory = ({
               <div className="mb-3 flex gap-1">
                 {[
                   { key: 'all', label: 'すべて' },
-                  { key: 'cancelled', label: '取消・返品あり' },
-                  { key: 'active', label: '取消なし' }
+                  { key: 'cancelled', label: '取消・返品' },
+                  { key: 'active', label: '通常' }
                 ].map((c) => (
                   <button
                     key={c.key}
