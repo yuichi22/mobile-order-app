@@ -518,7 +518,9 @@ export const PosTransactionHistory = ({
   const [orders, setOrders] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedTicketId, setExpandedTicketId] = useState(null);
+  // 展開中の伝票ID(複数同時に開ける)。クリックした場所でその場展開/収納し、
+  // 開いた伝票はタブを切り替えるまで開きっぱなしにする。
+  const [expandedTicketIds, setExpandedTicketIds] = useState(() => new Set());
   const [selectedPaidDate, setSelectedPaidDate] = useState(() => getJstDateInputValue());
   const selectedPaidDateRange = useMemo(() => buildDateRangeFromInput(selectedPaidDate), [selectedPaidDate]);
   const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
@@ -566,7 +568,6 @@ export const PosTransactionHistory = ({
     setPeriodMode('last30');
   };
   const [searchWord, setSearchWord] = useState('');
-  const [searchPayment, setSearchPayment] = useState('all'); // all/cash/card/qr
   const [searchDiscountId, setSearchDiscountId] = useState('all'); // 割引フィルタ(割引id)
   const [searchCancelStatus, setSearchCancelStatus] = useState('all'); // all/cancelled/active
   const [discountOptions, setDiscountOptions] = useState([]);
@@ -682,14 +683,14 @@ export const PosTransactionHistory = ({
     return () => { active = false; };
   }, [searchOpen, searchFrom, searchTo, storeId, viewingRegisterId, ownRegisterId, searchDepartmentId, registers]);
 
-  // ワード＋支払方法＋割引＋取消状態で即時フィルタ(件数リアルタイム表示に使う)。
+  // ワード＋割引＋取消状態で即時フィルタ(件数リアルタイム表示に使う)。
+  // 支払方法は検索結果(右ペイン)の すべて/現金/カード/QR トグルで絞るため、ここでは絞らない。
   const previewResults = useMemo(() => {
     const word = searchWord.trim();
     const wordLower = word.toLowerCase();
     const wordAmount = Number(word.replace(/[,¥\s]/g, ''));
     const hasAmount = word !== '' && Number.isFinite(wordAmount) && wordAmount > 0;
     return searchRawResults.filter((tx) => {
-      if (searchPayment !== 'all' && getPaymentMethodKey(tx.paymentMethodGroup || tx.paymentMethod) !== searchPayment) return false;
       if (!transactionUsedDiscount(tx, searchDiscountId)) return false;
       if (searchCancelStatus === 'cancelled' && !transactionHasCancellation(tx)) return false;
       if (searchCancelStatus === 'active' && transactionHasCancellation(tx)) return false;
@@ -701,7 +702,7 @@ export const PosTransactionHistory = ({
       if (String(tx.id).toLowerCase().includes(wordLower)) return true;
       return false;
     });
-  }, [searchRawResults, searchWord, searchPayment, searchDiscountId, searchCancelStatus]);
+  }, [searchRawResults, searchWord, searchDiscountId, searchCancelStatus]);
 
   // 件数は「伝票(セッション)単位」で数える。分割/個別会計で同一セッションに複数取引がある
   // 場合も1件。右ペインの伝票グルーピング(session単位)と件数を一致させる。
@@ -718,7 +719,6 @@ export const PosTransactionHistory = ({
   const resetHistorySearchForm = () => {
     setSearchLast30Days();
     setSearchWord('');
-    setSearchPayment('all');
     setSearchDiscountId('all');
     setSearchCancelStatus('all');
     setSearchDepartmentId(ownDepartmentId);
@@ -728,6 +728,7 @@ export const PosTransactionHistory = ({
     setSearchMode(false);
     setSearchResults([]);
     setSearchSummary('');
+    setPaidPaymentFilter('all');
     // クリアで検索条件も初期化。以降モーダルを開き直すまで条件は保持される。
     resetHistorySearchForm();
   };
@@ -736,14 +737,15 @@ export const PosTransactionHistory = ({
   const executeHistorySearch = () => {
     if (!buildRangeFromTo(searchFrom, searchTo)) { window.alert('期間を正しく選んでください。'); return; }
     const word = searchWord.trim();
-    const payLabel = searchPayment === 'all' ? '' : ` / ${formatPaymentMethod(searchPayment)}`;
     const discLabel = searchDiscountId === 'all' ? '' : ` / ${discountOptions.find((d) => d.id === searchDiscountId)?.name || '割引'}`;
     const cancelLabel = searchCancelStatus === 'cancelled' ? ' / 取消・返品' : searchCancelStatus === 'active' ? ' / 通常' : '';
     const rangeLabel = searchFrom === searchTo ? searchFrom : `${searchFrom}〜${searchTo}`;
     setSearchResults(previewResults);
-    setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${payLabel}${discLabel}${cancelLabel}`);
+    setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${discLabel}${cancelLabel}`);
     setSearchMode(true);
     setFilter('paid');
+    // 支払方法の絞り込みは右ペインのトグルで行うため、検索開始時は「すべて」から。
+    setPaidPaymentFilter('all');
     setSearchOpen(false);
   };
 
@@ -775,6 +777,10 @@ export const PosTransactionHistory = ({
       setFilter('unpaid');
     }
   }, [viewedRegisterMode, isViewingOtherRegister]);
+  // タブ(filter)を切り替えたら、開いていた伝票はすべて閉じる。
+  useEffect(() => {
+    setExpandedTicketIds((prev) => (prev.size === 0 ? prev : new Set()));
+  }, [filter]);
   const { settings } = useStoreSettings(storeId);
 
   // 会計後キャンセル（全額/一部）。cancelTarget={transactions:[束ねた全取引], entries:[{key,txnId,index,item}]}、
@@ -1856,7 +1862,8 @@ export const PosTransactionHistory = ({
         const paymentMethodKeys = Array.isArray(transaction.payments) && transaction.payments.length > 0
           ? transaction.payments.map((payment) => getPaymentMethodKey(payment.method))
           : [getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod)];
-        if (!searchMode && paidPaymentFilter !== 'all' && !paymentMethodKeys.includes(paidPaymentFilter)) return false;
+        // 会計済みタブ・検索結果とも、右ペインの支払方法トグルで絞る。
+        if (paidPaymentFilter !== 'all' && !paymentMethodKeys.includes(paidPaymentFilter)) return false;
 
         return true;
       })
@@ -2225,8 +2232,14 @@ export const PosTransactionHistory = ({
 
       await batch.commit();
 
+      const closedTicketId = closeTicketTarget.id;
       setCloseTicketTarget(null);
-      setExpandedTicketId(null);
+      setExpandedTicketIds((prev) => {
+        if (!prev.has(closedTicketId)) return prev;
+        const next = new Set(prev);
+        next.delete(closedTicketId);
+        return next;
+      });
     } catch (error) {
       console.error('未会計伝票クローズエラー:', error);
       alert('伝票を閉じる処理に失敗しました');
@@ -2927,16 +2940,19 @@ export const PosTransactionHistory = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-bold text-green-700">
-            <span className="font-black">
-              合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
-            </span>
-            {paidPaymentSummary.map((entry) => (
-              <span key={entry.method} className="tabular-nums">
-                {entry.label} ¥{Number(entry.total || 0).toLocaleString()}
+          {/* 合計・支払方法別集計は日付単位の集計なので、検索結果表示中は非表示にする。 */}
+          {!searchMode && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-bold text-green-700">
+              <span className="font-black">
+                合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
               </span>
-            ))}
-          </div>
+              {paidPaymentSummary.map((entry) => (
+                <span key={entry.method} className="tabular-nums">
+                  {entry.label} ¥{Number(entry.total || 0).toLocaleString()}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -3028,8 +3044,8 @@ export const PosTransactionHistory = ({
           </div>
         )}
 
-        {filter !== 'hold' && !loading && displayTickets.map((ticket, index) => {
-          const isExpanded = expandedTicketId === ticket.id;
+        {filter !== 'hold' && !loading && displayTickets.map((ticket) => {
+          const isExpanded = expandedTicketIds.has(ticket.id);
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
           // 締め後取消(反対仕訳)か / 取消済みの原本(会計済みだが反対仕訳で取消された)か。
@@ -3070,10 +3086,6 @@ export const PosTransactionHistory = ({
           const sourceTransactionRowsCount = Array.isArray(ticket.sourceTransactionIds) ? ticket.sourceTransactionIds.length : 0;
           const hasMultiplePayments = isPaid && Math.max(paymentRowsCount, breakdownRowsCount, sourceTransactionRowsCount) > 1;
           const ticketCardDomId = `pos-ticket-card-${String(ticket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-          const previousTicket = displayTickets[index - 1] || null;
-          const previousTicketCardDomId = previousTicket
-            ? `pos-ticket-card-${String(previousTicket.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
-            : '';
 
           return (
             <div
@@ -3086,22 +3098,13 @@ export const PosTransactionHistory = ({
               <div
                 className="group flex cursor-pointer select-none items-center justify-between p-4"
                 onClick={() => {
-                  const nextExpandedTicketId = isExpanded ? null : ticket.id;
-                  setExpandedTicketId(nextExpandedTicketId);
-
-                  if (nextExpandedTicketId) {
-                    window.setTimeout(() => {
-                      const scrollTarget =
-                        previousTicketCardDomId
-                          ? document.getElementById(previousTicketCardDomId)
-                          : document.getElementById(ticketCardDomId);
-
-                      scrollTarget?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                      });
-                    }, 80);
-                  }
+                  // クリックした場所でその場展開/収納。並べ替えやスクロールはしない。
+                  setExpandedTicketIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(ticket.id)) next.delete(ticket.id);
+                    else next.add(ticket.id);
+                    return next;
+                  });
                 }}
               >
                 <div className="flex flex-col gap-1.5">
@@ -4055,26 +4058,7 @@ export const PosTransactionHistory = ({
                 )}
               </div>
 
-              {/* 支払方法 */}
-              <div className="mb-3 flex gap-1">
-                {[
-                  { key: 'all', label: 'すべて' },
-                  { key: 'cash', label: '現金' },
-                  { key: 'card', label: 'カード' },
-                  { key: 'qr', label: 'QR' }
-                ].map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setSearchPayment(m.key)}
-                    className={`flex-1 rounded-lg py-2 text-xs font-black transition-colors ${
-                      searchPayment === m.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+              {/* 支払方法での絞り込みは検索結果(右ペイン)の すべて/現金/カード/QR トグルで行う。 */}
 
               {/* 割引フィルタ（登録済み割引で絞る） */}
               <div className="mb-3">
