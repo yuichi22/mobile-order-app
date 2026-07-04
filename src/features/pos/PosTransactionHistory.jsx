@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronDown, ChevronLeft, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut, RotateCcw
+  CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut, RotateCcw
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -495,6 +495,19 @@ export const PosTransactionHistory = ({
   const [paidPaymentFilter, setPaidPaymentFilter] = useState('all');
   const todayDateValue = useMemo(() => getJstDateInputValue(), []);
   const isSelectedPaidDateToday = Boolean(selectedPaidDate) && selectedPaidDate === todayDateValue;
+  // 日計と同じ曜日表示（日〜土）＋日付ピッカー起動用ref。
+  const paidDateInputRef = useRef(null);
+  const paidDateWeekLabel = useMemo(() => (
+    selectedPaidDate
+      ? ['日', '月', '火', '水', '木', '金', '土'][new Date(`${selectedPaidDate}T00:00:00+09:00`).getDay()]
+      : ''
+  ), [selectedPaidDate]);
+  const openPaidDatePicker = () => {
+    const el = paidDateInputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') el.showPicker();
+    else el.click();
+  };
 
   const shiftSelectedPaidDate = (days) => {
     const baseValue = selectedPaidDate || todayDateValue;
@@ -2426,74 +2439,67 @@ export const PosTransactionHistory = ({
         </div>
 
         {(filter === 'paid' || filter === 'cancelled') && (
-          <div className="flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setSelectedPaidDate(todayDateValue)}
-                className={`h-10 min-w-[64px] rounded-full px-3 text-xs font-black transition-colors ${
-                  selectedPaidDate === todayDateValue
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                今日
-              </button>
+          <div className="flex min-h-[40px] shrink-0 items-center gap-2">
+            {/* 日付ステッパー（chevron・オーバル日付＋曜日）。日計と統一。 */}
+            <button
+              type="button"
+              onClick={() => shiftSelectedPaidDate(-1)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              aria-label="前日"
+            >
+              <ChevronLeft size={18} strokeWidth={3} />
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setSelectedPaidDate('')}
-                className={`h-10 min-w-[64px] rounded-full px-3 text-xs font-black transition-colors ${
-                  !selectedPaidDate
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                すべて
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={openPaidDatePicker}
+              className="min-w-[150px] rounded-full bg-white px-4 py-2.5 text-center text-xs font-black text-gray-800 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700"
+            >
+              {selectedPaidDate ? `${selectedPaidDate}（${paidDateWeekLabel}）` : '日付を選択'}
+            </button>
 
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => shiftSelectedPaidDate(-1)}
-                disabled={!selectedPaidDate}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-50"
-                aria-label="前日"
-              >
-                ＜
-              </button>
+            <button
+              type="button"
+              onClick={() => shiftSelectedPaidDate(1)}
+              disabled={isSelectedPaidDateToday}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-40"
+              aria-label="翌日"
+            >
+              <ChevronRight size={18} strokeWidth={3} />
+            </button>
 
-              <input
-                type="date"
-                value={selectedPaidDate || ''}
-                max={todayDateValue}
-                onChange={(event) => setSelectedPaidDate(event.target.value)}
-                className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-800 outline-none transition-colors focus:border-blue-400"
-              />
+            {/* 今日（右端）。当日表示中はオレンジで強調。 */}
+            <button
+              type="button"
+              onClick={() => setSelectedPaidDate(todayDateValue)}
+              className={`h-10 rounded-full px-4 text-xs font-black shadow-sm ring-1 transition-colors ${
+                isSelectedPaidDateToday
+                  ? 'bg-orange-500 text-white ring-orange-500'
+                  : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700'
+              }`}
+            >
+              今日
+            </button>
 
-              <button
-                type="button"
-                onClick={() => shiftSelectedPaidDate(1)}
-                disabled={!selectedPaidDate || isSelectedPaidDateToday}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-50"
-                aria-label="翌日"
-              >
-                ＞
-              </button>
-            </div>
+            <input
+              ref={paidDateInputRef}
+              type="date"
+              value={selectedPaidDate || ''}
+              max={todayDateValue}
+              onChange={(event) => setSelectedPaidDate(event.target.value)}
+              className="sr-only"
+            />
           </div>
         )}
         {filter === 'unpaid' && (
           <div
             aria-hidden="true"
-            className="pointer-events-none invisible flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border border-transparent bg-transparent p-1"
+            className="pointer-events-none invisible flex min-h-[40px] shrink-0 items-center gap-2"
           >
-            <span className="h-10 min-w-[64px] rounded-full px-3 text-xs font-black">今日</span>
-            <span className="h-10 min-w-[64px] rounded-full px-3 text-xs font-black">すべて</span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full">＜</span>
-            <span className="h-10 w-[136px] rounded-xl px-3 text-xs font-bold" />
-            <span className="flex h-10 w-10 items-center justify-center rounded-full">＞</span>
+            <span className="h-10 w-10 rounded-full" />
+            <span className="h-10 w-[150px] rounded-full" />
+            <span className="h-10 w-10 rounded-full" />
+            <span className="h-10 w-[64px] rounded-full" />
           </div>
         )}
       </div>

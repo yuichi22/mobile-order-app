@@ -279,6 +279,11 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 
 
   const dateKey = useMemo(() => formatDailyClosingDateKey(targetDate), [targetDate]);
+  // 分析画面と同じ曜日表示（日〜土）。
+  const dateWeekLabel = useMemo(
+    () => ['日', '月', '火', '水', '木', '金', '土'][new Date(targetDate || new Date()).getDay()],
+    [targetDate]
+  );
   const todayDateValue = useMemo(() => getJstDateInputValue(), []);
   const targetDateValue = useMemo(() => toDateInputValue(targetDate), [targetDate]);
   const isTargetDateToday = targetDateValue === todayDateValue;
@@ -724,7 +729,7 @@ const handleCloseDay = async (closingCheck = {}) => {
             onClick={openDatePicker}
             className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-700"
           >
-            {dateKey}
+            {dateKey}（{dateWeekLabel}）
           </button>
 
           <button
@@ -735,6 +740,19 @@ const handleCloseDay = async (closingCheck = {}) => {
             aria-label="次の日"
           >
             <ChevronRight size={20} strokeWidth={3} />
+          </button>
+
+          {/* 今日ボタン（右端）。当日を表示中はオレンジで強調。 */}
+          <button
+            type="button"
+            onClick={() => setTargetDate(new Date(`${todayDateValue}T00:00:00+09:00`))}
+            className={`rounded-full px-4 py-3 text-sm font-black shadow-sm ring-1 transition-colors ${
+              isTargetDateToday
+                ? 'bg-orange-500 text-white ring-orange-500'
+                : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700'
+            }`}
+          >
+            今日
           </button>
 
           <input
