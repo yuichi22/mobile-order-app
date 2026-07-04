@@ -714,10 +714,22 @@ export const PosTransactionHistory = ({
     return keys.size;
   }, [previewResults]);
 
+  // モーダルの絞り込み条件を初期状態(過去30日/自部門/条件なし)に戻す。
+  const resetHistorySearchForm = () => {
+    setSearchLast30Days();
+    setSearchWord('');
+    setSearchPayment('all');
+    setSearchDiscountId('all');
+    setSearchCancelStatus('all');
+    setSearchDepartmentId(ownDepartmentId);
+  };
+
   const clearHistorySearch = () => {
     setSearchMode(false);
     setSearchResults([]);
     setSearchSummary('');
+    // クリアで検索条件も初期化。以降モーダルを開き直すまで条件は保持される。
+    resetHistorySearchForm();
   };
 
   // 押下時は再クエリせず、プレビュー結果をそのまま右ペイン一覧へ。
@@ -2841,10 +2853,10 @@ export const PosTransactionHistory = ({
             )}
           </div>
 
-          {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。開くたび初期状態(過去30日)に。 */}
+          {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。条件はクリアを押すまで保持。 */}
           <button
             type="button"
-            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchDiscountId('all'); setSearchCancelStatus('all'); setSearchDepartmentId(ownDepartmentId); setSearchOpen(true); }}
+            onClick={() => setSearchOpen(true)}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700"
           >
             <Search size={14} />
