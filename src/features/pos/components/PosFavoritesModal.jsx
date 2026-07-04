@@ -51,9 +51,9 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
 
   const favoriteIds = scope === 'store' ? storeIds : deviceIds;
 
-  // 店舗共通お気に入りを購読。
+  // 店舗共通お気に入りを購読。モーダルを開く前から購読しておく(プリロード)。
   useEffect(() => {
-    if (!open || !storeId) return undefined;
+    if (!storeId) return undefined;
     const ref = doc(db, 'stores', storeId, 'posShared', 'favorites');
     return onSnapshot(
       ref,
@@ -66,18 +66,19 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
         setStoreIds([]);
       }
     );
-  }, [open, storeId]);
+  }, [storeId]);
 
-  // この端末お気に入りを読み込み。
+  // この端末お気に入りを読み込み。mount時にプリロードし、開くたびに再読込(他端末の変更反映)。
   useEffect(() => {
-    if (!open) return;
     setDeviceIds(readDeviceFavorites(storeId));
   }, [open, storeId]);
 
-  // 表示中スコープの商品実体をFirestoreから取得(名前・価格の表示＋カート追加用)。
+  // 店舗共通＋この端末の両スコープの商品実体をFirestoreから取得(名前・価格の表示＋カート追加用)。
+  // モーダルを開く前から読み込んでおくことで、開いた瞬間に商品が表示される(プリロード)。
   useEffect(() => {
-    if (!open || !storeId || favoriteIds.length === 0) {
-      setProductMap((current) => (favoriteIds.length === 0 ? {} : current));
+    const allIds = Array.from(new Set([...storeIds, ...deviceIds].filter(Boolean)));
+    if (!storeId || allIds.length === 0) {
+      setProductMap((current) => (allIds.length === 0 ? {} : current));
       return undefined;
     }
     let cancelled = false;
@@ -85,7 +86,7 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
     (async () => {
       try {
         const entries = await Promise.all(
-          favoriteIds.map(async (id) => {
+          allIds.map(async (id) => {
             try {
               const snap = await getDoc(doc(db, 'stores', storeId, 'products', id));
               return snap.exists() ? [id, { id: snap.id, ...snap.data() }] : [id, null];
@@ -101,7 +102,7 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
       }
     })();
     return () => { cancelled = true; };
-  }, [open, storeId, favoriteIds]);
+  }, [storeId, storeIds, deviceIds]);
 
   const persistIds = useCallback(async (nextIds) => {
     const unique = Array.from(new Set(nextIds.filter(Boolean)));
