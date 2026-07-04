@@ -3515,20 +3515,27 @@ export const PosTransactionHistory = ({
                             // 「スタンプカード値引き」「街のクーポン券」等を分けて出す。
                             // 商品ごとのline割引は各商品の下に既出なのでここには含めない。
                             const lines = [];
-                            const push = (name, amount, cat) => {
+                            // 同一割引が appliedDiscounts と promoExpenseItems/vouchers の両方に入る取引が
+                            // あるため、id(無ければ名前)＋金額で重複を除外して1回だけ表示する。
+                            const seen = new Set();
+                            const push = (name, amount, cat, id) => {
                               const a = Number(amount || 0);
-                              if (name && a > 0) lines.push({ name, amount: a, cat });
+                              if (!name || a <= 0) return;
+                              const key = `${id || name}:${a}`;
+                              if (seen.has(key)) return;
+                              seen.add(key);
+                              lines.push({ name, amount: a, cat });
                             };
                             const addEntry = (d) => {
                               if (Array.isArray(d?.items) && d.items.length > 0) {
-                                d.items.forEach((it) => push(it.name, it.amount, it.accountingCategory));
+                                d.items.forEach((it) => push(it.name, it.amount, it.accountingCategory, it.id));
                               } else {
-                                push(d?.name, d?.amount, d?.accountingCategory);
+                                push(d?.name, d?.amount, d?.accountingCategory, d?.id);
                               }
                             };
                             (Array.isArray(ticket.appliedDiscounts) ? ticket.appliedDiscounts : []).forEach(addEntry);
-                            (Array.isArray(ticket.promoExpenseItems) ? ticket.promoExpenseItems : []).forEach((d) => push(d.name, d.amount, 'promo_expense'));
-                            (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment'));
+                            (Array.isArray(ticket.promoExpenseItems) ? ticket.promoExpenseItems : []).forEach((d) => push(d.name, d.amount, 'promo_expense', d.id));
+                            (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment', d.id));
                             const colorOf = (cat) => (cat === 'promo_expense' ? 'text-emerald-600'
                               : cat === 'voucher_payment' ? 'text-sky-600' : 'text-red-500');
                             return lines.map((line, i) => (
