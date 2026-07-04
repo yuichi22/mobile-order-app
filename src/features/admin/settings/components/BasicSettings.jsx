@@ -91,6 +91,7 @@ const BasicSettings = ({
   onSave,
   storeId,
   cookingCategories = [],
+  cookingCategoriesLoading = false,
   onSaveCookingCategories,
   onSaved
 }) => {
@@ -542,6 +543,11 @@ const confirmDeleteCookingCategory = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    // 設定/調理カテゴリのロード完了前は保存しない(ロード前保存だと
+    // 未ロードの空値で既存データを上書きしてしまうため。Enterキー送信対策)。
+    if (!settings || cookingCategoriesLoading) return;
+
     setIsSaving(true);
 
     try {
@@ -590,7 +596,13 @@ const confirmDeleteCookingCategory = () => {
 
       onSaved?.();
 
-      if (typeof onSaveCookingCategories === 'function') {
+      // 調理カテゴリは「ユーザーが実際に編集した時」だけ保存する。
+      // 未編集のまま保存すると、ロード未完了時の空配列(persisted=[])をそのまま
+      // 上書きして既存の調理カテゴリを消去してしまうため(静かなデータ消失)。
+      const cookingCategoriesEdited = Boolean(
+        cookingCategoryDraft && cookingCategoryDraftSourceKey === cookingCategoriesSourceKey
+      );
+      if (cookingCategoriesEdited && typeof onSaveCookingCategories === 'function') {
         await onSaveCookingCategories(
           cookingCategoryItems
             .filter((category) => String(category.name || '').trim())
@@ -626,7 +638,7 @@ const confirmDeleteCookingCategory = () => {
         <button
           type="button"
           onClick={() => formRef.current?.requestSubmit()}
-          disabled={isSaving}
+          disabled={isSaving || !settings || cookingCategoriesLoading}
           className="group flex shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-black disabled:opacity-60"
         >
           {isSaving ? <LoadingSpinner size={18} /> : <Save size={18} />}
@@ -1675,7 +1687,7 @@ const confirmDeleteCookingCategory = () => {
           <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-4">
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || !settings || cookingCategoriesLoading}
               className="group flex items-center gap-3 rounded-xl bg-slate-900 px-10 py-4 text-base font-bold text-white shadow-xl transition-all hover:bg-black"
             >
                   {isSaving ? <LoadingSpinner size={20} /> : <Save size={20} />}

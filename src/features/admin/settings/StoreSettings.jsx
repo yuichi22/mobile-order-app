@@ -3186,6 +3186,7 @@ export const StoreSettings = ({
               onSaved={showSaveComplete}
               storeId={storeId}
               cookingCategories={cookingCategories}
+              cookingCategoriesLoading={cookingCategoryLoading}
               onSaveCookingCategories={updateCookingCategories}
             />
           )}
