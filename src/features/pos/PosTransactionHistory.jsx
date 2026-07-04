@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Tag, XCircle, LogOut, RotateCcw
+  CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -124,6 +124,16 @@ const buildDateRangeFromInput = (dateInputValue) => {
     startTimestamp: Timestamp.fromDate(start),
     endTimestamp: Timestamp.fromDate(end)
   };
+};
+
+// 伝票検索用: 開始日〜終了日(両端含む)のタイムスタンプ範囲。
+const buildRangeFromTo = (fromValue, toValue) => {
+  const from = buildDateRangeFromInput(fromValue);
+  const to = buildDateRangeFromInput(toValue);
+  if (!from || !to) return null;
+  const start = from.start <= to.start ? from.start : to.start;
+  const endBase = from.end >= to.end ? from.end : to.end; // 終了日の翌0時
+  return { startTimestamp: Timestamp.fromDate(start), endTimestamp: Timestamp.fromDate(endBase) };
 };
 
 const mergeDocsById = (...docLists) => {
@@ -477,14 +487,33 @@ export const PosTransactionHistory = ({
     setViewingRegisterId(ownRegisterId);
     setPickingRegister(false);
   }, [ownRegisterId]);
+  // 通常履歴は「このレジ単位」(既定=自レジ、他レジ閲覧可)。
   const viewedRegister = registers.find((register) => register.id === viewingRegisterId) || null;
   const viewedRegisterMode = viewedRegister?.registerMode || null;
   const isViewingOtherRegister = Boolean(ownRegisterId) && viewingRegisterId !== ownRegisterId;
-  // 取引が表示中レジのものか。registerId 無しの旧データは自レジ表示時のみ含める。
   const transactionMatchesViewingRegister = (transaction) => {
     const rid = String(transaction?.registerId || '');
     if (!rid) return viewingRegisterId === ownRegisterId;
     return rid === viewingRegisterId;
+  };
+  // 伝票検索は「自レジの所属部門全体」を横断対象にする(別レジで会計した伝票も探せる)。
+  const ownRegister = registers.find((register) => register.id === ownRegisterId) || null;
+  const ownDepartmentId = String(ownRegister?.departmentId || '');
+  const ownDepartmentName = ownRegister?.departmentName || '';
+  const departmentRegisterIds = useMemo(
+    () => new Set(
+      registers
+        .filter((register) => String(register.departmentId || '') === ownDepartmentId)
+        .map((register) => String(register.id))
+    ),
+    [registers, ownDepartmentId]
+  );
+  const transactionMatchesDepartment = (transaction) => {
+    const rid = String(transaction?.registerId || '');
+    if (!rid) return true;
+    if (departmentRegisterIds.size > 0 && departmentRegisterIds.has(rid)) return true;
+    if (ownDepartmentId && String(transaction?.departmentId || '') === ownDepartmentId) return true;
+    return departmentRegisterIds.size === 0; // 部門情報が無ければ全件表示
   };
   const [orders, setOrders] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -507,6 +536,121 @@ export const PosTransactionHistory = ({
     if (!el) return;
     if (typeof el.showPicker === 'function') el.showPicker();
     else el.click();
+  };
+
+  // --- 伝票検索(履歴検索モーダル) -----------------------------------------
+  // 期間(from〜to)＋ワード(商品名/バーコード/金額/伝票ID)＋支払方法で過去伝票を横断検索。
+  // 過去N日(今日含む)の開始日をJSTで返す。既定/「過去30日」ボタンに使う。
+  const daysAgoValue = (n) => getJstDateInputValue(new Date(Date.now() - (n - 1) * 86400000));
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFrom, setSearchFrom] = useState(() => daysAgoValue(30)); // 既定=過去30日
+  const [searchTo, setSearchTo] = useState(() => getJstDateInputValue());
+  // 期間モード: 'last30'(過去30日=青) / 'custom'(日付指定=青)。既定は過去30日。
+  const [periodMode, setPeriodMode] = useState('last30');
+  const searchFromRef = useRef(null);
+  const searchToRef = useRef(null);
+  const openDatePickerRef = (ref) => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') el.showPicker();
+    else el.click();
+  };
+  const shortMD = (value) => {
+    // 年も表示(例: 2026/6/4)。
+    const parts = String(value || '').split('-');
+    return parts.length === 3 ? `${Number(parts[0])}/${Number(parts[1])}/${Number(parts[2])}` : '';
+  };
+  const setSearchLast30Days = () => {
+    setSearchFrom(daysAgoValue(30));
+    setSearchTo(getJstDateInputValue());
+    setPeriodMode('last30');
+  };
+  const [searchWord, setSearchWord] = useState('');
+  const [searchPayment, setSearchPayment] = useState('all'); // all/cash/card/qr
+  const [searchResults, setSearchResults] = useState([]);
+  // searchMode: 検索結果を右ペイン全体に表示中。クリアで通常表示へ戻る。
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchSummary, setSearchSummary] = useState('');
+  // 期間クエリの生結果(反対仕訳除外・レジ絞りまで)。ワード/支払方法は下で即時フィルタして件数を出す。
+  const [searchRawResults, setSearchRawResults] = useState([]);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  // モーダルが開いている間、期間が変わるたびに期間クエリを実行(生結果をキャッシュ)。
+  useEffect(() => {
+    if (!searchOpen || !storeId) return undefined;
+    const range = buildRangeFromTo(searchFrom, searchTo);
+    if (!range) { setSearchRawResults([]); return undefined; }
+    let active = true;
+    setIsPreviewLoading(true);
+    (async () => {
+      try {
+        const col = collection(db, 'stores', storeId, 'transactions');
+        const snap = await getDocs(query(
+          col,
+          where('paidAt', '>=', range.startTimestamp),
+          where('paidAt', '<', range.endTimestamp),
+          orderBy('paidAt', 'desc'),
+          limit(500)
+        ));
+        if (!active) return;
+        // 購読と同じく timestamp/paidAt を Date に変換(描画がDate前提のためTimestampだとクラッシュ)。
+        const rows = snap.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
+            paidAt: data.paidAt?.toDate ? data.paidAt.toDate() : null
+          };
+        })
+          .filter((tx) => !tx.isReversal && !tx.reversalOf && !tx.isMethodAdjustment)
+          .filter((tx) => transactionMatchesDepartment(tx));
+        setSearchRawResults(rows);
+      } catch (error) {
+        console.error('[history search preview error]', error);
+        if (active) setSearchRawResults([]);
+      } finally {
+        if (active) setIsPreviewLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [searchOpen, searchFrom, searchTo, storeId, viewingRegisterId, ownRegisterId]);
+
+  // ワード(商品名/バーコード/金額/伝票ID)＋支払方法で即時フィルタ(件数リアルタイム表示に使う)。
+  const previewResults = useMemo(() => {
+    const word = searchWord.trim();
+    const wordLower = word.toLowerCase();
+    const wordAmount = Number(word.replace(/[,¥\s]/g, ''));
+    const hasAmount = word !== '' && Number.isFinite(wordAmount) && wordAmount > 0;
+    return searchRawResults.filter((tx) => {
+      if (searchPayment !== 'all' && getPaymentMethodKey(tx.paymentMethodGroup || tx.paymentMethod) !== searchPayment) return false;
+      if (!word) return true;
+      const items = Array.isArray(tx.items) ? tx.items : [];
+      if (items.some((it) => String(it?.name || '').toLowerCase().includes(wordLower))) return true;
+      if (items.some((it) => String(it?.barcode || it?.productCode || '').toLowerCase() === wordLower)) return true;
+      if (hasAmount && Number(tx.totalAmount || 0) === wordAmount) return true;
+      if (String(tx.id).toLowerCase().includes(wordLower)) return true;
+      return false;
+    });
+  }, [searchRawResults, searchWord, searchPayment]);
+
+  const clearHistorySearch = () => {
+    setSearchMode(false);
+    setSearchResults([]);
+    setSearchSummary('');
+  };
+
+  // 押下時は再クエリせず、プレビュー結果をそのまま右ペイン一覧へ。
+  const executeHistorySearch = () => {
+    if (!buildRangeFromTo(searchFrom, searchTo)) { window.alert('期間を正しく選んでください。'); return; }
+    const word = searchWord.trim();
+    const payLabel = searchPayment === 'all' ? '' : ` / ${formatPaymentMethod(searchPayment)}`;
+    const rangeLabel = searchFrom === searchTo ? searchFrom : `${searchFrom}〜${searchTo}`;
+    setSearchResults(previewResults);
+    setSearchSummary(`${rangeLabel}${word ? ` / 「${word}」` : ''}${payLabel}`);
+    setSearchMode(true);
+    setFilter('paid');
+    setSearchOpen(false);
   };
 
   const shiftSelectedPaidDate = (days) => {
@@ -1455,10 +1599,12 @@ export const PosTransactionHistory = ({
   }, [transactions]);
 
   const toDateInputValue = (dateObj) => {
-    if (!dateObj) return '';
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
+    // Date / Firestore Timestamp / 文字列 いずれでも安全にDate化してから整形する。
+    const d = dateObj instanceof Date ? dateObj : toDateValue(dateObj);
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
@@ -1596,25 +1742,27 @@ export const PosTransactionHistory = ({
       return sessionKey ? (ordersBySession.get(sessionKey) || []) : [];
     };
 
-    const transactionTickets = transactions
+    // 検索中は元を検索結果に差し替え(右ペイン全体を検索結果ビューにする)。
+    const sourceTransactions = searchMode ? searchResults : transactions;
+    const transactionTickets = sourceTransactions
       .filter((transaction) => transaction && transaction?.isPaid !== false)
       // 反対仕訳(締め後取消)や支払方法の付替え伝票は「会計済み」履歴には出さない。
       .filter((transaction) => !transaction.isReversal && !transaction.reversalOf && !transaction.isMethodAdjustment)
       .filter((transaction) => {
         // 表示中の登録レジの取引のみ（自レジ or 選択した他レジ）。
-        if (ownRegisterId && !transactionMatchesViewingRegister(transaction)) return false;
+        if (!searchMode && ownRegisterId && !transactionMatchesViewingRegister(transaction)) return false;
 
         const transactionDate =
           toDateInputValue(transaction.paidAt) ||
           toDateInputValue(transaction.timestamp);
 
-        if (selectedPaidDate && transactionDate !== selectedPaidDate) return false;
+        if (!searchMode && selectedPaidDate && transactionDate !== selectedPaidDate) return false;
 
         // 分割会計は内訳のいずれかが絞り込み手段に一致すれば表示する。
         const paymentMethodKeys = Array.isArray(transaction.payments) && transaction.payments.length > 0
           ? transaction.payments.map((payment) => getPaymentMethodKey(payment.method))
           : [getPaymentMethodKey(transaction.paymentMethodGroup || transaction.paymentMethod)];
-        if (paidPaymentFilter !== 'all' && !paymentMethodKeys.includes(paidPaymentFilter)) return false;
+        if (!searchMode && paidPaymentFilter !== 'all' && !paymentMethodKeys.includes(paidPaymentFilter)) return false;
 
         return true;
       })
@@ -1774,7 +1922,7 @@ export const PosTransactionHistory = ({
       const rightTime = right.paidAt?.getTime?.() || right.timestamp?.getTime?.() || 0;
       return rightTime - leftTime;
     });
-  }, [orders, paidPaymentFilter, selectedPaidDate, settings, transactions, ownRegisterId, viewingRegisterId]);
+  }, [orders, paidPaymentFilter, selectedPaidDate, settings, transactions, ownRegisterId, viewingRegisterId, searchMode, searchResults]);
 
   // 会計後キャンセルをキャンセルタブ用のチケットに変換。
   // (a) 当日・未締めの「その場減額」取消 + (b) 締め後の反対仕訳(マイナス伝票)。
@@ -2432,13 +2580,27 @@ export const PosTransactionHistory = ({
       <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3 font-black text-gray-700">
         <div className="flex min-w-0 items-center gap-2">
           <Receipt size={18} className="shrink-0 text-gray-500" />
-          <span className="shrink-0">{filter === 'hold' ? '保留伝票' : '履歴'}</span>
+          <span className="shrink-0">{searchMode ? '検索結果' : (filter === 'hold' ? '保留伝票' : '履歴')}</span>
           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
             {filter === 'hold' ? posHolds.length : displayTickets.length}件
           </span>
+          {searchMode && searchSummary && (
+            <span className="truncate text-xs font-bold text-gray-400">{searchSummary}</span>
+          )}
         </div>
 
-        {(filter === 'paid' || filter === 'cancelled') && (
+        {searchMode && (
+          <button
+            type="button"
+            onClick={clearHistorySearch}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-gray-200 px-4 py-2 text-xs font-black text-gray-700 transition-colors hover:bg-gray-300"
+          >
+            <XCircle size={14} />
+            クリア
+          </button>
+        )}
+
+        {!searchMode && (filter === 'paid' || filter === 'cancelled') && (
           <div className="flex min-h-[40px] shrink-0 items-center gap-2">
             {/* 日付ステッパー（chevron・オーバル日付＋曜日）。日計と統一。 */}
             <button
@@ -2504,6 +2666,7 @@ export const PosTransactionHistory = ({
         )}
       </div>
 
+      {!searchMode && (
       <div className="flex shrink-0 gap-1 border-b border-gray-100 bg-white p-2">
         {viewedRegisterMode === 'pos' && !isViewingOtherRegister && (
           <button
@@ -2553,53 +2716,76 @@ export const PosTransactionHistory = ({
           取消
         </button>
       </div>
+      )}
 
-      {registers.length > 1 && (
-        <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            {isViewingOtherRegister ? (
-              <button
-                type="button"
-                onClick={() => { setViewingRegisterId(ownRegisterId); setPickingRegister(false); }}
-                className="flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200"
-              >
-                <ChevronLeft size={14} />
-                自レジに戻る
-              </button>
+      <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* 左: 検索中=対象部門 / 通常=レジ名＋他レジ切替 */}
+          <div className="flex min-w-0 items-center gap-2">
+            {searchMode ? (
+              <span className="truncate text-sm font-black text-gray-800">
+                <span className="mr-1 text-xs font-bold text-gray-400">対象</span>
+                {ownDepartmentName || '部門'}
+              </span>
             ) : (
-              <button
-                type="button"
-                onClick={() => setPickingRegister((value) => !value)}
-                className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
-              >
-                その他のレジの履歴表示
-              </button>
+              <>
+                <span className="truncate text-sm font-black text-gray-800">
+                  {viewedRegister?.name || '自レジ'}
+                  {viewedRegister?.departmentName && (
+                    <span className="ml-1 text-xs font-bold text-gray-400">{viewedRegister.departmentName}</span>
+                  )}
+                </span>
+                {registers.length > 1 && (
+                  isViewingOtherRegister ? (
+                    <button
+                      type="button"
+                      onClick={() => { setViewingRegisterId(ownRegisterId); setPickingRegister(false); }}
+                      className="flex shrink-0 items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200"
+                    >
+                      <ChevronLeft size={14} />
+                      自レジに戻る
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPickingRegister((value) => !value)}
+                      className="shrink-0 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                    >
+                      他のレジの履歴表示
+                    </button>
+                  )
+                )}
+              </>
             )}
-            <span className="truncate text-sm font-black text-gray-800">
-              {viewedRegister?.name || '自レジ'}
-              {viewedRegister?.departmentName && (
-                <span className="ml-1 text-xs font-bold text-gray-400">{viewedRegister.departmentName}</span>
-              )}
-            </span>
           </div>
 
-          {pickingRegister && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
-                <button
-                  key={register.id}
-                  type="button"
-                  onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-bold text-gray-700 hover:border-blue-300 hover:bg-blue-50"
-                >
-                  {register.name}
-                  <span className="block text-[10px] font-bold text-gray-400">{register.departmentName}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。開くたび初期状態(過去30日)に。 */}
+          <button
+            type="button"
+            onClick={() => { setSearchLast30Days(); setSearchWord(''); setSearchPayment('all'); setSearchOpen(true); }}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700"
+          >
+            <Search size={14} />
+            履歴検索
+          </button>
         </div>
-      )}
+
+        {!searchMode && pickingRegister && registers.length > 1 && (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
+              <button
+                key={register.id}
+                type="button"
+                onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-bold text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+              >
+                {register.name}
+                <span className="block text-[10px] font-bold text-gray-400">{register.departmentName}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {(filter === 'paid' || filter === 'cancelled') && (
         <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
@@ -3640,6 +3826,154 @@ export const PosTransactionHistory = ({
                   {isEditingMethod ? '修正中...' : '支払方法を修正'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {searchOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-[2rem] border border-gray-100 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-5">
+              <div className="min-w-0">
+                <h3 className="flex items-center gap-1.5 text-lg font-black text-gray-900">
+                  <Search size={18} /> 履歴検索
+                </h3>
+                <p className="mt-1 text-xs font-bold text-gray-400">
+                  期間とワード（商品名・バーコード・金額・伝票ID）で過去の伝票を探します。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                aria-label="閉じる"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            <div className="border-b border-gray-100 p-5">
+              {/* 期間: [過去30日] と [日付から〜日付まで] を同サイズで並べ、選択中を青で示す。 */}
+              <div className="mb-5 flex items-stretch gap-2">
+                {/* 過去30日(既定=青 / 日付指定中はグレー) */}
+                <button
+                  type="button"
+                  onClick={setSearchLast30Days}
+                  className={`h-12 flex-1 rounded-xl text-sm font-black transition-colors ${
+                    periodMode === 'last30'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  過去30日
+                </button>
+
+                {/* 日付指定ブロック(日付から 〜 日付まで)。透明なdate入力をラベルに重ねてクリックで確実に開く。 */}
+                <div className={`flex flex-1 items-center gap-1 rounded-xl p-1 ${
+                  periodMode === 'custom' ? 'bg-blue-600' : 'bg-gray-100'
+                }`}>
+                  <div className="relative flex-1">
+                    <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
+                      periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
+                    }`}>
+                      {periodMode === 'custom' ? shortMD(searchFrom) : '日付から'}
+                    </div>
+                    <input
+                      type="date"
+                      value={periodMode === 'custom' ? searchFrom : ''}
+                      max={todayDateValue}
+                      onChange={(e) => { setSearchFrom(e.target.value); setPeriodMode('custom'); }}
+                      onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </div>
+                  <span className={`text-xs font-black ${periodMode === 'custom' ? 'text-white' : 'text-gray-400'}`}>〜</span>
+                  <div className="relative flex-1">
+                    <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
+                      periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
+                    }`}>
+                      {periodMode === 'custom' ? shortMD(searchTo) : '日付まで'}
+                    </div>
+                    <input
+                      type="date"
+                      value={periodMode === 'custom' ? searchTo : ''}
+                      max={todayDateValue}
+                      onChange={(e) => { setSearchTo(e.target.value); setPeriodMode('custom'); }}
+                      onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ワード（右端にクリアのバツ） */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  value={searchWord}
+                  onChange={(e) => setSearchWord(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') executeHistorySearch(); }}
+                  placeholder="商品名・バーコード・金額・伝票ID"
+                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-blue-400"
+                />
+                {searchWord && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchWord('')}
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    aria-label="ワードをクリア"
+                  >
+                    <XCircle size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* 支払方法 */}
+              <div className="mb-3 flex gap-1">
+                {[
+                  { key: 'all', label: 'すべて' },
+                  { key: 'cash', label: '現金' },
+                  { key: 'card', label: 'カード' },
+                  { key: 'qr', label: 'QR' }
+                ].map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setSearchPayment(m.key)}
+                    className={`flex-1 rounded-lg py-2 text-xs font-black transition-colors ${
+                      searchPayment === m.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* リアルタイム件数(押す前に絞り込み結果を確認) */}
+              <div className="mb-2 flex items-center justify-center gap-1.5 text-sm font-black text-gray-700">
+                {isPreviewLoading ? (
+                  <span className="text-gray-400">集計中…</span>
+                ) : (
+                  <>
+                    <span>該当</span>
+                    <span className="text-blue-600">{previewResults.length}</span>
+                    <span>件</span>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={executeHistorySearch}
+                disabled={isPreviewLoading || previewResults.length === 0}
+                className="w-full rounded-xl bg-blue-600 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {previewResults.length > 0 ? `この${previewResults.length}件を一覧表示` : '一覧表示'}
+              </button>
+              <p className="mt-2 text-center text-[11px] font-bold text-gray-400">
+                期間・ワード・支払方法を変えると件数がリアルタイムに更新されます。
+              </p>
             </div>
           </div>
         </div>
