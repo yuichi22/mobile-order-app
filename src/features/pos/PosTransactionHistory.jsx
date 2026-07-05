@@ -3591,19 +3591,23 @@ export const PosTransactionHistory = ({
                             };
                             (Array.isArray(ticket.appliedDiscounts) ? ticket.appliedDiscounts : []).forEach(addEntry);
                             (Array.isArray(ticket.promoExpenseItems) ? ticket.promoExpenseItems : []).forEach((d) => push(d.name, d.amount, 'promo_expense', d.id));
-                            // 金券/売掛(voucher)は値引きではなく「お支払い(充当)」として合計の下に別表示するため、
-                            // ここ(値引き行)には含めない。
+                            // 金券/売掛(voucher)は「使った割引/券」の名前が分かるよう小計前に出す。
+                            // ただし値引きではなく「お支払い(充当)」なのでマイナス表記にはしない(合計は満額のまま)。
+                            (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment', d.id));
                             const colorOf = (cat) => (cat === 'promo_expense' ? 'text-emerald-600'
                               : cat === 'voucher_payment' ? 'text-sky-600' : 'text-red-500');
-                            return lines.map((line, i) => (
-                              <div key={`disc-${i}`} className={`flex justify-between pb-1 ${colorOf(line.cat)}`}>
-                                <div className="flex items-center gap-1">
-                                  <Tag size={12} />
-                                  <span>{line.name}</span>
+                            return lines.map((line, i) => {
+                              const isVoucher = line.cat === 'voucher_payment';
+                              return (
+                                <div key={`disc-${i}`} className={`flex justify-between pb-1 ${colorOf(line.cat)}`}>
+                                  <div className="flex items-center gap-1">
+                                    <Tag size={12} />
+                                    <span>{line.name}{isVoucher ? '（金券/売掛 充当）' : ''}</span>
+                                  </div>
+                                  <span className="tabular-nums">{isVoucher ? '' : '-'}¥{line.amount.toLocaleString()}</span>
                                 </div>
-                                <span className="tabular-nums">-¥{line.amount.toLocaleString()}</span>
-                              </div>
-                            ));
+                              );
+                            });
                           })()}
                           <div className="flex justify-between">
                             <span>小計 (税抜)</span>
@@ -3629,18 +3633,10 @@ export const PosTransactionHistory = ({
                             ¥{ticketGrossTotal.toLocaleString()}
                           </span>
                         </div>
-                        {ticketVoucherAmount > 0 && (
-                          <div className="mt-2 space-y-1 text-xs font-bold text-gray-500">
-                            <div className="flex justify-between text-sky-600">
-                              <span>お支払い（金券/売掛）</span>
-                              <span className="tabular-nums">¥{ticketVoucherAmount.toLocaleString()}</span>
-                            </div>
-                            {Number(ticket.totalPrice || 0) > 0 && (
-                              <div className="flex justify-between">
-                                <span>お支払い（現金/カード等）</span>
-                                <span className="tabular-nums">¥{Number(ticket.totalPrice || 0).toLocaleString()}</span>
-                              </div>
-                            )}
+                        {ticketVoucherAmount > 0 && Number(ticket.totalPrice || 0) > 0 && (
+                          <div className="mt-2 flex justify-between text-xs font-bold text-gray-500">
+                            <span>お支払い（現金/カード等）</span>
+                            <span className="tabular-nums">¥{Number(ticket.totalPrice || 0).toLocaleString()}</span>
                           </div>
                         )}
                       </div>

@@ -2085,10 +2085,35 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     setPendingFullCreditCheckout(true);
   };
 
+  // 手入力タイプ(会計時に金額入力)の割引/売掛で「全額 ¥X で会計」を押した時の即会計。
+  // 区分(売掛/販促費/売上値引)は元の割引設定を尊重する。全額売掛と同じ確定フローに乗せる。
+  const requestManualFullCheckout = (discount) => {
+    if (isPaymentSubmitting || consolidatedItems.length === 0) return;
+    const fullAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
+    if (fullAmount <= 0) return;
+
+    setDiscountType('amount');
+    setDiscountValue(fullAmount);
+    setSelectedDiscount({
+      id: discount?.id || 'manual_full',
+      name: discount?.name || '手入力',
+      // 締めで定型金額(枚数照合)と区別するため元の種類を残す。
+      type: discount?.type || 'manual',
+      value: fullAmount,
+      accountingCategory: discount?.accountingCategory || 'voucher_payment',
+      count: 1,
+      quantity: 1,
+      amount: fullAmount
+    });
+    setDiscountQuantities({});
+    setPaymentMethod('credit');
+    setPendingFullCreditCheckout(true);
+  };
+
   useEffect(() => {
     if (!pendingFullCreditCheckout) return;
-    // 全額売掛の状態が反映され、支払方法も売掛に切り替わってから確定する。
-    if (selectedDiscount?.id !== 'full_credit' || resolvedPaymentMethod !== 'credit') return;
+    // 全額売掛/全額手入力の状態が反映され、支払方法も売掛に切り替わってから確定する。
+    if (!selectedDiscount || resolvedPaymentMethod !== 'credit') return;
     setPendingFullCreditCheckout(false);
     handlePayment();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2355,6 +2380,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         discountQuantities={discountQuantities}
         setDiscountQuantities={setDiscountQuantities}
         onFullCreditCheckout={requestFullCreditCheckout}
+        onManualFullCheckout={requestManualFullCheckout}
         showAbortModal={showAbortModal}
         setShowAbortModal={setShowAbortModal}
         abortReason={abortReason}

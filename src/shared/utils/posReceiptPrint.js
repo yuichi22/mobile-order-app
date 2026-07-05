@@ -37,7 +37,12 @@ export const buildTenderText = (data = {}) => {
     const base = Math.max(0, Number(data.totalAmount ?? 0) || 0);
     if (base > 0) lines.push(`${formatPaymentMethod(data.paymentMethod)} ¥${base.toLocaleString()}`);
   }
-  lines.push(`金券/売掛 ¥${voucher.toLocaleString()}`);
+  // 使った金券/売掛の名称(券名)を併記する。
+  const voucherNames = (Array.isArray(data.vouchers) ? data.vouchers : [])
+    .map((item) => String(item?.name || '').trim())
+    .filter(Boolean);
+  const voucherLabel = voucherNames.length > 0 ? `金券/売掛（${voucherNames.join('・')}）` : '金券/売掛';
+  lines.push(`${voucherLabel} ¥${voucher.toLocaleString()}`);
   return lines.join(' / ');
 };
 
@@ -63,7 +68,11 @@ const buildDiscountLines = (data = {}) => {
   const applied = Array.isArray(data.appliedDiscounts) && data.appliedDiscounts.length > 0
     ? data.appliedDiscounts
     : (data.appliedDiscount ? [data.appliedDiscount] : []);
-  applied.forEach((discount) => pushLine(discount, '値引き'));
+  // 金券/売掛(voucher_payment)は値引きではなく支払い内訳(buildTenderで券名併記)に回すため除外する。
+  // (POS/takeoutは appliedDiscounts にも売掛が入るため、ここで弾かないと二重表示になる。)
+  applied
+    .filter((discount) => discount?.accountingCategory !== 'voucher_payment')
+    .forEach((discount) => pushLine(discount, '値引き'));
 
   (Array.isArray(data.promoExpenseItems) ? data.promoExpenseItems : [])
     .forEach((item) => pushLine(item, '販促値引き'));
