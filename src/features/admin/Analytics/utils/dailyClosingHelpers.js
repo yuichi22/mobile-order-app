@@ -428,22 +428,54 @@ const addCouponUsageEntry = (summary, entry) => {
   summary.couponUsage[id].amount += amount;
 };
 
+const resolveCouponCategory = (entry) => (
+  entry?.accountingCategory === 'promo_expense' || entry?.accountingCategory === 'voucher_payment'
+    ? entry.accountingCategory
+    : 'sales_discount'
+);
+
 const addCouponUsage = (summary, transaction) => {
   const applied = Array.isArray(transaction.appliedDiscounts) && transaction.appliedDiscounts.length > 0
     ? transaction.appliedDiscounts
     : (transaction.appliedDiscount ? [transaction.appliedDiscount] : []);
 
+  // appliedDiscounts 側で計上済みの会計区分。金券/販促費を二重計上しないための判定に使う。
+  const seenCategories = new Set();
+  const ingest = (entry) => {
+    seenCategories.add(resolveCouponCategory(entry));
+    addCouponUsageEntry(summary, entry);
+  };
+
   applied.forEach((discount) => {
     if (Array.isArray(discount?.items) && discount.items.length > 0) {
-      discount.items.forEach((item) => addCouponUsageEntry(summary, { ...item, type: item.type || discount.type }));
+      discount.items.forEach((item) => ingest({ ...item, type: item.type || discount.type }));
     } else {
-      addCouponUsageEntry(summary, discount);
+      ingest(discount);
     }
   });
 
   // 商品個別割引(単品)。lineDiscount は % なので type=percent 扱い。
   if (Array.isArray(transaction.lineDiscountItems)) {
-    transaction.lineDiscountItems.forEach((item) => addCouponUsageEntry(summary, { ...item, type: item.type || 'percent' }));
+    transaction.lineDiscountItems.forEach((item) => ingest({ ...item, type: item.type || 'percent' }));
+  }
+
+  // 金券/売掛・販促費は経路により appliedDiscount.items に含まれない(ダインインは別配列 vouchers/
+  // promoExpenseItems に保存)。その区分が上で未計上のときだけ取引配列から取り込み、券面付きの
+  // 定型金額チケットを締めモーダルで枚数照合できるようにする。テイクアウト等で既に含む場合は
+  // 区分単位でスキップし二重計上を防ぐ。
+  if (!seenCategories.has('voucher_payment') && Array.isArray(transaction.vouchers)) {
+    transaction.vouchers.forEach((item) => addCouponUsageEntry(summary, {
+      ...item,
+      accountingCategory: 'voucher_payment',
+      type: item.type || 'amount'
+    }));
+  }
+  if (!seenCategories.has('promo_expense') && Array.isArray(transaction.promoExpenseItems)) {
+    transaction.promoExpenseItems.forEach((item) => addCouponUsageEntry(summary, {
+      ...item,
+      accountingCategory: 'promo_expense',
+      type: item.type || 'amount'
+    }));
   }
 };
 
