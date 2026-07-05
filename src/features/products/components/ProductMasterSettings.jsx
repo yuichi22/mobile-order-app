@@ -30,6 +30,8 @@ import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../
 import { getAuth } from 'firebase/auth';
 import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
+import HangTagScanButton from './HangTagScanButton';
+import MobileHandoffQRButton from './MobileHandoffQRButton';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -101,6 +103,9 @@ const productMatchesAllHeaderSearchTerms = (product, requiredTerms) => {
     || fallbackText.includes(term)
   ));
 };
+
+// 店内(インストア)コード判定: 先頭2のEAN-13(13桁)。バーコード採番/自動ラベルONの基準に使う。
+const isInstoreBarcode = (value) => /^2\d{12}$/.test(String(value || '').trim());
 
 const PRODUCT_TABS = [
   { id: 'products', label: '商品', icon: Package }
@@ -1544,7 +1549,7 @@ const ProductMasterTable = ({
     return changedFields;
   };
 
-  const isShopifySyncOnlyDraftChange = (draft = {}, original = {}, changedFields = []) => {
+  const isShopifySyncOnlyDraftChange = (draft = {}, changedFields = []) => {
     if (changedFields.length === 0) return false;
 
     const nonShopifyFields = changedFields.filter((field) => ![
@@ -1554,12 +1559,16 @@ const ProductMasterTable = ({
 
     if (nonShopifyFields.length > 0) return false;
 
-    return Boolean(
+    // shopifyフラグのみの変更。
+    // 「OFF→ON(同期対象化)」は Shopify同期アクションで作成＆保存する設計なので通常編集から除外する。
+    // 「ON→OFF(対象解除)」は保存して永続化する必要がある(しないとリロードで対象が復活する)ので、
+    // 通常の編集行として扱い「更新」で保存できるようにする(=除外しない)。
+    const draftBecomesTarget = Boolean(
       getComparableProductFieldValue(draft, 'shopifyEnabled') ||
-      getComparableProductFieldValue(draft, 'shopifyCreateEnabled') ||
-      getComparableProductFieldValue(original, 'shopifyEnabled') ||
-      getComparableProductFieldValue(original, 'shopifyCreateEnabled')
+      getComparableProductFieldValue(draft, 'shopifyCreateEnabled')
     );
+
+    return draftBecomesTarget;
   };
 
   const editedProductRows = useMemo(() => (
@@ -1572,7 +1581,7 @@ const ProductMasterTable = ({
       const changedFields = getProductDraftChangedFields(row, original);
       if (changedFields.length === 0) return false;
 
-      return !isShopifySyncOnlyDraftChange(row, original, changedFields);
+      return !isShopifySyncOnlyDraftChange(row, changedFields);
     })
   ), [draftRows, productByIdMap]);
 
@@ -1974,7 +1983,9 @@ const ProductMasterTable = ({
           brandId: primaryGroupDraft.brandId || row.brandId || '',
           brandName: primaryGroupDraft.brandName || row.brandName || '',
           name: primaryGroupDraft.name || row.name || '',
-          labelEnabled: Boolean(primaryGroupDraft.labelEnabled),
+          // 店内(インストア)コード(先頭2のEAN-13)の商品は、明示OFFでなくても自動でラベルON。
+          labelEnabled: Boolean(primaryGroupDraft.labelEnabled)
+            || isInstoreBarcode(row.barcode || primaryGroupDraft.barcode),
           salesAreaId: primaryGroupDraft.salesAreaId || row.salesAreaId || '',
           categoryGroupId: primaryGroupDraft.categoryGroupId || row.categoryGroupId || '',
           categoryId: primaryGroupDraft.categoryId || row.categoryId || '',
@@ -2697,6 +2708,14 @@ const ProductMasterTable = ({
     const isNew = options.isNew === true;
     const rowKey = options.rowKey || (isNew ? '__new__' : row.id);
     const update = isNew ? (options.onNewSkuChange || updateNewRow) : (patch) => updateDraft(row.id, patch);
+    // バーコード適用: 半角化して反映。新規登録で店内(インストア)コード(先頭2のEAN-13)なら
+    // ラベルボタンを自動でONにする(ユーザーが手動でOFFにするまで)。
+    const applyBarcode = (value) => {
+      const barcode = toHalfWidthCode(value);
+      const patch = { barcode };
+      if (isNew && isInstoreBarcode(barcode)) patch.labelEnabled = true;
+      update(patch);
+    };
     const isSaving = savingKey === rowKey;
     const registeredAtText = formatProductMasterDateTimeText(row.createdAt || row.created_at);
     const skuRowIndex = options.skuRowIndex ?? 0;
@@ -2787,6 +2806,54 @@ const ProductMasterTable = ({
       >
         {isNew && options.showNewHeader !== false && (
           <div className="mb-2 rounded-lg border border-orange-200 bg-white/95 px-3 py-2 shadow-sm">
+            <div className="mb-2 border-b border-dashed border-orange-200 pb-2">
+              <div className="flex flex-wrap items-start gap-2">
+              <HangTagScanButton
+                storeId={storeId}
+                onExtracted={(f) => {
+                  if (!f) return { filled: [], brand: null };
+                  const patch = {};
+                  const filled = [];
+                  const fillIfEmpty = (key, val, label) => {
+                    if (val == null) return;
+                    const text = String(val).trim();
+                    if (text && !String(row[key] ?? '').trim()) {
+                      patch[key] = val;
+                      if (label && !filled.includes(label)) filled.push(label);
+                    }
+                  };
+                  fillIfEmpty('name', f.productName, '商品名');
+                  fillIfEmpty('sku', f.productCode, '品番');
+                  fillIfEmpty('productCode', f.productCode);
+                  fillIfEmpty('colorName', f.colorName, 'カラー');
+                  fillIfEmpty('size', f.size, 'サイズ');
+                  if (f.barcode) fillIfEmpty('barcode', toHalfWidthCode(String(f.barcode)), 'バーコード');
+                  if (f.priceTaxExcluded != null && !String(row.priceTaxExcluded ?? '').trim()) {
+                    patch.priceTaxExcluded = f.priceTaxExcluded;
+                    filled.push('税抜売価');
+                  }
+                  if (Object.keys(patch).length) update(patch);
+
+                  // ブランド自動マッチング: 抽出ブランド名を既存ブランドと突合(前後空白/大小無視)。
+                  // 一致すれば選択、無ければ未登録として呼び出し側へ通知(人が新規作成)。
+                  let brand = null;
+                  const brandName = String(f.brand ?? '').trim();
+                  if (brandName) {
+                    const norm = (s) => String(s ?? '').trim().toLowerCase();
+                    const matched = (brands || []).find((b) => norm(b.name) === norm(brandName));
+                    if (matched && !row.brandId) {
+                      update(buildNewProductBrandPatch(matched));
+                      filled.push('ブランド');
+                    }
+                    brand = { name: brandName, matched: Boolean(matched) };
+                  }
+
+                  return { filled, brand };
+                }}
+              />
+              <MobileHandoffQRButton storeId={storeId} />
+              </div>
+            </div>
             <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
               <div className="min-w-0">
                 <div className="grid grid-cols-[minmax(210px,1.2fr)_minmax(320px,1.8fr)] gap-2">
@@ -2938,8 +3005,8 @@ const ProductMasterTable = ({
               value={row.barcode}
               // バーコードは常に半角化して保存する。Windows等で日本語IME(全角)を経由して
               // 入力されても、実バーコード(半角ASCII)と一致する正しい値で保存するため。
-              onChange={(value) => update({ barcode: toHalfWidthCode(value) })}
-              onKeyDown={buildSkuScanKeyDown('barcode', (value) => update({ barcode: toHalfWidthCode(value) }))}
+              onChange={(value) => applyBarcode(value)}
+              onKeyDown={buildSkuScanKeyDown('barcode', (value) => applyBarcode(value))}
               onFocus={handleSkuFieldFocus('barcode')}
               // Windows日本語IMEの変換が前回値に追記され「ずらずら長い数字」になるのを防ぐ。
               // 変換開始時に窓を空にし、変換結果が追記でなく置換で入るようにする。
@@ -2954,7 +3021,7 @@ const ProductMasterTable = ({
                     if (!storeId) return;
                     try {
                       const code = await issueInstoreBarcode(storeId);
-                      update({ barcode: code });
+                      applyBarcode(code);
                     } catch (error) {
                       alert(`インストアコードの発行に失敗しました: ${error?.message || error}`);
                     }

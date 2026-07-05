@@ -4,8 +4,10 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { onRequest } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import Anthropic from '@anthropic-ai/sdk';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
 
@@ -7395,6 +7397,217 @@ export const processProductCsvImportJob = onDocumentWritten(
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
     }
+  }
+);
+
+// ============================================================================
+// 下げ札(値札タグ)のAI読み取り — SaaSオプション機能
+// 画像を受け取り Claude(Haiku 4.5) で商品情報を構造化抽出して返す。
+// APIキーは運営者1本をシークレット管理。テナント(store)ごとに会員判定＋オプション
+// 判定＋月間上限＋使用量メータリングを行う(マルチテナント課金/暴走防止の土台)。
+// ============================================================================
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+
+const HANG_TAG_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    brand: { type: ['string', 'null'] },
+    productName: { type: ['string', 'null'] },
+    productCode: { type: ['string', 'null'] },
+    colorName: { type: ['string', 'null'] },
+    colorCode: { type: ['string', 'null'] },
+    size: { type: ['string', 'null'] },
+    material: { type: ['string', 'null'] },
+    priceTaxExcluded: { type: ['number', 'null'] },
+    priceTaxIncluded: { type: ['number', 'null'] },
+    barcode: { type: ['string', 'null'] },
+    countryOfOrigin: { type: ['string', 'null'] },
+    maker: { type: ['string', 'null'] }
+  },
+  required: [
+    'brand', 'productName', 'productCode', 'colorName', 'colorCode', 'size',
+    'material', 'priceTaxExcluded', 'priceTaxIncluded', 'barcode', 'countryOfOrigin', 'maker'
+  ]
+};
+
+const HANG_TAG_PROMPT = `あなたはアパレル/バッグ/雑貨の下げ札(値札タグ)から商品情報を抽出するアシスタントです。
+画像の下げ札を読み取り、指定のJSONスキーマで返してください。
+
+厳守ルール:
+- タグに実際に印字/記載されている情報だけを抽出する。書かれていない・読み取れない項目は必ず null。推測や補完で埋めない。
+- 画像は複数枚のことがある(値札の下げ札＋ブランドのロゴ札/縫い付けラベル等)。全ての画像を総合して1商品として抽出する。
+- brand: ブランド名。ブランドのロゴ札/ラベルがあればそこから優先的に読み取る。下げ札にロゴや商品名から明確に分かる場合も可。製造元/発売元の会社名は maker に入れ、brand には入れない。
+- productName: 商品名。
+- productCode: 品番/型番(例「NO.578-6153251」「品番 NPW22532」)。
+- colorName: 色名(例 ブラック, HERB PIGMENT)。 colorCode: カラー番号/記号(例「COL.110」→110、「K」)。
+- size: サイズ表記(例 M, S, 2, Ⅱ)。付随情報(バスト等)があれば括弧で補足可。
+- material: 素材/組成(例「麻100%」「COTTON 95% LINEN 5%」)。
+- priceTaxExcluded / priceTaxIncluded: 税抜/税込の価格を数値(円、カンマ無し)で。片方しか印字が無ければもう片方は null(逆算しない)。
+- barcode: バーコードの数字列(JAN13桁/UPC12桁等)が印字されていればその数字。数字が読めなければ null。
+- countryOfOrigin: 原産国(例「日本製」→「日本」、「MADE IN VIETNAM」→「ベトナム」)。
+- maker: 製造元/発売元の会社名(例「株式会社ゴールドウイン」)。`;
+
+export const extractHangTag = onCall(
+  {
+    region: REGION,
+    secrets: [ANTHROPIC_API_KEY],
+    memory: '512MiB',
+    timeoutSeconds: 60
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'ログインが必要です。');
+
+    const storeId = String(request.data?.storeId || '').trim();
+    // 複数画像対応: images:[{data,mediaType}] を優先。旧 imageBase64 も後方互換で受ける。
+    // 下げ札(値札)＋ブランドタグ(ロゴ札)を一緒に渡すと、ブランドをロゴ側から補完できる。
+    const rawImages = Array.isArray(request.data?.images) && request.data.images.length
+      ? request.data.images
+      : (request.data?.imageBase64 ? [{ data: request.data.imageBase64, mediaType: request.data.mediaType }] : []);
+    const images = rawImages
+      .map((im) => ({ data: String(im?.data || ''), mediaType: String(im?.mediaType || 'image/jpeg') }))
+      .filter((im) => im.data);
+    if (!storeId) throw new HttpsError('invalid-argument', 'storeId が必要です。');
+    if (!images.length) throw new HttpsError('invalid-argument', '画像が必要です。');
+    if (images.length > 3) throw new HttpsError('invalid-argument', '画像は最大3枚までです。');
+    // ~4.5MB(base64)/枚 超はリクエスト過大。クライアント側で長辺~1600pxへ縮小して送る想定。
+    if (images.some((im) => im.data.length > 4_500_000)) throw new HttpsError('invalid-argument', '画像が大きすぎます。縮小して再送してください。');
+
+    // ① 会員判定: このテナント(store)のstaff以上のみ。
+    const role = await getUserRoleForStore(uid, storeId);
+    if (!role) throw new HttpsError('permission-denied', 'この店舗の権限がありません。');
+
+    // ② エンタイトルメント(オプション契約)判定: stores/{id}/settings/ai の hangTagEnabled。
+    //    ※プロトタイプ中はドキュメント/フラグ未設定なら許可。本番運用では既定を false にしてプランで開放する。
+    const aiSettingsSnap = await db.collection('stores').doc(storeId).collection('settings').doc('ai').get();
+    const aiSettings = aiSettingsSnap.exists ? aiSettingsSnap.data() : null;
+    if (aiSettings && aiSettings.hangTagEnabled === false) {
+      throw new HttpsError('permission-denied', '下げ札読み取りオプションが無効です。');
+    }
+    const monthlyCap = Number(aiSettings?.hangTagMonthlyCap ?? 2000); // 月間上限(既定2000枚/暴走防止)
+
+    // ③ 月間使用量チェック(Asia/Tokyo の YYYYMM 単位)。
+    const ym = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit' })
+      .format(new Date()).replace('-', '');
+    const usageRef = db.collection('stores').doc(storeId).collection('aiUsage').doc(`hangTag_${ym}`);
+    const usageSnap = await usageRef.get();
+    const usedCount = usageSnap.exists ? Number(usageSnap.data().count || 0) : 0;
+    if (usedCount >= monthlyCap) {
+      throw new HttpsError('resource-exhausted', `今月の下げ札読み取り上限(${monthlyCap}枚)に達しました。`);
+    }
+
+    // ④ Claude(Haiku 4.5)で構造化抽出。
+    const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+    let message;
+    try {
+      message = await anthropic.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.data } })),
+            { type: 'text', text: HANG_TAG_PROMPT }
+          ]
+        }],
+        output_config: { format: { type: 'json_schema', schema: HANG_TAG_SCHEMA } }
+      });
+    } catch (error) {
+      console.error('[extractHangTag] anthropic error', { storeId, message: error?.message });
+      throw new HttpsError('internal', '読み取りに失敗しました。時間をおいて再試行してください。');
+    }
+
+    const textBlock = (message.content || []).find((block) => block.type === 'text');
+    let fields;
+    try {
+      fields = JSON.parse(textBlock?.text || '{}');
+    } catch (_) {
+      throw new HttpsError('internal', '読み取り結果の解析に失敗しました。');
+    }
+
+    // ⑤ 使用量メータリング(課金/上限管理の土台)。best-effort。
+    const inputTokens = Number(message.usage?.input_tokens || 0);
+    const outputTokens = Number(message.usage?.output_tokens || 0);
+    // Haiku 4.5 概算: 入力$1/Mtok, 出力$5/Mtok。
+    const estimatedUsd = (inputTokens / 1e6) * 1 + (outputTokens / 1e6) * 5;
+    try {
+      await usageRef.set({
+        count: FieldValue.increment(1),
+        inputTokens: FieldValue.increment(inputTokens),
+        outputTokens: FieldValue.increment(outputTokens),
+        estimatedUsd: FieldValue.increment(estimatedUsd),
+        lastUsedByUid: uid,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('[extractHangTag] usage record failed', { storeId, message: error?.message });
+    }
+
+    return {
+      fields,
+      usage: { inputTokens, outputTokens, estimatedUsd: Number(estimatedUsd.toFixed(6)) }
+    };
+  }
+);
+
+// ============================================================================
+// モバイル引き継ぎ(QR) — PCで発行したワンタイムコードをスマホで引き換えて自動ログイン。
+// createRegisterHandoff: PC(manager以上)がワンタイムコードを発行(5分有効・一度きり)。
+// redeemRegisterHandoff: スマホ(未ログイン)がコードを引き換え→Firebaseカスタムトークンを取得。
+// ============================================================================
+export const createRegisterHandoff = onCall(
+  { region: REGION },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'ログインが必要です。');
+    const storeId = String(request.data?.storeId || '').trim();
+    if (!storeId) throw new HttpsError('invalid-argument', 'storeId が必要です。');
+
+    const role = await getUserRoleForStore(uid, storeId);
+    if (role !== USER_ROLES.OWNER && role !== USER_ROLES.MANAGER) {
+      throw new HttpsError('permission-denied', '商品登録の権限がありません(manager以上)。');
+    }
+
+    const code = randomBytes(24).toString('base64url');
+    const expiresAtMs = Date.now() + 5 * 60 * 1000; // 5分有効
+    await db.collection('registerHandoffs').doc(code).set({
+      uid,
+      storeId,
+      role,
+      used: false,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAtMs
+    });
+    return { code, expiresAtMs };
+  }
+);
+
+export const redeemRegisterHandoff = onCall(
+  { region: REGION },
+  async (request) => {
+    // 未ログインのスマホから呼ばれる(request.auth は無い)。コード自体が短命ワンタイムの資格情報。
+    const code = String(request.data?.code || '').trim();
+    if (!code) throw new HttpsError('invalid-argument', 'コードが必要です。');
+
+    const ref = db.collection('registerHandoffs').doc(code);
+    const handoff = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError('not-found', 'QRが無効です。再発行してください。');
+      const data = snap.data();
+      if (data.used) throw new HttpsError('failed-precondition', 'このQRは使用済みです。再発行してください。');
+      if (Date.now() > Number(data.expiresAtMs || 0)) {
+        throw new HttpsError('deadline-exceeded', 'QRの有効期限が切れました。再発行してください。');
+      }
+      tx.update(ref, { used: true, usedAt: FieldValue.serverTimestamp() });
+      return data;
+    });
+
+    const token = await adminAuth.createCustomToken(handoff.uid, {
+      storeId: handoff.storeId,
+      registerHandoff: true
+    });
+    return { token, storeId: handoff.storeId };
   }
 );
 

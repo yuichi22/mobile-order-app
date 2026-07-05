@@ -29,10 +29,12 @@ const loadPlatformSignupPage = () => import('../../features/platform/pages/Platf
 const loadServePage = () => import('../../features/serve/pages/ServePage');
 const loadStaffOrderPage = () => import('../../features/staff-order/pages/StaffOrderPage');
 const loadStocktakePage = () => import('../../features/inventory/pages/StocktakePage');
+const loadMobileTagRegisterPage = () => import('../../features/mobile/pages/MobileTagRegisterPage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
 const StaffOrderPage = lazyWithRetry(loadStaffOrderPage, 'staff-order-page');
 const StocktakePage = lazyWithRetry(loadStocktakePage, 'stocktake-page');
+const MobileTagRegisterPage = lazyWithRetry(loadMobileTagRegisterPage, 'mobile-tag-register-page');
 
 const LoginPage = lazyWithRetry(loadLoginPage, 'login-page');
 const RegisterPage = lazyWithRetry(loadRegisterPage, 'register-page');
@@ -259,6 +261,15 @@ const AppRouter = () => {
     return (
       <Suspense fallback={<RouteLoader />}>
         <ResetPasswordPage />
+      </Suspense>
+    );
+  }
+
+  if (location.pathname === '/m/tag-register') {
+    // スマホ引き継ぎ: ページ自身がワンタイムコードを引き換えて自動ログインする(通常の認証ゲート不要)。
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <MobileTagRegisterPage />
       </Suspense>
     );
   }
