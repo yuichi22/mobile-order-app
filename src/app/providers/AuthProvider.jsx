@@ -256,9 +256,22 @@ export const AuthProvider = ({ children }) => {
             }
           } catch (error) {
             console.error('User data fetch error:', error);
+            // トークン更新やネットワーク瞬断で users/{uid} の取得が一時的に失敗した際に、
+            // ログイン中ユーザーの店舗コンテキスト(storeId/role/access)を null に落とすと、
+            // 全 Firestore 購読が `if (!storeId) return` で一斉に detach され、
+            // お気に入り/ロゴ/テーブル等が画面から突然消える。既知の状態は維持し、
+            // 描画だけ進めて次回の認証再解決に復帰を委ねる(データ側は無事)。
+            finishLoading();
+            return;
           }
         } else if (!user) {
           setProfileName('');
+          // 一過性の null(トークン更新中/永続化レース/タブ間同期)で店舗コンテキストを
+          // クリアすると activeStoreId が一瞬 null になり、お気に入り/ロゴ/テーブル/
+          // カテゴリー等の全購読が同時に detach され画面から消える。明示ログアウトは
+          // logout() が state をクリア済みなので、ここでは保持して次の再解決に委ねる。
+          finishLoading();
+          return;
         }
 
         setStoreId(detectedStoreId);

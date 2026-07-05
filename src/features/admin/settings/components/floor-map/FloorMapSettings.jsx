@@ -631,6 +631,14 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
   const handleSave = async () => {
     flushDeferredItems();
 
+    // save-before-load ガード: レイアウト未ロード(=空)のまま保存すると
+    // saveFloorLayout が merge なし setDoc で全テーブルを空に上書きしてしまう。
+    // 空保存は事実上ありえない操作なので明示的に中止する。
+    if (itemsRef.current.length === 0) {
+      alert('テーブルが1件も配置されていません。レイアウトの読み込みが完了していない可能性があるため、保存を中止しました。画面を再読み込みしてからお試しください。');
+      return;
+    }
+
     const tableIds = itemsRef.current
       .filter((item) => item.type === 'table')
       .map((item) => String(item.label || '').trim())
