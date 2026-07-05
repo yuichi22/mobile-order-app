@@ -1226,6 +1226,11 @@ const ProductMasterTable = ({
     };
   };
 
+  // brandId からブランド既定売場名を引く。分類モーダルを売場未設定の商品で開いた時の初期選択に使う。
+  const getBrandDefaultSalesAreaName = (brandId) => (
+    brandId ? resolveBrandDefaultSalesAreaName(brands.find((brand) => brand.id === brandId)) : ''
+  );
+
   const getGroupProductGroupId = (group) => (
     String(
       group?.id
@@ -2926,6 +2931,7 @@ const ProductMasterTable = ({
                 <ProductClassificationControl
                   ref={newProductClassificationRef}
                   value={row}
+                  defaultSalesAreaName={getBrandDefaultSalesAreaName(row.brandId)}
                   // 分類(カテゴリー/グループ等)変更時は税率を inherit に戻し、新カテゴリー/グループの個別税率を継承させる。
                   onChange={(patch) => update({ ...patch, taxRateType: 'inherit' })}
                   onApply={() => {
@@ -3844,6 +3850,7 @@ const ProductMasterTable = ({
                       <div className="min-w-0">
                         <ProductClassificationControl
                           value={primaryDraft}
+                          defaultSalesAreaName={getBrandDefaultSalesAreaName(primaryDraft.brandId)}
                           // 分類変更時は税率を inherit に戻し、新カテゴリー/グループの個別税率を継承させる。
                           onChange={(patch) => updatePrimary({ ...patch, taxRateType: 'inherit' })}
                           productSalesAreas={getSalesAreaOptions()}
@@ -5042,6 +5049,7 @@ const ProductClassificationControl = forwardRef(({
   value,
   onChange,
   onApply,
+  defaultSalesAreaName = '',
   productSalesAreas = [],
   productCategoryGroups = [],
   productCategories = [],
@@ -5053,7 +5061,12 @@ const ProductClassificationControl = forwardRef(({
   const activeValue = open ? modalDraft : (value || {});
 
   const openModal = () => {
-    setModalDraft({ ...(value || {}) });
+    const base = { ...(value || {}) };
+    // 売場未設定の商品は、ブランド既定売場を初期選択して開く（保存はされず、決定時のみ反映）。
+    if (!String(base.salesAreaName || '').trim() && String(defaultSalesAreaName || '').trim()) {
+      base.salesAreaName = String(defaultSalesAreaName).trim();
+    }
+    setModalDraft(base);
     setOpen(true);
   };
 
