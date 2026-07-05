@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   Banknote,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CreditCard,
   Loader2,
   QrCode,
@@ -208,6 +210,8 @@ const DailyClosingCheckModal = ({
   const [qrActualAmountInput, setQrActualAmountInput] = useState('');
   const [numericModal, setNumericModal] = useState(null);
   const [isEditingChangeFund, setIsEditingChangeFund] = useState(false);
+  // 枚数照合なしの自動記録(％割引・手入力・単品割引・販促費など)は既定で畳んで表示する。
+  const [showAutoRecorded, setShowAutoRecorded] = useState(false);
   const [changeFundAmountInput, setChangeFundAmountInput] = useState(() => String(Number(changeFundAmount || 0) || ''));
   useEffect(() => {
     if (!isOpen) return;
@@ -301,6 +305,12 @@ const DailyClosingCheckModal = ({
       };
     })
   ), [couponCounts, couponSource]);
+
+  // 枚数照合(count)・金額確認(amount)が必要なものは常時表示。
+  // 自動記録(auto: ％割引/手入力/単品割引/販促費など)は件数が多いと邪魔なので折り畳みへ。
+  const primaryCouponItems = couponCheckItems.filter((item) => item.mode !== 'auto');
+  const autoCouponItems = couponCheckItems.filter((item) => item.mode === 'auto');
+  const autoCouponTotal = autoCouponItems.reduce((sum, item) => sum + Number(item.expectedAmount || 0), 0);
 
   const actualCouponAmount = couponCheckItems.reduce((sum, item) => sum + item.actualAmount, 0);
   const actualCardAmount = toNumber(cardActualAmountInput);
@@ -413,6 +423,101 @@ const DailyClosingCheckModal = ({
         difference: cardDifference + qrDifference
       }
     });
+  };
+
+  const renderCouponItem = (item) => {
+    const categoryLabel = item.category === 'promo_expense'
+      ? '販促費'
+      : item.category === 'voucher_payment'
+        ? '金券/売掛'
+        : '売上値引';
+    const typeLabel = item.type === 'amount'
+      ? '金額'
+      : item.type === 'percent'
+        ? '％割引'
+        : item.type === 'manual'
+          ? '手入力'
+          : item.type === 'manual_percent'
+            ? '手入力%'
+            : item.type === 'full_credit'
+              ? '売掛'
+              : '値引';
+    return (
+      <div
+        key={item.id}
+        className="rounded-xl bg-gray-50 p-3"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-black text-gray-800">
+                {item.name}
+              </span>
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-gray-400">
+                {categoryLabel}・{typeLabel}
+              </span>
+            </div>
+            <div className="mt-1 text-[11px] font-bold text-gray-400">
+              システム：{item.expectedCount}件 / {formatCurrency(item.expectedAmount)}
+              {item.countable && item.value > 0 && (
+                <span className="ml-2">
+                  券面 {formatCurrency(item.value)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {item.mode === 'count' ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                readOnly
+                value={couponCounts[item.id] || ''}
+                onClick={() => openNumericModal({
+                  target: { type: 'coupon', id: item.id },
+                  title: `${item.name}の枚数`,
+                  description: 'クーポンの確認枚数を入力してください',
+                  value: couponCounts[item.id] || '',
+                  suffix: '枚'
+                })}
+                className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                placeholder="0"
+              />
+              <span className="text-[9px] font-bold text-gray-400">枚</span>
+            </div>
+          ) : item.mode === 'amount' ? (
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-black text-amber-700">
+                {formatCurrency(item.expectedAmount)}
+              </div>
+              <div className="text-[9px] font-black text-amber-600">金額を確認</div>
+            </div>
+          ) : (
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-black text-gray-700">
+                {formatCurrency(item.expectedAmount)}
+              </div>
+              <div className="text-[9px] font-bold text-gray-400">自動記録（照合なし）</div>
+            </div>
+          )}
+        </div>
+
+        {item.countable && (
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs font-bold">
+            <span className="text-gray-400">
+              実確認額：{formatCurrency(item.actualAmount)}
+            </span>
+            <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {item.difference === 0 && <CheckCircle2 size={13} />}
+            差額：{item.difference > 0 ? '+' : ''}
+            {formatCurrency(item.difference)}
+            </span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (!isOpen) return null;
@@ -636,100 +741,41 @@ const DailyClosingCheckModal = ({
                     クーポン・値引きの利用はありません
                   </div>
                 ) : (
-                  couponCheckItems.map((item) => {
-                    const categoryLabel = item.category === 'promo_expense'
-                      ? '販促費'
-                      : item.category === 'voucher_payment'
-                        ? '金券/売掛'
-                        : '売上値引';
-                    const typeLabel = item.type === 'amount'
-                      ? '金額'
-                      : item.type === 'percent'
-                        ? '％割引'
-                        : item.type === 'manual'
-                          ? '手入力'
-                          : item.type === 'manual_percent'
-                            ? '手入力%'
-                            : item.type === 'full_credit'
-                              ? '売掛'
-                              : '値引';
-                    return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl bg-gray-50 p-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate text-sm font-black text-gray-800">
-                              {item.name}
-                            </span>
-                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-gray-400">
-                              {categoryLabel}・{typeLabel}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-[11px] font-bold text-gray-400">
-                            システム：{item.expectedCount}件 / {formatCurrency(item.expectedAmount)}
-                            {item.countable && item.value > 0 && (
-                              <span className="ml-2">
-                                券面 {formatCurrency(item.value)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                  <>
+                    {/* 枚数照合／金額確認が必要なもの（常時表示） */}
+                    {primaryCouponItems.map(renderCouponItem)}
 
-                        {item.mode === 'count' ? (
-                          <div className="flex shrink-0 items-center gap-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              readOnly
-                              value={couponCounts[item.id] || ''}
-                              onClick={() => openNumericModal({
-                                target: { type: 'coupon', id: item.id },
-                                title: `${item.name}の枚数`,
-                                description: 'クーポンの確認枚数を入力してください',
-                                value: couponCounts[item.id] || '',
-                                suffix: '枚'
-                              })}
-                              className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                              placeholder="0"
-                            />
-                            <span className="text-[9px] font-bold text-gray-400">枚</span>
-                          </div>
-                        ) : item.mode === 'amount' ? (
-                          <div className="shrink-0 text-right">
-                            <div className="text-sm font-black text-amber-700">
-                              {formatCurrency(item.expectedAmount)}
-                            </div>
-                            <div className="text-[9px] font-black text-amber-600">金額を確認</div>
-                          </div>
-                        ) : (
-                          <div className="shrink-0 text-right">
-                            <div className="text-sm font-black text-gray-700">
-                              {formatCurrency(item.expectedAmount)}
-                            </div>
-                            <div className="text-[9px] font-bold text-gray-400">自動記録（照合なし）</div>
+                    {primaryCouponItems.length === 0 && (
+                      <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                        枚数照合が必要なクーポン・金券はありません
+                      </div>
+                    )}
+
+                    {/* 自動記録（％割引・手入力・単品割引・販促費など）は折り畳み */}
+                    {autoCouponItems.length > 0 && (
+                      <div className="overflow-hidden rounded-xl border border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => setShowAutoRecorded((previous) => !previous)}
+                          className="flex w-full items-center justify-between gap-2 bg-gray-50 px-3 py-2.5 text-left transition-colors hover:bg-gray-100"
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-black text-gray-600">
+                            {showAutoRecorded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            割引・自動記録の詳細（{autoCouponItems.length}件）
+                          </span>
+                          <span className="text-xs font-black text-gray-500">
+                            {formatCurrency(autoCouponTotal)}
+                          </span>
+                        </button>
+
+                        {showAutoRecorded && (
+                          <div className="space-y-2 p-2">
+                            {autoCouponItems.map(renderCouponItem)}
                           </div>
                         )}
                       </div>
-
-                      {item.countable && (
-                        <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs font-bold">
-                          <span className="text-gray-400">
-                            実確認額：{formatCurrency(item.actualAmount)}
-                          </span>
-                          <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-green-600' : 'text-red-500'}`}>
-                          {item.difference === 0 && <CheckCircle2 size={13} />}
-                          差額：{item.difference > 0 ? '+' : ''}
-                          {formatCurrency(item.difference)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    );
-                  })
+                    )}
+                  </>
                 )}
               </div>
             </section>
