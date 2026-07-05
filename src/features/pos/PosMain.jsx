@@ -249,6 +249,32 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   const displaySessions = activeSessions.filter((session) => session.status === 'active');
 
+  // 会計画面(PosRegister)はテーブルを押すたびに再マウントし orders を購読しなおすため、
+  // 初回描画までローディングになり「ちらつき」の一因になる。表示中セッションの orders を
+  // 先読みしてメモリキャッシュを温めておくと、開いた瞬間にキャッシュから即描画できる。
+  // セッションID集合が変わった時だけ一度実行する(常時購読はしない=perf配慮)。
+  const prefetchedSessionKeyRef = useRef('');
+  useEffect(() => {
+    if (!storeId) return undefined;
+    const ids = displaySessions.map((session) => session.id).filter(Boolean).sort();
+    const key = ids.join('|');
+    if (!key || key === prefetchedSessionKeyRef.current) return undefined;
+    prefetchedSessionKeyRef.current = key;
+
+    let cancelled = false;
+    (async () => {
+      await Promise.all(ids.map(async (id) => {
+        if (cancelled) return;
+        try {
+          await getDocs(query(collection(db, 'stores', storeId, 'orders'), where('sessionId', '==', id)));
+        } catch {
+          // 先読み失敗は無視(実際の購読で取得される)。
+        }
+      }));
+    })();
+    return () => { cancelled = true; };
+  }, [displaySessions, storeId]);
+
   useEffect(() => {
     if (registerMode !== 'pos' || !storeId) return;
     setPosHolds(readPosHoldsFromStorage(storeId, activeRegister?.id));

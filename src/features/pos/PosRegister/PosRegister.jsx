@@ -2192,7 +2192,19 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   };
 
   const isInitialLoading = loading && !processingAction;
-  const showProcessingOverlay = isInitialLoading || Boolean(processingAction);
+  // 会計表示への切替時、先読み済み(キャッシュ)で即座に読み込めるケースまで全画面ローディングを
+  // 一瞬出すと「ちらつき」になる。読み込みが一定時間続く時だけオーバーレイを出す。
+  // (ユーザー操作起点の processingAction=退店/取消 は即時表示のまま。)
+  const [showInitialLoadingOverlay, setShowInitialLoadingOverlay] = useState(false);
+  useEffect(() => {
+    if (!isInitialLoading) {
+      setShowInitialLoadingOverlay(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setShowInitialLoadingOverlay(true), 220);
+    return () => window.clearTimeout(timer);
+  }, [isInitialLoading]);
+  const showProcessingOverlay = showInitialLoadingOverlay || Boolean(processingAction);
   const processingTitle = processingAction === 'exit'
     ? '退店処理中です'
     : processingAction === 'cancel'
@@ -2384,6 +2396,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       />
       <PosRegisterRight
         orders={orders}
+        loading={isInitialLoading}
         subTotal={subTotal}
         discountAmount={discountAmount}
         promoExpenseAmount={promoExpenseAmount}

@@ -57,6 +57,7 @@ const PAYMENT_METHOD_OPTIONS = [
 
 export const PosRegisterRight = ({
   orders,
+  loading = false,
   subTotal,
   discountAmount,
   promoExpenseAmount,
@@ -211,7 +212,7 @@ export const PosRegisterRight = ({
                   type="button"
                   onClick={() => setShowDiscountModal(true)}
                   disabled={orders.length === 0}
-                  className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition-all ${
+                  className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black ${loading ? '' : 'transition-all'} ${
                     discountType !== 'none'
                       ? 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-400'
                       : 'border-orange-100 bg-white text-orange-600 hover:bg-orange-50'
@@ -462,7 +463,7 @@ export const PosRegisterRight = ({
             </div>
           )}
 
-          {orders.length === 0 && !isPaymentFlowLocked && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (
+          {orders.length === 0 && !loading && !isPaymentFlowLocked && !isPaymentSubmitting && !showSuccessModal && !showAbortModal && (
             <div>
               <button
                 type="button"
