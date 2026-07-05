@@ -119,6 +119,26 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const clearPosProductKeyword = () => setPosSettingsProductKeyword('');
   const [paymentResultToast, setPaymentResultToast] = useState(null);
   const [isPaymentResultReceiptPrinting, setIsPaymentResultReceiptPrinting] = useState(false);
+  const paymentResultToastRef = useRef(null);
+
+  // 会計完了トーストは、次の会計だけでなく履歴ボタン等「他の操作」でも閉じたい。
+  // トースト自身(印刷/閉じるボタン)以外をポインタ操作した時点で閉じる。
+  useEffect(() => {
+    if (!paymentResultToast) return undefined;
+    const handlePointerDown = (event) => {
+      const toastEl = paymentResultToastRef.current;
+      if (toastEl && toastEl.contains(event.target)) return;
+      setPaymentResultToast(null);
+    };
+    // 会計完了直後の同一クリックで即閉じしないよう、次のイベントループから購読する。
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown, true);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [paymentResultToast]);
 
   const normalizedRole = normalizeUserRole(role);
   const canViewAnalytics = canAccessAnalytics(normalizedRole);
@@ -674,7 +694,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
             {paymentResultToast && (
               <div className="pointer-events-none fixed bottom-6 right-6 z-[320] w-[360px] max-w-[calc(100vw-3rem)]">
-                <div className="pointer-events-auto rounded-3xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl">
+                <div ref={paymentResultToastRef} className="pointer-events-auto rounded-3xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-black text-green-600">会計完了</p>
@@ -687,7 +707,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                               ? 'カード会計'
                               : paymentResultToast.method === 'qr'
                                 ? 'QR決済'
-                                : '会計'}
+                                : paymentResultToast.method === 'credit'
+                                  ? '売掛会計'
+                                  : '会計'}
                       </h3>
                     </div>
 
@@ -705,9 +727,20 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     <div className="flex items-center justify-between text-sm font-bold text-gray-600">
                       <span>代金</span>
                       <span className="font-mono text-xl font-black text-gray-900">
-                        ¥{Number(paymentResultToast.totalAmount || paymentResultToast.total || 0).toLocaleString()}
+                        {/* 代金は満額(売掛/金券の充当前)。全額売掛でも0円にならない。 */}
+                        ¥{(Number(paymentResultToast.totalAmount ?? paymentResultToast.total ?? 0) + Number(paymentResultToast.voucherAmount || 0)).toLocaleString()}
                       </span>
                     </div>
+
+                    {/* 一部売掛: 満額のうち売掛充当分を明記(残りは現金/カード等)。全額売掛はタイトルで示すため省略。 */}
+                    {Number(paymentResultToast.voucherAmount || 0) > 0 && Number(paymentResultToast.totalAmount || 0) > 0 && (
+                      <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-sm font-bold text-sky-700">
+                        <span>売掛</span>
+                        <span className="font-mono text-xl font-black">
+                          ¥{Number(paymentResultToast.voucherAmount || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
 
                     {paymentResultToast.isSplitPayment && Array.isArray(paymentResultToast.payments) && (
                       <div className="space-y-2 border-t border-dashed border-gray-200 pt-2">
