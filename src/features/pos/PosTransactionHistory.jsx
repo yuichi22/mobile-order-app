@@ -573,6 +573,12 @@ export const PosTransactionHistory = ({
   const [discountOptions, setDiscountOptions] = useState([]);
   // 検索の対象部門。既定=自部門。'all'=全体(全部門横断)。
   const [searchDepartmentId, setSearchDepartmentId] = useState(ownDepartmentId);
+  // 検索モーダルを開くたび、部門は「自レジの部門」を既定にする。
+  // (初期 useState は registers 非同期ロードで空になり得るため、開くタイミングで確定させる)
+  useEffect(() => {
+    if (searchOpen && ownDepartmentId) setSearchDepartmentId(ownDepartmentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchOpen, ownDepartmentId]);
   const departmentOptions = useMemo(() => {
     const map = new Map();
     (Array.isArray(registers) ? registers : []).forEach((r) => {
