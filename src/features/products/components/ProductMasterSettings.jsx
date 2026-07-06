@@ -5359,6 +5359,8 @@ export const SimpleMasterPanel = ({
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState('');
+  // ブランド一覧を既定売場で絞り込む（'' = 全て / '__none__' = 未設定）。
+  const [salesAreaFilter, setSalesAreaFilter] = useState('');
   const [isEditing, setIsEditing] = useState(true);
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
   const [sortEditMode, setSortEditMode] = useState(false);
@@ -5368,6 +5370,7 @@ export const SimpleMasterPanel = ({
     setEditingId('');
     setDraft({ ...blank });
     setKeyword('');
+    setSalesAreaFilter('');
     setIsEditing(true);
     setSelectedSnapshot(null);
     setSortEditMode(false);
@@ -5375,11 +5378,29 @@ export const SimpleMasterPanel = ({
   }, [label]);
 
   const filteredItems = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-    if (!normalizedKeyword) return items;
+    let list = items;
 
-    return items.filter((item) => JSON.stringify(item).toLowerCase().includes(normalizedKeyword));
-  }, [items, keyword]);
+    // ブランド一覧のみ: 既定売場での絞り込み
+    if (label === 'ブランド' && salesAreaFilter) {
+      if (salesAreaFilter === '__none__') {
+        list = list.filter((item) => (
+          !String(item.defaultSalesAreaId || '').trim() && !String(item.defaultSalesAreaName || '').trim()
+        ));
+      } else {
+        const area = productSalesAreas.find((a) => a.id === salesAreaFilter) || null;
+        const areaName = String(area?.name || '').trim();
+        list = list.filter((item) => (
+          String(item.defaultSalesAreaId || '').trim() === salesAreaFilter
+          || (areaName && String(item.defaultSalesAreaName || '').trim() === areaName)
+        ));
+      }
+    }
+
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    if (!normalizedKeyword) return list;
+
+    return list.filter((item) => JSON.stringify(item).toLowerCase().includes(normalizedKeyword));
+  }, [items, keyword, salesAreaFilter, label, productSalesAreas]);
 
   const isSortableMaster = label === 'カテゴリー' || label === 'カテゴリーグループ';
 
@@ -6449,6 +6470,21 @@ export const SimpleMasterPanel = ({
               placeholder={`${label}を検索`}
               className="h-11 min-w-0 flex-1 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
             />
+            {label === 'ブランド' && productSalesAreas.length > 0 && (
+              <select
+                value={salesAreaFilter}
+                onChange={(event) => setSalesAreaFilter(event.target.value)}
+                className="h-11 shrink-0 rounded-2xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white sm:w-52"
+              >
+                <option value="">売り場で絞り込む</option>
+                {[...productSalesAreas]
+                  .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+                  .map((area) => (
+                    <option key={area.id} value={area.id}>{area.name}</option>
+                  ))}
+                <option value="__none__">（売場未設定）</option>
+              </select>
+            )}
             {isSortableMaster && (
               <button
                 type="button"
