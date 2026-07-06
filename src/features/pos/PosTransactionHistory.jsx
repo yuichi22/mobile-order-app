@@ -3664,9 +3664,27 @@ export const PosTransactionHistory = ({
                             // 同一割引が appliedDiscounts と promoExpenseItems/vouchers の両方に入る取引が
                             // あるため、id(無ければ名前)＋金額で重複を除外して1回だけ表示する。
                             const seen = new Set();
+                            // 商品ごとのline割引は各商品の下に既出。settlement側(promoExpenseItems/vouchers)には
+                            // line割引の金額が別名で混入することがあるため、区分別に控除して二重表示を防ぐ。
+                            const lineByCat = { promo_expense: 0, voucher_payment: 0, sales_discount: 0 };
+                            (Array.isArray(ticket.items) ? ticket.items : []).forEach((it) => {
+                              const amt = Number(it?.lineDiscount?.amount || 0);
+                              if (amt <= 0) return;
+                              const c = it.lineDiscount.accountingCategory === 'promo_expense' ? 'promo_expense'
+                                : it.lineDiscount.accountingCategory === 'voucher_payment' ? 'voucher_payment' : 'sales_discount';
+                              lineByCat[c] += amt;
+                            });
                             const push = (name, amount, cat, id) => {
-                              const a = Number(amount || 0);
+                              let a = Number(amount || 0);
                               if (!name || a <= 0) return;
+                              const c = cat === 'promo_expense' ? 'promo_expense'
+                                : cat === 'voucher_payment' ? 'voucher_payment' : 'sales_discount';
+                              if (lineByCat[c] > 0) {
+                                const used = Math.min(lineByCat[c], a);
+                                lineByCat[c] -= used;
+                                a -= used;
+                              }
+                              if (a <= 0) return;
                               const key = `${id || name}:${a}`;
                               if (seen.has(key)) return;
                               seen.add(key);
