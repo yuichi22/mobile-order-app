@@ -512,7 +512,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     // promo_expense カテゴリの合計(スタンプカード値引き＋社割など)。個別内訳は下の販促費リストで確認。
     { key: 'stamp', label: '販促費', amount: Number(registerSummary?.promoExpenseTotal || 0), difference: null, always: false },
     { key: 'voucher', label: '売掛', amount: Number(registerSummary?.voucherTotal || 0), difference: null, always: false }
-  ].filter((item) => item.always || item.amount > 0);
+  ].filter((item) => item.always || item.amount !== 0);
   const registerSalesTotal = Number(registerSummary?.totalSales || 0);
   const hasAnyRegisterDifference = [cashDifference, cardDifference, qrDifference, couponDifference]
     .some((difference) => difference !== null && difference !== 0);

@@ -944,6 +944,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
         // 反対仕訳(締め後の取消/返品の当日計上)は「取消・返品」欄に別掲し、
         // 総売上・件数・客数・商品/部門/税/割引などの売上系集計には含めない(D5)。
         summary.cancelReturnTotal += totalAmount + settlementAdjustmentTotal;
+        // 金券・売掛の払戻分は「売掛」タイルにも反映する(現金/カードの払戻と並べて
+        // ドロワー内訳を出すため。現金タイルは addPaymentMethod で既に負を含む)。
+        summary.voucherTotal += Number(transaction.voucherAmount || 0);
       }
       return;
     }

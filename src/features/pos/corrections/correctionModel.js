@@ -128,10 +128,13 @@ export const buildReversalTransaction = ({
     taxAmount: -Math.abs(Number(totals.taxAmount || 0)),
     taxAmountReduced: -Math.abs(Number(totals.taxAmountReduced || 0)),
     taxAmountStandard: -Math.abs(Number(totals.taxAmountStandard || 0)),
-    discountAmount: 0,
-    promoExpenseAmount: 0,
-    voucherAmount: 0,
-    settlementAdjustmentTotal: 0,
+    // 値引き/販促費/金券・売掛の取消分を負で計上する。日計は反対仕訳を
+    // 「取消・返品」欄に totalAmount + settlementAdjustmentTotal で計上するため、
+    // 金券・売掛の充当分(voucher/promo)を settlementAdjustmentTotal に含める必要がある。
+    discountAmount: -Math.abs(Number(totals.discountAmount || 0)),
+    promoExpenseAmount: -Math.abs(Number(totals.promoExpenseAmount || 0)),
+    voucherAmount: -Math.abs(Number(totals.voucherAmount || 0)),
+    settlementAdjustmentTotal: -(Math.abs(Number(totals.promoExpenseAmount || 0)) + Math.abs(Number(totals.voucherAmount || 0))),
     // 支払(払い戻し先。現金返金は現金ドロワーを減らす=負)
     paymentMethod: isSplit ? 'mixed' : (payments[0]?.method || original.paymentMethod || 'cash'),
     paymentMethodGroup: isSplit ? 'mixed' : (payments[0]?.method || original.paymentMethodGroup || 'cash'),

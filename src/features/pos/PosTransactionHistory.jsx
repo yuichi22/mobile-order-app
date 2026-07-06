@@ -787,6 +787,8 @@ export const PosTransactionHistory = ({
   // cancelQty={`${txnId}#${index}`:取消数量}。同一テーブルの個別会計をまとめた履歴伝票は塊ごと取消する。
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelQty, setCancelQty] = useState({});
+  // 返品・取消タスクシートのチェック状態(現金返金/カード取消/金券返却/売掛取消)。
+  const [taskChecks, setTaskChecks] = useState({});
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   // 取消モード: 'cancel'(会計取消) or 'return'(返品)。返品は在庫を戻す/戻さないを選べる。
@@ -816,15 +818,39 @@ export const PosTransactionHistory = ({
     return () => unsubscribe();
   }, [storeId]);
 
-  const openCancelModal = (ticket, mode = 'cancel') => {
+  const openCancelModal = async (ticket, mode = 'cancel') => {
     // 同一テーブルの個別会計をまとめた履歴伝票では、束ねた全取引の明細を取消対象にする。
     // (履歴表示の ticket.items は消費統合されて元取引との対応が失われるため、
     //  取消は元取引の生 items から txnId+index 付きで組み立てる)
     const txIds = Array.isArray(ticket?.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0
       ? ticket.sourceTransactionIds
       : (ticket?.sourceTransactionId ? [ticket.sourceTransactionId] : []);
-    const targetTransactions = txIds
-      .map((txId) => transactions.find((item) => item.id === txId))
+
+    // 本体 transactions は「選択中の日付」だけを読み込むため、検索で別日付/未読込の
+    // 伝票を開くとローカルに存在しない。無いものは ID で個別取得して返品可能にする。
+    const resolved = [];
+    for (const txId of txIds) {
+      let tx = transactions.find((item) => item.id === txId);
+      if (!tx && storeId) {
+        try {
+          const snap = await getDoc(doc(db, 'stores', storeId, 'transactions', txId));
+          if (snap.exists()) {
+            const data = snap.data();
+            tx = {
+              id: snap.id,
+              ...data,
+              timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
+              paidAt: data.paidAt?.toDate ? data.paidAt.toDate() : null
+            };
+          }
+        } catch (error) {
+          console.error('[cancel] 伝票の個別取得に失敗', txId, error);
+        }
+      }
+      if (tx) resolved.push(tx);
+    }
+
+    const targetTransactions = resolved
       // 反対仕訳(マイナス伝票)自体は取消対象にしない。
       .filter((tx) => tx && !tx.isReversal && !tx.reversalOf && Array.isArray(tx.items) && tx.items.length > 0);
 
@@ -863,6 +889,7 @@ export const PosTransactionHistory = ({
     setCancelTarget({ ticketId: ticket?.id || '', transactions: targetTransactions, entries });
     setCancelQty(initial);
     setCancelReason('');
+    setTaskChecks({});
   };
 
   const closeCancelModal = () => {
@@ -1321,7 +1348,12 @@ export const PosTransactionHistory = ({
             subTotal: refundSubTotal,
             taxAmountReduced: refundTaxReduced,
             taxAmountStandard: refundTaxStandard,
-            taxAmount: refundTaxReduced + refundTaxStandard
+            taxAmount: refundTaxReduced + refundTaxStandard,
+            // 取消分の値引き/販促費/金券・売掛(＝原値 − 残額)。反対仕訳に負で載せ、
+            // 日計の「取消・返品」欄が金券/売掛の充当分まで含めて計上できるようにする。
+            discountAmount: num(transaction.discountAmount) - num(remaining.discountAmount),
+            promoExpenseAmount: num(transaction.promoExpenseAmount) - num(remaining.promoExpenseAmount),
+            voucherAmount: num(transaction.voucherAmount) - num(remaining.voucherAmount)
           };
           const reversalPayload = buildReversalTransaction({
             original: transaction,
@@ -1475,18 +1507,14 @@ export const PosTransactionHistory = ({
     }
   };
 
-  const cancelRefundTotal = (() => {
+  // 返品/取消の可否は「返金額>0」ではなく「返品数量を選んだか」で判定する。
+  // 全額売掛・全額手入力・大幅値引きで totalAmount(=返金按分の分子)が0でも、
+  // 売上取消・在庫戻しのために返品自体は実行できる必要があるため。
+  const cancelSelectedCount = (() => {
     if (!cancelTarget) return 0;
-    const entries = Array.isArray(cancelTarget.entries) ? cancelTarget.entries : [];
-    return entries.reduce((sum, { key, item, maxQty, netRatio }) => {
-      const qty = Number(item.quantity || 0) || 1;
-      const cap = Number(maxQty ?? qty);
-      const c = Math.min(Math.max(Number(cancelQty[key] || 0), 0), cap);
-      if (c <= 0) return sum;
-      const remaining = qty - c;
-      const total = Number(item.totalPrice || 0);
-      const grossPortion = total - Math.round((total * remaining) / qty);
-      return sum + Math.round(grossPortion * (Number(netRatio ?? 1))); // 割引後の返金額
+    return (Array.isArray(cancelTarget.entries) ? cancelTarget.entries : []).reduce((sum, { key, item, maxQty }) => {
+      const cap = Number(maxQty ?? (item?.quantity || 0)) || 1;
+      return sum + Math.min(Math.max(Number(cancelQty[key] || 0), 0), cap);
     }, 0);
   })();
 
@@ -1498,6 +1526,68 @@ export const PosTransactionHistory = ({
     });
     setCancelQty(all);
   };
+
+  // 返品・取消の「お客様対応タスク」を支払い構成から算出する。
+  // 現金/カード/QR は差引後(純額)を各支払い方法で戻す。金券(定型金額)は返却、
+  // 売掛(手入力/全額売掛など)は債権取消。値引き(売上値引・販促費)は返すものが無い。
+  const returnTasks = useMemo(() => {
+    if (!cancelTarget) return [];
+    const num = (v) => Number(v || 0);
+    const acc = { cash: 0, card: 0, qr: 0 };
+    const voucherByKey = new Map(); // 券名+種別ごとに集計。key=`${kind}:${name}`
+    (cancelTarget.transactions || []).forEach((tx) => {
+      const items = Array.isArray(tx.items) ? tx.items : [];
+      const grossTotal = items.reduce((sum, it) => sum + num(it.totalPrice), 0) || 0;
+      const netRatio = grossTotal > 0 ? num(tx.totalAmount) / grossTotal : 1;
+      let grossCancelled = 0;
+      items.forEach((it, index) => {
+        const key = `${tx.id}#${index}`;
+        const qty = num(it.quantity) || 1;
+        const c = Math.min(Math.max(num(cancelQty[key]), 0), qty);
+        if (c <= 0) return;
+        const ratio = qty > 0 ? (qty - c) / qty : 0;
+        grossCancelled += num(it.totalPrice) - Math.round(num(it.totalPrice) * ratio);
+      });
+      if (grossCancelled <= 0) return;
+      const ratioCancelled = grossTotal > 0 ? grossCancelled / grossTotal : 1;
+      const netRefund = Math.round(grossCancelled * netRatio);
+      const voucherPortion = Math.round(num(tx.voucherAmount) * ratioCancelled);
+      const pm = String(tx.paymentMethod || 'cash');
+      if (netRefund > 0) {
+        if (pm === 'card') acc.card += netRefund;
+        else if (pm === 'qr') acc.qr += netRefund;
+        else acc.cash += netRefund;
+      }
+      if (voucherPortion > 0) {
+        // 券名に焼き込まれた「× N枚」表記は返却処理では不要なので取り除く(手入力は枚数概念なし)。
+        const rawVoucherName = String(tx.appliedDiscount?.name || (Array.isArray(tx.vouchers) && tx.vouchers[0]?.name) || '金券');
+        const voucherName = rawVoucherName.replace(/\s*[×✕ｘxX]\s*\d+\s*枚\s*$/, '').trim() || '金券';
+        // 券(金券)は定型金額・手入力を問わず「返却処理」(紙は回収/デジタルは処理)。
+        // 純粋な売掛(全額売掛=full_credit)だけ債権取消にする。
+        const isPureCredit = String(tx.appliedDiscount?.id || '') === 'full_credit'
+          || String(tx.appliedDiscount?.type || '') === 'full_credit';
+        const kind = isPureCredit ? 'reverse' : 'return';
+        const mapKey = `${kind}:${voucherName}`;
+        const prev = voucherByKey.get(mapKey) || { kind, name: voucherName, amount: 0 };
+        prev.amount += voucherPortion;
+        voucherByKey.set(mapKey, prev);
+      }
+    });
+    const tasks = [];
+    if (acc.cash > 0) tasks.push({ key: 'cash', label: '現金を返金', amount: acc.cash });
+    if (acc.card > 0) tasks.push({ key: 'card', label: 'カードを取消', amount: acc.card });
+    if (acc.qr > 0) tasks.push({ key: 'qr', label: 'QRを取消', amount: acc.qr });
+    voucherByKey.forEach((v, mapKey) => {
+      tasks.push({
+        key: `voucher:${mapKey}`,
+        label: v.kind === 'return' ? `${v.name} の返却処理` : `${v.name} を取消（売掛）`,
+        amount: v.amount
+      });
+    });
+    return tasks;
+  }, [cancelTarget, cancelQty]);
+
+  const allTasksDone = returnTasks.every((task) => taskChecks[task.key]);
 
   // 対象伝票が締め後/過去日か。UI で「本日のマイナス伝票として計上」の注意表示に使う。
   const cancelTargetLocked = (() => {
@@ -3697,15 +3787,9 @@ export const PosTransactionHistory = ({
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-5">
               <div className="min-w-0">
                 <h3 className="text-lg font-black text-gray-900">{isReturnMode ? '返品' : '会計の取消'}</h3>
-                <p className="mt-1 text-xs font-bold text-gray-400">
-                  {isReturnMode
-                    ? '返品する商品の数量を選んで確定します。'
-                    : '取消する商品の数量を選んで確定します。在庫は自動で戻ります。'}
-                </p>
                 {cancelTargetLocked && (
-                  <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-black leading-snug text-amber-700">
-                    この伝票は締め済み（過去日）です。元の会計は変更せず、
-                    <span className="whitespace-nowrap">本日の「取消・返品」</span>としてマイナス伝票で計上します。
+                  <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-black leading-snug text-amber-700">
+                    締め済みのため本日の「取消」に表示・計上されます。
                   </p>
                 )}
               </div>
@@ -3786,10 +3870,46 @@ export const PosTransactionHistory = ({
             </div>
 
             <div className="border-t border-gray-100 p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-black text-gray-500">{isReturnMode ? '返金額' : '取消金額'}</span>
-                <span className={`font-mono text-2xl font-black ${isReturnMode ? 'text-teal-600' : 'text-red-600'}`}>¥{cancelRefundTotal.toLocaleString()}</span>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-black text-gray-500">
+                  {isReturnMode ? 'お客様対応タスク' : '取消タスク'}
+                </span>
+                <span className="text-[10px] font-bold text-gray-400">
+                  {returnTasks.length > 0 ? '完了したらチェック' : ''}
+                </span>
               </div>
+
+              {returnTasks.length > 0 ? (
+                <div className="mb-3 space-y-2">
+                  {returnTasks.map((task) => {
+                    const checked = !!taskChecks[task.key];
+                    return (
+                      <label
+                        key={task.key}
+                        className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
+                          checked ? 'border-teal-300 bg-teal-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => setTaskChecks((prev) => ({ ...prev, [task.key]: event.target.checked }))}
+                          className="h-5 w-5 shrink-0 accent-teal-500"
+                        />
+                        <span className="flex-1 text-sm font-black text-gray-800">{task.label}</span>
+                        <span className={`font-mono text-base font-black ${checked ? 'text-teal-700' : 'text-gray-600'}`}>
+                          ¥{task.amount.toLocaleString()}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : cancelSelectedCount > 0 ? (
+                <div className="mb-3 rounded-xl bg-gray-50 p-3 text-xs font-bold text-gray-400">
+                  返金・返却の対応はありません（売上の取消のみ）。
+                </div>
+              ) : null}
+
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -3802,14 +3922,14 @@ export const PosTransactionHistory = ({
                 <button
                   type="button"
                   onClick={executeCancellation}
-                  disabled={isCancelling || cancelRefundTotal <= 0}
+                  disabled={isCancelling || cancelSelectedCount <= 0 || !allTasksDone}
                   className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${
                     isReturnMode ? 'bg-teal-500 shadow-teal-100 hover:bg-teal-600' : 'bg-red-500 shadow-red-100 hover:bg-red-600'
                   }`}
                 >
                   {isCancelling
                     ? (isReturnMode ? '返品処理中...' : '取消処理中...')
-                    : (isReturnMode ? '返品を確定' : '取消を確定')}
+                    : (isReturnMode ? '返品処理完了' : '取消処理完了')}
                 </button>
               </div>
             </div>
