@@ -151,11 +151,6 @@ const AnalyticsToolbar = ({
       {/* 部門セレクタ（日計と同じ方式: 自部門を大きく、その他は小さく、全体を併設） */}
       {setSelectedDepartmentId && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
-          {/* 使用レジ（固定表示） */}
-          <div className="rounded-xl bg-slate-900 px-4 py-2 text-base font-black text-white">
-            {activeRegister?.name || 'レジ'}
-          </div>
-
           {/* 部門ボタン（自部門は大きく、その他は小さく。選択中は黒） */}
           {departmentOptions.map((dept) => {
             const isSelected = selectedDepartmentId === dept.id;

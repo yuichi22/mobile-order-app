@@ -20,6 +20,16 @@ import {
 const yen = (value) => `¥${Number(value || 0).toLocaleString()}`;
 const ratioText = (amount, base) => (Number(base || 0) > 0 ? `売上比 ${(Number(amount || 0) / base * 100).toFixed(1)}%` : '売上比 -');
 
+// 税込/税抜の表示モードは端末に記憶する（日計と同じ運用）。
+const AMOUNT_MODE_KEY = 'posAnalyticsAmountDisplayMode';
+const getInitialTaxMode = () => {
+  try {
+    return window.localStorage.getItem(AMOUNT_MODE_KEY) === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+  } catch {
+    return 'tax_included';
+  }
+};
+
 // 階層の順序と、1つ下へのドリルダウン定義。
 const DRILL = {
   area: { deeper: 'group', scopeKey: 'areaId', suffix: 'グループ' },
@@ -30,22 +40,54 @@ const DRILL = {
 
 const KIND_ICON = { area: Store, group: Layers, category: LayoutGrid, subCategory: LayoutGrid };
 
-const SummaryCards = ({ totalSales, customerCount, averageSpend }) => (
-  <div className="grid gap-3 md:grid-cols-3">
-    <div className="rounded-2xl bg-orange-50 p-4">
-      <div className="text-xs font-black text-orange-500">売上合計（税込・値引き後）</div>
-      <div className="mt-2 text-2xl font-black text-gray-900">{yen(totalSales)}</div>
+const SummaryCards = ({ salesIncl, salesExcl, totalTax, customerCount, avgIncl, avgExcl, taxMode, onTaxModeChange }) => {
+  const isExcl = taxMode === 'tax_excluded';
+  const label = isExcl ? '税抜' : '税込';
+  const mainSales = isExcl ? salesExcl : salesIncl;
+  const subSales = isExcl ? salesIncl : salesExcl;
+  const mainAvg = isExcl ? avgExcl : avgIncl;
+  const subAvg = isExcl ? avgIncl : avgExcl;
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      <div className="rounded-2xl bg-orange-50 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs font-black text-orange-500">売上合計 {label}・値引き後</div>
+          <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
+            <button
+              type="button"
+              onClick={() => onTaxModeChange('tax_excluded')}
+              className={`rounded-full px-2 py-1 transition-colors ${isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+            >
+              税抜
+            </button>
+            <button
+              type="button"
+              onClick={() => onTaxModeChange('tax_included')}
+              className={`rounded-full px-2 py-1 transition-colors ${!isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+            >
+              税込
+            </button>
+          </div>
+        </div>
+        <div className="mt-2 text-2xl font-black text-gray-900">{yen(mainSales)}</div>
+        <div className="mt-1 text-[11px] font-bold text-orange-500/80">
+          {isExcl ? '税込' : '税抜'} {yen(subSales)}
+          <span className="mx-1 text-orange-300">/</span>
+          内税 {yen(totalTax)}
+        </div>
+      </div>
+      <div className="rounded-2xl bg-gray-50 p-4">
+        <div className="text-xs font-black text-gray-400">来客数（会計件数）</div>
+        <div className="mt-2 text-2xl font-black text-gray-900">{Number(customerCount || 0).toLocaleString()}</div>
+      </div>
+      <div className="rounded-2xl bg-gray-50 p-4">
+        <div className="text-xs font-black text-gray-400">客単価 {label}</div>
+        <div className="mt-2 text-2xl font-black text-gray-900">{yen(mainAvg)}</div>
+        <div className="mt-1 text-[11px] font-bold text-gray-400">{isExcl ? '税込' : '税抜'} {yen(subAvg)}</div>
+      </div>
     </div>
-    <div className="rounded-2xl bg-gray-50 p-4">
-      <div className="text-xs font-black text-gray-400">来客数（会計件数）</div>
-      <div className="mt-2 text-2xl font-black text-gray-900">{Number(customerCount || 0).toLocaleString()}</div>
-    </div>
-    <div className="rounded-2xl bg-gray-50 p-4">
-      <div className="text-xs font-black text-gray-400">客単価</div>
-      <div className="mt-2 text-2xl font-black text-gray-900">{yen(averageSpend)}</div>
-    </div>
-  </div>
-);
+  );
+};
 
 // 物販の期間合計サマリ(値引き/販促/売掛/粗利)。選択分類に依らず全体を出す。
 const FinancialPanel = ({ financial, grossItemTotal }) => {
@@ -204,6 +246,13 @@ const PosAnalyticsView = ({
   const [drillTabs, setDrillTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState('area');
   const [abcThresholds, setAbcThresholds] = useState({ a: 70, b: 90 });
+  // 売上の税込/税抜表示（端末に記憶。日計と同じ運用）。
+  const [taxMode, setTaxMode] = useState(getInitialTaxMode);
+  const updateTaxMode = (mode) => {
+    const next = mode === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+    setTaxMode(next);
+    try { window.localStorage.setItem(AMOUNT_MODE_KEY, next); } catch { /* 記憶不可の環境は無視 */ }
+  };
   // サブカテゴリ用 productId→{subCategoryId,subCategoryName}。サブカテゴリにドリルした時のみ、
   // その期間に売れた商品だけを遅延取得する（全商品先読みは重いので廃止）。
   const [subcatProductMap, setSubcatProductMap] = useState(() => new Map());
@@ -383,11 +432,18 @@ const PosAnalyticsView = ({
 
       {/* 売上合計カードは選択に依らず物販の期間合計で固定（グラフのみ選択を反映）。 */}
       <SummaryCards
-        totalSales={financial?.totalSales}
+        salesIncl={financial?.totalSales}
+        salesExcl={financial?.totalSalesTaxExcluded}
+        totalTax={financial?.totalTaxAmount}
         customerCount={financial?.transactionCount}
-        averageSpend={Number(financial?.transactionCount || 0) > 0
+        avgIncl={Number(financial?.transactionCount || 0) > 0
           ? Math.round(Number(financial?.totalSales || 0) / Number(financial.transactionCount))
           : 0}
+        avgExcl={Number(financial?.transactionCount || 0) > 0
+          ? Math.round(Number(financial?.totalSalesTaxExcluded || 0) / Number(financial.transactionCount))
+          : 0}
+        taxMode={taxMode}
+        onTaxModeChange={updateTaxMode}
       />
 
       {viewMode === 'store' && <FinancialPanel financial={financial} grossItemTotal={grossItemTotal} />}
