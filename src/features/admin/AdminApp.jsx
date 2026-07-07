@@ -619,7 +619,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </div>
               ) : (
                 <>
-                  {!(activeAdminTab === 'pos' && registerMode === 'pos') && (
+                  {registerMode !== 'pos' && (
                     <button
                       type="button"
                       onClick={
