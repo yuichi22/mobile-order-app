@@ -62,6 +62,11 @@ const MASTER_EDIT_FIELDS = {
   reorderLot: 'LOT'
 };
 
+// 画面を開き直したときに「集計しています…」で待たせないためのセッション内キャッシュ。
+// キャッシュがあれば即表示し、裏で最新を取得して置き換える(stale-while-revalidate)。
+const reorderProductsCache = new Map();
+const allProductsCache = new Map();
+
 const StatusBadge = ({ status }) => {
   const meta = PO_STATUS_META[status] || { label: status || '-', className: 'bg-slate-100 text-slate-500 border-slate-200' };
   return (
@@ -348,9 +353,7 @@ const SupplierPurchaseCheckPanel = ({
         ...current,
         [productId]: { ...current[productId], [field]: nextValue }
       }));
-      setAllProducts((current) => (Array.isArray(current)
-        ? current.map((product) => (product.id === productId ? { ...product, [field]: nextValue } : product))
-        : current));
+      patchAllProducts([productId], { [field]: nextValue });
     };
 
     applyValue(value);
@@ -390,25 +393,37 @@ const SupplierPurchaseCheckPanel = ({
   };
   // 商品一覧モーダル { scope: 'supplier'|'brand', brandId, title }
   const [productBrowser, setProductBrowser] = useState(null);
-  const [allProducts, setAllProducts] = useState(null);
+  const [allProducts, setAllProducts] = useState(() => allProductsCache.get(storeId) ?? null);
   const [browserLoading, setBrowserLoading] = useState(false);
   const [browserKeyword, setBrowserKeyword] = useState('');
+
+  // allProducts(商品一覧モーダル用)とそのセッションキャッシュへ同じパッチを当てる。
+  const patchAllProducts = (ids, patch) => {
+    const applyPatch = (list) => list.map((product) => (ids.includes(product.id) ? { ...product, ...patch } : product));
+    const cached = allProductsCache.get(storeId);
+    if (Array.isArray(cached)) allProductsCache.set(storeId, applyPatch(cached));
+    setAllProducts((current) => (Array.isArray(current) ? applyPatch(current) : current));
+  };
 
   const openProductBrowser = async (browserConfig) => {
     setProductBrowser(browserConfig);
     setBrowserKeyword('');
+    if (browserLoading) return;
 
-    // 全商品は初回オープン時に一度だけ取得してキャッシュする（発注点未設定の商品も含むため別fetch）。
-    if (allProducts === null && !browserLoading) {
-      setBrowserLoading(true);
-      try {
-        setAllProducts(await fetchAllProductsForPurchase(storeId));
-      } catch (error) {
+    // キャッシュがあれば即表示し、裏で最新を取得して置き換える。無ければローディング表示。
+    const hasCache = Array.isArray(allProducts);
+    if (!hasCache) setBrowserLoading(true);
+    try {
+      const products = await fetchAllProductsForPurchase(storeId);
+      allProductsCache.set(storeId, products);
+      setAllProducts(products);
+    } catch (error) {
+      if (!hasCache) {
         alert(`商品一覧の取得に失敗しました: ${error.message}`);
         setProductBrowser(null);
-      } finally {
-        setBrowserLoading(false);
       }
+    } finally {
+      setBrowserLoading(false);
     }
   };
 
@@ -627,9 +642,7 @@ const SupplierPurchaseCheckPanel = ({
       ids.forEach((id) => { next[id] = { ...next[id], reorderQuantity: 0 }; });
       return next;
     });
-    setAllProducts((current) => (Array.isArray(current)
-      ? current.map((product) => (ids.includes(product.id) ? { ...product, reorderQuantity: 0 } : product))
-      : current));
+    patchAllProducts(ids, { reorderQuantity: 0 });
     resetLineSelection();
 
     Promise.allSettled(ids.map((id) => updateProductPurchaseSettings(storeId, id, { reorderQuantity: 0 })))
@@ -1630,7 +1643,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
 // ===== 発注管理ルート =====
 
 const PurchaseManagementSettings = ({ storeId, activeTab = 'supplierPurchaseCheck', productMaster, onSaved }) => {
-  const [reorderProducts, setReorderProducts] = useState(null);
+  const [reorderProducts, setReorderProducts] = useState(() => reorderProductsCache.get(storeId) ?? null);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [storeSettings, setStoreSettings] = useState(null);
 
@@ -1641,6 +1654,7 @@ const PurchaseManagementSettings = ({ storeId, activeTab = 'supplierPurchaseChec
     if (!storeId) return;
     try {
       const products = await fetchProductsForReorder(storeId);
+      reorderProductsCache.set(storeId, products);
       setReorderProducts(products);
     } catch (error) {
       console.error('発注候補の取得に失敗しました', error);
@@ -1648,24 +1662,27 @@ const PurchaseManagementSettings = ({ storeId, activeTab = 'supplierPurchaseChec
     }
   }, [storeId]);
 
-  // 発注点変更などの単項目更新は全件再フェッチせず、手元の候補データへ直接反映する。
+  // 発注点変更などの単項目更新は全件再フェッチせず、手元の候補データとキャッシュへ直接反映する。
   const patchReorderProduct = useCallback((productId, patch) => {
-    setReorderProducts((current) => (Array.isArray(current)
-      ? current.map((product) => (product.id === productId ? { ...product, ...patch } : product))
-      : current));
-  }, []);
+    const applyPatch = (list) => list.map((product) => (product.id === productId ? { ...product, ...patch } : product));
+    const cached = reorderProductsCache.get(storeId);
+    if (Array.isArray(cached)) reorderProductsCache.set(storeId, applyPatch(cached));
+    setReorderProducts((current) => (Array.isArray(current) ? applyPatch(current) : current));
+  }, [storeId]);
 
   useEffect(() => {
     let cancelled = false;
     if (!storeId) return undefined;
 
+    // キャッシュがあれば初期stateで即表示済み。ここでは裏で最新を取得して置き換えるだけ。
     fetchProductsForReorder(storeId)
       .then((products) => {
+        reorderProductsCache.set(storeId, products);
         if (!cancelled) setReorderProducts(products);
       })
       .catch((error) => {
         console.error('発注候補の取得に失敗しました', error);
-        if (!cancelled) setReorderProducts([]);
+        if (!cancelled) setReorderProducts((current) => current ?? []);
       });
 
     return () => {
