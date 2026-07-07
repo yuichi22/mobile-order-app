@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   Boxes,
@@ -2968,6 +2968,11 @@ export const StoreSettings = ({
     ? subTab
     : availableMenuItems[0]?.id;
 
+  // メニュークリック時はボタンの点灯(activeSubTab)を先に描画し、重い画面本体の描画は
+  // deferredSubTab で1テンポ遅らせる。切替中は画面上部に軽いローディングを出す。
+  const deferredSubTab = useDeferredValue(activeSubTab);
+  const isSubTabSwitching = deferredSubTab !== activeSubTab;
+
   useEffect(() => {
     if (typeof onPosSettingsSubTabChange !== 'function') return;
     onPosSettingsSubTabChange(settingsMode === 'pos' ? activeSubTab : null);
@@ -3017,7 +3022,8 @@ export const StoreSettings = ({
   };
 
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
-  const activeMenuItem = availableMenuItems.find((item) => item.id === activeSubTab);
+  // 画面本体は deferredSubTab 基準で描画するため、メニュー項目の解決も deferred 側で行う。
+  const deferredMenuItem = availableMenuItems.find((item) => item.id === deferredSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
     : 'bg-orange-500 text-white shadow-lg shadow-orange-500/20';
@@ -3185,9 +3191,15 @@ export const StoreSettings = ({
       </aside>
 
       <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-gray-50/50">
+        {/* メニュー切替中の軽いローディング。ボタンの点灯を先に描画し、本体は遅れて出る */}
+        {isSubTabSwitching && (
+          <div className="pointer-events-none fixed left-1/2 top-8 z-[90] -translate-x-1/2 rounded-full bg-slate-900/80 px-5 py-2.5 text-xs font-black text-white shadow-lg backdrop-blur">
+            読み込み中…
+          </div>
+        )}
         <div className="h-[2cm] w-full flex-shrink-0" />
 
-        <div className={`${activeSubTab === 'products' ? 'w-full max-w-none' : 'max-w-[1400px]'} p-8 pb-32 lg:p-12`}>
+        <div className={`${deferredSubTab === 'products' ? 'w-full max-w-none' : 'max-w-[1400px]'} p-8 pb-32 lg:p-12`}>
           {shouldShowOwnerSetupGuide && isOwner && !ownerSetupDataLoading && ownerSetupSteps.some((step) => !step.isComplete) && (
             <OwnerSetupGuide
               ownerName={profileName}
@@ -3198,7 +3210,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'taxPrice' && canAccessSettingsSection(normalizedRole, 'basic') && (
+          {deferredSubTab === 'taxPrice' && canAccessSettingsSection(normalizedRole, 'basic') && (
             <TaxPriceSettings
               storeId={storeId}
               productMaster={productMaster}
@@ -3206,7 +3218,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'basic' && canAccessSettingsSection(normalizedRole, 'basic') && (
+          {deferredSubTab === 'basic' && canAccessSettingsSection(normalizedRole, 'basic') && (
             <BasicSettings
               settings={settings}
               onSave={updateSettings}
@@ -3218,7 +3230,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'time' && (
+          {deferredSubTab === 'time' && (
             canAccessSettingsSection(normalizedRole, 'business')
             || canAccessSettingsSection(normalizedRole, 'period')
           ) && (
@@ -3233,7 +3245,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'category' && canAccessSettingsSection(normalizedRole, 'category') && (
+          {deferredSubTab === 'category' && canAccessSettingsSection(normalizedRole, 'category') && (
           <CategorySettings
             categories={categories || []}
             menuItems={menuItems || []}
@@ -3243,7 +3255,7 @@ export const StoreSettings = ({
           />
           )}
 
-          {activeSubTab === 'crossSell' && canAccessSettingsSection(normalizedRole, 'crossSell') && (
+          {deferredSubTab === 'crossSell' && canAccessSettingsSection(normalizedRole, 'crossSell') && (
           <CrossSellSettings
             storeId={storeId}
             categories={categories || []}
@@ -3252,7 +3264,7 @@ export const StoreSettings = ({
           />
           )}
 
-          {activeSubTab === 'products' && canAccessSettingsSection(normalizedRole, 'products') && (
+          {deferredSubTab === 'products' && canAccessSettingsSection(normalizedRole, 'products') && (
             <ProductMasterSettings
               storeId={storeId}
               products={productMaster.products}
@@ -3288,13 +3300,13 @@ export const StoreSettings = ({
           )}
 
           {settingsMode === 'pos'
-            && activeSubTab !== 'products'
-            && activeMenuItem
-            && activeMenuItem.mode === 'pos'
-            && !isKitchenOnlySettingsItem(activeMenuItem)
-            && canAccessSettingsSection(normalizedRole, activeMenuItem.id) && (
+            && deferredSubTab !== 'products'
+            && deferredMenuItem
+            && deferredMenuItem.mode === 'pos'
+            && !isKitchenOnlySettingsItem(deferredMenuItem)
+            && canAccessSettingsSection(normalizedRole, deferredMenuItem.id) && (
               <PosDummyTabbedPage
-                item={activeMenuItem}
+                item={deferredMenuItem}
                 productMaster={productMaster}
                 storeId={storeId}
                 defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
@@ -3305,7 +3317,7 @@ export const StoreSettings = ({
 
 
 
-          {activeSubTab === 'menu' && canAccessSettingsSection(normalizedRole, 'menu') && (
+          {deferredSubTab === 'menu' && canAccessSettingsSection(normalizedRole, 'menu') && (
             <MenuSettings
               menuItems={menuItems || []}
               kitchens={settings?.kitchens || []}
@@ -3319,7 +3331,7 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'discount' && canAccessSettingsSection(normalizedRole, 'discount') && (
+          {deferredSubTab === 'discount' && canAccessSettingsSection(normalizedRole, 'discount') && (
             <DiscountSettings
               discounts={discounts}
               loading={discountsLoading}
@@ -3329,17 +3341,17 @@ export const StoreSettings = ({
             />
           )}
 
-          {activeSubTab === 'staff' && canAccessSettingsSection(normalizedRole, 'staff') && (
+          {deferredSubTab === 'staff' && canAccessSettingsSection(normalizedRole, 'staff') && (
             <StaffInviteSettings storeId={storeId} ownerUser={currentUser} />
           )}
 
-          {activeSubTab === 'layout' && canAccessSettingsSection(normalizedRole, 'layout') && (
+          {deferredSubTab === 'layout' && canAccessSettingsSection(normalizedRole, 'layout') && (
             <div className="flex h-[calc(100vh-11rem)] min-h-[640px] w-full flex-col">
               <FloorMapSettings layoutItems={layoutItems} onSave={saveLayout} />
             </div>
           )}
 
-          {activeSubTab === 'qrcode' && canAccessSettingsSection(normalizedRole, 'qrcode') && (
+          {deferredSubTab === 'qrcode' && canAccessSettingsSection(normalizedRole, 'qrcode') && (
             <QRGenerator storeId={storeId} />
           )}
         </div>
