@@ -5,6 +5,7 @@ import { Archive } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
+import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
   finalizeStocktake,
   startStocktake,
@@ -112,7 +113,7 @@ const StockTakingPanel = ({ storeId }) => {
     const confirmMessage = remainingRecount > 0
       ? `数え直しリストに未処理の商品が${remainingRecount}点あります。\nこのまま終了すると、現在の数のまま在庫に確定されます。\n\n${baseConfirm}`
       : baseConfirm;
-    if (!window.confirm(confirmMessage)) return;
+    if (!(await appConfirm(confirmMessage, { title: '棚卸し終了', okLabel: '終了して確定する', tone: 'danger' }))) return;
 
     setFinalizing(true);
     setFinalizeError('');
@@ -154,7 +155,7 @@ const StockTakingPanel = ({ storeId }) => {
   // マイナス在庫を0に修正する(棚卸しと無関係にいつでも実行可)。
   const handleFixNegatives = async () => {
     if (!storeId) return;
-    if (!window.confirm('マイナス在庫の商品をすべて0に修正します。よろしいですか?')) return;
+    if (!(await appConfirm('マイナス在庫の商品をすべて0に修正します。よろしいですか?', { okLabel: '0に修正する', tone: 'danger' }))) return;
 
     setFixingNegatives(true);
     setNegativeMessage('');

@@ -18,6 +18,7 @@ import { useStoreSettings } from '../store/hooks';
 
 import { useAuth } from '../../app/providers/useAuth';
 import { auth, db } from '../../shared/api/firebase/client';
+import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import NotificationToast from '../../shared/components/feedback/NotificationToast';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
@@ -387,8 +388,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       const errorText = error?.message || error?.errorMessage || error?.code || JSON.stringify(error) || String(error);
       console.error('[admin pos payment result receipt print error]', errorText, error);
 
-      const shouldFallback = window.confirm(
-        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`
+      const shouldFallback = await appConfirm(
+        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`,
+        { title: 'レシート印刷', okLabel: 'ブラウザ印刷を開く' }
       );
 
       if (!shouldFallback) {

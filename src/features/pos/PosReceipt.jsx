@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, FileText, Printer } from 'lucide-react';
 import { issueReceipt, openCashDrawer, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
+import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import { buildTenderText } from '../../shared/utils/posReceiptPrint';
 import { getIdToken } from 'firebase/auth';
 import { auth } from '../../shared/api/firebase/client';
@@ -105,8 +106,9 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
       const errorText = error?.message || error?.errorMessage || error?.code || JSON.stringify(error) || String(error);
       console.error('[pos receipt print error]', errorText, error);
 
-      const shouldFallback = window.confirm(
-        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`
+      const shouldFallback = await appConfirm(
+        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`,
+        { title: 'レシート印刷', okLabel: 'ブラウザ印刷を開く' }
       );
 
       if (shouldFallback) {

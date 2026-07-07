@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import {
   AlertTriangle,
   BadgeJapaneseYen,
@@ -648,7 +649,7 @@ const handleCloseDay = async (closingCheck = {}) => {
     const registerClosingRef = doc(db, 'stores', storeId, 'dailyClosings', dateKey, 'registers', registerId);
     const registerSnap = await getDoc(registerClosingRef);
     if (registerSnap.exists() && registerSnap.data()?.status === 'closed') {
-      const overwrite = window.confirm(`${activeRegister?.name || 'このレジ'} の締めデータは既にあります。上書きしますか？`);
+      const overwrite = await appConfirm(`${activeRegister?.name || 'このレジ'} の締めデータは既にあります。上書きしますか？`, { okLabel: '上書きする', tone: 'danger' });
       if (!overwrite) {
         setIsClosing(false);
         return;

@@ -10,6 +10,7 @@ import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScan
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import FloorMapCanvas from '../../shared/components/floor-map/FloorMapCanvas';
 import TableMenuOverrideModal from './components/TableMenuOverrideModal';
 import { saveTableMenuOverride } from './services/tableMenuOverrideService';
@@ -828,11 +829,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPosMessage('仮伝票を保留しました。', 'success');
   };
 
-  const restorePosHold = (holdId) => {
+  const restorePosHold = async (holdId) => {
     const hold = posHolds.find((item) => item.id === holdId);
     if (!hold) return;
 
-    if (takeoutCart.length > 0 && !window.confirm('現在の仮伝票を置き換えて、保留を復帰しますか？')) {
+    if (takeoutCart.length > 0 && !(await appConfirm('現在の仮伝票を置き換えて、保留を復帰しますか？', { okLabel: '復帰する' }))) {
       return;
     }
 
@@ -848,10 +849,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPosMessage(`${hold.title || '保留'} を復帰しました。`, 'success');
   };
 
-  const deletePosHold = (holdId) => {
+  const deletePosHold = async (holdId) => {
     const hold = posHolds.find((item) => item.id === holdId);
     if (!hold) return;
-    if (!window.confirm(`${hold.title || '保留'} を削除しますか？`)) return;
+    if (!(await appConfirm(`${hold.title || '保留'} を削除しますか？`, { okLabel: '削除する', tone: 'danger' }))) return;
 
     const nextHolds = posHolds.filter((item) => item.id !== holdId);
     savePosHolds(nextHolds);

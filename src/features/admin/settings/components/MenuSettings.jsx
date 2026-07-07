@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
+import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
   AlertTriangle,
   Check,
@@ -773,7 +774,7 @@ const confirmStockInput = async () => {
 const handleClearLimitedQuantity = async (event, item) => {
   event.stopPropagation();
 
-  const ok = window.confirm(`${item.name || '商品'} の残数設定を解除しますか？`);
+  const ok = await appConfirm(`${item.name || '商品'} の残数設定を解除しますか？`, { okLabel: '解除する' });
 
   if (!ok) return;
 

@@ -11,6 +11,7 @@ import {
   TicketPercent,
   X
 } from 'lucide-react';
+import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 
 import { formatCurrency } from '../Analytics/utils/dailyClosingHelpers';
 
@@ -386,10 +387,11 @@ const DailyClosingCheckModal = ({
     setIsEditingChangeFund(false);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (hasDifference) {
-      const ok = window.confirm(
-        '現金・カード・QR決済・クーポンのいずれかに差額があります。この内容で締め保存しますか？'
+      const ok = await appConfirm(
+        '現金・カード・QR決済・クーポンのいずれかに差額があります。この内容で締め保存しますか？',
+        { okLabel: '締め保存する' }
       );
 
       if (!ok) return;

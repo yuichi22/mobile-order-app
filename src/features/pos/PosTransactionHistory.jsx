@@ -10,6 +10,7 @@ import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, in
 
 import { db } from '../../shared/api/firebase/client';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import { useStoreSettings } from '../store/hooks';
 import { pushInventoryToShopify } from '../store/services/storeDataService';
 import { getAuth } from 'firebase/auth';
@@ -342,8 +343,9 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
       const errorText = error?.message || error?.errorMessage || error?.code || JSON.stringify(error) || String(error);
       console.error('[pos transaction receipt print error]', errorText, error);
 
-      const shouldFallback = window.confirm(
-        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`
+      const shouldFallback = await appConfirm(
+        `レシートプリンターへの印刷に失敗しました。\n\n${errorText}\n\nブラウザ印刷を開きますか？`,
+        { title: 'レシート印刷', okLabel: 'ブラウザ印刷を開く' }
       );
 
       if (!shouldFallback) {
