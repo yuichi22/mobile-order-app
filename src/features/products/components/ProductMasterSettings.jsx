@@ -3739,9 +3739,13 @@ const ProductMasterTable = ({
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
-          <p className="mt-1 text-xs font-bold text-slate-500">
-            商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
-            <span className="ml-1 text-blue-600">タブで→ enterで下</span>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-slate-500">
+            <span>商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[10px] font-black text-slate-400">カーソル移動</span>
+              <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-600">Tab →</span>
+              <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-600">Enter ↓</span>
+            </span>
           </p>
         </div>
 
