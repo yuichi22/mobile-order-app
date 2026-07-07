@@ -131,6 +131,10 @@ const buildReorderCandidates = ({ products, brandById, supplierById }) => {
     .map((product) => {
       if (product.isArchived || product.isActive === false) return null;
 
+      // 発注数0は廃盤同等（在庫は売り切るが再発注しない）。発注候補に上げない。
+      // 未設定(null)は従来どおり対象で、明示的に0を入れた商品だけ除外する。
+      if (toNumberOrNull(product.reorderQuantity) === 0) return null;
+
       const reorderPoint = toNumberOrNull(product.reorderPoint);
       if (reorderPoint === null) return null;
 
@@ -318,7 +322,9 @@ const SupplierPurchaseCheckPanel = ({
 
     // 表示中の「今回の数量」を先にドラフトへ固定する。マスタ値を変えても提案値が
     // 再計算されて数量が勝手に増減しないようにするため。
-    const pinnedQty = Number(line.qty);
+    // 発注数0は廃盤同等なので、今回の数量も0にして即座に発注対象から外す（行はグレーで残る）。
+    const isDiscontinued = field === 'reorderQuantity' && value === 0;
+    const pinnedQty = isDiscontinued ? 0 : Number(line.qty);
     if (Number.isFinite(pinnedQty) && pinnedQty >= 0) {
       setQtyDrafts((current) => ({ ...current, [productId]: String(pinnedQty) }));
     }
@@ -1062,6 +1068,11 @@ const SupplierPurchaseCheckPanel = ({
                           <td className="py-2 pr-3 font-bold text-slate-800">
                             {product.name || '(名称未設定)'}
                             {product.sku && <span className="ml-2 text-xs font-bold text-slate-400">{product.sku}</span>}
+                            {toNumberOrNull(product.reorderQuantity) === 0 && (
+                              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                発注数0・廃盤扱い
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-xs font-bold text-slate-500">{brand?.name || '-'}</td>
                           <td className="px-2 py-2 text-right font-bold text-slate-600">{resolveInventoryQuantity(product)}</td>
