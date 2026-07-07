@@ -211,8 +211,17 @@ export const blankSupplier = {
   // 受注残(注残)の扱い。keep=入庫まで注残として残す / autoCancel=判定日数超過で欠品キャンセル扱い(発注候補へ再掲)。
   backorderHandling: 'keep',
   stockoutCancelDays: '',
+  // 最低発注金額(税抜定価ベース)。発注確認リストで未達の仕入先をグレー表示する。
+  minOrderAmount: '',
   note: '',
   isActive: true
+};
+
+export const supplierMinOrderAmountField = {
+  id: 'minOrderAmount',
+  label: '最低発注金額（税抜定価）',
+  type: 'number',
+  helpText: '発注確認リストで、発注金額がこの金額に達しない仕入先をグレー表示します。未設定の場合は判定しません。'
 };
 
 export const supplierBackorderField = {
@@ -252,7 +261,8 @@ const supplierCreateFields = [
     ]
   },
   supplierBackorderField,
-  supplierStockoutCancelDaysField
+  supplierStockoutCancelDaysField,
+  supplierMinOrderAmountField
 ];
 
 const supplierCreateInitialValue = {
@@ -265,6 +275,7 @@ const supplierCreateInitialValue = {
   paymentTerms: '月末締め翌月末払い',
   backorderHandling: 'keep',
   stockoutCancelDays: '',
+  minOrderAmount: '',
   isActive: true
 };
 
@@ -3730,6 +3741,7 @@ const ProductMasterTable = ({
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
           <p className="mt-1 text-xs font-bold text-slate-500">
             商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。
+            <span className="ml-1 text-blue-600">タブで→ enterで下</span>
           </p>
         </div>
 
@@ -5590,6 +5602,7 @@ export const SimpleMasterPanel = ({
         ...(draft.paymentTerms !== undefined ? { paymentTerms: String(draft.paymentTerms || '').trim() } : {}),
         ...(draft.backorderHandling !== undefined ? { backorderHandling: draft.backorderHandling === 'autoCancel' ? 'autoCancel' : 'keep' } : {}),
         ...(draft.stockoutCancelDays !== undefined ? { stockoutCancelDays: normalizeNumberOrNull(draft.stockoutCancelDays) } : {}),
+        ...(draft.minOrderAmount !== undefined ? { minOrderAmount: normalizeNumberOrNull(draft.minOrderAmount) } : {}),
         ...(draft.supplierId !== undefined ? {
           supplierId: String(draft.supplierId || '').trim(),
           supplierName: suppliers.find((supplier) => supplier.id === draft.supplierId)?.name || String(draft.supplierName || '').trim()

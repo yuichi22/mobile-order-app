@@ -630,6 +630,329 @@ export const deleteProductMasterDoc = async (storeId, collectionName, itemId) =>
   await deleteDoc(doc(db, 'stores', storeId, collectionName, itemId));
 };
 
+// ===== 発注管理 (purchaseOrders) =====
+// 発注書は stores/{id}/purchaseOrders に発注書単位で保存する。
+// 明細(lines)は配列のため serverTimestamp が使えない。明細内の日時(orderedAt/receivedAt)と
+// ETA は ISO/日付文字列で持つ。商品docには表示用キャッシュ
+// (orderStatus/orderedAt/activePoId/orderEta) を書き戻し、正は purchaseOrders 側とする。
+
+// 発注候補の抽出は全商品走査が必要。subscribeToProductMasterItems は updatedAt降順200件
+// limit のため取りこぼす。発注点(reorderPoint)が数値で入っている商品だけを直接取得する。
+export const fetchProductsForReorder = async (storeId) => {
+  const snapshot = await getDocs(query(
+    storeCollectionRef(storeId, 'products'),
+    where('reorderPoint', '>=', 0)
+  ));
+  return mapCollectionSnapshot(snapshot);
+};
+
+// 発注書への手動追加(商品一覧ブラウズ)用に全商品を取得する。発注点未設定の商品も含む。
+export const fetchAllProductsForPurchase = async (storeId) => {
+  const snapshot = await getDocs(storeCollectionRef(storeId, 'products'));
+  return mapCollectionSnapshot(snapshot);
+};
+
+// 発注リストから発注点・発注数・LOTなどを単項目更新する
+// （saveProductMasterItem はグループ作成や入庫処理を伴うため使わない）。
+export const updateProductPurchaseSettings = async (storeId, productId, patch) => {
+  await setDoc(doc(db, 'stores', storeId, 'products', productId), {
+    ...patch,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const subscribeToPurchaseOrders = (storeId, onData, onError) => (
+  onSnapshot(
+    query(storeCollectionRef(storeId, 'purchaseOrders'), orderBy('createdAt', 'desc'), limit(200)),
+    (snapshot) => onData(mapCollectionSnapshot(snapshot)),
+    onError
+  )
+);
+
+const normalizePurchaseOrderLine = (line) => ({
+  productId: String(line.productId || ''),
+  productName: String(line.productName || ''),
+  sku: String(line.sku || ''),
+  brandId: String(line.brandId || ''),
+  brandName: String(line.brandName || ''),
+  qty: Math.max(Number(line.qty || 0), 0),
+  // 発注書の表記は税抜定価。仕入概算(掛け率or原価)は estimated* に記録して後の実績と比較する。
+  unitPrice: Number.isFinite(Number(line.unitPrice)) ? Number(line.unitPrice) : null,
+  amount: Math.max(Number(line.amount || 0), 0),
+  estimatedUnitCost: Number.isFinite(Number(line.estimatedUnitCost)) ? Number(line.estimatedUnitCost) : null,
+  estimatedAmount: Math.max(Number(line.estimatedAmount || 0), 0),
+  eta: line.eta || null,
+  receivedQty: Math.max(Number(line.receivedQty || 0), 0),
+  receivedAt: line.receivedAt || null,
+  canceled: Boolean(line.canceled)
+});
+
+export const derivePurchaseOrderStatus = (lines, fallback = 'ordered') => {
+  const activeLines = (lines || []).filter((line) => !line.canceled);
+  if (!activeLines.length) return 'canceled';
+  const isLineReceived = (line) => Number(line.receivedQty || 0) >= Number(line.qty || 0);
+  if (activeLines.every(isLineReceived)) return 'received';
+  if (activeLines.some((line) => Number(line.receivedQty || 0) > 0)) return 'partiallyReceived';
+  return fallback;
+};
+
+// 発注確定。発注書を作成し、明細商品へ「発注済み」キャッシュを書き戻す。
+// supersede: 欠品自動キャンセル仕入先で判定日数超過のため再発注する場合、
+// 旧発注書の該当明細を canceled にする [{ poId, productId }]。
+export const createPurchaseOrder = async (storeId, poData) => {
+  if (!isValidStoreId(storeId)) throw new Error('storeId が不正です');
+
+  const lines = (poData.lines || []).map(normalizePurchaseOrderLine).filter((line) => line.productId && line.qty > 0);
+  if (!lines.length) throw new Error('発注明細がありません');
+
+  const poRef = doc(storeCollectionRef(storeId, 'purchaseOrders'));
+  const orderedAtIso = new Date().toISOString();
+
+  const batch = writeBatch(db);
+  batch.set(poRef, {
+    supplierId: String(poData.supplierId || ''),
+    supplierName: String(poData.supplierName || ''),
+    status: 'ordered',
+    method: poData.method || null,
+    eta: poData.eta || null,
+    note: String(poData.note || ''),
+    totalAmount: lines.reduce((sum, line) => sum + line.amount, 0),
+    estimatedCostTotal: lines.reduce((sum, line) => sum + line.estimatedAmount, 0),
+    excludedBrandIds: Array.isArray(poData.excludedBrandIds) ? poData.excludedBrandIds : [],
+    lines,
+    orderedAt: orderedAtIso,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  lines.forEach((line) => {
+    batch.set(
+      doc(db, 'stores', storeId, 'products', line.productId),
+      {
+        orderStatus: 'ordered',
+        orderedAt: orderedAtIso,
+        activePoId: poRef.id,
+        orderEta: line.eta || poData.eta || null,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  });
+
+  await batch.commit();
+
+  const supersede = (poData.supersede || []).filter((entry) => entry?.poId && entry?.productId);
+  if (supersede.length) {
+    await cancelPurchaseOrderLines(storeId, supersede);
+  }
+
+  return poRef.id;
+};
+
+// 旧発注書の明細を欠品キャンセル扱いにする（未入庫分のみ）。
+const cancelPurchaseOrderLines = async (storeId, entries) => {
+  const byPoId = entries.reduce((map, entry) => {
+    const poId = String(entry.poId);
+    if (!map[poId]) map[poId] = new Set();
+    map[poId].add(String(entry.productId));
+    return map;
+  }, {});
+
+  await Promise.all(Object.entries(byPoId).map(async ([poId, productIds]) => {
+    const poRef = doc(db, 'stores', storeId, 'purchaseOrders', poId);
+    const poSnapshot = await getDoc(poRef);
+    if (!poSnapshot.exists()) return;
+
+    const poCurrent = poSnapshot.data();
+    const nextLines = (poCurrent.lines || []).map((line) => (
+      productIds.has(String(line.productId)) && Number(line.receivedQty || 0) === 0
+        ? { ...line, canceled: true }
+        : line
+    ));
+
+    await setDoc(poRef, {
+      lines: nextLines,
+      status: derivePurchaseOrderStatus(nextLines, poCurrent.status || 'ordered'),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }));
+};
+
+// 発注書の部分更新（ETA・メモ・明細ETA等）。lines を渡すと全明細を置き換え status を再導出する。
+export const updatePurchaseOrder = async (storeId, poId, patch) => {
+  const poRef = doc(db, 'stores', storeId, 'purchaseOrders', poId);
+  const payload = { ...patch, updatedAt: serverTimestamp() };
+
+  if (Array.isArray(patch.lines)) {
+    payload.lines = patch.lines.map(normalizePurchaseOrderLine);
+    payload.status = patch.status || derivePurchaseOrderStatus(payload.lines);
+  }
+
+  await setDoc(poRef, payload, { merge: true });
+};
+
+// 発注書ごと取消。未入庫明細を canceled にし、商品側キャッシュも解除する
+// （商品が既に別の発注書で発注済みになっている場合は触らない）。
+export const cancelPurchaseOrder = async (storeId, purchaseOrder) => {
+  const poId = purchaseOrder.id;
+  const nextLines = (purchaseOrder.lines || []).map((line) => (
+    Number(line.receivedQty || 0) === 0 ? { ...line, canceled: true } : line
+  ));
+
+  await setDoc(doc(db, 'stores', storeId, 'purchaseOrders', poId), {
+    lines: nextLines,
+    status: 'canceled',
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  await Promise.all(nextLines.filter((line) => line.canceled).map(async (line) => {
+    const productRef = doc(db, 'stores', storeId, 'products', line.productId);
+    const productSnapshot = await getDoc(productRef);
+    if (!productSnapshot.exists()) return;
+    if (String(productSnapshot.data().activePoId || '') !== poId) return;
+
+    await setDoc(productRef, {
+      orderStatus: null,
+      orderedAt: null,
+      activePoId: null,
+      orderEta: null,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }));
+};
+
+// 発注入庫の消し込み。receipts: [{ productId, quantity }] (quantity=今回入庫数)。
+// 在庫加算＋監査ログ(stockIns/stockMovements)を商品マスター入庫と同じ形式で記録し、
+// 明細の receivedQty を進める。満了した明細は商品側の「発注済み」キャッシュを解除する。
+export const receivePurchaseOrderLines = async (storeId, purchaseOrder, receipts) => {
+  const validReceipts = (receipts || [])
+    .map((receipt) => ({
+      productId: String(receipt.productId || ''),
+      quantity: Math.max(Number(receipt.quantity || 0), 0)
+    }))
+    .filter((receipt) => receipt.productId && receipt.quantity > 0);
+
+  if (!validReceipts.length) return;
+
+  // 棚卸し中の入庫は finalizeStocktake の在庫上書きと競合するため弾く（商品マスター入庫と同じ理由）。
+  const activeStocktake = await getActiveStocktake(storeId);
+  if (activeStocktake) {
+    throw new Error('棚卸しが進行中です。棚卸しを確定してから発注入庫を行ってください。');
+  }
+
+  const poId = purchaseOrder.id;
+  const receivedAtIso = new Date().toISOString();
+  const receiptByProductId = new Map(validReceipts.map((receipt) => [receipt.productId, receipt.quantity]));
+
+  const nextLines = (purchaseOrder.lines || []).map((line) => {
+    const quantity = receiptByProductId.get(String(line.productId));
+    if (!quantity || line.canceled) return line;
+    return {
+      ...line,
+      receivedQty: Number(line.receivedQty || 0) + quantity,
+      receivedAt: receivedAtIso
+    };
+  });
+
+  // 在庫加算と監査ログ。商品ごとに現在庫を読み、加算後の値を products / inventory 両方へ書く。
+  for (const receipt of validReceipts) {
+    const productRef = doc(db, 'stores', storeId, 'products', receipt.productId);
+    const productSnapshot = await getDoc(productRef);
+    if (!productSnapshot.exists()) continue;
+
+    const product = productSnapshot.data();
+    const beforeQuantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+    const afterQuantity = beforeQuantity + receipt.quantity;
+
+    const line = nextLines.find((nextLine) => String(nextLine.productId) === receipt.productId) || null;
+    const lineFulfilled = line ? Number(line.receivedQty || 0) >= Number(line.qty || 0) : true;
+    const isActivePo = String(product.activePoId || '') === poId;
+
+    const batch = writeBatch(db);
+    batch.set(productRef, {
+      inventoryQuantity: afterQuantity,
+      quantity: afterQuantity,
+      lastStockInQuantity: receipt.quantity,
+      lastStockInAt: serverTimestamp(),
+      ...(isActivePo && lineFulfilled ? {
+        orderStatus: null,
+        orderedAt: null,
+        activePoId: null,
+        orderEta: null
+      } : {}),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    batch.set(doc(db, 'stores', storeId, 'inventory', receipt.productId), {
+      productId: receipt.productId,
+      quantity: afterQuantity,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    const movementPayload = {
+      productId: receipt.productId,
+      productGroupId: product.productGroupId || product.groupId || '',
+      type: 'stock_in',
+      quantity: receipt.quantity,
+      beforeQuantity,
+      afterQuantity,
+      note: `発注入庫 (PO: ${poId})`,
+      purchaseOrderId: poId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    batch.set(doc(storeCollectionRef(storeId, 'stockIns')), { ...movementPayload, status: 'completed' });
+    batch.set(doc(storeCollectionRef(storeId, 'stockMovements')), movementPayload);
+
+    await batch.commit();
+  }
+
+  await setDoc(doc(db, 'stores', storeId, 'purchaseOrders', poId), {
+    lines: nextLines,
+    status: derivePurchaseOrderStatus(nextLines, purchaseOrder.status || 'ordered'),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+// 発注書メール送信。本文は Functions 側が purchaseOrders doc から組み立てて
+// 仕入先登録の email へ Resend で送る（任意宛先・任意本文を送れる口にしない）。
+export const sendPurchaseOrderEmail = async ({ storeId, purchaseOrderId, idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const normalizedPoId = String(purchaseOrderId || '').trim();
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId || !normalizedPoId) {
+    throw new Error('発注書メール送信に必要な情報が不足しています。');
+  }
+  if (!token) {
+    throw new Error('ログイン状態を確認してください。');
+  }
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/sendPurchaseOrderEmail`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      storeId: normalizedStoreId,
+      purchaseOrderId: normalizedPoId
+    })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    const message = body?.error?.message || body?.message || '発注書メールの送信に失敗しました。';
+    throw new Error(message);
+  }
+
+  return body;
+};
+
 
 export const createShopifyDraftProductFromGroup = async ({ storeId, productGroupId, idToken }) => {
   const normalizedStoreId = String(storeId || '').trim();

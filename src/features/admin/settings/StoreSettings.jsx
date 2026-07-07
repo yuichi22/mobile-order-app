@@ -73,7 +73,8 @@ import ProductMasterSettings, {
   blankGroup,
   blankSupplier,
   supplierBackorderField,
-  supplierStockoutCancelDaysField
+  supplierStockoutCancelDaysField,
+  supplierMinOrderAmountField
 } from '../../products/components/ProductMasterSettings';
 import PurchaseManagementSettings from './components/PurchaseManagementSettings';
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
@@ -2158,7 +2159,8 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
               ]
             },
             supplierBackorderField,
-            supplierStockoutCancelDaysField
+            supplierStockoutCancelDaysField,
+            supplierMinOrderAmountField
           ]}
           onSave={productMaster?.saveSupplier}
           onDelete={productMaster?.deleteSupplier}

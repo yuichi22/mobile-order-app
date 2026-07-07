@@ -7611,3 +7611,184 @@ export const redeemRegisterHandoff = onCall(
   }
 );
 
+
+// ===== 発注書メール送信 =====
+// 本文は purchaseOrders doc から組み立て、仕入先マスタに登録済みの email へだけ送る
+// （クライアントから任意宛先・任意本文を渡せる口にしない）。
+
+const formatPurchaseOrderYen = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '-';
+  return `¥${Math.round(number).toLocaleString('ja-JP')}`;
+};
+
+const buildPurchaseOrderMailHtml = ({ storeName, supplier, purchaseOrder }) => {
+  const activeLines = (purchaseOrder.lines || []).filter((line) => !line.canceled);
+
+  // ブランドごとに束ね、合計金額の多い順に並べる（画面の発注書と同じ並び）。
+  const groups = new Map();
+  activeLines.forEach((line) => {
+    const key = String(line.brandId || '');
+    if (!groups.has(key)) {
+      groups.set(key, { brandName: line.brandName || 'ブランド未設定', lines: [], subtotal: 0 });
+    }
+    const group = groups.get(key);
+    group.lines.push(line);
+    group.subtotal += Number(line.amount || 0);
+  });
+  const brandGroups = [...groups.values()].sort((a, b) => b.subtotal - a.subtotal);
+  const totalAmount = brandGroups.reduce((sum, group) => sum + group.subtotal, 0);
+
+  const orderedAtText = purchaseOrder.orderedAt
+    ? getTokyoDateKey(new Date(purchaseOrder.orderedAt))
+    : getTokyoDateKey();
+
+  const rows = brandGroups.map((group) => `
+    <tr>
+      <td colspan="4" style="background:#e2e8f0;font-weight:700;border:1px solid #cbd5e1;padding:6px 8px;">${escapeHtml(group.brandName)}</td>
+      <td style="background:#e2e8f0;font-weight:700;border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">${escapeHtml(formatPurchaseOrderYen(group.subtotal))}</td>
+    </tr>
+    ${group.lines.map((line) => `
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 8px;">${escapeHtml(line.productName || '')}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 8px;">${escapeHtml(line.sku || '-')}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">${escapeHtml(String(line.qty || 0))}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">${line.unitPrice === null || line.unitPrice === undefined ? '-' : escapeHtml(formatPurchaseOrderYen(line.unitPrice))}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">${escapeHtml(formatPurchaseOrderYen(line.amount))}</td>
+      </tr>
+    `).join('')}
+  `).join('');
+
+  const html = `
+  <div style="font-family:'Hiragino Sans','Yu Gothic',sans-serif;color:#0f172a;max-width:720px;margin:0 auto;">
+    <h1 style="font-size:22px;letter-spacing:0.3em;text-align:center;">発注書</h1>
+    <table style="width:100%;margin-bottom:16px;font-size:13px;"><tr>
+      <td>
+        <strong style="font-size:15px;">${escapeHtml(supplier.name || '')} 御中</strong><br/>
+        ${supplier.contactName ? `ご担当: ${escapeHtml(supplier.contactName)} 様<br/>` : ''}
+      </td>
+      <td style="text-align:right;">
+        発注日: ${escapeHtml(orderedAtText)}<br/>
+        発注元: ${escapeHtml(storeName || '')}
+      </td>
+    </tr></table>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr>
+          <th style="background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;text-align:left;">商品名</th>
+          <th style="background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;text-align:left;">SKU</th>
+          <th style="background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">数量</th>
+          <th style="background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">単価(税抜定価)</th>
+          <th style="background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;text-align:right;">金額</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="text-align:right;font-size:15px;font-weight:700;margin-top:12px;">合計（税抜定価）: ${escapeHtml(formatPurchaseOrderYen(totalAmount))}</p>
+    <p style="font-size:11px;color:#64748b;">※金額は税抜定価（上代）ベースです。仕入価格は貴社との取り決め（掛け率）に基づきます。<br/>本メールは ${escapeHtml(storeName || '')} の発注システムから自動送信されています。</p>
+  </div>`;
+
+  const text = [
+    `発注書 (${orderedAtText})`,
+    `${supplier.name || ''} 御中`,
+    `発注元: ${storeName || ''}`,
+    '',
+    ...brandGroups.flatMap((group) => [
+      `【${group.brandName}】 ${formatPurchaseOrderYen(group.subtotal)}`,
+      ...group.lines.map((line) => `  ${line.productName} x${line.qty} ${formatPurchaseOrderYen(line.amount)}`)
+    ]),
+    '',
+    `合計（税抜定価）: ${formatPurchaseOrderYen(totalAmount)}`
+  ].join('\n');
+
+  return { html, text, totalAmount, orderedAtText };
+};
+
+export const sendPurchaseOrderEmail = onRequest(
+  { region: REGION, cors: true },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+
+      if (!isCustomMailConfigured()) {
+        return sendAppError(res, 500, 'app/custom-mail-not-configured');
+      }
+
+      const authUser = await verifyRequestUser(req);
+      const { storeId, purchaseOrderId } = parseJsonBody(req);
+
+      const normalizedStoreId = String(storeId || '').trim();
+      const normalizedPoId = String(purchaseOrderId || '').trim();
+
+      if (!normalizedStoreId || !normalizedPoId) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: { message: 'storeId / purchaseOrderId が不足しています。' }
+        });
+      }
+
+      // OWNER / MANAGER / SUPER_ADMIN のみ（Firestoreルールの purchaseOrders write と同等）。
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+      const poSnapshot = await storeRef.collection('purchaseOrders').doc(normalizedPoId).get();
+      if (!poSnapshot.exists) {
+        return sendJson(res, 404, { ok: false, error: { message: '発注書が見つかりません。' } });
+      }
+      const purchaseOrder = poSnapshot.data();
+
+      if (purchaseOrder.status === 'canceled') {
+        return sendJson(res, 400, { ok: false, error: { message: '取消済みの発注書は送信できません。' } });
+      }
+
+      const supplierSnapshot = purchaseOrder.supplierId
+        ? await storeRef.collection('suppliers').doc(String(purchaseOrder.supplierId)).get()
+        : null;
+      const supplier = supplierSnapshot?.exists ? supplierSnapshot.data() : null;
+      const supplierEmail = String(supplier?.email || '').trim();
+
+      if (!supplierEmail) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: { message: '仕入先マスタにメールアドレスが登録されていません。' }
+        });
+      }
+
+      const basicSnapshot = await storeRef.collection('settings').doc('basic').get();
+      const storeName = basicSnapshot.exists ? String(basicSnapshot.data().name || '') : '';
+
+      const message = buildPurchaseOrderMailHtml({
+        storeName,
+        supplier: { ...supplier, name: supplier?.name || purchaseOrder.supplierName || '' },
+        purchaseOrder
+      });
+
+      await resendClient.emails.send({
+        from: MAIL_FROM,
+        to: [supplierEmail],
+        subject: `【発注書】${storeName || '店舗'}より (${message.orderedAtText})`,
+        html: message.html,
+        text: message.text
+      });
+
+      await poSnapshot.ref.set({
+        mailStatus: 'sent',
+        mailTo: supplierEmail,
+        mailSentAt: FieldValue.serverTimestamp(),
+        mailSentBy: authUser.uid,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      return sendJson(res, 200, { ok: true, to: supplierEmail });
+    } catch (error) {
+      console.error('sendPurchaseOrderEmail failed', error);
+      const known = APP_ERROR_MESSAGES[error.message];
+      return sendJson(res, known ? 401 : 500, {
+        ok: false,
+        error: { message: known || '発注書メールの送信に失敗しました。' }
+      });
+    }
+  }
+);
