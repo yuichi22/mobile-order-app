@@ -7,7 +7,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { useAuth } from '../../../app/providers/useAuth';
 import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData, useStoreSettings } from '../../store/hooks';
 import { getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
-import { buildItemDepartmentResolver, filterAnalyticsOrdersByDepartment } from './utils/departmentAttribution';
+import { buildItemDepartmentResolver, filterAnalyticsOrdersByDepartment, splitTransactionsByDepartment } from './utils/departmentAttribution';
 
 import CustomRangePicker from './components/CustomRangePicker';
 import RankingView from './components/RankingView';
@@ -16,6 +16,7 @@ import AnalyticsToolbar from './components/AnalyticsToolbar';
 import AnalyticsSummaryCards from './components/AnalyticsSummaryCards';
 import AnalyticsChartSection from './components/AnalyticsChartSection';
 import AnalyticsModeTabs from './components/AnalyticsModeTabs';
+import PosAnalyticsView from './components/PosAnalyticsView';
 import DailyClosingPanel from '../components/DailyClosingPanel';
 import { useAnalyticsOrders } from './hooks/useAnalyticsOrders';
 import { useAnalyticsSummary } from './hooks/useAnalyticsSummary';
@@ -146,6 +147,9 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
   // 部門振り分け用の商品カテゴリーマスター（当日中はほぼ不変なので一度だけ取得）。
   const [productCategories, setProductCategories] = useState([]);
   const [productCategoryGroups, setProductCategoryGroups] = useState([]);
+  // POS分析用の売り場マスター。サブカテゴリ用の商品取得は PosAnalyticsView 側で
+  // 「サブカテゴリにドリルした時だけ・売れた商品だけ」遅延取得する（全商品先読みは重いため廃止）。
+  const [productSalesAreas, setProductSalesAreas] = useState([]);
 
   const { menuItems = [] } = useMenuData(storeId);
   const { categories = [] } = useCategoryData(storeId);
@@ -208,28 +212,33 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     selectedPeriodId: effectiveSelectedPeriodId
   });
 
-  // 部門振り分け用に商品カテゴリー/グループを取得（日計パネルと同じ）。
+  // 部門振り分け・売り場集計に必須のマスター（カテゴリ/グループ/売り場）を取得。
+  // ※重い/失敗しうる商品全件取得(サブカテゴリ用)とは必ず分離する。ここが失敗すると
+  //   部門判定が総崩れ(全item飲食扱い)になり、POS分析が0表示になるため。
   useEffect(() => {
     let cancelled = false;
-    const loadCategoryMaster = async () => {
+    const loadClassificationMaster = async () => {
       if (!storeId) {
         setProductCategories([]);
         setProductCategoryGroups([]);
+        setProductSalesAreas([]);
         return;
       }
       try {
-        const [catSnap, groupSnap] = await Promise.all([
+        const [catSnap, groupSnap, areaSnap] = await Promise.all([
           getDocs(collection(db, 'stores', storeId, 'productCategories')),
-          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups'))
+          getDocs(collection(db, 'stores', storeId, 'productCategoryGroups')),
+          getDocs(collection(db, 'stores', storeId, 'productSalesAreas'))
         ]);
         if (cancelled) return;
         setProductCategories(catSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
         setProductCategoryGroups(groupSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+        setProductSalesAreas(areaSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
       } catch (error) {
-        console.error('Failed to load category master (Analytics):', error);
+        console.error('Failed to load classification master (Analytics):', error);
       }
     };
-    loadCategoryMaster();
+    loadClassificationMaster();
     return () => {
       cancelled = true;
     };
@@ -248,6 +257,12 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     () => getAvailableDepartments(storeSettings?.departments || []),
     [storeSettings?.departments]
   );
+  // 表示中の部門。POS(物販)部門を選んでいる時は専用ビューに差し替える。
+  const selectedDepartment = useMemo(
+    () => departmentOptions.find((dept) => dept.id === selectedDepartmentId) || null,
+    [departmentOptions, selectedDepartmentId]
+  );
+  const isPosDepartmentView = selectedDepartment?.registerMode === 'pos';
 
   // 既定表示を自部門に一度だけ寄せる（その後はユーザー操作を優先）。
   const didInitDeptFilter = useRef(false);
@@ -273,6 +288,17 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     () => filterAnalyticsOrdersByDepartment(orders, resolveItemDepartment, selectedDepartmentId),
     [orders, resolveItemDepartment, selectedDepartmentId]
   );
+
+  // POS(物販)ビュー用: 物販部門スライス（日計と同一ルールで物販に絞った取引）。
+  const posDepartmentId = useMemo(
+    () => departmentOptions.find((dept) => dept.registerMode === 'pos')?.id || null,
+    [departmentOptions]
+  );
+  const posDepartmentSlices = useMemo(() => {
+    if (!isPosDepartmentView || !posDepartmentId) return [];
+    return splitTransactionsByDepartment(orders, resolveItemDepartment)
+      .filter((slice) => String(slice?.departmentId || '') === String(posDepartmentId));
+  }, [isPosDepartmentView, posDepartmentId, orders, resolveItemDepartment]);
 
   const analytics = useAnalyticsSummary({
     orders: departmentFilteredOrders,
@@ -341,6 +367,22 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
           storeId={storeId}
           targetDate={currentDate}
           setTargetDate={setCurrentDate}
+        />
+      ) : isPosDepartmentView ? (
+        <PosAnalyticsView
+          storeId={storeId}
+          posSlices={posDepartmentSlices}
+          period={period}
+          currentDate={effectiveAnalyticsDate}
+          customRange={customRange}
+          weeklyBaseDate={weeklyBaseDate}
+          isDayOfWeekMode={effectiveDayOfWeekMode}
+          businessSettings={businessSettings}
+          periods={periods}
+          chartMetric={chartMetric}
+          salesAreas={productSalesAreas}
+          productCategories={productCategories}
+          productCategoryGroups={productCategoryGroups}
         />
       ) : (
         <div className="print:w-full flex-grow">
