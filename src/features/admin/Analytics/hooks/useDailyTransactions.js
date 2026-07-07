@@ -167,6 +167,15 @@ const buildOrderAnalyticsRecord = (order, transaction, allocatedAmount = 0, tran
     toDate(transaction.timestamp) ||
     toDate(order.timestamp) ||
     new Date(),
+  // 時間帯別売上は「注文が入った時刻(提供時刻)」で集計する。会計(paidAt)ではなく注文時刻を
+  // 使うことで、遅い時間にまとめて会計した過去の注文が支払時間帯に誤計上されるのを防ぐ。
+  orderedAt:
+    toDate(order.timestamp) ||
+    toDate(order.createdAt) ||
+    toDate(transaction.timestamp) ||
+    toDate(order.paidAt) ||
+    toDate(transaction.paidAt) ||
+    new Date(),
   paidAt: toDate(order.paidAt) || toDate(transaction.paidAt) || null,
   totalAmount: Number(allocatedAmount || 0) || 0,
   guestCount: Number(transaction.guestCount || 0) || 0,

@@ -771,12 +771,13 @@ const addPeriodSales = (summary, transaction, periods = []) => {
     ? transaction.orderAnalyticsRecords
     : [];
 
-  // 注文データが取引に紐づいている場合は、注文ごとの提供時刻で時間帯別売上を集計する。
-  // これにより、会計時刻ではなく「いつ提供・注文された売上か」で日計を見られる。
+  // 注文データが取引に紐づいている場合は、注文ごとの「注文時刻(提供時刻)」で時間帯別売上を集計する。
+  // 会計(paidAt)時刻ではなく注文時刻で見ることで、遅い時間にまとめて会計した過去の注文が
+  // 支払時間帯に混ざる(誤計上される)のを防ぐ。orderedAt が無い旧レコードは timestamp→会計へフォールバック。
   if (orderAnalyticsRecords.length > 0 && periods.length > 0) {
     orderAnalyticsRecords.forEach((orderRecord) => {
       const matchedPeriod = resolvePeriodByDate(
-        orderRecord.paidAt || orderRecord.timestamp || transaction.paidAt || transaction.timestamp,
+        orderRecord.orderedAt || orderRecord.timestamp || transaction.timestamp || transaction.paidAt,
         periods
       );
 
