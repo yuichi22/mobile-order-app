@@ -652,6 +652,20 @@ export const fetchAllProductsForPurchase = async (storeId) => {
   return mapCollectionSnapshot(snapshot);
 };
 
+// 発注管理画面のセッション内キャッシュ(stale-while-revalidate)。
+// 画面側はキャッシュがあれば即描画し、裏で最新を取得して置き換える。
+export const purchaseReorderCache = new Map();
+export const purchaseAllProductsCache = new Map();
+
+// 設定画面を開いた時点で発注候補を裏読みしてキャッシュを温める。
+// 未キャッシュ時のみ実行（最新化は発注管理画面を開いたときのSWRが担う）。失敗は握りつぶす。
+export const prefetchPurchaseReorderProducts = (storeId) => {
+  if (!isValidStoreId(storeId) || purchaseReorderCache.has(storeId)) return;
+  fetchProductsForReorder(storeId)
+    .then((products) => purchaseReorderCache.set(storeId, products))
+    .catch(() => {});
+};
+
 // 発注リストから発注点・発注数・LOTなどを単項目更新する
 // （saveProductMasterItem はグループ作成や入庫処理を伴うため使わない）。
 export const updateProductPurchaseSettings = async (storeId, productId, patch) => {

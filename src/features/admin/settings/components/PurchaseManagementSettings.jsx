@@ -23,6 +23,8 @@ import {
   createPurchaseOrder,
   fetchAllProductsForPurchase,
   fetchProductsForReorder,
+  purchaseAllProductsCache as allProductsCache,
+  purchaseReorderCache as reorderProductsCache,
   receivePurchaseOrderLines,
   sendPurchaseOrderEmail,
   subscribeToPurchaseOrders,
@@ -61,12 +63,6 @@ const MASTER_EDIT_FIELDS = {
   reorderQuantity: '発注数',
   reorderLot: 'LOT'
 };
-
-// 画面を開き直したときに「集計しています…」で待たせないためのセッション内キャッシュ。
-// キャッシュがあれば即表示し、裏で最新を取得して置き換える(stale-while-revalidate)。
-const reorderProductsCache = new Map();
-const allProductsCache = new Map();
-
 const StatusBadge = ({ status }) => {
   const meta = PO_STATUS_META[status] || { label: status || '-', className: 'bg-slate-100 text-slate-500 border-slate-200' };
   return (
