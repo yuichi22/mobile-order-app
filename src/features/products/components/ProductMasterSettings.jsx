@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
+import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import { printLabelViaBridge } from '../../../shared/api/printBridge';
 import { buildLabelPrintPayload } from '../../../shared/utils/labelPrinterSettings';
 import { db } from '../../../shared/api/firebase/client';
@@ -202,6 +203,7 @@ export const blankSupplier = {
   kana: '',
   contactName: '',
   tel: '',
+  fax: '',
   email: '',
   address: '',
   defaultCostRate: '',
@@ -235,6 +237,7 @@ const supplierCreateFields = [
   { id: 'name', label: '仕入先名' },
   { id: 'contactName', label: '担当者' },
   { id: 'tel', label: '電話番号' },
+  { id: 'fax', label: 'FAX番号' },
   { id: 'email', label: 'メール' },
   { id: 'address', label: '住所' },
   { id: 'defaultCostRate', label: '標準掛け率 %', type: 'number' },
@@ -1346,7 +1349,7 @@ const ProductMasterTable = ({
       'このままShopify同期を実行しますか？'
     ].filter((line) => line !== '').join('\n');
 
-    return window.confirm(message);
+    return appConfirm(message, { title: 'Shopify同期', okLabel: '実行する' });
   };
 
   const getProductGroupSortKey = (product) => (
@@ -2274,12 +2277,12 @@ const ProductMasterTable = ({
       return undefined;
     }
 
-    if (!options.skipMissingConfirm && !confirmShopifySyncMissingFields(workingGroup)) return undefined;
+    if (!options.skipMissingConfirm && !(await confirmShopifySyncMissingFields(workingGroup))) return undefined;
 
     const hadExistingShopifyProductId = Boolean(getGroupShopifyProductId(workingGroup));
 
     if (hadExistingShopifyProductId && !options.skipExistingConfirm) {
-      const ok = window.confirm('この商品グループはすでにShopify商品IDがあります。重複作成せず同期済み確認だけ行いますか？');
+      const ok = await appConfirm('この商品グループはすでにShopify商品IDがあります。重複作成せず同期済み確認だけ行いますか？', { title: 'Shopify同期', okLabel: '確認だけ行う' });
       if (!ok) return undefined;
     }
 
@@ -2402,7 +2405,7 @@ const ProductMasterTable = ({
       '実行してよろしいですか？'
     ].filter((line) => line !== '').join('\n');
 
-    if (!window.confirm(message)) return;
+    if (!(await appConfirm(message, { title: '商品マスター更新', okLabel: '実行する' }))) return;
 
     setProductMasterBulkSaving(true);
     // 入庫自動印刷: ラベルON かつ 入庫数>0 の商品を入庫枚数ぶん収集する。
@@ -2525,7 +2528,7 @@ const ProductMasterTable = ({
       '実行してよろしいですか？'
     ].filter((line) => line !== '').join('\n');
 
-    if (!window.confirm(message)) return;
+    if (!(await appConfirm(message, { title: 'Shopify同期', okLabel: '実行する' }))) return;
 
     setShopifyBulkSyncing(true);
     try {
@@ -2655,7 +2658,7 @@ const ProductMasterTable = ({
 
   const deleteProduct = async (product) => {
     if (!product?.id) return;
-    if (!window.confirm(`${product.name || '商品'}を削除しますか？`)) return;
+    if (!(await appConfirm(`${product.name || '商品'}を削除しますか？`, { okLabel: '削除する', tone: 'danger' }))) return;
     clearProductDraftState(product.id);
 
     await onDeleteProduct(product.id);
@@ -5579,6 +5582,7 @@ export const SimpleMasterPanel = ({
         } : {}),
         ...(draft.contactName !== undefined ? { contactName: String(draft.contactName || '').trim() } : {}),
         ...(draft.tel !== undefined ? { tel: String(draft.tel || '').trim() } : {}),
+        ...(draft.fax !== undefined ? { fax: String(draft.fax || '').trim() } : {}),
         ...(draft.email !== undefined ? { email: String(draft.email || '').trim() } : {}),
         ...(draft.address !== undefined ? { address: String(draft.address || '').trim() } : {}),
         ...(draft.defaultCostRate !== undefined ? { defaultCostRate: normalizeNumberOrNull(draft.defaultCostRate) } : {}),
@@ -6005,7 +6009,7 @@ export const SimpleMasterPanel = ({
 
   const handleUnlinkChild = async (child) => {
     if (!childMasterConfig || !onSaveChildItem || !child?.id) return;
-    const confirmed = window.confirm(`「${child.name}」をこの${label}から外しますか？（${childMasterConfig.collectionLabel}自体は削除されず、未割り当てになります）`);
+    const confirmed = await appConfirm(`「${child.name}」をこの${label}から外しますか？（${childMasterConfig.collectionLabel}自体は削除されず、未割り当てになります）`, { okLabel: '外す' });
     if (!confirmed) return;
     try {
       await onSaveChildItem({ ...child, id: child.id, ...childMasterConfig.unlinkPatch });
@@ -6110,7 +6114,7 @@ export const SimpleMasterPanel = ({
 
   const remove = async (item) => {
     if (!item?.id) return;
-    if (!window.confirm(`${label}「${item.name || item.id}」を削除しますか？`)) return;
+    if (!(await appConfirm(`${label}「${item.name || item.id}」を削除しますか？`, { okLabel: '削除する', tone: 'danger' }))) return;
     await onDelete(item.id);
     onSaved?.();
   };

@@ -71,8 +71,12 @@ import ProductMasterSettings, {
   blankBrand,
   blankCategory,
   blankGroup,
-  blankSupplier
+  blankSupplier,
+  supplierBackorderField,
+  supplierStockoutCancelDaysField
 } from '../../products/components/ProductMasterSettings';
+import PurchaseManagementSettings from './components/PurchaseManagementSettings';
+import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import ProductCsvImportPanel from '../../products/components/ProductCsvImportPanel';
 import MasterCsvImportPanel from '../../products/components/MasterCsvImportPanel';
 
@@ -766,7 +770,7 @@ const CategoryTaxRulePanel = ({
 
   const resetRule = async (item) => {
     if (!item?.id || typeof onSave !== 'function') return;
-    if (!window.confirm(`${getOptionLabel(item)} の個別税率を解除し、標準税率へ戻しますか？`)) return;
+    if (!(await appConfirm(`${getOptionLabel(item)} の個別税率を解除し、標準税率へ戻しますか？`, { okLabel: '解除する' }))) return;
 
     const payload = buildCategoryTaxRuleResetPayload(item);
     const fallbackTaxRate = normalizeCategoryTaxRuleRate(defaultTaxRate, 10);
@@ -1960,6 +1964,17 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
       return null;
     }
 
+    if (item?.id === 'purchaseManagement') {
+      return (
+        <PurchaseManagementSettings
+          storeId={storeId}
+          activeTab={activeDummyTab || 'supplierPurchaseCheck'}
+          productMaster={productMaster}
+          onSaved={onSaved}
+        />
+      );
+    }
+
     if (item?.id !== 'productManagement') return null;
 
     if (activeDummyTab === 'categories') {
@@ -2123,6 +2138,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             { id: 'name', label: '仕入先名' },
             { id: 'contactName', label: '担当者' },
             { id: 'tel', label: '電話番号' },
+            { id: 'fax', label: 'FAX番号' },
             { id: 'email', label: 'メール' },
             { id: 'address', label: '住所' },
             {
@@ -2140,7 +2156,9 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
                 { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
                 { value: 'COD', label: 'COD' }
               ]
-            }
+            },
+            supplierBackorderField,
+            supplierStockoutCancelDaysField
           ]}
           onSave={productMaster?.saveSupplier}
           onDelete={productMaster?.deleteSupplier}
@@ -2178,7 +2196,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             </p>
           </div>
 
-          {item?.id !== 'csvImportExport' && (
+          {!['csvImportExport', 'purchaseManagement'].includes(item?.id) && (
             <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
               ダミー
             </span>
