@@ -766,7 +766,10 @@ const SupplierPurchaseCheckPanel = ({
                         注残なし（発注から{supplier?.stockoutCancelDays || '-'}日で欠品キャンセル判定）
                       </p>
                     )}
-                    <p className="mt-1 text-xs font-black text-blue-600">エンターで↓へ</p>
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                      カーソル移動
+                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 font-black text-blue-600">Enter ↓</span>
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
