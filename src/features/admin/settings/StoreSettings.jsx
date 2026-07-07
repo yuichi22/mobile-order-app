@@ -3158,7 +3158,7 @@ export const StoreSettings = ({
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 transition-colors hover:bg-slate-800 hover:text-white'
+                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
@@ -3178,7 +3178,7 @@ export const StoreSettings = ({
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 transition-colors hover:bg-slate-800 hover:text-white'
+                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
