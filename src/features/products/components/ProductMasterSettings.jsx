@@ -32,6 +32,7 @@ import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProduc
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
+import LabelPrintQueueRunner from './LabelPrintQueueRunner';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -109,6 +110,18 @@ const isInstoreBarcode = (value) => /^2\d{12}$/.test(String(value || '').trim())
 
 const PRODUCT_TABS = [
   { id: 'products', label: '商品', icon: Package }
+];
+
+// 分類モーダル(ProductClassificationControl)が書き換えるグループ共通の分類フィールド。
+// 決定時に variant SKU の下書きへ展開する対象を、行全体のコピーから絞り込むために使う。
+const GROUP_CLASSIFICATION_FIELDS = [
+  'salesAreaName',
+  'categoryGroupId',
+  'categoryGroupName',
+  'categoryId',
+  'categoryName',
+  'subCategoryName',
+  'departmentId'
 ];
 
 const blankProduct = {
@@ -193,8 +206,29 @@ export const blankSupplier = {
   address: '',
   defaultCostRate: '',
   paymentTerms: '',
+  // 受注残(注残)の扱い。keep=入庫まで注残として残す / autoCancel=判定日数超過で欠品キャンセル扱い(発注候補へ再掲)。
+  backorderHandling: 'keep',
+  stockoutCancelDays: '',
   note: '',
   isActive: true
+};
+
+export const supplierBackorderField = {
+  id: 'backorderHandling',
+  label: '受注残（注残）の扱い',
+  type: 'select',
+  placeholder: '注残の扱いを選択',
+  options: [
+    { value: 'keep', label: 'あり（入庫まで注残として残す）' },
+    { value: 'autoCancel', label: 'なし（欠品時に自動キャンセル）' }
+  ]
+};
+
+export const supplierStockoutCancelDaysField = {
+  id: 'stockoutCancelDays',
+  label: '欠品キャンセル判定日数',
+  type: 'number',
+  helpText: '注残「なし」の仕入先のみ使用します。発注からこの日数を過ぎても入庫が無い場合、その商品は欠品キャンセル扱いとなり再び発注候補に上がります。'
 };
 
 const supplierCreateFields = [
@@ -213,7 +247,9 @@ const supplierCreateFields = [
       { value: '月末締め翌月末払い', label: '月末締め翌月末払い' },
       { value: 'COD', label: 'COD' }
     ]
-  }
+  },
+  supplierBackorderField,
+  supplierStockoutCancelDaysField
 ];
 
 const supplierCreateInitialValue = {
@@ -224,6 +260,8 @@ const supplierCreateInitialValue = {
   address: '',
   defaultCostRate: '',
   paymentTerms: '月末締め翌月末払い',
+  backorderHandling: 'keep',
+  stockoutCancelDays: '',
   isActive: true
 };
 
@@ -1526,9 +1564,12 @@ const ProductMasterTable = ({
       'supplierId',
       'supplierName',
       'salesAreaId',
+      // 分類モーダルは売場/サブカテゴリーを id ではなく name で保持するため、name も比較する。
+      'salesAreaName',
       'categoryGroupId',
       'categoryId',
       'subCategoryId',
+      'subCategoryName',
       'skuCode',
       'barcode',
       'size',
@@ -1721,6 +1762,36 @@ const ProductMasterTable = ({
         }
       };
     });
+  };
+
+  // 分類(売場/グループ/カテゴリー/サブカテゴリー)はグループ共通項目だが、通常の一括保存
+  // (saveEditedProductRows)は draftRows にある行しか書かない。決定時に variant SKU の
+  // 下書きへも分類を展開し、保存時にグループ全SKUのドキュメントが揃って更新されるようにする。
+  // 税率は inherit に戻し、新カテゴリー/グループの個別税率を再継承させる。
+  const applyGroupClassificationDraft = (group, primaryProduct, patch = {}) => {
+    if (!primaryProduct?.id) return;
+
+    updateDraft(primaryProduct.id, { ...patch, taxRateType: 'inherit' });
+
+    // patch には行全体のコピーが渡ってくるため、variant へは分類フィールドだけを絞って反映する
+    // (SKU/バーコード/価格などを primary の値で上書きしないため)。
+    const classificationPatch = {};
+    for (const key of GROUP_CLASSIFICATION_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) classificationPatch[key] = patch[key];
+    }
+    if (Object.keys(classificationPatch).length === 0) return;
+
+    for (const product of group?.products || []) {
+      if (!product?.id || product.id === primaryProduct.id) continue;
+
+      const currentDraft = getDraft(product);
+      const changed = Object.entries(classificationPatch).some(([key, value]) => (
+        normalizeComparableText(currentDraft?.[key]) !== normalizeComparableText(value)
+      ));
+      if (!changed) continue;
+
+      updateDraft(product.id, { ...classificationPatch, taxRateType: 'inherit' });
+    }
   };
 
   const updateNewRow = (patch) => {
@@ -2833,8 +2904,12 @@ const ProductMasterTable = ({
                   fillIfEmpty('colorName', f.colorName, 'カラー');
                   fillIfEmpty('size', f.size, 'サイズ');
                   if (f.barcode) fillIfEmpty('barcode', toHalfWidthCode(String(f.barcode)), 'バーコード');
-                  if (f.priceTaxExcluded != null && !String(row.priceTaxExcluded ?? '').trim()) {
-                    patch.priceTaxExcluded = f.priceTaxExcluded;
+                  // 税抜は印字があればそれ、無く税込があれば 税込÷1.1(四捨五入) で自動算出。
+                  const derivedExcluded = f.priceTaxExcluded != null
+                    ? f.priceTaxExcluded
+                    : (f.priceTaxIncluded != null ? Math.round(Number(f.priceTaxIncluded) / 1.1) : null);
+                  if (derivedExcluded != null && !String(row.priceTaxExcluded ?? '').trim()) {
+                    patch.priceTaxExcluded = derivedExcluded;
                     filled.push('税抜売価');
                   }
                   if (Object.keys(patch).length) update(patch);
@@ -3646,6 +3721,7 @@ const ProductMasterTable = ({
       {inventoryAdjustModalNode}
       {labelQtyModalNode}
       {labelErrorModalNode}
+      <LabelPrintQueueRunner storeId={storeId} labelPrinterSettings={labelPrinterSettings} />
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
           <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
@@ -3851,8 +3927,9 @@ const ProductMasterTable = ({
                         <ProductClassificationControl
                           value={primaryDraft}
                           defaultSalesAreaName={getBrandDefaultSalesAreaName(primaryDraft.brandId)}
-                          // 分類変更時は税率を inherit に戻し、新カテゴリー/グループの個別税率を継承させる。
-                          onChange={(patch) => updatePrimary({ ...patch, taxRateType: 'inherit' })}
+                          // 分類はグループ共通項目のため、primary だけでなく variant SKU の下書きにも
+                          // 反映する(税率は inherit に戻して新分類の個別税率を再継承)。
+                          onChange={(patch) => applyGroupClassificationDraft(group, primaryProduct, patch)}
                           productSalesAreas={getSalesAreaOptions()}
                           productCategoryGroups={productCategoryGroups}
                           productCategories={productCategories}
@@ -5507,6 +5584,8 @@ export const SimpleMasterPanel = ({
         ...(draft.defaultCostRate !== undefined ? { defaultCostRate: normalizeNumberOrNull(draft.defaultCostRate) } : {}),
         ...(draft.costRate !== undefined ? { costRate: normalizeNumberOrNull(draft.costRate) } : {}),
         ...(draft.paymentTerms !== undefined ? { paymentTerms: String(draft.paymentTerms || '').trim() } : {}),
+        ...(draft.backorderHandling !== undefined ? { backorderHandling: draft.backorderHandling === 'autoCancel' ? 'autoCancel' : 'keep' } : {}),
+        ...(draft.stockoutCancelDays !== undefined ? { stockoutCancelDays: normalizeNumberOrNull(draft.stockoutCancelDays) } : {}),
         ...(draft.supplierId !== undefined ? {
           supplierId: String(draft.supplierId || '').trim(),
           supplierName: suppliers.find((supplier) => supplier.id === draft.supplierId)?.name || String(draft.supplierName || '').trim()
