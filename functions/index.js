@@ -7792,3 +7792,38 @@ export const sendPurchaseOrderEmail = onRequest(
     }
   }
 );
+
+// ===== 発注候補フラグ(needsReorder)の自動維持 =====
+// 発注管理画面は「在庫が発注点以下」の商品だけを where(needsReorder==true) で読む(全商品スキャン廃止)。
+// 在庫を変えるすべての経路(POS販売/取消/入庫/棚卸し/CSV取込/Shopify webhook)は商品docを
+// 書くため、このトリガー1本で漏れなく追従できる。inventoryサブコレクションのみを更新して
+// 商品docを書かない経路を今後作らないこと。
+// フラグ値が変わらない時は書かない(自身の書き込みによる再トリガー連鎖の防止)。
+export const syncProductNeedsReorder = onDocumentWritten(
+  {
+    region: 'asia-northeast1',
+    database: FIRESTORE_DATABASE_ID,
+    document: 'stores/{storeId}/products/{productId}'
+  },
+  async (event) => {
+    const afterSnapshot = event.data?.after;
+    if (!afterSnapshot?.exists) {
+      return;
+    }
+
+    const product = afterSnapshot.data() || {};
+
+    // reorderPoint 未設定(null/undefined/空)は発注管理の対象外。Number(null)=0 になるため明示判定する。
+    const reorderPointRaw = product.reorderPoint;
+    const hasReorderPoint = reorderPointRaw !== null && reorderPointRaw !== undefined && reorderPointRaw !== ''
+      && Number.isFinite(Number(reorderPointRaw));
+    const inventory = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+    const needsReorder = hasReorderPoint && inventory <= Number(reorderPointRaw);
+
+    if (product.needsReorder === needsReorder) {
+      return;
+    }
+
+    await afterSnapshot.ref.update({ needsReorder });
+  }
+);

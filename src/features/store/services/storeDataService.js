@@ -636,14 +636,63 @@ export const deleteProductMasterDoc = async (storeId, collectionName, itemId) =>
 // ETA は ISO/日付文字列で持つ。商品docには表示用キャッシュ
 // (orderStatus/orderedAt/activePoId/orderEta) を書き戻し、正は purchaseOrders 側とする。
 
-// 発注候補の抽出は全商品走査が必要。subscribeToProductMasterItems は updatedAt降順200件
-// limit のため取りこぼす。発注点(reorderPoint)が数値で入っている商品だけを直接取得する。
-export const fetchProductsForReorder = async (storeId) => {
+// 発注候補の読み込み方式。true = needsReorder フラグで候補だけ読む(軽量)。
+// 体感が悪化した場合は false に戻して再デプロイするだけで旧フルスキャンに復帰できる。
+// (フラグは functions の syncProductNeedsReorder が維持し続けるので戻しても壊れない)
+const USE_NEEDS_REORDER_FLAG = true;
+
+// 旧方式: 発注点(reorderPoint)が設定された全商品をフルスキャンする。
+// フラグ未移行ストアの初回読み込みとバックフィル、およびフラグ方式からの切り戻しに使う。
+const fetchProductsForReorderFullScan = async (storeId) => {
   const snapshot = await getDocs(query(
     storeCollectionRef(storeId, 'products'),
     where('reorderPoint', '>=', 0)
   ));
   return mapCollectionSnapshot(snapshot);
+};
+
+// 既存商品への needsReorder 一括付与。needsReorder フィールドのみ update し他フィールドに触れない。
+// 完了マーカーは settings/purchase.needsReorderBackfilledAt。
+const backfillNeedsReorderFlags = async (storeId, products) => {
+  for (let index = 0; index < products.length; index += 450) {
+    const batch = writeBatch(db);
+    products.slice(index, index + 450).forEach((product) => {
+      const reorderPoint = Number(product.reorderPoint);
+      const inventory = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+      batch.update(doc(db, 'stores', storeId, 'products', product.id), {
+        needsReorder: Number.isFinite(reorderPoint) && inventory <= reorderPoint
+      });
+    });
+    await batch.commit();
+  }
+
+  await setDoc(storeSettingsDocRef(storeId, 'purchase'), {
+    needsReorderBackfilledAt: serverTimestamp()
+  }, { merge: true });
+};
+
+// 発注候補の取得。移行済みストアは「在庫が発注点以下」の商品だけを読む。
+// 未移行ストアは初回のみ旧フルスキャンで読みつつフラグを書いて自動移行する。
+export const fetchProductsForReorder = async (storeId) => {
+  if (!USE_NEEDS_REORDER_FLAG) return fetchProductsForReorderFullScan(storeId);
+
+  const [markerSnapshot, flaggedSnapshot] = await Promise.all([
+    getDoc(storeSettingsDocRef(storeId, 'purchase')),
+    getDocs(query(storeCollectionRef(storeId, 'products'), where('needsReorder', '==', true)))
+  ]);
+
+  if (markerSnapshot.exists() && markerSnapshot.data().needsReorderBackfilledAt) {
+    return mapCollectionSnapshot(flaggedSnapshot);
+  }
+
+  const products = await fetchProductsForReorderFullScan(storeId);
+  try {
+    await backfillNeedsReorderFlags(storeId, products);
+  } catch (error) {
+    // 権限不足などで失敗しても画面はフルスキャン結果で動く。マーカー未設定のため次回再試行される。
+    console.warn('needsReorder のバックフィルに失敗しました(次回再試行)', error);
+  }
+  return products;
 };
 
 // 発注書への手動追加(商品一覧ブラウズ)用に全商品を取得する。発注点未設定の商品も含む。

@@ -82,7 +82,9 @@ service cloud.firestore {
     function isManagerWritableSetting(documentId) {
       return documentId == 'business'
         || documentId == 'categories'
-        || documentId == 'periods';
+        || documentId == 'periods'
+        // 発注管理: needsReorder バックフィル完了マーカー(settings/purchase)
+        || documentId == 'purchase';
     }
 
     function hasSessionDoc(storeId, sessionId) {
