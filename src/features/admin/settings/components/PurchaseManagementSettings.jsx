@@ -304,6 +304,20 @@ const SupplierPurchaseCheckPanel = ({
   const [processing, setProcessing] = useState(false);
   // 最低発注金額の入力モーダル { supplier, value }
   const [minOrderModal, setMinOrderModal] = useState(null);
+  // Shift+クリックの範囲選択（まとめて廃盤扱い用）
+  const [selectionAnchor, setSelectionAnchor] = useState('');
+  const [bulkSelection, setBulkSelection] = useState([]);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+
+  // 別の仕入先を開いたとき、上の展開パネルが閉じてページが縮み、クリックした行ごと
+  // 画面外(上)へ流れることがある。展開した行が見える位置までスクロールを補正する。
+  useEffect(() => {
+    if (!selectedSupplierId) return;
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-supplier-card="${CSS.escape(selectedSupplierId)}"]`)
+        ?.scrollIntoView({ block: 'nearest' });
+    });
+  }, [selectedSupplierId]);
   // 発注点/発注数/LOT の変更モーダル { line, field, current, value }
   const [masterEditModal, setMasterEditModal] = useState(null);
   // 展開中に変更したマスタ値のオーバーレイ {productId: {field: value}}。
@@ -429,6 +443,12 @@ const SupplierPurchaseCheckPanel = ({
     setMasterOverrides({});
   };
 
+  const resetLineSelection = () => {
+    setSelectionAnchor('');
+    setBulkSelection([]);
+    setBulkModalOpen(false);
+  };
+
   // 行クリックで展開/折りたたみ。切り替え時は数量・除外ブランド・手動追加の編集内容を破棄する。
   const toggleSupplier = (supplierId) => {
     flushMasterOverrides();
@@ -436,6 +456,7 @@ const SupplierPurchaseCheckPanel = ({
     setQtyDrafts({});
     setExcludedBrandIds([]);
     setExtraProductIds([]);
+    resetLineSelection();
   };
 
   const collapseSupplier = () => {
@@ -444,6 +465,7 @@ const SupplierPurchaseCheckPanel = ({
     setQtyDrafts({});
     setExcludedBrandIds([]);
     setExtraProductIds([]);
+    resetLineSelection();
   };
 
   const supplierGroups = useMemo(() => {
@@ -568,6 +590,57 @@ const SupplierPurchaseCheckPanel = ({
     .map(toOrderableGroup)
     .filter((group) => group.lines.length > 0);
 
+  // 商品名クリックで選択、Shift+クリックで表示順にその間を範囲選択して一括操作モーダルを開く。
+  const handleLineSelectClick = (event, productId) => {
+    if (event.shiftKey && selectionAnchor) {
+      const visibleIds = includedBrandGroups.flatMap((group) => group.lines.map((line) => line.productId));
+      const anchorIndex = visibleIds.indexOf(selectionAnchor);
+      const clickedIndex = visibleIds.indexOf(productId);
+      if (anchorIndex >= 0 && clickedIndex >= 0) {
+        const [from, to] = anchorIndex <= clickedIndex ? [anchorIndex, clickedIndex] : [clickedIndex, anchorIndex];
+        setBulkSelection(visibleIds.slice(from, to + 1));
+        setBulkModalOpen(true);
+        return;
+      }
+    }
+
+    if (bulkSelection.length === 1 && bulkSelection[0] === productId) {
+      resetLineSelection();
+      return;
+    }
+    setSelectionAnchor(productId);
+    setBulkSelection([productId]);
+  };
+
+  // 選択した商品をまとめて廃盤扱い(発注数0)にする。表示は即時反映し、保存はバックグラウンド。
+  const applyBulkDiscontinue = () => {
+    const ids = [...bulkSelection];
+    if (!ids.length) return;
+
+    setQtyDrafts((current) => {
+      const next = { ...current };
+      ids.forEach((id) => { next[id] = '0'; });
+      return next;
+    });
+    setMasterOverrides((current) => {
+      const next = { ...current };
+      ids.forEach((id) => { next[id] = { ...next[id], reorderQuantity: 0 }; });
+      return next;
+    });
+    setAllProducts((current) => (Array.isArray(current)
+      ? current.map((product) => (ids.includes(product.id) ? { ...product, reorderQuantity: 0 } : product))
+      : current));
+    resetLineSelection();
+
+    Promise.allSettled(ids.map((id) => updateProductPurchaseSettings(storeId, id, { reorderQuantity: 0 })))
+      .then((results) => {
+        const failedCount = results.filter((result) => result.status === 'rejected').length;
+        if (failedCount) {
+          alert(`${failedCount}件の廃盤設定の保存に失敗しました。画面を再読み込みして確認してください。`);
+        }
+      });
+  };
+
   const toggleBrandExcluded = (brandId) => {
     setExcludedBrandIds((current) => (
       current.includes(brandId) ? current.filter((id) => id !== brandId) : [...current, brandId]
@@ -680,7 +753,8 @@ const SupplierPurchaseCheckPanel = ({
         return (
           <div
             key={group.supplierId}
-            className={`rounded-3xl border transition-all ${
+            data-supplier-card={group.supplierId}
+            className={`scroll-mt-64 rounded-3xl border transition-all ${
               isExpanded
                 ? 'border-blue-300 bg-white shadow-sm'
                 : belowMinOrder
@@ -891,10 +965,23 @@ const SupplierPurchaseCheckPanel = ({
                                 {brandGroup.lines.map((line) => {
                                   // 数量0 = 今回だけ0発注。行は残してグレーアウトし、発注対象から外す。
                                   const isZero = line.qty === 0;
+                                  const isSelected = bulkSelection.includes(line.productId);
 
                                   return (
-                                  <tr key={line.productId} className={`border-t border-slate-100 ${isZero ? 'bg-slate-50 opacity-50' : ''}`}>
-                                    <td className="px-4 py-2 font-bold text-slate-800">
+                                  <tr
+                                    key={line.productId}
+                                    className={`border-t border-slate-100 ${
+                                      isSelected ? 'bg-blue-50' : isZero ? 'bg-slate-50 opacity-50' : ''
+                                    }`}
+                                  >
+                                    <td
+                                      className="cursor-pointer select-none px-4 py-2 font-bold text-slate-800"
+                                      title="クリックで選択 / Shift+クリックで範囲選択"
+                                      onMouseDown={(event) => {
+                                        if (event.shiftKey) event.preventDefault();
+                                      }}
+                                      onClick={(event) => handleLineSelectClick(event, line.productId)}
+                                    >
                                       {line.productName}
                                       {line.sku && <span className="ml-2 text-xs font-bold text-slate-400">{line.sku}</span>}
                                       {line.isRelisted && (
@@ -908,7 +995,10 @@ const SupplierPurchaseCheckPanel = ({
                                           <button
                                             type="button"
                                             title="発注書から外す"
-                                            onClick={() => toggleExtraProduct(line.productId)}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              toggleExtraProduct(line.productId);
+                                            }}
                                             className="rounded-full p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-700"
                                           >
                                             <X size={10} />
@@ -1151,6 +1241,49 @@ const SupplierPurchaseCheckPanel = ({
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkModalOpen && bulkSelection.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={() => setBulkModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-black text-slate-900">選択した商品をまとめて操作</h3>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              {bulkSelection.length}件の商品を選択中です。廃盤扱い（発注数0）にすると発注候補に上がらなくなります。
+            </p>
+            <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-3">
+              {sheetLines
+                .filter((line) => bulkSelection.includes(line.productId))
+                .map((line) => (
+                  <p key={line.productId} className="py-0.5 text-xs font-bold text-slate-600">
+                    {line.productName}
+                    {line.sku && <span className="ml-2 text-slate-400">{line.sku}</span>}
+                  </p>
+                ))}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={resetLineSelection}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 hover:border-slate-300"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={applyBulkDiscontinue}
+                className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-black text-white hover:bg-slate-900"
+              >
+                選択した商品を廃盤扱いにする（発注数0）
               </button>
             </div>
           </div>
