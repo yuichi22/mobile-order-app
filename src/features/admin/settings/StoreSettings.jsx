@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   Boxes,
@@ -2968,10 +2968,16 @@ export const StoreSettings = ({
     ? subTab
     : availableMenuItems[0]?.id;
 
-  // メニュークリック時はボタンの点灯(activeSubTab)を先に描画し、重い画面本体の描画は
-  // deferredSubTab で1テンポ遅らせる。切替中は画面上部に軽いローディングを出す。
-  const deferredSubTab = useDeferredValue(activeSubTab);
-  const isSubTabSwitching = deferredSubTab !== activeSubTab;
+  // メニュークリック時は「選択ボタンの点灯」と「旧画面の退避＋軽いローディング」だけを
+  // 先に描画し、重い画面本体は直後のレンダリングで組み立てる。
+  // (useDeferredValue だと点灯の描画時に旧画面の巨大ツリーも再レンダリングされ、
+  //  点灯自体が1〜2秒ブロックされるため、切替中は本体を何も描画しない方式にする)
+  const [pendingSubTab, setPendingSubTab] = useState(null);
+  const isSubTabSwitching = Boolean(pendingSubTab);
+  // サイドバーの点灯はクリック直後の pendingSubTab を優先する。
+  const highlightSubTab = pendingSubTab ?? activeSubTab;
+  // 本体の描画キー。切替中はどのセクションにも一致させず何も描画しない。
+  const deferredSubTab = pendingSubTab ? '__switching__' : activeSubTab;
 
   useEffect(() => {
     if (typeof onPosSettingsSubTabChange !== 'function') return;
@@ -3018,7 +3024,15 @@ export const StoreSettings = ({
         onPosProductKeywordChange('');
       }
     }
-    setSubTab(nextSubTab);
+
+    if (nextSubTab === activeSubTab) return;
+
+    // 先に「点灯＋ローディング」の軽い描画をブラウザに描かせてから、本体を組み立てる。
+    setPendingSubTab(nextSubTab);
+    window.setTimeout(() => {
+      setSubTab(nextSubTab);
+      setPendingSubTab((current) => (current === nextSubTab ? null : current));
+    }, 30);
   };
 
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
@@ -3136,7 +3150,7 @@ export const StoreSettings = ({
 
           {settingsMode === 'order' ? (
             availableMenuItems.map((item) => {
-              const isActive = activeSubTab === item.id;
+              const isActive = highlightSubTab === item.id;
 
               return (
                 <button
@@ -3156,7 +3170,7 @@ export const StoreSettings = ({
             })
           ) : (
             availableMenuItems.map((item) => {
-              const isActive = activeSubTab === item.id;
+              const isActive = highlightSubTab === item.id;
 
               return (
                 <button
