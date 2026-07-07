@@ -21,9 +21,10 @@ import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDia
 import {
   cancelPurchaseOrder,
   createPurchaseOrder,
-  fetchAllProductsForPurchase,
   fetchProductsForReorder,
-  purchaseAllProductsCache as allProductsCache,
+  fetchScopedProductsForPurchase,
+  purchaseLoadedScopesCache,
+  purchaseProductPoolCache,
   purchaseReorderCache as reorderProductsCache,
   receivePurchaseOrderLines,
   sendPurchaseOrderEmail,
@@ -389,32 +390,68 @@ const SupplierPurchaseCheckPanel = ({
   };
   // 商品一覧モーダル { scope: 'supplier'|'brand', brandId, title }
   const [productBrowser, setProductBrowser] = useState(null);
-  const [allProducts, setAllProducts] = useState(() => allProductsCache.get(storeId) ?? null);
+  // 取得済み商品のプール(複数スコープの和集合)。スコープを跨いで手動追加した商品の参照元になる。
+  const [allProducts, setAllProducts] = useState(() => {
+    const pool = purchaseProductPoolCache.get(storeId);
+    return pool ? [...pool.values()] : null;
+  });
   const [browserLoading, setBrowserLoading] = useState(false);
   const [browserKeyword, setBrowserKeyword] = useState('');
 
-  // allProducts(商品一覧モーダル用)とそのセッションキャッシュへ同じパッチを当てる。
+  const mergeIntoProductPool = (products) => {
+    const pool = purchaseProductPoolCache.get(storeId) || new Map();
+    products.forEach((product) => pool.set(product.id, product));
+    purchaseProductPoolCache.set(storeId, pool);
+    setAllProducts([...pool.values()]);
+  };
+
+  // 商品プール(商品一覧モーダル用)とそのセッションキャッシュへ同じパッチを当てる。
   const patchAllProducts = (ids, patch) => {
-    const applyPatch = (list) => list.map((product) => (ids.includes(product.id) ? { ...product, ...patch } : product));
-    const cached = allProductsCache.get(storeId);
-    if (Array.isArray(cached)) allProductsCache.set(storeId, applyPatch(cached));
-    setAllProducts((current) => (Array.isArray(current) ? applyPatch(current) : current));
+    const pool = purchaseProductPoolCache.get(storeId);
+    if (pool) {
+      ids.forEach((id) => {
+        const product = pool.get(id);
+        if (product) pool.set(id, { ...product, ...patch });
+      });
+    }
+    setAllProducts((current) => (Array.isArray(current)
+      ? current.map((product) => (ids.includes(product.id) ? { ...product, ...patch } : product))
+      : current));
   };
 
   const openProductBrowser = async (browserConfig) => {
     setProductBrowser(browserConfig);
     setBrowserKeyword('');
-    if (browserLoading) return;
+    if (!selectedGroup) return;
 
-    // キャッシュがあれば即表示し、裏で最新を取得して置き換える。無ければローディング表示。
-    const hasCache = Array.isArray(allProducts);
-    if (!hasCache) setBrowserLoading(true);
+    // 開いたスコープ(仕入先/ブランド)の商品だけを取得する(全商品スキャン廃止)。
+    // 取得済みスコープは即表示し、裏で最新を取得して差し替える。
+    const scopeKey = browserConfig.scope === 'brand'
+      ? `brand:${browserConfig.brandId || `none-of-${selectedGroup.supplierId}`}`
+      : `supplier:${selectedGroup.supplierId}`;
+    const loadedScopes = purchaseLoadedScopesCache.get(storeId) || new Set();
+    const isLoaded = loadedScopes.has(scopeKey);
+    if (!isLoaded) setBrowserLoading(true);
+
     try {
-      const products = await fetchAllProductsForPurchase(storeId);
-      allProductsCache.set(storeId, products);
-      setAllProducts(products);
+      // ブランドスコープはそのブランドIDのみ。ブランド未設定グループと仕入先スコープは
+      // 仕入先直付け(supplierId)＋仕入先配下ブランドの商品を集める。
+      const supplierBrandIds = browserConfig.scope === 'brand'
+        ? (browserConfig.brandId ? [browserConfig.brandId] : [])
+        : [...(brandById?.values() || [])]
+          .filter((brand) => brand.supplierId === selectedGroup.supplierId)
+          .map((brand) => brand.id);
+
+      const products = await fetchScopedProductsForPurchase(storeId, {
+        supplierId: browserConfig.scope === 'brand' && browserConfig.brandId ? '' : selectedGroup.supplierId,
+        brandIds: supplierBrandIds
+      });
+
+      mergeIntoProductPool(products);
+      loadedScopes.add(scopeKey);
+      purchaseLoadedScopesCache.set(storeId, loadedScopes);
     } catch (error) {
-      if (!hasCache) {
+      if (!isLoaded) {
         alert(`商品一覧の取得に失敗しました: ${error.message}`);
         setProductBrowser(null);
       }

@@ -696,15 +696,40 @@ export const fetchProductsForReorder = async (storeId) => {
 };
 
 // 発注書への手動追加(商品一覧ブラウズ)用に全商品を取得する。発注点未設定の商品も含む。
+// ※現在は fetchScopedProductsForPurchase(絞り込み版)を使用。切り戻し用に残している。
 export const fetchAllProductsForPurchase = async (storeId) => {
   const snapshot = await getDocs(storeCollectionRef(storeId, 'products'));
   return mapCollectionSnapshot(snapshot);
 };
 
+// 「その他の商品」モーダル用: 仕入先/ブランドに絞って商品を取得する(全商品スキャン廃止)。
+// 商品の仕入先は 商品.supplierId 直指定 と ブランド経由(brandId→brand.supplierId) の2系統が
+// あるため、supplierId一致とブランドID群('in'は30件ずつ)の和集合を返す。
+// スコープの最終判定(resolvedSupplierId)は呼び出し側が行う。
+export const fetchScopedProductsForPurchase = async (storeId, { supplierId = '', brandIds = [] } = {}) => {
+  const requests = [];
+  if (supplierId) {
+    requests.push(getDocs(query(storeCollectionRef(storeId, 'products'), where('supplierId', '==', supplierId))));
+  }
+  for (let index = 0; index < brandIds.length; index += 30) {
+    requests.push(getDocs(query(storeCollectionRef(storeId, 'products'), where('brandId', 'in', brandIds.slice(index, index + 30)))));
+  }
+
+  const snapshots = await Promise.all(requests);
+  const byId = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((snapshotDoc) => byId.set(snapshotDoc.id, { ...snapshotDoc.data(), id: snapshotDoc.id }));
+  });
+  return [...byId.values()];
+};
+
 // 発注管理画面のセッション内キャッシュ(stale-while-revalidate)。
 // 画面側はキャッシュがあれば即描画し、裏で最新を取得して置き換える。
 export const purchaseReorderCache = new Map();
-export const purchaseAllProductsCache = new Map();
+// 「その他の商品」モーダルで取得済みの商品プール(storeId -> Map(productId -> product))と、
+// 取得済みスコープ(storeId -> Set(scopeKey))。スコープ単位で読み込み済みかを判定する。
+export const purchaseProductPoolCache = new Map();
+export const purchaseLoadedScopesCache = new Map();
 
 // 設定画面を開いた時点で発注候補を裏読みしてキャッシュを温める。
 // 未キャッシュ時のみ実行（最新化は発注管理画面を開いたときのSWRが担う）。失敗は握りつぶす。
