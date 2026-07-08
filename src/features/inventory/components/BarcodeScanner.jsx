@@ -69,6 +69,11 @@ const BarcodeScanner = ({ active, onDetected, onError }) => {
 
       const capabilities = track?.getCapabilities ? track.getCapabilities() : {};
 
+      // 連続オートフォーカス(対応端末のみ)。ピンボケでの読み取り失敗を減らす。
+      if (track?.applyConstraints && Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes('continuous')) {
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => { /* 非対応は無視 */ });
+      }
+
       if (capabilities.zoom) {
         const settings = track.getSettings ? track.getSettings() : {};
         setZoomCapability({

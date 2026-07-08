@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { Camera } from 'lucide-react';
 import { functionsApi } from '../../../shared/api/firebase/client';
+import { decodeBarcodeFromFile, isValidEanUpc } from '../../../shared/utils/barcodeDecode';
+import { toHalfWidthCode } from '../../../shared/utils/halfWidth';
 
 // 下げ札(値札タグ)を撮影/選択 → Cloud Function(extractHangTag)でAI抽出 → 空欄へ反映。
 // onExtracted(fields) は反映結果 { filled:[label...], brand:{name,matched} } を返す想定。
@@ -52,12 +54,25 @@ export default function HangTagScanButton({ storeId, onExtracted }) {
     setError('');
     setResult(null);
     try {
-      const imageBase64 = await fileToResizedBase64(file);
+      // 画像縮小とバーコード実デコードを並行実行。
+      const [imageBase64, decodedBarcode] = await Promise.all([
+        fileToResizedBase64(file),
+        decodeBarcodeFromFile(file)
+      ]);
       const call = httpsCallable(functionsApi, 'extractHangTag');
       const response = await call({ storeId, imageBase64, mediaType: 'image/jpeg' });
       const data = response.data || {};
-      const applied = (typeof onExtracted === 'function' ? onExtracted(data.fields) : null) || { filled: [], brand: null };
-      setResult({ ...data, applied });
+      // バーコードはデコード値(検証済み)を優先。失敗時はClaudeの読みをチェックデジット検証し、
+      // 合う時だけ採用。合わなければ空欄(誤りを入れない)。
+      const fields = { ...(data.fields || {}) };
+      if (decodedBarcode) {
+        fields.barcode = decodedBarcode;
+      } else if (fields.barcode) {
+        const cleaned = toHalfWidthCode(String(fields.barcode)).replace(/\s/g, '');
+        fields.barcode = isValidEanUpc(cleaned) ? cleaned : '';
+      }
+      const applied = (typeof onExtracted === 'function' ? onExtracted(fields) : null) || { filled: [], brand: null };
+      setResult({ ...data, fields, applied });
     } catch (err) {
       setError(err?.message || String(err));
     } finally {
@@ -78,7 +93,7 @@ export default function HangTagScanButton({ storeId, onExtracted }) {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
+        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-blue-600 bg-white px-3 text-sm font-black text-blue-600 shadow-sm transition hover:bg-blue-50 active:scale-95 disabled:opacity-60"
       >
         <Camera size={16} />
         {loading ? '読み取り中…' : '下げ札を撮影して読み取る'}
