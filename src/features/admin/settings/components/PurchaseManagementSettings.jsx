@@ -299,6 +299,9 @@ const SupplierPurchaseCheckPanel = ({
   onSaved
 }) => {
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  // 仕入先が非常に多い(SaaSで数百件)と、一度に全カードを描画してメインスレッドがフリーズする。
+  // 初期は上位N件だけ描画し、残りは「さらに表示」で追加する。
+  const [visibleSupplierCount, setVisibleSupplierCount] = useState(30);
   const [qtyDrafts, setQtyDrafts] = useState({});
   const [excludedBrandIds, setExcludedBrandIds] = useState([]);
   // 商品一覧から手動で発注書に追加した商品ID（発注点未達の商品も発注できる）
@@ -787,7 +790,7 @@ const SupplierPurchaseCheckPanel = ({
         </div>
       )}
 
-      {orderableGroups.map((group) => {
+      {orderableGroups.slice(0, visibleSupplierCount).map((group) => {
         const isExpanded = group.supplierId === selectedSupplierId;
         const supplier = group.supplier;
         const canEmail = Boolean(supplier?.email);
@@ -1117,6 +1120,16 @@ const SupplierPurchaseCheckPanel = ({
           </div>
         );
       })}
+
+      {orderableGroups.length > visibleSupplierCount && (
+        <button
+          type="button"
+          onClick={() => setVisibleSupplierCount((current) => current + 30)}
+          className="w-full rounded-2xl border border-dashed border-slate-300 bg-white py-4 text-sm font-black text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+        >
+          さらに表示（残り {orderableGroups.length - visibleSupplierCount} 仕入先）
+        </button>
+      )}
 
       {unassignedGroup && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-4">

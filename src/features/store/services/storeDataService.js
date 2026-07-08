@@ -29,6 +29,33 @@ const mapCollectionSnapshot = (snapshot) => snapshot.docs.map((snapshotDoc) => (
   id: snapshotDoc.id
 }));
 
+// 大量ドキュメント(数千〜数万)のスナップショット展開をチャンク分割し、合間にイベントループへ
+// 制御を返す。doc.data()のデシリアライズが一枚岩で走るとメインスレッドが数百ms〜秒単位で
+// フリーズし、タブ操作等が効かなくなるため(発注候補など件数が青天井の読み込みで使う)。
+// メインスレッドへ制御を返す(次のマクロタスクまで待つ)。setTimeout はバックグラウンドタブで
+// 1秒にスロットリングされるため、されない MessageChannel を使う。
+const yieldToMain = () => new Promise((resolve) => {
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => resolve();
+  channel.port2.postMessage(null);
+});
+
+const mapCollectionSnapshotChunked = async (snapshot, chunkSize = 1500) => {
+  const docs = snapshot.docs;
+  const result = new Array(docs.length);
+  for (let index = 0; index < docs.length; index += chunkSize) {
+    const end = Math.min(index + chunkSize, docs.length);
+    for (let cursor = index; cursor < end; cursor += 1) {
+      const snapshotDoc = docs[cursor];
+      result[cursor] = { ...snapshotDoc.data(), id: snapshotDoc.id };
+    }
+    if (end < docs.length) {
+      await yieldToMain();
+    }
+  }
+  return result;
+};
+
 const storeCollectionRef = (storeId, collectionName) => collection(db, 'stores', storeId, collectionName);
 
 const PRODUCT_MASTER_INITIAL_LIMIT = 200;
@@ -675,7 +702,7 @@ const fetchProductsForReorderFullScan = async (storeId) => {
     storeCollectionRef(storeId, 'products'),
     where('reorderPoint', '>=', 0)
   ));
-  return mapCollectionSnapshot(snapshot);
+  return mapCollectionSnapshotChunked(snapshot);
 };
 
 // 既存商品への needsReorder 一括付与。needsReorder フィールドのみ update し他フィールドに触れない。
@@ -709,7 +736,7 @@ export const fetchProductsForReorder = async (storeId) => {
   ]);
 
   if (markerSnapshot.exists() && markerSnapshot.data().needsReorderBackfilledAt) {
-    return mapCollectionSnapshot(flaggedSnapshot);
+    return mapCollectionSnapshotChunked(flaggedSnapshot);
   }
 
   const products = await fetchProductsForReorderFullScan(storeId);

@@ -211,6 +211,16 @@ export const getActiveRegisterContext = (storeId, registers, departments = DEFAU
   }
 };
 
+// 設定などで settings 未ロードでもレジ名を即表示するため、localStorage キャッシュ名を返す。
+export const getStoredActiveRegisterName = (storeId) => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(buildStorageKey(storeId, 'activeRegisterName')) || '';
+  } catch (error) {
+    return '';
+  }
+};
+
 export const setActiveRegisterContext = (storeId, register) => {
   const normalized = normalizeRegister(register, DEFAULT_REGISTERS[0], DEFAULT_DEPARTMENTS);
   const { id, name, departmentId, departmentName, registerMode } = normalized;

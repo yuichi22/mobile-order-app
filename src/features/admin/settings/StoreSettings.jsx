@@ -28,7 +28,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { collection, doc, onSnapshot, query, where, getDocs, orderBy, limit, startAfter, getCountFromServer, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
-import { getActiveRegisterContext, syncActiveRegisterName } from '../../pos/utils/registerContext';
+import { getActiveRegisterContext, syncActiveRegisterName, getStoredActiveRegisterName } from '../../pos/utils/registerContext';
 
 import { useAuth } from '../../../app/providers/useAuth';
 import { db } from '../../../shared/api/firebase/client';
@@ -82,22 +82,6 @@ import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog
 import ProductCsvImportPanel from '../../products/components/ProductCsvImportPanel';
 import MasterCsvImportPanel from '../../products/components/MasterCsvImportPanel';
 
-const SETTINGS_MODE_ITEMS = [
-  {
-    id: 'order',
-    label: 'ORDER',
-    title: 'ORDER設定',
-    desc: 'モバイルオーダー・飲食メニュー',
-    icon: Utensils
-  },
-  {
-    id: 'pos',
-    label: 'POS',
-    title: 'POS設定',
-    desc: '物販レジ・商品マスター',
-    icon: ShoppingBag
-  }
-];
 
 const SETTINGS_MENU_ITEMS = [
   { id: 'menu', mode: 'order', group: 'メニュー管理', label: 'メニュー設定', icon: Utensils, desc: '商品と表示内容の編集' },
@@ -2820,6 +2804,84 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
 };
 
 
+// 設定サイドバー。memo化し、点灯用の楽観stateを内部に閉じ込める。
+// クリック→点灯はサイドバー単独の軽い再描画で完結し、重い本体(商品マスター/発注管理)の
+// 切替に巻き込まれない。本体切替は親側で setTimeout(ペイント後のマクロタスク)に送るため、
+// 点灯が先に描画される。
+const SettingsSidebar = React.memo(function SettingsSidebar({
+  items,
+  committedSubTab,
+  activeClassName,
+  registerName,
+  onSelect,
+  onLogout,
+}) {
+  const [optimistic, setOptimistic] = useState(null);
+  // 実タブが切り替わったら楽観点灯は解除(実タブに追従)。
+  useEffect(() => {
+    setOptimistic(null);
+  }, [committedSubTab]);
+  const highlight = optimistic ?? committedSubTab;
+
+  const handleClick = (id) => {
+    if (id === highlight) return;
+    setOptimistic(id); // サイドバーだけ即再描画=押した瞬間に点灯
+    onSelect(id);      // 本体切替は親が(ペイント後に)実行
+  };
+
+  return (
+    <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-white shadow-2xl">
+      <div className="settings-sidebar-inner flex h-full w-64 min-w-[16rem] flex-col">
+        <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
+
+        <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
+          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-4">
+            <div className="text-[10px] font-black tracking-widest text-slate-500">使用レジ</div>
+            <div className="mt-2 truncate text-lg font-black tracking-tight text-white">
+              {registerName || 'レジ1'}
+            </div>
+            <div className="mt-1 text-[10px] font-bold leading-relaxed text-slate-500">
+              基本設定で変更できます。
+            </div>
+          </div>
+
+          {items.map((item) => {
+            const isActive = highlight === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleClick(item.id)}
+                className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
+                  isActive ? activeClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+                title={item.desc}
+              >
+                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
+                {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto flex-shrink-0 border-t border-slate-800/50 bg-slate-900 p-4">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-4 text-slate-400 transition-all duration-300 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
+            <span className="text-sm font-bold">ログアウト</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+});
+
+
 export const StoreSettings = ({
   storeId,
   initialSettingsMode = 'order',
@@ -2874,7 +2936,15 @@ export const StoreSettings = ({
   } = useCookingCategoryData(storeId);
 
   const [settingsMode, setSettingsMode] = useState(initialSettingsMode === 'pos' ? 'pos' : 'order');
-  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => getActiveRegisterContext(storeId, settings?.registers, settings?.departments));
+  const [activeRegisterContext, setActiveRegisterContextState] = useState(() => {
+    const ctx = getActiveRegisterContext(storeId, settings?.registers, settings?.departments);
+    // settings 未ロード時は名前が既定/空になりやすいので、localStorage キャッシュ名で先に埋めて即表示。
+    if (!ctx?.name) {
+      const cachedName = getStoredActiveRegisterName(storeId);
+      if (cachedName) return { ...ctx, name: cachedName };
+    }
+    return ctx;
+  });
 
   useEffect(() => {
     setSettingsMode(initialSettingsMode === 'pos' ? 'pos' : 'order');
@@ -2974,10 +3044,22 @@ export const StoreSettings = ({
   //  点灯自体が1〜2秒ブロックされるため、切替中は本体を何も描画しない方式にする)
   const [pendingSubTab, setPendingSubTab] = useState(null);
   const isSubTabSwitching = Boolean(pendingSubTab);
-  // サイドバーの点灯はクリック直後の pendingSubTab を優先する。
-  const highlightSubTab = pendingSubTab ?? activeSubTab;
+  // 点灯(選択状態)は SettingsSidebar 内の楽観stateで即時に行うため、親では持たない。
   // 本体の描画キー。切替中はどのセクションにも一致させず何も描画しない。
   const deferredSubTab = pendingSubTab ? '__switching__' : activeSubTab;
+
+  // 発注管理・商品マスターは破棄が重いので keep-alive: 一度開いたら破棄せず hidden で保持し、
+  // タブを離れる時の重いアンマウントを無くす(再表示も即時)。商品マスターはPOS設定の既定タブ。
+  const [purchaseEverOpened, setPurchaseEverOpened] = useState(false);
+  const [productsEverOpened, setProductsEverOpened] = useState(false);
+  useEffect(() => {
+    if (activeSubTab === 'purchaseManagement') setPurchaseEverOpened(true);
+    if (activeSubTab === 'products') setProductsEverOpened(true);
+  }, [activeSubTab]);
+  const purchaseMenuItem = useMemo(
+    () => availableMenuItems.find((item) => item.id === 'purchaseManagement') || null,
+    [availableMenuItems]
+  );
 
   useEffect(() => {
     if (typeof onPosSettingsSubTabChange !== 'function') return;
@@ -3012,7 +3094,10 @@ export const StoreSettings = ({
   // 「キーワードあり→商品マスターへ強制移動」を再実行し、押したメニューから
   // 商品マスターへ引き戻してしまう。メニュー選択を最優先にするため、
   // 別メニューを選んだら検索キーワードをクリアして強制移動を解除する。
-  const handleSelectSettingsSubTab = (nextSubTab) => {
+  // memo化した SettingsSidebar に安定参照で渡すため useCallback。
+  // 点灯(サイドバー内の楽観state)がペイントされた後に本体切替を走らせたいので、
+  // 本体切替は setTimeout(=ペイント後のマクロタスク)に送る。rAFはペイント直前に走るため使わない。
+  const handleSelectSettingsSubTab = React.useCallback((nextSubTab) => {
     if (
       settingsMode === 'pos' &&
       nextSubTab !== 'products' &&
@@ -3025,17 +3110,17 @@ export const StoreSettings = ({
       }
     }
 
-    if (nextSubTab === activeSubTab) return;
-
-    // 先に「点灯＋ローディング」の軽い描画をブラウザに描かせてから、本体を組み立てる。
-    setPendingSubTab(nextSubTab);
     window.setTimeout(() => {
-      setSubTab(nextSubTab);
-      setPendingSubTab((current) => (current === nextSubTab ? null : current));
-    }, 30);
-  };
+      setPendingSubTab(nextSubTab); // 旧本体unmount→「読み込み中…」
+      window.setTimeout(() => {
+        setSubTab(nextSubTab);       // 新本体mount
+        setPendingSubTab((current) => (current === nextSubTab ? null : current));
+      }, 30);
+    }, 0);
+  }, [settingsMode, posProductKeyword, onPosProductKeywordChange]);
 
-  const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
+  const openLogout = React.useCallback(() => setShowLogoutConfirm(true), []);
+
   // 画面本体は deferredSubTab 基準で描画するため、メニュー項目の解決も deferred 側で行う。
   const deferredMenuItem = availableMenuItems.find((item) => item.id === deferredSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
@@ -3126,83 +3211,14 @@ export const StoreSettings = ({
         />
       )}
 
-      <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-white shadow-2xl">
-        <div className="settings-sidebar-inner flex h-full w-64 min-w-[16rem] flex-col">
-        <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
-
-        <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
-          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-4">
-            <div className="text-[10px] font-black tracking-widest text-slate-500">使用レジ</div>
-            <div className="mt-2 truncate text-lg font-black tracking-tight text-white">
-              {activeRegisterContext?.name || 'レジ1'}
-            </div>
-            <div className="mt-1 text-[10px] font-bold leading-relaxed text-slate-500">
-              基本設定で変更できます。
-            </div>
-          </div>
-
-          {false && settingsMode === 'pos' && (
-            <div className="mb-3 px-2">
-              <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
-              <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
-            </div>
-          )}
-
-          {settingsMode === 'order' ? (
-            availableMenuItems.map((item) => {
-              const isActive = highlightSubTab === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSelectSettingsSubTab(item.id)}
-                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title={item.desc}
-                >
-                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
-                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
-                </button>
-              );
-            })
-          ) : (
-            availableMenuItems.map((item) => {
-              const isActive = highlightSubTab === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSelectSettingsSubTab(item.id)}
-                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title={item.desc}
-                >
-                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
-                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
-                </button>
-              );
-            })
-          )}
-        </nav>
-
-        <div className="mt-auto flex-shrink-0 border-t border-slate-800/50 bg-slate-900 p-4">
-          <button
-            type="button"
-            onClick={() => setShowLogoutConfirm(true)}
-            className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-4 text-slate-400 transition-all duration-300 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
-          >
-            <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
-            <span className="text-sm font-bold">ログアウト</span>
-          </button>
-        </div>
-        </div>
-      </aside>
+      <SettingsSidebar
+        items={availableMenuItems}
+        committedSubTab={activeSubTab}
+        activeClassName={settingsActiveClassName}
+        registerName={activeRegisterContext?.name}
+        onSelect={handleSelectSettingsSubTab}
+        onLogout={openLogout}
+      />
 
       <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-gray-50/50">
         {/* メニュー切替中の軽いローディング。ボタンの点灯を先に描画し、本体は遅れて出る */}
@@ -3278,7 +3294,9 @@ export const StoreSettings = ({
           />
           )}
 
-          {deferredSubTab === 'products' && canAccessSettingsSection(normalizedRole, 'products') && (
+          {/* 商品マスターは keep-alive: 既定タブで必ずマウントされるため、離脱時の重い破棄を無くす。 */}
+          {settingsMode === 'pos' && productsEverOpened && canAccessSettingsSection(normalizedRole, 'products') && (
+            <div style={{ display: deferredSubTab === 'products' ? undefined : 'none' }}>
             <ProductMasterSettings
               storeId={storeId}
               products={productMaster.products}
@@ -3311,11 +3329,13 @@ export const StoreSettings = ({
               defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
               labelPrinterSettings={settings?.labelPrinterSettings}
             />
+            </div>
           )}
 
           {settingsMode === 'pos'
             && deferredSubTab !== 'products'
             && deferredMenuItem
+            && deferredMenuItem.id !== 'purchaseManagement'
             && deferredMenuItem.mode === 'pos'
             && !isKitchenOnlySettingsItem(deferredMenuItem)
             && canAccessSettingsSection(normalizedRole, deferredMenuItem.id) && (
@@ -3327,6 +3347,23 @@ export const StoreSettings = ({
                 onSaved={showSaveComplete}
                 rememberedTabsRef={posDummyTabsRef}
               />
+            )}
+
+          {/* 発注管理は keep-alive: 一度開いたら破棄せず hidden で保持。離脱時の重いアンマウントを無くす。 */}
+          {settingsMode === 'pos'
+            && purchaseEverOpened
+            && purchaseMenuItem
+            && canAccessSettingsSection(normalizedRole, 'purchaseManagement') && (
+              <div style={{ display: deferredSubTab === 'purchaseManagement' ? undefined : 'none' }}>
+                <PosDummyTabbedPage
+                  item={purchaseMenuItem}
+                  productMaster={productMaster}
+                  storeId={storeId}
+                  defaultTaxRate={taxPriceSettingsForProducts.defaultTaxRate}
+                  onSaved={showSaveComplete}
+                  rememberedTabsRef={posDummyTabsRef}
+                />
+              </div>
             )}
 
 
