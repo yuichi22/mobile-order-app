@@ -53,20 +53,26 @@ const TabLoader = () => (
   </div>
 );
 
-const OperationTabButton = ({ active, icon: Icon, label, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
-      active
-        ? 'border-orange-500 bg-orange-500 text-white shadow-orange-500/20'
-        : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-    }`}
-  >
-    <Icon size={17} strokeWidth={2.7} />
-    {label}
-  </button>
-);
+const OperationTabButton = ({ active, icon: Icon, label, onClick, mode = 'order' }) => {
+  // アクティブ色はレジモードに連動: POS=青 / ORDER=オレンジ。
+  const activeClass = mode === 'pos'
+    ? 'border-blue-600 bg-blue-600 text-white shadow-blue-500/20'
+    : 'border-orange-500 bg-orange-500 text-white shadow-orange-500/20';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
+        active
+          ? activeClass
+          : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+      }`}
+    >
+      <Icon size={17} strokeWidth={2.7} />
+      {label}
+    </button>
+  );
+};
 
 const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const location = useLocation();
@@ -513,7 +519,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       setRegisterMode(currentMode);
                       setActiveTab('pos');
                     }}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-slate-800 px-4 text-sm font-black text-white shadow-sm transition-all duration-200 hover:bg-slate-900 active:scale-95"
+                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black shadow-sm transition-all duration-200 active:scale-95 ${
+                      registerMode === 'pos'
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    }`}
                     aria-label="戻る"
                     title="戻る"
                   >
@@ -527,6 +537,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 <>
                   <OperationTabButton
                     active={activeAdminTab === 'dailyClosing'}
+                    mode={registerMode === 'pos' ? 'pos' : 'order'}
                     icon={CalendarCheck}
                     label="日計"
                     onClick={() => {
@@ -539,6 +550,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
                   <OperationTabButton
                     active={activeAdminTab === 'analytics'}
+                    mode={registerMode === 'pos' ? 'pos' : 'order'}
                     icon={BarChart3}
                     label="分析"
                     onClick={() => {
@@ -554,6 +566,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
               {canViewSettings && (
                 <OperationTabButton
                   active={activeAdminTab === 'settings'}
+                  mode={registerMode === 'pos' ? 'pos' : 'order'}
                   icon={Settings}
                   label="設定"
                   onClick={() => {

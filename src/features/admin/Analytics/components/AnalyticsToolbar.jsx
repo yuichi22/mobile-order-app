@@ -79,14 +79,16 @@ const parseMonthInputValue = (value) => {
   return nextDate;
 };
 
-const PeriodButton = ({ active, icon: Icon, label, onClick }) => (
+const PeriodButton = ({ active, icon: Icon, label, onClick, accentPos = false }) => (
   <button
     type="button"
     onClick={onClick}
     className={`flex h-10 items-center gap-2 rounded-full px-4 text-sm font-black transition-colors ${
       active
-        ? 'bg-orange-500 text-white shadow-sm'
-        : 'bg-white text-gray-500 shadow-sm hover:bg-orange-100 hover:text-orange-600'
+        ? (accentPos ? 'bg-blue-600 text-white shadow-sm' : 'bg-orange-500 text-white shadow-sm')
+        : (accentPos
+            ? 'bg-white text-gray-500 shadow-sm hover:bg-blue-100 hover:text-blue-600'
+            : 'bg-white text-gray-500 shadow-sm hover:bg-orange-100 hover:text-orange-600')
     }`}
   >
     <Icon size={15} strokeWidth={2.8} />
@@ -146,6 +148,16 @@ const AnalyticsToolbar = ({
 
   const isOwnDepartmentView = selectedDepartmentId === (activeDepartment?.id || '');
 
+  // 選択中部門が POS系なら青、ORDER系(および全体)ならオレンジでアクセントを切り替える。
+  const selectedDepartment = departmentOptions.find((dept) => dept.id === selectedDepartmentId) || null;
+  const accentPos = selectedDepartment?.registerMode === 'pos';
+  const periodCardClass = accentPos ? 'border-blue-100 bg-blue-50/40' : 'border-orange-100 bg-orange-50/40';
+  const periodLabelClass = accentPos ? 'text-blue-500' : 'text-orange-500';
+  const navHoverClass = accentPos ? 'hover:bg-blue-100 hover:text-blue-600' : 'hover:bg-orange-100 hover:text-orange-600';
+  const navHoverStrongClass = accentPos ? 'hover:bg-blue-100 hover:text-blue-700' : 'hover:bg-orange-100 hover:text-orange-700';
+  const dowActiveClass = accentPos ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white';
+  const dowIdleClass = accentPos ? 'bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600' : 'bg-white text-gray-500 hover:bg-orange-50 hover:text-orange-600';
+
   return (
     <div className="mb-6 space-y-4 print:hidden">
       {/* 部門セレクタ（日計と同じ方式: 自部門を大きく、その他は小さく、全体を併設） */}
@@ -164,7 +176,9 @@ const AnalyticsToolbar = ({
                   isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
                 } ${
                   isSelected
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? (dept.registerMode === 'pos'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-orange-500 text-white shadow-sm')
                     : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                 }`}
               >
@@ -199,9 +213,9 @@ const AnalyticsToolbar = ({
         </div>
       )}
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-orange-50/40 p-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className={`flex flex-col gap-3 rounded-2xl border p-4 xl:flex-row xl:items-center xl:justify-between ${periodCardClass}`}>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-black text-orange-500">
+          <div className={`flex items-center gap-2 text-xs font-black ${periodLabelClass}`}>
             <CalendarDays size={15} />
             分析対象期間
           </div>
@@ -214,6 +228,7 @@ const AnalyticsToolbar = ({
           <div className="flex flex-wrap items-center gap-2">
             <PeriodButton
               active={period === 'daily'}
+              accentPos={accentPos}
               icon={Clock}
               label="日次"
               onClick={() => setPeriod('daily')}
@@ -221,6 +236,7 @@ const AnalyticsToolbar = ({
 
             <PeriodButton
               active={period === 'monthly'}
+              accentPos={accentPos}
               icon={CalendarIcon}
               label="月次"
               onClick={() => setPeriod('monthly')}
@@ -228,6 +244,7 @@ const AnalyticsToolbar = ({
 
             <PeriodButton
               active={period === 'weekly'}
+              accentPos={accentPos}
               icon={CalendarClock}
               label="週次トレンド"
               onClick={() => setPeriod('weekly')}
@@ -235,6 +252,7 @@ const AnalyticsToolbar = ({
 
             <PeriodButton
               active={period === 'custom'}
+              accentPos={accentPos}
               icon={Settings}
               label="任意期間"
               onClick={() => setPeriod('custom')}
@@ -246,7 +264,7 @@ const AnalyticsToolbar = ({
               <button
                 type="button"
                 onClick={() => shiftDate(-1)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
+                className={`flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors ${navHoverClass}`}
                 aria-label="前へ"
               >
                 <ChevronLeft size={20} strokeWidth={3} />
@@ -256,7 +274,7 @@ const AnalyticsToolbar = ({
                 <button
                   type="button"
                   onClick={openPicker}
-                  className="min-w-[220px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-700"
+                  className={`min-w-[220px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors ${navHoverStrongClass}`}
                 >
                   {currentLabel}
                 </button>
@@ -285,7 +303,7 @@ const AnalyticsToolbar = ({
               <button
                 type="button"
                 onClick={() => shiftDate(1)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
+                className={`flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors ${navHoverClass}`}
                 aria-label="次へ"
               >
                 <ChevronRight size={20} strokeWidth={3} />
@@ -296,7 +314,7 @@ const AnalyticsToolbar = ({
       </div>
 
       {period === 'custom' && (
-        <div className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+        <div className={`rounded-2xl border p-4 ${periodCardClass}`}>
           {children}
         </div>
       )}
@@ -307,9 +325,7 @@ const AnalyticsToolbar = ({
             type="button"
             onClick={() => setIsDayOfWeekMode(!isDayOfWeekMode)}
             className={`flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
-              isDayOfWeekMode
-                ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-500 hover:bg-orange-50 hover:text-orange-600'
+              isDayOfWeekMode ? dowActiveClass : dowIdleClass
             }`}
           >
             <CalendarRange size={17} strokeWidth={2.7} />

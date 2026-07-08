@@ -472,6 +472,16 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   // 自部門を表示している時だけ締め処理を許可（他部門/全体では非表示）。
   const isOwnDepartmentView = selectedDepartmentId === (activeDepartment?.id || '');
 
+  // 物販(POS系部門)選択時は売上合計カード等のアクセントを青に、それ以外はオレンジに。
+  const accentPos = Boolean(selectedDepartment && selectedDepartment.registerMode === 'pos');
+  const salesCardBg = accentPos ? 'bg-blue-50' : 'bg-orange-50';
+  const salesCardLabel = accentPos ? 'text-blue-600' : 'text-orange-500';
+  const salesToggleActive = accentPos ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white';
+  const salesToggleIdle = accentPos ? 'text-blue-600' : 'text-orange-500';
+  const salesSubText = accentPos ? 'text-blue-600/80' : 'text-orange-500/80';
+  const salesDivider = accentPos ? 'text-blue-300' : 'text-orange-300';
+  const salesBorder = accentPos ? 'border-blue-200/60' : 'border-orange-200/60';
+
   const categoryList = Array.isArray(summary?.categoryList)
     ? summary.categoryList
     : [];
@@ -744,14 +754,18 @@ const handleCloseDay = async (closingCheck = {}) => {
             <ChevronRight size={20} strokeWidth={3} />
           </button>
 
-          {/* 今日ボタン（右端）。当日を表示中はオレンジで強調。 */}
+          {/* 今日ボタン（右端）。当日を表示中は強調。物販(POS部門)選択時は青、それ以外はオレンジ。 */}
           <button
             type="button"
             onClick={() => setTargetDate(new Date(`${todayDateValue}T00:00:00+09:00`))}
             className={`rounded-full px-4 py-3 text-sm font-black shadow-sm ring-1 transition-colors ${
               isTargetDateToday
-                ? 'bg-orange-500 text-white ring-orange-500'
-                : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700'
+                ? (selectedDepartment?.registerMode === 'pos'
+                    ? 'bg-blue-600 text-white ring-blue-600'
+                    : 'bg-orange-500 text-white ring-orange-500')
+                : (selectedDepartment?.registerMode === 'pos'
+                    ? 'bg-white text-gray-600 ring-gray-100 hover:bg-blue-100 hover:text-blue-700'
+                    : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700')
             }`}
           >
             今日
@@ -953,7 +967,9 @@ const handleCloseDay = async (closingCheck = {}) => {
                   isOwn ? 'px-5 py-2.5 text-sm' : 'px-3 py-2 text-xs'
                 } ${
                   isSelected
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? (dept.registerMode === 'pos'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-orange-500 text-white shadow-sm')
                     : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                 }`}
               >
@@ -1000,9 +1016,9 @@ const handleCloseDay = async (closingCheck = {}) => {
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-5">
-            <div className="rounded-2xl bg-orange-50 p-4">
+            <div className={`rounded-2xl p-4 ${salesCardBg}`}>
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-black text-orange-500">
+                <div className={`text-xs font-black ${salesCardLabel}`}>
                   売上合計 {amountDisplayLabel}
                 </div>
                 <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
@@ -1010,9 +1026,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                     type="button"
                     onClick={() => updateAmountDisplayMode('tax_excluded')}
                     className={`rounded-full px-2 py-1 transition-colors ${
-                      isTaxExcludedMain
-                        ? 'bg-orange-500 text-white'
-                        : 'text-orange-500'
+                      isTaxExcludedMain ? salesToggleActive : salesToggleIdle
                     }`}
                   >
                     税抜
@@ -1021,9 +1035,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                     type="button"
                     onClick={() => updateAmountDisplayMode('tax_included')}
                     className={`rounded-full px-2 py-1 transition-colors ${
-                      !isTaxExcludedMain
-                        ? 'bg-orange-500 text-white'
-                        : 'text-orange-500'
+                      !isTaxExcludedMain ? salesToggleActive : salesToggleIdle
                     }`}
                   >
                     税込
@@ -1033,15 +1045,15 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {formatCurrency(resolveMainAmount(summary?.totalSales, summary?.totalSalesTaxExcluded))}
               </div>
-              <div className="mt-1 text-[11px] font-bold text-orange-500/80">
+              <div className={`mt-1 text-[11px] font-bold ${salesSubText}`}>
                 {resolveSubAmount(summary?.totalSales, summary?.totalSalesTaxExcluded)}
-                <span className="mx-1 text-orange-300">/</span>
+                <span className={`mx-1 ${salesDivider}`}>/</span>
                 内税 {formatCurrency(summary?.totalTaxAmount)}
               </div>
               {Number(summary?.cancelReturnTotal || 0) !== 0 && (
-                <div className="mt-1 border-t border-orange-200/60 pt-1 text-[11px] font-black text-red-500">
+                <div className={`mt-1 border-t pt-1 text-[11px] font-black text-red-500 ${salesBorder}`}>
                   取消・返品 {formatCurrency(summary?.cancelReturnTotal)}
-                  <span className="mx-1 text-orange-300">/</span>
+                  <span className={`mx-1 ${salesDivider}`}>/</span>
                   <span className="text-gray-600">純売上 {formatCurrency(Number(summary?.totalSales || 0) + Number(summary?.cancelReturnTotal || 0))}</span>
                 </div>
               )}

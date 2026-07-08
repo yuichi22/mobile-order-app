@@ -49,30 +49,30 @@ const SummaryCards = ({ salesIncl, salesExcl, totalTax, customerCount, avgIncl, 
   const subAvg = isExcl ? avgIncl : avgExcl;
   return (
     <div className="grid gap-3 md:grid-cols-3">
-      <div className="rounded-2xl bg-orange-50 p-4">
+      <div className="rounded-2xl bg-blue-50 p-4">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-black text-orange-500">売上合計 {label}・値引き後</div>
+          <div className="text-xs font-black text-blue-600">売上合計 {label}・値引き後</div>
           <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
             <button
               type="button"
               onClick={() => onTaxModeChange('tax_excluded')}
-              className={`rounded-full px-2 py-1 transition-colors ${isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+              className={`rounded-full px-2 py-1 transition-colors ${isExcl ? 'bg-blue-600 text-white' : 'text-blue-600'}`}
             >
               税抜
             </button>
             <button
               type="button"
               onClick={() => onTaxModeChange('tax_included')}
-              className={`rounded-full px-2 py-1 transition-colors ${!isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+              className={`rounded-full px-2 py-1 transition-colors ${!isExcl ? 'bg-blue-600 text-white' : 'text-blue-600'}`}
             >
               税込
             </button>
           </div>
         </div>
         <div className="mt-2 text-2xl font-black text-gray-900">{yen(mainSales)}</div>
-        <div className="mt-1 text-[11px] font-bold text-orange-500/80">
+        <div className="mt-1 text-[11px] font-bold text-blue-600/80">
           {isExcl ? '税込' : '税抜'} {yen(subSales)}
-          <span className="mx-1 text-orange-300">/</span>
+          <span className="mx-1 text-blue-300">/</span>
           内税 {yen(totalTax)}
         </div>
       </div>
@@ -143,7 +143,7 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
 
 const SalesRow = ({ entry, active, onSelect, onDrill }) => (
   <div className={`flex items-center justify-between rounded-xl px-2 py-2 transition ${
-    active ? 'bg-orange-100 ring-2 ring-orange-400' : 'bg-gray-50 hover:bg-gray-100'
+    active ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-gray-50 hover:bg-gray-100'
   }`}>
     <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-2 py-1 text-left">
       <div className="min-w-0">
@@ -160,7 +160,7 @@ const SalesRow = ({ entry, active, onSelect, onDrill }) => (
       <button
         type="button"
         onClick={onDrill}
-        className="ml-1 flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-orange-50 hover:text-orange-600"
+        className="ml-1 flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-blue-50 hover:text-blue-600"
       >
         詳細<ChevronRight size={13} />
       </button>
@@ -408,7 +408,7 @@ const PosAnalyticsView = ({
             type="button"
             onClick={() => switchMode('store')}
             className={`flex h-9 items-center gap-1.5 rounded-full px-5 text-sm font-black transition ${
-              viewMode === 'store' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-orange-600'
+              viewMode === 'store' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-blue-600'
             }`}
           >
             <Store size={15} /> 店舗
@@ -449,8 +449,8 @@ const PosAnalyticsView = ({
       {viewMode === 'store' && <FinancialPanel financial={financial} grossItemTotal={grossItemTotal} />}
 
       {selection.level !== 'all' && (
-        <div className="mt-3 flex items-center gap-2 text-xs font-black text-orange-600">
-          <span className="rounded-full bg-orange-100 px-3 py-1">グラフ表示中: 「{selection.name}」</span>
+        <div className="mt-3 flex items-center gap-2 text-xs font-black text-blue-600">
+          <span className="rounded-full bg-blue-100 px-3 py-1">グラフ表示中: 「{selection.name}」</span>
           <button type="button" onClick={() => setSelection({ level: 'all' })} className="text-gray-400 underline">
             全体に戻す
           </button>
@@ -468,7 +468,7 @@ const PosAnalyticsView = ({
                 type="button"
                 onClick={() => activateTab(tab.id)}
                 className={`flex h-9 items-center gap-1.5 rounded-t-lg px-4 text-xs font-black transition ${
-                  isActive ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-orange-50'
+                  isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'
                 }`}
               >
                 <Icon size={13} />
