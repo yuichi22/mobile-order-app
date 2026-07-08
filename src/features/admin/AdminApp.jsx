@@ -671,8 +671,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       )}
 
       <main className={mainClassName}>
-        {activeAdminTab === 'pos' && (
-          <div className="h-full min-h-0 overflow-hidden">
+        {/* POS/ORDERメインは keep-alive: 日計/分析/設定に移っても破棄せず hidden で残し、
+            戻る時の再マウント(セッション別getDocs/全再計算/レジUI再描画)のもたつきを無くす。 */}
+        <div className={`h-full min-h-0 overflow-hidden ${activeAdminTab === 'pos' ? '' : 'hidden'}`}>
             <Suspense fallback={<TabLoader />}>
               {posView === 'scan' && (
                 <PosHomePage
@@ -681,6 +682,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onSelectSession={handlePosScan}
                   storeId={storeId}
                   registerMode={registerMode}
+                  isActive={activeAdminTab === 'pos'}
                   onBack={!showAdminHeader ? onBack : undefined}
                   onPaymentResult={handlePaymentResultToast}
                   onCheckoutAmountEntered={handleCheckoutAmountEntered}
@@ -812,8 +814,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </div>
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {activeAdminTab === 'dailyClosing' && canViewAnalytics && (
           <Suspense fallback={<TabLoader />}>

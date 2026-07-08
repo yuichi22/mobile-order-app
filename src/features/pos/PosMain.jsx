@@ -159,7 +159,7 @@ const computeCartLineFigures = (item, modeTax, registerMode) => {
   };
 };
 
-export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, onCheckoutAmountEntered, registerMode = 'order' }) => {
+export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, onCheckoutAmountEntered, registerMode = 'order', isActive = true }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
 
   // この端末の登録レジ(基本設定)＝自レジ。履歴は既定でこのレジ。全レジ一覧は「その他のレジ」選択用。
@@ -1698,7 +1698,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 検索窓(箱)にフォーカス中はグローバル側は捕捉せず(入力欄を壊さない)、箱自身の
   // バッファ式ハンドラ(posScanKeyDown)がスキャン速度を検出してカートへ流す。
   useGlobalBarcodeScanner({
-    active: registerMode === 'pos' || isTakeoutMode,
+    // 別タブ(日計/分析/設定)へ移動中は keep-alive で裏に残るため、非アクティブ時は捕捉しない。
+    active: isActive && (registerMode === 'pos' || isTakeoutMode),
     onScan: processScannedValue
   });
 
