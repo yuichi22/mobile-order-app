@@ -65,19 +65,45 @@ const buildDiscountLines = (data = {}) => {
     lines.push({ label: entry.label || entry.name || fallbackLabel, amount });
   };
 
+  // 金券/売掛(voucher_payment)は値引きではなく支払い内訳(buildTenderで券名併記)に回すため除外する。
+  const isVoucher = (entry) => entry?.accountingCategory === 'voucher_payment';
+
   const applied = Array.isArray(data.appliedDiscounts) && data.appliedDiscounts.length > 0
     ? data.appliedDiscounts
     : (data.appliedDiscount ? [data.appliedDiscount] : []);
-  // 金券/売掛(voucher_payment)は値引きではなく支払い内訳(buildTenderで券名併記)に回すため除外する。
-  // (POS/takeoutは appliedDiscounts にも売掛が入るため、ここで弾かないと二重表示になる。)
-  applied
-    .filter((discount) => discount?.accountingCategory !== 'voucher_payment')
-    .forEach((discount) => pushLine(discount, '値引き'));
 
-  (Array.isArray(data.promoExpenseItems) ? data.promoExpenseItems : [])
-    .forEach((item) => pushLine(item, '販促値引き'));
+  // 重要: 同じ割引が appliedDiscounts と promoExpenseItems の両方に保存される(会計区分別の再掲)ため、
+  // 単純連結すると二重計上になる。appliedDiscounts を正とし、items があれば各クーポンへ展開する。
+  // promoExpenseItems は appliedDiscounts が空(それ単独の割引)のときだけフォールバックで使う。
+  if (applied.length > 0) {
+    applied.forEach((discount) => {
+      if (Array.isArray(discount?.items) && discount.items.length > 0) {
+        // 複数クーポン等は各クーポン単位に1行ずつ展開する(金券itemは支払い充当なので除外)。
+        discount.items
+          .filter((item) => !isVoucher(item))
+          .forEach((item) => pushLine(item, discount.name || '値引き'));
+      } else if (!isVoucher(discount)) {
+        pushLine(discount, '値引き');
+      }
+    });
+  } else {
+    (Array.isArray(data.promoExpenseItems) ? data.promoExpenseItems : [])
+      .forEach((item) => pushLine(item, '販促値引き'));
+  }
 
   return lines;
+};
+
+// 商品個別割引(item.lineDiscount)を、レシート印字用の { label, amount } に整える。
+// 会計伝票と同じく「割引名（10%OFF）」の形にする（%のときのみ %OFF を併記）。
+const normalizeLineDiscount = (lineDiscount) => {
+  const amount = Number(lineDiscount?.amount || 0) || 0;
+  if (amount <= 0) return null;
+  const value = Number(lineDiscount?.value || 0) || 0;
+  const isPercent = lineDiscount?.type === 'percent';
+  const baseName = lineDiscount?.name || (isPercent ? `${value}%OFF` : '値引き');
+  const label = isPercent && lineDiscount?.name ? `${baseName}（${value}%OFF）` : baseName;
+  return { label, amount };
 };
 
 const normalizeItems = (items = []) => {
@@ -97,7 +123,9 @@ const normalizeItems = (items = []) => {
       name: item.name || item.itemName || item.productName || item.menuName || '商品',
       quantity,
       unitPrice,
-      totalPrice
+      totalPrice,
+      // 商品ごとの割引（会計伝票と同じく商品行の直下に印字する）。
+      lineDiscount: normalizeLineDiscount(item.lineDiscount)
     };
   });
 };

@@ -23,6 +23,12 @@ const buildItemRows = (items = []) => {
       unitPrice * quantity
     ) || 0;
 
+    // 商品ごとの割引（会計伝票と同じく商品行の直下に表示）。
+    const ld = item.lineDiscount;
+    const lineDiscountRow = ld && Number(ld.amount || 0) > 0
+      ? `<div class="item-sub" style="display:flex;justify-content:space-between;"><span>${escapeReceiptHtml(ld.label || '値引き')}</span><span>-¥${formatAmount(ld.amount)}</span></div>`
+      : '';
+
     return `
       <div class="item">
         <div class="item-main">
@@ -30,6 +36,7 @@ const buildItemRows = (items = []) => {
           <span>¥${formatAmount(totalPrice)}</span>
         </div>
         <div class="item-sub">¥${formatAmount(unitPrice)} × ${quantity}</div>
+        ${lineDiscountRow}
       </div>
     `;
   }).join('');

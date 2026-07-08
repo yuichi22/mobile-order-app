@@ -29,8 +29,9 @@ const buildStarTestReceipt = (modeLabel, cfg = {}, settings = {}) => ({
   tableName: `${modeLabel} 接続テスト`,
   registerName: settings.activeRegisterName || `${modeLabel}（テスト）`,
   items: [
-    { name: 'テスト商品A', quantity: 1, totalPrice: 100 },
-    { name: 'テスト商品B', quantity: 2, totalPrice: 300 }
+    { name: 'テスト商品A', quantity: 1, unitPrice: 100, totalPrice: 100 },
+    // 商品ごとの割引（会計伝票と同じく商品行の直下に印字）の確認用サンプル。
+    { name: 'テスト商品B', quantity: 2, unitPrice: 150, totalPrice: 270, lineDiscount: { label: '商品割引（10%OFF）', amount: 30 } }
   ],
   subtotal: 400,
   // 割引内訳の印字確認用サンプル（%割引＋スタンプカード）。

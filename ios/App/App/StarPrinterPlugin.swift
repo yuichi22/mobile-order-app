@@ -264,14 +264,25 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         _ = printerBuilder.actionFeedLine(1)
         divider()
 
-        // 明細
+        // 明細（会計伝票と同じく、商品名＋行計／単価×数量／商品個別割引を出す）
         if let items = r["items"] as? [[String: Any]] {
             for item in items {
                 let name = (item["name"] as? String) ?? "商品"
                 let qty = (item["quantity"] as? NSNumber)?.intValue ?? 1
+                let unit = (item["unitPrice"] as? NSNumber)?.intValue ?? 0
                 let total = (item["totalPrice"] as? NSNumber)?.intValue ?? 0
-                text(name)
-                lr("  x\(qty)", "¥" + numberWithComma(total))
+                // 商品名（右に行計）
+                lr(name, "¥" + numberWithComma(total))
+                // 単価 × 数量
+                text("  ¥\(numberWithComma(unit)) x \(qty)")
+                // 商品ごとの割引（あれば商品行の直下に「割引名 -¥金額」）
+                if let ld = item["lineDiscount"] as? [String: Any] {
+                    let ldAmount = (ld["amount"] as? NSNumber)?.intValue ?? 0
+                    if ldAmount > 0 {
+                        let ldLabel = (ld["label"] as? String) ?? "値引き"
+                        lr("  " + ldLabel, "-¥" + numberWithComma(ldAmount))
+                    }
+                }
             }
         }
         divider()
