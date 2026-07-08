@@ -38,7 +38,7 @@ export default function MobileHandoffQRButton({ storeId }) {
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-95"
+        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-slate-400 bg-white px-3 text-sm font-black text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
       >
         <QrCode size={16} />
         モバイル用QRを表示

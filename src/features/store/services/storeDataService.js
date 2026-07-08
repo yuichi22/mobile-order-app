@@ -496,6 +496,33 @@ export const saveProductMasterItem = async (storeId, itemData) => {
   return savedProductId;
 };
 
+// ラベル印刷キューへ積む。プリンタに繋がらない端末(モバイル下げ札登録)から使う。
+// プリンタのあるPC(商品マスタ画面)が labelPrintQueue を購読し、枚数分を自動印刷して削除する。
+export const enqueueLabelPrint = async (storeId, { product, copies, source = 'mobile' } = {}) => {
+  if (!isValidStoreId(storeId)) return null;
+  const qty = Math.max(1, Math.min(999, Math.floor(Number(copies) || 1)));
+  const p = product || {};
+  const item = {
+    barcode: String(p.barcode || '').trim(),
+    sku: String(p.sku || p.productCode || '').trim(),
+    productCode: String(p.productCode || p.sku || '').trim(),
+    name: String(p.name || p.productGroupName || '').trim(),
+    priceTaxIncluded: p.priceTaxIncluded ?? null,
+    priceTaxExcluded: p.priceTaxExcluded ?? null,
+    colorName: String(p.colorName || '').trim(),
+    size: String(p.size || '').trim()
+  };
+  const ref = await addDoc(storeCollectionRef(storeId, 'labelPrintQueue'), {
+    status: 'pending',
+    source: String(source || 'mobile'),
+    copies: qty,
+    product: item,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  return ref.id;
+};
+
 export const getProductStockInHistory = async (storeId, productId, { limitCount = 50 } = {}) => {
   if (!isValidStoreId(storeId) || !productId) return [];
 

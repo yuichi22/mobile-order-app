@@ -297,6 +297,12 @@ service cloud.firestore {
         allow write: if isPlatformAdmin() || isStoreManager(storeId);
       }
 
+      // ラベル印刷キュー: プリンタに繋がらない端末(モバイル登録)が積み、
+      // プリンタのあるPC(商品マスタ画面)が拾って自動印刷→削除する。スタッフ以上が読み書き可。
+      match /labelPrintQueue/{jobId} {
+        allow read, write: if isPlatformAdmin() || isStoreStaff(storeId);
+      }
+
       match /stockMovements/{movementId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow create: if isPlatformAdmin() || isStoreManager(storeId);
