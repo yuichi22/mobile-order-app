@@ -392,6 +392,8 @@ export const buildAnalyticsSummary = ({
   selectedPeriodId = 'all'
 }) => {
   let totalSales = 0;
+  let totalSalesTaxExcluded = 0;
+  let totalTaxAmount = 0;
   const analyticsPeriods = normalizeAnalyticsPeriods(periods);
   const normalizedSelectedPeriodId = String(selectedPeriodId || 'all');
   const shouldFilterByPeriod = normalizedSelectedPeriodId !== 'all';
@@ -542,8 +544,20 @@ export const buildAnalyticsSummary = ({
     let includedRecordAmount = 0;
     let hasIncludedOrderRecord = false;
 
+    // 取引単位の税率(税抜按分用)。会計時に保存した税額から税抜率を求める。
+    const recordTotalForTax = getTransactionAmount(record);
+    const recordTaxAmount = Number(
+      record?.taxAmount
+      ?? ((Number(record?.taxAmountReduced || 0) + Number(record?.taxAmountStandard || 0)) || 0)
+    ) || 0;
+    const taxExcludedRatio = recordTotalForTax > 0
+      ? Math.max(recordTotalForTax - recordTaxAmount, 0) / recordTotalForTax
+      : 1;
+
     getOrderAnalyticsRecords(record).forEach((orderRecord) => {
-      const orderRecordDate = getRecordDate(orderRecord);
+      // 時間帯・時間軸の帰属は「注文時刻(orderedAt=提供時刻)」を優先する。会計(paidAt)基準だと
+      // 遅い時間にまとめて会計した注文が支払時間帯に誤計上されるため(日計と同一の是正)。
+      const orderRecordDate = toDate(orderRecord.orderedAt) || getRecordDate(orderRecord);
       const orderAmount = getTransactionAmount(orderRecord);
       const orderPeriodKey = resolvePeriodKey(orderRecordDate, analyticsPeriods);
 
@@ -617,6 +631,8 @@ export const buildAnalyticsSummary = ({
     if (!hasIncludedOrderRecord) return;
 
     totalSales += includedRecordAmount;
+    totalSalesTaxExcluded += includedRecordAmount * taxExcludedRatio;
+    totalTaxAmount += includedRecordAmount * (1 - taxExcludedRatio);
     upsertSessionGuestCount(sessionGuestCounts, sessionKey, guestCount);
 
     if (period === 'weekly') {
@@ -888,6 +904,8 @@ export const buildAnalyticsSummary = ({
 
   return {
     totalSales,
+    totalSalesTaxExcluded: Math.round(totalSalesTaxExcluded),
+    totalTaxAmount: Math.round(totalTaxAmount),
     totalOrders,
     customerCount,
     averageSpendPerCustomer,

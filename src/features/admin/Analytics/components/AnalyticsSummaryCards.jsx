@@ -1,7 +1,63 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ReceiptText, TrendingUp, Users, UserRoundCheck } from 'lucide-react';
 
 const formatCurrency = (value) => `¥${Number(value || 0).toLocaleString()}`;
+
+// 売上の税込/税抜表示は端末に記憶する（日計・POS分析と同じ運用）。
+const AMOUNT_MODE_KEY = 'analyticsAmountDisplayMode';
+const getInitialTaxMode = () => {
+  try {
+    return window.localStorage.getItem(AMOUNT_MODE_KEY) === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+  } catch {
+    return 'tax_included';
+  }
+};
+
+// 売上合計カード（税込/税抜トグル付き）。カード全体でグラフ指標をsalesに切替、トグルは税表示のみ。
+const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, taxMode, onTaxModeChange, onClick }) => {
+  const isExcl = taxMode === 'tax_excluded';
+  const label = isExcl ? '税抜' : '税込';
+  const main = isExcl ? salesExcl : salesIncl;
+  const sub = isExcl ? salesIncl : salesExcl;
+  return (
+    <div
+      className={`rounded-2xl p-4 text-left transition-all print:border print:border-gray-300 ${
+        active ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-orange-50 text-gray-900'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className={`flex items-center gap-2 text-xs font-black ${active ? 'text-white/90' : 'text-orange-500'}`}>
+          <TrendingUp size={15} />
+          売上合計 {label}
+        </div>
+        <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); onTaxModeChange('tax_excluded'); }}
+            className={`rounded-full px-2 py-0.5 transition-colors ${isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+          >
+            税抜
+          </button>
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); onTaxModeChange('tax_included'); }}
+            className={`rounded-full px-2 py-0.5 transition-colors ${!isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+          >
+            税込
+          </button>
+        </div>
+      </div>
+      <button type="button" onClick={onClick} className="mt-2 block w-full text-left text-2xl font-black active:scale-[0.99]">
+        {formatCurrency(main)}
+      </button>
+      <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/70' : 'text-gray-400'}`}>
+        {isExcl ? '税込' : '税抜'} {formatCurrency(sub)}
+        <span className="mx-1 opacity-50">/</span>
+        内税 {formatCurrency(totalTax)}
+      </div>
+    </div>
+  );
+};
 
 const SummaryCard = ({
   active,
@@ -85,6 +141,8 @@ const TimePeriodFilterCard = ({
 
 const AnalyticsSummaryCards = ({
   totalSales = 0,
+  totalSalesTaxExcluded = 0,
+  totalTaxAmount = 0,
   totalOrders = 0,
   customerCount = 0,
   averageSpendPerCustomer = 0,
@@ -95,14 +153,23 @@ const AnalyticsSummaryCards = ({
   selectedPeriodId = 'all',
   periodOptions = [],
   onSelectedPeriodChange
-}) => (
+}) => {
+  const [taxMode, setTaxMode] = useState(getInitialTaxMode);
+  const updateTaxMode = (mode) => {
+    const next = mode === 'tax_excluded' ? 'tax_excluded' : 'tax_included';
+    setTaxMode(next);
+    try { window.localStorage.setItem(AMOUNT_MODE_KEY, next); } catch { /* 記憶不可の環境は無視 */ }
+  };
+
+  return (
   <div className="mb-8 grid gap-3 md:grid-cols-6">
-    <SummaryCard
+    <SalesSummaryCard
       active={activeMetric === 'sales'}
-      accent
-      icon={TrendingUp}
-      label="売上合計"
-      value={formatCurrency(totalSales)}
+      salesIncl={totalSales}
+      salesExcl={totalSalesTaxExcluded}
+      totalTax={totalTaxAmount}
+      taxMode={taxMode}
+      onTaxModeChange={updateTaxMode}
       onClick={() => onMetricChange?.('sales')}
     />
 
@@ -147,6 +214,7 @@ const AnalyticsSummaryCards = ({
       onClick={() => onMetricChange?.('averagePartySize')}
     />
   </div>
-);
+  );
+};
 
 export default AnalyticsSummaryCards;

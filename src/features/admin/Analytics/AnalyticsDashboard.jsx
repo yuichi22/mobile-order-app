@@ -388,6 +388,8 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
         <div className="print:w-full flex-grow">
           <AnalyticsSummaryCards
             totalSales={analytics.totalSales}
+            totalSalesTaxExcluded={analytics.totalSalesTaxExcluded}
+            totalTaxAmount={analytics.totalTaxAmount}
             totalOrders={analytics.totalOrders}
             customerCount={analytics.customerCount}
             averageSpendPerCustomer={analytics.averageSpendPerCustomer}
