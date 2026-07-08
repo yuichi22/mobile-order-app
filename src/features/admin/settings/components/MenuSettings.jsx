@@ -2020,11 +2020,12 @@ const handleClearLimitedQuantity = async (event, item) => {
                         onClick={() => {
                           startEditing(item);
                         }}
-                        className={`group flex flex-col gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-all lg:flex-row lg:items-center ${
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '0 96px' }}
+                        className={`group flex flex-col gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-colors lg:flex-row lg:items-center ${
                           isSingleCategorySortReady
                             ? 'cursor-pointer border-orange-100 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
                             : 'cursor-pointer border-gray-200 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
-                        } ${isCustomerHidden ? 'border-gray-300 bg-gray-200 opacity-80 grayscale hover:opacity-100 hover:grayscale-0' : 'bg-white'}`}
+                        } ${isCustomerHidden ? 'border-gray-300 bg-gray-200 opacity-70 hover:opacity-100' : 'bg-white'}`}
                       >
                         <div className="flex items-center gap-4 lg:min-w-0 lg:flex-1">
                           <div
@@ -2076,6 +2077,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                 className="h-full w-full object-cover"
                                 alt=""
                                 loading="lazy"
+                                decoding="async"
                               />
                             ) : (
                               <ImageIcon size={22} className="text-gray-300" />
