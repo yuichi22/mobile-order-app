@@ -2095,6 +2095,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           key="product-brands-panel"
           label="ブランド"
           blank={blankBrand}
+          storeId={storeId}
           items={productMaster?.brands || []}
           suppliers={productMaster?.suppliers || []}
           productSalesAreas={productMaster?.productSalesAreas || []}
