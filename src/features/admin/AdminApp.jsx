@@ -62,7 +62,7 @@ const OperationTabButton = ({ active, icon: Icon, label, onClick, mode = 'order'
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-all active:scale-95 ${
+      className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-transform active:scale-95 ${
         active
           ? activeClass
           : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
