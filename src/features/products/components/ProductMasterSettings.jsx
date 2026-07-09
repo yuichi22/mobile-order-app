@@ -29,7 +29,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
 import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
@@ -6136,6 +6136,430 @@ export const SimpleMasterPanel = ({
     onSaved?.();
   };
 
+  // ===== ブランドの重複統合(ブランドタブのみ) =====
+  const [brandMergeOpen, setBrandMergeOpen] = useState(false);
+  const [brandMergeBusy, setBrandMergeBusy] = useState(false);
+  // グループkey -> 統合先ブランドid
+  const [brandMergeTargets, setBrandMergeTargets] = useState({});
+  // ブランドid -> 紐づく商品数(モーダルを開いた時にサーバカウント)
+  const [brandProductCounts, setBrandProductCounts] = useState({});
+
+  // 比較用キー: 全半角・大文字小文字を吸収し、空白と記号を除去する。
+  // 「M.F.F」と「MFF」、「kobe 伍魚福」と「伍魚福」の比較を成立させるため記号・空白は落とす。
+  const buildBrandMatchKey = (value) => (
+    toHalfWidthCode(String(value || '')).toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, '')
+  );
+
+  // 重複候補の判定ルール:
+  // 1) キーが完全一致(表記揺れ: 大小文字/全半角/空白/記号)
+  // 2) 片方がもう片方の先頭または末尾に含まれる(例:「kobe 伍魚福」と「伍魚福」)。
+  //    誤検出防止のため、短い側は3文字以上(英数字のみの名前は4文字以上)を条件にする。
+  // 3) かなフィールドが名前と照合できる場合(例: name「goodyear」× kana「グッドイヤー」を持つ同士)。
+  //    ※「goodyear」と「グッドイヤー」のような英字⇔カナはかな未入力だと自動判定できないため、
+  //      モーダル内の「手動で選んで統合」で任意の組み合わせを統合できる。
+  const isBrandPairCandidate = (aKeys, bKeys) => (
+    aKeys.some((a) => bKeys.some((b) => {
+      if (!a || !b) return false;
+      if (a === b) return true;
+      const shorter = a.length <= b.length ? a : b;
+      const longer = a.length <= b.length ? b : a;
+      const minLength = /^[0-9a-z]+$/.test(shorter) ? 4 : 3;
+      if (shorter.length < minLength) return false;
+      return longer.startsWith(shorter) || longer.endsWith(shorter);
+    }))
+  );
+
+  const duplicateBrandGroups = useMemo(() => {
+    if (label !== 'ブランド') return [];
+
+    const list = (items || []).filter((item) => item?.id);
+    const withKeys = list.map((item) => ({
+      item,
+      keys: [buildBrandMatchKey(item.name), buildBrandMatchKey(item.kana)].filter(Boolean)
+    }));
+
+    // Union-Find で候補ペアを連結成分にまとめる(包含が連鎖しても1グループになる)。
+    const parent = new Map(list.map((item) => [item.id, item.id]));
+    const find = (id) => {
+      let root = id;
+      while (parent.get(root) !== root) root = parent.get(root);
+      parent.set(id, root);
+      return root;
+    };
+    const union = (a, b) => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) parent.set(rootA, rootB);
+    };
+
+    for (let i = 0; i < withKeys.length; i += 1) {
+      for (let j = i + 1; j < withKeys.length; j += 1) {
+        if (isBrandPairCandidate(withKeys[i].keys, withKeys[j].keys)) {
+          union(withKeys[i].item.id, withKeys[j].item.id);
+        }
+      }
+    }
+
+    const membersByRoot = new Map();
+    list.forEach((item) => {
+      const root = find(item.id);
+      if (!membersByRoot.has(root)) membersByRoot.set(root, []);
+      membersByRoot.get(root).push(item);
+    });
+
+    return [...membersByRoot.values()]
+      .filter((members) => members.length >= 2)
+      .map((members) => {
+        const sorted = [...members].sort((a, b) => String(a.name || '').length - String(b.name || '').length);
+        return {
+          // items再取得でも安定するよう、キーはメンバーidのソート結合にする。
+          key: members.map((member) => member.id).sort().join('|'),
+          label: sorted[0]?.name || '',
+          members
+        };
+      })
+      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'ja'));
+  }, [label, items]);
+
+  // 手動選択統合: 表記が違いすぎて自動候補に出ない重複(例: goodyear と グッドイヤー)用。
+  const [manualBrandKeyword, setManualBrandKeyword] = useState('');
+  const [manualBrandSelection, setManualBrandSelection] = useState([]);
+  const [manualBrandTargetId, setManualBrandTargetId] = useState('');
+
+  const manualBrandMatches = useMemo(() => {
+    if (label !== 'ブランド') return [];
+    const keyword = buildBrandMatchKey(manualBrandKeyword);
+    if (!keyword) return [];
+
+    return (items || [])
+      .filter((item) => (
+        item?.id
+        && !manualBrandSelection.some((selected) => selected.id === item.id)
+        && (buildBrandMatchKey(item.name).includes(keyword) || buildBrandMatchKey(item.kana).includes(keyword))
+      ))
+      .slice(0, 20);
+  }, [label, items, manualBrandKeyword, manualBrandSelection]);
+
+  const fetchBrandProductCount = async (brandId) => {
+    if (!storeId || !brandId) return;
+    try {
+      const snapshot = await getCountFromServer(
+        query(collection(db, 'stores', storeId, 'products'), where('brandId', '==', brandId))
+      );
+      setBrandProductCounts((current) => ({ ...current, [brandId]: snapshot.data().count }));
+    } catch (error) {
+      console.error('failed to count products for brand', brandId, error);
+    }
+  };
+
+  const addManualBrand = (item) => {
+    setManualBrandSelection((current) => (
+      current.some((selected) => selected.id === item.id) ? current : [...current, item]
+    ));
+    setManualBrandKeyword('');
+    if (brandProductCounts[item.id] === undefined) fetchBrandProductCount(item.id);
+  };
+
+  const removeManualBrand = (brandId) => {
+    setManualBrandSelection((current) => current.filter((selected) => selected.id !== brandId));
+  };
+
+  const openBrandMergeModal = async () => {
+    setBrandMergeOpen(true);
+
+    if (!storeId) return;
+    try {
+      const counts = {};
+      const brandsToCount = duplicateBrandGroups.flatMap((group) => group.members);
+      await Promise.all(brandsToCount.map(async (brand) => {
+        const snapshot = await getCountFromServer(
+          query(collection(db, 'stores', storeId, 'products'), where('brandId', '==', brand.id))
+        );
+        counts[brand.id] = snapshot.data().count;
+      }));
+      setBrandProductCounts(counts);
+
+      // 既定の統合先 = 商品数が最も多いブランド(同数なら先頭)。
+      setBrandMergeTargets((current) => {
+        const next = { ...current };
+        duplicateBrandGroups.forEach((group) => {
+          if (next[group.key] && group.members.some((member) => member.id === next[group.key])) return;
+          const sorted = [...group.members].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+          next[group.key] = sorted[0]?.id || '';
+        });
+        return next;
+      });
+    } catch (error) {
+      console.error('failed to count products per brand', error);
+    }
+  };
+
+  const executeBrandMerge = async (group, targetIdOverride = '') => {
+    const targetId = targetIdOverride || brandMergeTargets[group.key] || group.members[0]?.id;
+    const target = group.members.find((member) => member.id === targetId);
+    const sources = group.members.filter((member) => member.id !== targetId);
+    if (!storeId || !target || sources.length === 0 || brandMergeBusy) return;
+
+    const countText = (id) => (
+      brandProductCounts[id] === undefined ? '?' : Number(brandProductCounts[id]).toLocaleString()
+    );
+    const sourceProductCount = sources.reduce((sum, member) => sum + (brandProductCounts[member.id] || 0), 0);
+
+    const message = [
+      `統合先: ${target.name}（商品 ${countText(target.id)}件）`,
+      '',
+      '統合元（統合後に削除されます）:',
+      ...sources.map((member) => `・${member.name}（商品 ${countText(member.id)}件）`),
+      '',
+      `商品 ${sourceProductCount.toLocaleString()}件のブランドを「${target.name}」へ付け替えます。`,
+      '実行してよろしいですか？'
+    ].join('\n');
+
+    if (!(await appConfirm(message, { title: 'ブランドの重複統合', okLabel: '統合する', tone: 'danger' }))) return;
+
+    setBrandMergeBusy(true);
+    try {
+      const result = await mergeProductBrands(storeId, {
+        targetBrandId: target.id,
+        sourceBrandIds: sources.map((member) => member.id)
+      });
+
+      // 統合で消えたブランドを編集中だった場合は編集状態を解除する。
+      if (editingId && sources.some((member) => member.id === editingId)) {
+        setEditingId('');
+        setDraft({ ...blank });
+      }
+
+      // 手動選択に統合済みブランドが残っていたら取り除く。
+      setManualBrandSelection((current) => current.filter((selected) => !sources.some((member) => member.id === selected.id)));
+
+      alert(`「${target.name}」へ統合しました。商品 ${result.updatedProducts.toLocaleString()}件を付け替え / ブランド ${result.deletedBrands.toLocaleString()}件を削除`);
+      onSaved?.();
+    } catch (error) {
+      console.error('failed to merge duplicate brands', error);
+      alert(`ブランド統合に失敗しました: ${error?.message || error}`);
+    } finally {
+      setBrandMergeBusy(false);
+    }
+  };
+
+  const brandMergeModalNode = brandMergeOpen ? createPortal((
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="min-w-0">
+            <h3 className="text-xl font-black text-slate-900">ブランドの重複統合</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+              同じ名前のブランドを1つに統合します。統合先を選んで実行すると、商品の紐付けが統合先へ移り、残りのブランドは削除されます。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBrandMergeOpen(false)}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200"
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          {duplicateBrandGroups.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-400">
+              重複しているブランドはありません。
+            </div>
+          ) : (
+            duplicateBrandGroups.map((group) => {
+              const selectedTargetId = brandMergeTargets[group.key] || '';
+
+              return (
+                <div key={group.key} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 truncate text-sm font-black text-slate-900">
+                      「{group.label}」 × {group.members.length.toLocaleString()}件
+                    </div>
+                    <button
+                      type="button"
+                      disabled={brandMergeBusy || !selectedTargetId}
+                      onClick={() => executeBrandMerge(group)}
+                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      {brandMergeBusy ? '統合中...' : 'このグループを統合'}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {group.members.map((member) => (
+                      <label
+                        key={member.id}
+                        className={classNames(
+                          'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition',
+                          selectedTargetId === member.id
+                            ? 'border-orange-400 bg-orange-50/70'
+                            : 'border-slate-200 bg-white hover:border-orange-200'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name={`brand-merge-${group.key}`}
+                          checked={selectedTargetId === member.id}
+                          onChange={() => setBrandMergeTargets((current) => ({ ...current, [group.key]: member.id }))}
+                          className="h-4 w-4 accent-orange-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-black text-slate-800">{member.name}</span>
+                            {selectedTargetId === member.id && (
+                              <span className="shrink-0 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                            仕入先: {member.supplierName || '未設定'}
+                            {member.defaultSalesAreaName ? ` ・既定売場: ${member.defaultSalesAreaName}` : ''}
+                          </div>
+                        </div>
+                        <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                          商品 {brandProductCounts[member.id] === undefined ? '…' : Number(brandProductCounts[member.id]).toLocaleString()}件
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {(() => {
+            const effectiveManualTargetId = manualBrandSelection.some((selected) => selected.id === manualBrandTargetId)
+              ? manualBrandTargetId
+              : (manualBrandSelection[0]?.id || '');
+
+            return (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                <div className="text-sm font-black text-slate-900">手動で選んで統合</div>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+                  表記が違って候補に出ない重複（例: goodyear と グッドイヤー）は、ここで2つ以上選んで統合できます。
+                </p>
+
+                <input
+                  value={manualBrandKeyword}
+                  onChange={(event) => setManualBrandKeyword(event.target.value)}
+                  placeholder="ブランド名・かなで検索して追加"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
+                />
+
+                {manualBrandKeyword.trim() !== '' && (
+                  <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+                    {manualBrandMatches.length === 0 ? (
+                      <div className="px-2 py-3 text-xs font-bold text-slate-400">一致するブランドがありません。</div>
+                    ) : (
+                      manualBrandMatches.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => addManualBrand(item)}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-left transition hover:bg-orange-50"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-black text-slate-800">{item.name}</span>
+                            <span className="block truncate text-[11px] font-bold text-slate-400">仕入先: {item.supplierName || '未設定'}</span>
+                          </span>
+                          <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black text-white">追加</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {manualBrandSelection.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {manualBrandSelection.map((member) => (
+                      <label
+                        key={member.id}
+                        className={classNames(
+                          'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition',
+                          effectiveManualTargetId === member.id
+                            ? 'border-orange-400 bg-orange-50/70'
+                            : 'border-slate-200 bg-white hover:border-orange-200'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="brand-merge-manual"
+                          checked={effectiveManualTargetId === member.id}
+                          onChange={() => setManualBrandTargetId(member.id)}
+                          className="h-4 w-4 accent-orange-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-black text-slate-800">{member.name}</span>
+                            {effectiveManualTargetId === member.id && (
+                              <span className="shrink-0 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                            仕入先: {member.supplierName || '未設定'}
+                            {member.defaultSalesAreaName ? ` ・既定売場: ${member.defaultSalesAreaName}` : ''}
+                          </div>
+                        </div>
+                        <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                          商品 {brandProductCounts[member.id] === undefined ? '…' : Number(brandProductCounts[member.id]).toLocaleString()}件
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            removeManualBrand(member.id);
+                          }}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                          title="選択から外す"
+                          aria-label={`${member.name}を選択から外す`}
+                        >
+                          <X size={14} strokeWidth={3} />
+                        </button>
+                      </label>
+                    ))}
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setManualBrandSelection([])}
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-500 transition hover:bg-slate-200"
+                      >
+                        選択をクリア
+                      </button>
+                      <button
+                        type="button"
+                        disabled={brandMergeBusy || manualBrandSelection.length < 2 || !effectiveManualTargetId}
+                        onClick={() => executeBrandMerge(
+                          { key: '__manual__', label: '手動選択', members: manualBrandSelection },
+                          effectiveManualTargetId
+                        )}
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        {brandMergeBusy ? '統合中...' : '選択したブランドを統合'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        <div className="flex items-center justify-end border-t border-slate-100 bg-white px-6 py-4">
+          <button
+            type="button"
+            onClick={() => setBrandMergeOpen(false)}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-100 px-5 text-sm font-black text-slate-500 transition hover:bg-slate-200"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  ), document.body) : null;
+
   return (
     <div className="grid min-h-0 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
       <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
@@ -6585,6 +7009,16 @@ export const SimpleMasterPanel = ({
                 <option value="__none__">（売場未設定）</option>
               </select>
             )}
+            {label === 'ブランド' && (
+              <button
+                type="button"
+                onClick={openBrandMergeModal}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-black text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600"
+                title="重複したブランドを1つに統合します（候補にない組み合わせは手動選択で統合できます）"
+              >
+                重複統合{duplicateBrandGroups.length > 0 ? `（${duplicateBrandGroups.length.toLocaleString()}）` : ''}
+              </button>
+            )}
             {isSortableMaster && (
               <button
                 type="button"
@@ -6677,6 +7111,8 @@ export const SimpleMasterPanel = ({
           )}
         </div>
       </div>
+
+      {brandMergeModalNode}
     </div>
   );
 };

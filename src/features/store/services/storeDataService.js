@@ -672,6 +672,88 @@ export const saveProductBrand = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'brands', itemData);
 };
 
+// ===== ブランドの重複統合 =====
+// 同名などで重複したブランドを1つ(target)へ統合する。
+// 1) sources を brandId に持つ商品の brandId/brandName を target へ付け替え
+// 2) target の未設定フィールド(仕入先/既定売場/掛け率/かな/プロフィール)を sources の値で補完
+// 3) sources のブランドdocを削除
+// 商品の supplierId 等は書き換えない(次回の商品保存時に target ブランドから再導出される)。
+// 発注書(purchaseOrders)内の brandId は履歴スナップショットとしてそのまま残す。
+const BRAND_MERGE_FILL_FIELDS = [
+  'kana',
+  'note',
+  'supplierId',
+  'supplierName',
+  'defaultSalesAreaId',
+  'defaultSalesAreaName',
+  'defaultCostRate'
+];
+
+export const mergeProductBrands = async (storeId, { targetBrandId, sourceBrandIds = [] }) => {
+  if (!storeId || !targetBrandId) throw new Error('統合先ブランドが指定されていません');
+
+  const targetRef = doc(db, 'stores', storeId, 'brands', targetBrandId);
+  const targetSnap = await getDoc(targetRef);
+  if (!targetSnap.exists()) throw new Error('統合先ブランドが見つかりません');
+  const target = targetSnap.data();
+
+  const sourceIds = [...new Set(sourceBrandIds.filter((id) => id && id !== targetBrandId))];
+  if (sourceIds.length === 0) return { updatedProducts: 0, deletedBrands: 0 };
+
+  // 統合元ブランドに紐づく商品を収集('in'は最大30件/クエリ)。
+  const productDocs = [];
+  for (let index = 0; index < sourceIds.length; index += 30) {
+    const chunk = sourceIds.slice(index, index + 30);
+    const snapshot = await getDocs(query(storeCollectionRef(storeId, 'products'), where('brandId', 'in', chunk)));
+    snapshot.forEach((docSnap) => productDocs.push(docSnap));
+  }
+
+  // 商品の brandId/brandName を付け替え(batchは最大500書き込み)。
+  const targetName = String(target.name || '').trim();
+  for (let index = 0; index < productDocs.length; index += 450) {
+    const batch = writeBatch(db);
+    productDocs.slice(index, index + 450).forEach((docSnap) => {
+      batch.update(docSnap.ref, {
+        brandId: targetBrandId,
+        brandName: targetName,
+        updatedAt: serverTimestamp()
+      });
+    });
+    await batch.commit();
+  }
+
+  // target の空フィールドを sources から補完し、sources を削除する。
+  const sourceSnaps = await Promise.all(
+    sourceIds.map((id) => getDoc(doc(db, 'stores', storeId, 'brands', id)))
+  );
+
+  const isBlank = (value) => value === undefined || value === null || String(value).trim() === '';
+  const fillPatch = {};
+  sourceSnaps.forEach((snap) => {
+    if (!snap.exists()) return;
+    const source = snap.data();
+    BRAND_MERGE_FILL_FIELDS.forEach((field) => {
+      if (isBlank(target[field]) && !isBlank(source[field]) && fillPatch[field] === undefined) {
+        fillPatch[field] = source[field];
+      }
+    });
+  });
+
+  const finalBatch = writeBatch(db);
+  if (Object.keys(fillPatch).length > 0) {
+    finalBatch.set(targetRef, { ...fillPatch, updatedAt: serverTimestamp() }, { merge: true });
+  }
+  let deletedBrands = 0;
+  sourceSnaps.forEach((snap) => {
+    if (!snap.exists()) return;
+    finalBatch.delete(snap.ref);
+    deletedBrands += 1;
+  });
+  await finalBatch.commit();
+
+  return { updatedProducts: productDocs.length, deletedBrands };
+};
+
 export const subscribeToSuppliers = (storeId, onData, onError) => (
   onSnapshot(storeCollectionRef(storeId, 'suppliers'), (snapshot) => onData(mapCollectionSnapshot(snapshot)), onError)
 );
