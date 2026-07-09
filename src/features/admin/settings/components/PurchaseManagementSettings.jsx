@@ -757,8 +757,16 @@ const SupplierPurchaseCheckPanel = ({
 
   if (loading) {
     return (
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-8 text-sm font-bold text-slate-500">
-        発注候補を集計しています…
+      <div className="mt-5 flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white p-12 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+        <div>
+          <div className="text-base font-black text-slate-700">発注候補を抽出しています</div>
+          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+            在庫が発注点を下回った商品を集計しています。商品数が多い場合は少し時間がかかります。
+            <br />
+            この読み込みはこの画面を開いた時だけ行われます。
+          </p>
+        </div>
       </div>
     );
   }
