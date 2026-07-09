@@ -217,6 +217,15 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     return () => window.clearTimeout(timerId);
   }, [activeAdminTab, readyAdminTab]);
 
+  // 設定画面は keep-alive: 一度開いたら破棄せず hidden で保持する。
+  // 設定の開閉のたびに巨大な設定ツリー(商品マスター等)を構築/破棄すると、
+  // 連続で押した時に処理が積み重なって低速タブレットでフリーズするため。
+  // モード(POS/ORDER)は initialSettingsMode の変化に StoreSettings 側が追従する。
+  const [settingsEverOpened, setSettingsEverOpened] = useState(false);
+  useEffect(() => {
+    if (readyAdminTab === 'settings') setSettingsEverOpened(true);
+  }, [readyAdminTab]);
+
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
   const showRegisterModeToggle = activeAdminTab === 'pos';
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
@@ -845,7 +854,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
           </div>
         )}
 
-        {readyAdminTab === 'settings' && canViewSettings && (
+        {(readyAdminTab === 'settings' || settingsEverOpened) && canViewSettings && (
           <div className={activeAdminTab === 'settings' ? 'contents' : 'hidden'}>
             <Suspense fallback={<TabLoader />}>
               <StoreSettingsPage
