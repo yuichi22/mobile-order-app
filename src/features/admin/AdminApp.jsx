@@ -207,6 +207,16 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     return canAccessAdminTab(normalizedRole, activeTab) ? activeTab : 'pos';
   })();
 
+  // 重いタブ(日計/分析/設定)の本体マウントは、タブ点灯の描画を1ティック先行させてから行う。
+  // 点灯と同じコミットで重い本体(商品マスター等)を組み立てると、点灯のペイント自体が
+  // 本体構築にブロックされ「押してもワンテンポ点かない」体感になるため。
+  const [readyAdminTab, setReadyAdminTab] = useState(activeAdminTab);
+  useEffect(() => {
+    if (readyAdminTab === activeAdminTab) return undefined;
+    const timerId = window.setTimeout(() => setReadyAdminTab(activeAdminTab), 30);
+    return () => window.clearTimeout(timerId);
+  }, [activeAdminTab, readyAdminTab]);
+
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
   const showRegisterModeToggle = activeAdminTab === 'pos';
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
@@ -816,29 +826,38 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             )}
         </div>
 
-        {activeAdminTab === 'dailyClosing' && canViewAnalytics && (
-          <Suspense fallback={<TabLoader />}>
-            <AnalyticsPage storeId={storeId} mode="dailyClosing" />
-          </Suspense>
+        {/* タブ点灯先行の待ち時間(30ms)だけ軽いローダーを見せる */}
+        {activeAdminTab !== 'pos' && activeAdminTab !== readyAdminTab && <TabLoader />}
+
+        {readyAdminTab === 'dailyClosing' && canViewAnalytics && (
+          <div className={activeAdminTab === 'dailyClosing' ? 'contents' : 'hidden'}>
+            <Suspense fallback={<TabLoader />}>
+              <AnalyticsPage storeId={storeId} mode="dailyClosing" />
+            </Suspense>
+          </div>
         )}
 
-        {activeAdminTab === 'analytics' && canViewAnalytics && (
-          <Suspense fallback={<TabLoader />}>
-            <AnalyticsPage storeId={storeId} mode="analytics" />
-          </Suspense>
+        {readyAdminTab === 'analytics' && canViewAnalytics && (
+          <div className={activeAdminTab === 'analytics' ? 'contents' : 'hidden'}>
+            <Suspense fallback={<TabLoader />}>
+              <AnalyticsPage storeId={storeId} mode="analytics" />
+            </Suspense>
+          </div>
         )}
 
-        {activeAdminTab === 'settings' && canViewSettings && (
-          <Suspense fallback={<TabLoader />}>
-            <StoreSettingsPage
-              user={user}
-              storeId={storeId}
-              initialSettingsMode={registerMode === 'pos' ? 'pos' : 'order'}
-              posProductKeyword={posSettingsProductKeyword}
-              onPosProductKeywordChange={setPosSettingsProductKeyword}
-              onPosSettingsSubTabChange={setPosSettingsSubTab}
-            />
-          </Suspense>
+        {readyAdminTab === 'settings' && canViewSettings && (
+          <div className={activeAdminTab === 'settings' ? 'contents' : 'hidden'}>
+            <Suspense fallback={<TabLoader />}>
+              <StoreSettingsPage
+                user={user}
+                storeId={storeId}
+                initialSettingsMode={registerMode === 'pos' ? 'pos' : 'order'}
+                posProductKeyword={posSettingsProductKeyword}
+                onPosProductKeywordChange={setPosSettingsProductKeyword}
+                onPosSettingsSubTabChange={setPosSettingsSubTab}
+              />
+            </Suspense>
+          </div>
         )}
       </main>
     </div>

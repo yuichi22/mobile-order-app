@@ -30,20 +30,37 @@ export const lazyWithRetry = (importer, key) => React.lazy(async () => {
   }
 });
 
+// チャンクを1つずつ順次先読みする。一斉に走らせると数百KB×複数のJS解析が
+// 起動直後のメインスレッドへ束で乗り、低速タブレットで「しばらくするとフリーズ」になるため、
+// 各チャンクの完了を待ち、さらにアイドルを待ってから次を読む。
 export const preloadOnIdle = (loaders) => {
   if (!Array.isArray(loaders) || loaders.length === 0) return () => {};
 
-  const run = () => {
-    loaders.forEach((loader) => {
-      loader().catch(() => {});
-    });
+  let cancelled = false;
+  let idleId = null;
+  let timeoutId = null;
+
+  const waitIdle = () => new Promise((resolve) => {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(() => resolve(), { timeout: 2000 });
+      return;
+    }
+    timeoutId = window.setTimeout(resolve, 400);
+  });
+
+  (async () => {
+    for (const loader of loaders) {
+      await waitIdle();
+      if (cancelled) return;
+      try {
+        await loader();
+      } catch (_) { /* 失敗しても次へ(実表示時にlazyWithRetryが再試行) */ }
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+    if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId);
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
   };
-
-  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    const id = window.requestIdleCallback(run, { timeout: 1200 });
-    return () => window.cancelIdleCallback(id);
-  }
-
-  const timeoutId = window.setTimeout(run, 300);
-  return () => window.clearTimeout(timeoutId);
 };
