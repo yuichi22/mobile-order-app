@@ -220,11 +220,29 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   // 設定画面は keep-alive: 一度開いたら破棄せず hidden で保持する。
   // 設定の開閉のたびに巨大な設定ツリー(商品マスター等)を構築/破棄すると、
   // 連続で押した時に処理が積み重なって低速タブレットでフリーズするため。
-  // モード(POS/ORDER)は initialSettingsMode の変化に StoreSettings 側が追従する。
   const [settingsEverOpened, setSettingsEverOpened] = useState(false);
   useEffect(() => {
     if (readyAdminTab === 'settings') setSettingsEverOpened(true);
   }, [readyAdminTab]);
+
+  // 設定ツリーへ渡すモードは「設定を表示している間」だけ追従させる。
+  // hidden中に registerMode 変更が届くと、裏で丸ごと別モードへ組み替え(重い)が走り、
+  // レジ切替直後にフリーズするため、hidden中は据え置く。
+  const [settingsMountedMode, setSettingsMountedMode] = useState(registerMode === 'pos' ? 'pos' : 'order');
+  useEffect(() => {
+    if (activeAdminTab === 'settings') setSettingsMountedMode(registerMode === 'pos' ? 'pos' : 'order');
+  }, [activeAdminTab, registerMode]);
+
+  // モードが変わったら、hidden の設定ツリーはレジ画面の描画後に静かに破棄する
+  // (次の設定オープンで新モードとして構築し直す。旧モードのまま組み替えて待たせない)。
+  const settingsKeepAliveModeRef = useRef(registerMode);
+  useEffect(() => {
+    if (settingsKeepAliveModeRef.current === registerMode) return undefined;
+    settingsKeepAliveModeRef.current = registerMode;
+    if (!settingsEverOpened || activeAdminTab === 'settings') return undefined;
+    const timerId = window.setTimeout(() => setSettingsEverOpened(false), 300);
+    return () => window.clearTimeout(timerId);
+  }, [registerMode, settingsEverOpened, activeAdminTab]);
 
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
   const showRegisterModeToggle = activeAdminTab === 'pos';
@@ -860,7 +878,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
               <StoreSettingsPage
                 user={user}
                 storeId={storeId}
-                initialSettingsMode={registerMode === 'pos' ? 'pos' : 'order'}
+                initialSettingsMode={settingsMountedMode}
                 posProductKeyword={posSettingsProductKeyword}
                 onPosProductKeywordChange={setPosSettingsProductKeyword}
                 onPosSettingsSubTabChange={setPosSettingsSubTab}
