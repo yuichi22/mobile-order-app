@@ -1,6 +1,7 @@
 import {
   collection,
   addDoc,
+  arrayUnion,
   deleteDoc,
   deleteField,
   doc,
@@ -645,6 +646,38 @@ export const saveProductBrand = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'brands', itemData);
 };
 
+// ===== ブランド重複候補の除外リスト =====
+// 「実際は別ブランドなのに候補に出る」誤検出ペアを保存し、以後の候補判定から外す。
+// pairKeys は「2つのブランドidをソートして'|'連結」した文字列の配列。
+const brandMergeExclusionsDocRef = (storeId) => doc(db, 'stores', storeId, 'settings', 'brandMergeExclusions');
+
+export const buildBrandPairKey = (brandIdA, brandIdB) => [String(brandIdA), String(brandIdB)].sort().join('|');
+
+export const getBrandMergeExclusions = async (storeId) => {
+  if (!storeId) return [];
+  const snapshot = await getDoc(brandMergeExclusionsDocRef(storeId));
+  if (!snapshot.exists()) return [];
+  const pairKeys = snapshot.data()?.pairKeys;
+  return Array.isArray(pairKeys) ? pairKeys.filter(Boolean) : [];
+};
+
+export const addBrandMergeExclusions = async (storeId, pairKeys = []) => {
+  const normalized = pairKeys.filter(Boolean);
+  if (!storeId || normalized.length === 0) return;
+  await setDoc(brandMergeExclusionsDocRef(storeId), {
+    pairKeys: arrayUnion(...normalized),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const clearBrandMergeExclusions = async (storeId) => {
+  if (!storeId) return;
+  await setDoc(brandMergeExclusionsDocRef(storeId), {
+    pairKeys: [],
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
 // ===== ブランドの重複統合 =====
 // 同名などで重複したブランドを1つ(target)へ統合する。
 // 1) sources を brandId に持つ商品の brandId/brandName を target へ付け替え
@@ -839,15 +872,6 @@ export const purchaseReorderCache = new Map();
 // 取得済みスコープ(storeId -> Set(scopeKey))。スコープ単位で読み込み済みかを判定する。
 export const purchaseProductPoolCache = new Map();
 export const purchaseLoadedScopesCache = new Map();
-
-// 設定画面を開いた時点で発注候補を裏読みしてキャッシュを温める。
-// 未キャッシュ時のみ実行（最新化は発注管理画面を開いたときのSWRが担う）。失敗は握りつぶす。
-export const prefetchPurchaseReorderProducts = (storeId) => {
-  if (!isValidStoreId(storeId) || purchaseReorderCache.has(storeId)) return;
-  fetchProductsForReorder(storeId)
-    .then((products) => purchaseReorderCache.set(storeId, products))
-    .catch(() => {});
-};
 
 // 発注リストから発注点・発注数・LOTなどを単項目更新する
 // （saveProductMasterItem はグループ作成や入庫処理を伴うため使わない）。

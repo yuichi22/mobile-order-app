@@ -290,7 +290,9 @@ const groupLinesByBrand = (lines) => {
 const SupplierPurchaseCheckPanel = ({
   storeId,
   candidates,
+  notStarted,
   loading,
+  onStart,
   storeName,
   brandById,
   onReload,
@@ -752,10 +754,39 @@ const SupplierPurchaseCheckPanel = ({
     }));
   };
 
+  // 計算開始前: 何も読み込まず、開始ボタンだけを表示する(画面を開いただけでは何もしない)。
+  if (notStarted) {
+    return (
+      <div className="mt-5 flex flex-col items-center gap-5 rounded-3xl border border-slate-200 bg-white p-12 text-center">
+        <div>
+          <div className="text-base font-black text-slate-700">発注候補の計算はまだ開始していません</div>
+          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+            在庫が発注点を下回った商品を全商品から抽出します。商品数が多い場合は少し時間がかかります。
+            <br />
+            ボタンを押すまでデータの読み込みは行いません。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onStart}
+          className="rounded-2xl bg-blue-600 px-8 py-4 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 active:scale-95"
+        >
+          発注候補の計算を開始
+        </button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-8 text-sm font-bold text-slate-500">
-        発注候補を集計しています…
+      <div className="mt-5 flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white p-12 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+        <div>
+          <div className="text-base font-black text-slate-700">発注候補を抽出しています</div>
+          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+            しばらくお待ちください。商品数が多い場合は数十秒かかることがあります。
+          </p>
+        </div>
       </div>
     );
   }
@@ -1703,25 +1734,19 @@ const PurchaseManagementSettings = ({ storeId, activeTab = 'supplierPurchaseChec
     setReorderProducts((current) => (Array.isArray(current) ? applyPatch(current) : current));
   }, [storeId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!storeId) return undefined;
-
-    // キャッシュがあれば初期stateで即表示済み。ここでは裏で最新を取得して置き換えるだけ。
-    fetchProductsForReorder(storeId)
-      .then((products) => {
-        reorderProductsCache.set(storeId, products);
-        if (!cancelled) setReorderProducts(products);
-      })
-      .catch((error) => {
-        console.error('発注候補の取得に失敗しました', error);
-        if (!cancelled) setReorderProducts((current) => current ?? []);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [storeId]);
+  // 発注候補(全商品規模の読み込み)は自動では一切走らせない。
+  // ユーザーが「計算を開始」を押した時だけ抽出する(画面を開いただけでは何もしない)。
+  // 一度抽出した後はセッション内キャッシュから即表示され、更新は「再集計」で行う。
+  const [isExtracting, setIsExtracting] = useState(false);
+  const startExtraction = useCallback(async () => {
+    if (!storeId || isExtracting) return;
+    setIsExtracting(true);
+    try {
+      await reloadCandidates();
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [storeId, isExtracting, reloadCandidates]);
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -1760,7 +1785,9 @@ const PurchaseManagementSettings = ({ storeId, activeTab = 'supplierPurchaseChec
     <SupplierPurchaseCheckPanel
       storeId={storeId}
       candidates={candidates}
-      loading={reorderProducts === null}
+      notStarted={reorderProducts === null && !isExtracting}
+      loading={isExtracting && reorderProducts === null}
+      onStart={startExtraction}
       storeName={storeSettings?.name || ''}
       brandById={brandById}
       onReload={reloadCandidates}
