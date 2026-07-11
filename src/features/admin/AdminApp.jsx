@@ -530,16 +530,16 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       setRegisterMode(currentMode);
                       setActiveTab('pos');
                     }}
-                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black shadow-sm transition-all duration-200 active:scale-95 ${
+                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full border-2 bg-white px-4 text-sm font-black shadow-sm transition-transform duration-200 active:scale-95 ${
                       registerMode === 'pos'
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                        ? 'border-blue-600 text-blue-600 hover:bg-blue-50'
+                        : 'border-orange-500 text-orange-500 hover:bg-orange-50'
                     }`}
-                    aria-label="戻る"
-                    title="戻る"
+                    aria-label={registerMode === 'pos' ? 'POSレジに戻る' : 'ORDERレジに戻る'}
+                    title={registerMode === 'pos' ? 'POSレジに戻る' : 'ORDERレジに戻る'}
                   >
-                    <ChevronLeft size={17} strokeWidth={3} />
-                    戻る
+                    <ChevronLeft size={16} strokeWidth={3} className="opacity-70" />
+                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
                   </button>
                 )}
               </div>
