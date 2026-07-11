@@ -191,6 +191,9 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     tax,
     taxAmountReduced: data.taxAmountReduced || 0,
     taxAmountStandard: data.taxAmountStandard || 0,
+    // 税率（会計伝票と同じく 8%/10% を分けて表示するため。既定は軽減8%/標準10%）。
+    taxRateReduced: Number(data.taxRateReduced) || 8,
+    taxRateStandard: Number(data.taxRateStandard) || 10,
     total,
     paymentMethod: buildTenderText(data)
   };

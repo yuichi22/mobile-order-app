@@ -29,7 +29,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
 import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands, buildBrandPairKey, getBrandMergeExclusions, addBrandMergeExclusions, clearBrandMergeExclusions } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
@@ -6143,6 +6143,15 @@ export const SimpleMasterPanel = ({
   const [brandMergeTargets, setBrandMergeTargets] = useState({});
   // ブランドid -> 紐づく商品数(モーダルを開いた時にサーバカウント)
   const [brandProductCounts, setBrandProductCounts] = useState({});
+  // 「重複ではない」と確認済みのペア(pairKey)の集合。Firestoreに保存され次回以降も候補から外れる。
+  const [brandMergeExclusions, setBrandMergeExclusions] = useState(() => new Set());
+
+  useEffect(() => {
+    if (label !== 'ブランド' || !storeId) return;
+    getBrandMergeExclusions(storeId)
+      .then((pairKeys) => setBrandMergeExclusions(new Set(pairKeys)))
+      .catch((error) => console.error('failed to load brand merge exclusions', error));
+  }, [label, storeId]);
 
   // 比較用キー: 全半角・大文字小文字を吸収し、空白と記号を除去する。
   // 「M.F.F」と「MFF」、「kobe 伍魚福」と「伍魚福」の比較を成立させるため記号・空白は落とす。
@@ -6194,6 +6203,8 @@ export const SimpleMasterPanel = ({
 
     for (let i = 0; i < withKeys.length; i += 1) {
       for (let j = i + 1; j < withKeys.length; j += 1) {
+        // 「重複ではない」と確認済みのペアは候補から外す。
+        if (brandMergeExclusions.has(buildBrandPairKey(withKeys[i].item.id, withKeys[j].item.id))) continue;
         if (isBrandPairCandidate(withKeys[i].keys, withKeys[j].keys)) {
           union(withKeys[i].item.id, withKeys[j].item.id);
         }
@@ -6219,7 +6230,54 @@ export const SimpleMasterPanel = ({
         };
       })
       .sort((a, b) => String(a.label).localeCompare(String(b.label), 'ja'));
-  }, [label, items]);
+  }, [label, items, brandMergeExclusions]);
+
+  // グループを「重複ではない」として候補から外す(グループ内の全ペアを除外リストへ保存)。
+  const dismissBrandGroup = async (group) => {
+    if (!storeId || brandMergeBusy) return;
+
+    const ok = await appConfirm(
+      `「${group.label}」×${group.members.length.toLocaleString()}件を重複候補から外しますか？\n（除外は保存され、次回以降この組み合わせは候補に表示されません）`,
+      { title: '重複候補から外す', okLabel: '候補から外す' }
+    );
+    if (!ok) return;
+
+    const pairKeys = [];
+    for (let i = 0; i < group.members.length; i += 1) {
+      for (let j = i + 1; j < group.members.length; j += 1) {
+        pairKeys.push(buildBrandPairKey(group.members[i].id, group.members[j].id));
+      }
+    }
+
+    try {
+      await addBrandMergeExclusions(storeId, pairKeys);
+      setBrandMergeExclusions((current) => {
+        const next = new Set(current);
+        pairKeys.forEach((key) => next.add(key));
+        return next;
+      });
+    } catch (error) {
+      console.error('failed to save brand merge exclusions', error);
+      alert(`除外の保存に失敗しました: ${error?.message || error}`);
+    }
+  };
+
+  const resetBrandMergeExclusions = async () => {
+    if (!storeId || brandMergeExclusions.size === 0) return;
+    const ok = await appConfirm(
+      `除外中の ${brandMergeExclusions.size.toLocaleString()} ペアをすべて解除して、候補に再表示しますか？`,
+      { title: '除外の解除', okLabel: '解除する' }
+    );
+    if (!ok) return;
+
+    try {
+      await clearBrandMergeExclusions(storeId);
+      setBrandMergeExclusions(new Set());
+    } catch (error) {
+      console.error('failed to clear brand merge exclusions', error);
+      alert(`除外の解除に失敗しました: ${error?.message || error}`);
+    }
+  };
 
   // 手動選択統合: 表記が違いすぎて自動候補に出ない重複(例: goodyear と グッドイヤー)用。
   const [manualBrandKeyword, setManualBrandKeyword] = useState('');
@@ -6378,14 +6436,25 @@ export const SimpleMasterPanel = ({
                     <div className="min-w-0 truncate text-sm font-black text-slate-900">
                       「{group.label}」 × {group.members.length.toLocaleString()}件
                     </div>
-                    <button
-                      type="button"
-                      disabled={brandMergeBusy || !selectedTargetId}
-                      onClick={() => executeBrandMerge(group)}
-                      className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                    >
-                      {brandMergeBusy ? '統合中...' : 'このグループを統合'}
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={brandMergeBusy}
+                        onClick={() => dismissBrandGroup(group)}
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
+                        title="重複ではない組み合わせを候補から外します（保存され、次回以降も表示されません）"
+                      >
+                        重複ではない
+                      </button>
+                      <button
+                        type="button"
+                        disabled={brandMergeBusy || !selectedTargetId}
+                        onClick={() => executeBrandMerge(group)}
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        {brandMergeBusy ? '統合中...' : 'このグループを統合'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-3 space-y-2">
@@ -6547,7 +6616,21 @@ export const SimpleMasterPanel = ({
           })()}
         </div>
 
-        <div className="flex items-center justify-end border-t border-slate-100 bg-white px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
+          <div className="min-w-0 text-[11px] font-bold text-slate-400">
+            {brandMergeExclusions.size > 0 ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span>「重複ではない」として除外中: {brandMergeExclusions.size.toLocaleString()}ペア</span>
+                <button
+                  type="button"
+                  onClick={resetBrandMergeExclusions}
+                  className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500 transition hover:bg-slate-200"
+                >
+                  すべて解除
+                </button>
+              </span>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => setBrandMergeOpen(false)}

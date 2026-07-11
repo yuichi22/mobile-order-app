@@ -84,7 +84,9 @@ service cloud.firestore {
         || documentId == 'categories'
         || documentId == 'periods'
         // 発注管理: needsReorder バックフィル完了マーカー(settings/purchase)
-        || documentId == 'purchase';
+        || documentId == 'purchase'
+        // ブランド重複統合: 「重複ではない」ペアの除外リスト(ブランド管理と同じ権限で保存可)
+        || documentId == 'brandMergeExclusions';
     }
 
     function hasSessionDoc(storeId, sessionId) {
