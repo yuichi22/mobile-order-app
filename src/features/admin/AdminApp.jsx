@@ -207,6 +207,17 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     return canAccessAdminTab(normalizedRole, activeTab) ? activeTab : 'pos';
   })();
 
+  // 重いサブ画面(日計/分析/設定)の本体マウントを、タブ点灯の描画より1ティック遅らせる。
+  // 同じコミットで点灯と重い本体を組むと、点灯のペイントが本体構築にブロックされ
+  // 「押してもワンテンポ点かない」体感になる(特にlazyチャンク読込済みの2回目以降)。
+  // setTimeout(0)=ペイント後のマクロタスクなので、点灯を先に描いてから本体を組める。
+  const [mountedAdminTab, setMountedAdminTab] = useState(activeAdminTab);
+  useEffect(() => {
+    if (mountedAdminTab === activeAdminTab) return undefined;
+    const timerId = window.setTimeout(() => setMountedAdminTab(activeAdminTab), 0);
+    return () => window.clearTimeout(timerId);
+  }, [activeAdminTab, mountedAdminTab]);
+
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
   const showRegisterModeToggle = activeAdminTab === 'pos';
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
@@ -816,19 +827,22 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             )}
         </div>
 
-        {activeAdminTab === 'dailyClosing' && canViewAnalytics && (
+        {/* 重いサブ画面へ入った直後の1ティック(点灯を先に描くための待ち)は軽いローダーを見せる。 */}
+        {activeAdminTab !== 'pos' && activeAdminTab !== mountedAdminTab && <TabLoader />}
+
+        {activeAdminTab === 'dailyClosing' && mountedAdminTab === 'dailyClosing' && canViewAnalytics && (
           <Suspense fallback={<TabLoader />}>
             <AnalyticsPage storeId={storeId} mode="dailyClosing" />
           </Suspense>
         )}
 
-        {activeAdminTab === 'analytics' && canViewAnalytics && (
+        {activeAdminTab === 'analytics' && mountedAdminTab === 'analytics' && canViewAnalytics && (
           <Suspense fallback={<TabLoader />}>
             <AnalyticsPage storeId={storeId} mode="analytics" />
           </Suspense>
         )}
 
-        {activeAdminTab === 'settings' && canViewSettings && (
+        {activeAdminTab === 'settings' && mountedAdminTab === 'settings' && canViewSettings && (
           <Suspense fallback={<TabLoader />}>
             <StoreSettingsPage
               user={user}
