@@ -77,7 +77,6 @@ import ProductMasterSettings, {
   supplierMinOrderAmountField
 } from '../../products/components/ProductMasterSettings';
 import PurchaseManagementSettings from './components/PurchaseManagementSettings';
-import { prefetchPurchaseReorderProducts } from '../../store/services/storeDataService';
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import ProductCsvImportPanel from '../../products/components/ProductCsvImportPanel';
 import MasterCsvImportPanel from '../../products/components/MasterCsvImportPanel';
@@ -2837,11 +2836,6 @@ export const StoreSettings = ({
   } = useBusinessSettings(storeId);
   const { menuItems, loading: menuLoading, updateMenu, deleteMenu } = useMenuData(storeId);
   const productMaster = useProductMasterData(storeId);
-
-  // 発注管理を開いたとき「集計しています…」で待たせないよう、設定画面表示時に発注候補を裏読みする。
-  useEffect(() => {
-    prefetchPurchaseReorderProducts(storeId);
-  }, [storeId]);
 
   useEffect(() => {
     if (!storeId) {

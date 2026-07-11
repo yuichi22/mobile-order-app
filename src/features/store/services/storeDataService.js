@@ -1,6 +1,7 @@
 import {
   collection,
   addDoc,
+  arrayUnion,
   deleteDoc,
   deleteField,
   doc,
@@ -757,15 +758,6 @@ export const purchaseReorderCache = new Map();
 // 取得済みスコープ(storeId -> Set(scopeKey))。スコープ単位で読み込み済みかを判定する。
 export const purchaseProductPoolCache = new Map();
 export const purchaseLoadedScopesCache = new Map();
-
-// 設定画面を開いた時点で発注候補を裏読みしてキャッシュを温める。
-// 未キャッシュ時のみ実行（最新化は発注管理画面を開いたときのSWRが担う）。失敗は握りつぶす。
-export const prefetchPurchaseReorderProducts = (storeId) => {
-  if (!isValidStoreId(storeId) || purchaseReorderCache.has(storeId)) return;
-  fetchProductsForReorder(storeId)
-    .then((products) => purchaseReorderCache.set(storeId, products))
-    .catch(() => {});
-};
 
 // 発注リストから発注点・発注数・LOTなどを単項目更新する
 // （saveProductMasterItem はグループ作成や入庫処理を伴うため使わない）。
