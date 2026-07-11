@@ -301,7 +301,22 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
             let discount = (r["discount"] as? NSNumber)?.intValue ?? 0
             if discount > 0 { lr("値引き", "-¥" + numberWithComma(discount)) }
         }
-        lr("(内消費税)", yen(r["tax"]))
+        // 消費税は会計伝票と同じく軽減(8%)/標準(10%)に分けて出す。
+        // どちらも0のとき(税区分不明)は従来通り合計の内消費税1行にフォールバックする。
+        let taxReduced = (r["taxAmountReduced"] as? NSNumber)?.intValue ?? 0
+        let taxStandard = (r["taxAmountStandard"] as? NSNumber)?.intValue ?? 0
+        if taxReduced > 0 || taxStandard > 0 {
+            if taxReduced > 0 {
+                let rate = (r["taxRateReduced"] as? NSNumber)?.intValue ?? 8
+                lr("(内消費税 \(rate)%)", "¥" + numberWithComma(taxReduced))
+            }
+            if taxStandard > 0 {
+                let rate = (r["taxRateStandard"] as? NSNumber)?.intValue ?? 10
+                lr("(内消費税 \(rate)%)", "¥" + numberWithComma(taxStandard))
+            }
+        } else {
+            lr("(内消費税)", yen(r["tax"]))
+        }
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 2, height: 1))
         lr("合計", yen(r["total"]))
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 1, height: 1))
