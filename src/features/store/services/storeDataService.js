@@ -646,6 +646,38 @@ export const saveProductBrand = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'brands', itemData);
 };
 
+// ===== ブランド重複候補の除外リスト =====
+// 「実際は別ブランドなのに候補に出る」誤検出ペアを保存し、以後の候補判定から外す。
+// pairKeys は「2つのブランドidをソートして'|'連結」した文字列の配列。
+const brandMergeExclusionsDocRef = (storeId) => doc(db, 'stores', storeId, 'settings', 'brandMergeExclusions');
+
+export const buildBrandPairKey = (brandIdA, brandIdB) => [String(brandIdA), String(brandIdB)].sort().join('|');
+
+export const getBrandMergeExclusions = async (storeId) => {
+  if (!storeId) return [];
+  const snapshot = await getDoc(brandMergeExclusionsDocRef(storeId));
+  if (!snapshot.exists()) return [];
+  const pairKeys = snapshot.data()?.pairKeys;
+  return Array.isArray(pairKeys) ? pairKeys.filter(Boolean) : [];
+};
+
+export const addBrandMergeExclusions = async (storeId, pairKeys = []) => {
+  const normalized = pairKeys.filter(Boolean);
+  if (!storeId || normalized.length === 0) return;
+  await setDoc(brandMergeExclusionsDocRef(storeId), {
+    pairKeys: arrayUnion(...normalized),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const clearBrandMergeExclusions = async (storeId) => {
+  if (!storeId) return;
+  await setDoc(brandMergeExclusionsDocRef(storeId), {
+    pairKeys: [],
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
 // ===== ブランドの重複統合 =====
 // 同名などで重複したブランドを1つ(target)へ統合する。
 // 1) sources を brandId に持つ商品の brandId/brandName を target へ付け替え
