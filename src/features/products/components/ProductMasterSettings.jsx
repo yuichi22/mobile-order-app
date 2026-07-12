@@ -15,6 +15,7 @@ import {
   Package,
   Plus,
   Save,
+  Scissors,
   Search,
   Tag,
   Trash2,
@@ -29,7 +30,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
 import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands, buildBrandPairKey, getBrandMergeExclusions, addBrandMergeExclusions, clearBrandMergeExclusions } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands, buildBrandPairKey, getBrandMergeExclusions, addBrandMergeExclusions, clearBrandMergeExclusions, detachProductFromGroup } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
@@ -2676,6 +2677,30 @@ const ProductMasterTable = ({
     onSaved?.();
   };
 
+  // SKUをグループから切り離して独立した1商品にする。
+  // 誤グルーピング(例: Shopifyインポートで別商品が1グループのバリアント扱い)の現場修正用。
+  const detachProduct = async (product) => {
+    if (!storeId || !product?.id) return;
+
+    const ok = await appConfirm(
+      [
+        `「${product.name || '商品'}」をこのグループから切り離して、独立した商品にしますか？`,
+        '',
+        '商品名・バーコード・価格・在庫はそのまま変わりません。所属グループだけが変わります。'
+      ].join('\n'),
+      { title: 'グループから切り離す', okLabel: '切り離す' }
+    );
+    if (!ok) return;
+
+    try {
+      await detachProductFromGroup(storeId, product);
+      onSaved?.();
+    } catch (error) {
+      console.error('failed to detach product from group', error);
+      alert(`切り離しに失敗しました: ${error?.message || error}`);
+    }
+  };
+
   const openStockInHistoryModal = async (product) => {
     setStockInHistoryModalRow(product);
     setStockInHistoryRecords([]);
@@ -3273,6 +3298,20 @@ const ProductMasterTable = ({
               </button>
             </div>
           </div>
+
+          {!isNew && typeof options.onDetach === 'function' && (
+            <div className="flex h-9 items-center justify-center">
+              <FieldLabel>切離</FieldLabel>
+              <button
+                type="button"
+                onClick={options.onDetach}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-500 transition hover:bg-amber-100 hover:text-amber-600"
+                title="このSKUをグループから切り離して独立した商品にする"
+              >
+                <Scissors size={13} />
+              </button>
+            </div>
+          )}
 
           <div className="flex h-9 items-center justify-center">
             <FieldLabel>削除</FieldLabel>
@@ -4051,7 +4090,9 @@ const ProductMasterTable = ({
               <div className="space-y-2 bg-slate-50/60 p-2.5">
                 {group.products.map((product, productIndex) => renderEditableRow(getDraft(product), {
                   skuGroupKey: 'products',
-                  skuRowIndex: skuFieldRowIndexByProductId.get(product.id) ?? productIndex
+                  skuRowIndex: skuFieldRowIndexByProductId.get(product.id) ?? productIndex,
+                  // 2SKU以上のグループのみ「切り離し」を出す(1SKUのグループでは意味がないため)。
+                  onDetach: group.products.length > 1 ? () => detachProduct(product) : null
                 }))}
               </div>
             </div>

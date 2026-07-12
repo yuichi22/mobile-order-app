@@ -646,6 +646,42 @@ export const saveProductBrand = async (storeId, itemData) => {
   return await saveStoreCollectionDoc(storeId, 'brands', itemData);
 };
 
+// ===== SKUのグループ切り離し =====
+// 誤って同一グループにまとまった商品(例: Shopifyインポートで別商品がバリアント扱い)を、
+// 独立した1商品(1グループ1SKU)に分離する。所属(productGroupId/Name/Role)だけを付け替え、
+// 商品名・バーコード・価格・在庫・原価・Shopify紐付けなどの商品フィールドには触れない。
+export const detachProductFromGroup = async (storeId, product) => {
+  if (!storeId || !product?.id) throw new Error('切り離す対象の商品が特定できません');
+
+  const name = String(product.name || '').trim() || '(名称未設定)';
+  const groupRef = doc(storeCollectionRef(storeId, 'productGroups'));
+
+  // saveProductMasterItem の新規グループ発行と同じ形で productGroups doc を作る。
+  await setDoc(groupRef, {
+    id: groupRef.id,
+    name,
+    baseProductName: name,
+    brandId: product.brandId || '',
+    categoryId: product.categoryId || '',
+    categoryGroupId: product.categoryGroupId || '',
+    departmentId: product.departmentId || 'retail',
+    labelEnabled: Boolean(product.labelEnabled),
+    shopifyEnabled: Boolean(product.shopifyEnabled || product.shopifyCreateEnabled),
+    shopifyProductId: '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  await setDoc(doc(db, 'stores', storeId, 'products', product.id), {
+    productGroupId: groupRef.id,
+    productGroupName: name,
+    productGroupRole: 'primary',
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  return { productGroupId: groupRef.id };
+};
+
 // ===== ブランド重複候補の除外リスト =====
 // 「実際は別ブランドなのに候補に出る」誤検出ペアを保存し、以後の候補判定から外す。
 // pairKeys は「2つのブランドidをソートして'|'連結」した文字列の配列。
