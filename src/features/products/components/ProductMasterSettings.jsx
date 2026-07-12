@@ -905,6 +905,13 @@ const SHOPIFY_BUTTON_CLASS = {
 
 const FieldLabel = () => null;
 
+// SKU行で各入力の「下」に、何のフィールドかを税込表示と同じ体裁(グレー小)で補足する。
+const FieldHint = ({ children, align = 'center' }) => (
+  <div className={`mt-1 truncate text-[10px] font-bold text-slate-400 ${align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : 'text-center'}`}>
+    {children}
+  </div>
+);
+
 const PRODUCT_MASTER_INITIAL_GROUP_LIMIT = 80;
 const PRODUCT_MASTER_GROUP_LIMIT_STEP = 80;
 
@@ -3091,6 +3098,7 @@ const ProductMasterTable = ({
               onFocus={handleSkuFieldFocus('sku')}
               placeholder="品番"
             />
+            <FieldHint align="left">品番</FieldHint>
           </div>
 
           <div>
@@ -3127,6 +3135,7 @@ const ProductMasterTable = ({
                 </button>
               )}
             />
+            <FieldHint align="left">バーコード</FieldHint>
           </div>
 
           <div>
@@ -3139,6 +3148,7 @@ const ProductMasterTable = ({
               onFocus={handleSkuFieldFocus('size')}
               placeholder="サイズ"
             />
+            <FieldHint>サイズ</FieldHint>
           </div>
 
           <div>
@@ -3151,6 +3161,7 @@ const ProductMasterTable = ({
               onFocus={handleSkuFieldFocus('colorName')}
               placeholder="色"
             />
+            <FieldHint>色</FieldHint>
           </div>
 
           <div>
@@ -3182,6 +3193,7 @@ const ProductMasterTable = ({
               placeholder="LOT"
               className="text-right"
             />
+            <FieldHint align="right">LOT</FieldHint>
           </div>
 
           <div>
@@ -3196,6 +3208,7 @@ const ProductMasterTable = ({
               placeholder="発注点"
               className="text-right"
             />
+            <FieldHint align="right">発注点</FieldHint>
           </div>
 
           <div>
@@ -3210,6 +3223,7 @@ const ProductMasterTable = ({
               placeholder="発注数"
               className="text-right"
             />
+            <FieldHint align="right">発注数</FieldHint>
           </div>
 
           <div>
@@ -3227,6 +3241,7 @@ const ProductMasterTable = ({
             >
               {row.inventoryUnmanaged ? '管理外' : Number(row.inventoryQuantity ?? row.quantity ?? 0).toLocaleString()}
             </button>
+            <FieldHint align="right">在庫数</FieldHint>
           </div>
 
           <div>
@@ -3242,6 +3257,7 @@ const ProductMasterTable = ({
                 ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()} (${formatDateText(row.lastStockInAt)})`
                 : '入庫: 未登録'}
             </button>
+            <FieldHint>入庫履歴</FieldHint>
           </div>
 
           <div>
@@ -3256,6 +3272,7 @@ const ProductMasterTable = ({
               placeholder="数"
               className="text-right"
             />
+            <FieldHint align="right">入庫数</FieldHint>
           </div>
 
           <div>
@@ -3272,6 +3289,7 @@ const ProductMasterTable = ({
                 印刷
               </button>
             </div>
+            <FieldHint>ラベル</FieldHint>
           </div>
 
           <div className="flex h-9 items-center justify-center">
