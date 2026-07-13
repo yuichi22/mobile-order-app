@@ -37,6 +37,10 @@ import LabelPrintQueueRunner from './LabelPrintQueueRunner';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
+// 検索ヒットのグループが少数(バーコード/品番スキャン等)のときだけ、
+// 同グループの兄弟SKUも取得してグループ丸ごと表示する。多すぎる場合(フリーワード広域検索)は
+// 従来どおり一致SKUのみ表示して読み取り量の膨張を防ぐ。
+const PRODUCT_MASTER_SEARCH_MERGE_GROUP_CAP = 40;
 
 const normalizeProductMasterSearchText = (value) => (
   String(value || '')
@@ -946,6 +950,7 @@ const calculateProductMasterTaxIncludedPrice = (priceTaxExcluded, taxRate = 10) 
 
 const ProductMasterTable = ({
   products,
+  highlightedProductIds = null,
   storeId,
   productGroups = [],
   productCategories,
@@ -964,6 +969,23 @@ const ProductMasterTable = ({
   labelPrinterSettings
 }) => {
   const [draftRows, setDraftRows] = useState({});
+  // 検索ハイライト対象の行DOM(バーコード等でヒットが1件のとき自動スクロールする)。
+  const highlightRowRef = useRef(null);
+  const highlightedIdList = useMemo(
+    () => (highlightedProductIds ? [...highlightedProductIds] : []),
+    [highlightedProductIds]
+  );
+  const highlightScrollKey = highlightedIdList.length === 1 ? highlightedIdList[0] : '';
+
+  useEffect(() => {
+    if (!highlightScrollKey) return;
+    // レンダー確定後に一致行へスクロール(グループ内の中ほどにあっても見えるように)。
+    const timer = window.setTimeout(() => {
+      highlightRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [highlightScrollKey]);
+
   // バーコードラベル印刷（東芝テック B-EV4T / 印刷ブリッジ経由）
   const [labelQtyModalProduct, setLabelQtyModalProduct] = useState(null); // 手動印刷の枚数モーダル対象商品
   const [labelQtyValue, setLabelQtyValue] = useState(1);
@@ -2883,6 +2905,7 @@ const ProductMasterTable = ({
     return (
       <div
         key={rowKey}
+        ref={options.containerRef || null}
         className={classNames(
           options.embeddedNewGroup
             ? 'rounded-xl border border-transparent bg-transparent p-0'
@@ -2890,7 +2913,10 @@ const ProductMasterTable = ({
           !options.embeddedNewGroup && (
             isNew
               ? 'border-orange-200 bg-orange-50/60 shadow-sm'
-              : 'border-slate-200 bg-white'
+              // 検索一致行は黄枠＋薄黄背景でハイライトする。
+              : options.highlighted
+                ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-300'
+                : 'border-slate-200 bg-white'
           )
         )}
       >
@@ -4049,10 +4075,16 @@ const ProductMasterTable = ({
               </div>
 
               <div className="space-y-2 bg-slate-50/60 p-2.5">
-                {group.products.map((product, productIndex) => renderEditableRow(getDraft(product), {
-                  skuGroupKey: 'products',
-                  skuRowIndex: skuFieldRowIndexByProductId.get(product.id) ?? productIndex
-                }))}
+                {group.products.map((product, productIndex) => {
+                  const isHighlighted = Boolean(highlightedProductIds && highlightedProductIds.has(product.id));
+                  return renderEditableRow(getDraft(product), {
+                    skuGroupKey: 'products',
+                    skuRowIndex: skuFieldRowIndexByProductId.get(product.id) ?? productIndex,
+                    highlighted: isHighlighted,
+                    // ヒットが1件のときだけ、その行へ自動スクロールするための ref を渡す。
+                    containerRef: isHighlighted && highlightScrollKey === product.id ? highlightRowRef : null
+                  });
+                })}
               </div>
             </div>
           ))}
@@ -7254,6 +7286,8 @@ const ProductMasterSettings = ({
   const [headerSearchResults, setHeaderSearchResults] = useState([]);
   const [headerSearchLoading, setHeaderSearchLoading] = useState(false);
   const [headerSearchError, setHeaderSearchError] = useState('');
+  // 検索語に実際に一致したSKUのid集合(兄弟SKU補完時のハイライト用)。空=ハイライトしない。
+  const [headerMatchedProductIds, setHeaderMatchedProductIds] = useState(() => new Set());
 
   const headerSearchKeyword = useMemo(() => normalizeProductMasterSearchText(keyword), [keyword]);
   const isHeaderProductSearchActive = Boolean(storeId && headerSearchKeyword);
@@ -7261,6 +7295,7 @@ const ProductMasterSettings = ({
   useEffect(() => {
     if (!storeId || !headerSearchKeyword) {
       setHeaderSearchResults([]);
+      setHeaderMatchedProductIds(new Set());
       setHeaderSearchError('');
       setHeaderSearchLoading(false);
       return undefined;
@@ -7274,6 +7309,7 @@ const ProductMasterSettings = ({
       if (!searchTerms.length) {
         if (!cancelled) {
           setHeaderSearchResults([]);
+          setHeaderMatchedProductIds(new Set());
           setHeaderSearchError('');
           setHeaderSearchLoading(false);
         }
@@ -7311,7 +7347,7 @@ const ProductMasterSettings = ({
 
         const sourceDocs = bestCandidate?.docs || [];
 
-        const nextResults = sourceDocs
+        const matches = sourceDocs
           .map((docSnapshot) => ({
             id: docSnapshot.id,
             ...docSnapshot.data()
@@ -7319,13 +7355,44 @@ const ProductMasterSettings = ({
           .filter((product) => productMatchesAllHeaderSearchTerms(product, requiredTerms))
           .slice(0, PRODUCT_MASTER_HEADER_SEARCH_LIMIT);
 
+        // ヒットしたグループが少数のときだけ、同グループの兄弟SKUを補完してグループ丸ごと表示する。
+        // これによりバーコード/品番でのヒットが「裸の1行」ではなくグループ文脈で表示される。
+        const matchedGroupIds = [...new Set(matches.map((product) => String(product.productGroupId || '')).filter(Boolean))];
+        let merged = matches;
+        let matchedIds = new Set();
+
+        if (matchedGroupIds.length > 0 && matchedGroupIds.length <= PRODUCT_MASTER_SEARCH_MERGE_GROUP_CAP) {
+          const groupChunks = [];
+          for (let index = 0; index < matchedGroupIds.length; index += 30) {
+            groupChunks.push(matchedGroupIds.slice(index, index + 30));
+          }
+
+          const siblingSnapshots = await Promise.all(
+            groupChunks.map((chunk) => getDocs(query(
+              productsRef,
+              where('productGroupId', 'in', chunk),
+              limit(PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT)
+            )))
+          );
+
+          const byId = new Map(matches.map((product) => [product.id, product]));
+          siblingSnapshots.forEach((snapshot) => snapshot.docs.forEach((docSnapshot) => {
+            if (!byId.has(docSnapshot.id)) byId.set(docSnapshot.id, { id: docSnapshot.id, ...docSnapshot.data() });
+          }));
+
+          merged = [...byId.values()];
+          matchedIds = new Set(matches.map((product) => product.id));
+        }
+
         if (!cancelled) {
-          setHeaderSearchResults(nextResults);
+          setHeaderSearchResults(merged);
+          setHeaderMatchedProductIds(matchedIds);
         }
       } catch (searchError) {
         console.error('[product master header search] failed', searchError);
         if (!cancelled) {
           setHeaderSearchResults([]);
+          setHeaderMatchedProductIds(new Set());
           setHeaderSearchError(searchError?.message || '全商品検索に失敗しました。');
         }
       } finally {
@@ -7372,6 +7439,7 @@ const ProductMasterSettings = ({
 
               <ProductMasterTable
                 products={displayedProducts}
+                highlightedProductIds={isHeaderProductSearchActive ? headerMatchedProductIds : null}
                 storeId={storeId}
                 productGroups={productGroups}
                 productCategories={productCategories}
