@@ -2054,6 +2054,11 @@ export const PosTransactionHistory = ({
             0
           ),
           paymentMethod,
+          // お支払いをトーストと同じ分割内訳(現金/カード/金券等)で出すため、
+          // buildTenderText が読む payments を取引から引き継ぐ(分割会計のみ)。
+          ...(Array.isArray(transaction.payments) && transaction.payments.length > 1
+            ? { payments: transaction.payments, isSplitPayment: true }
+            : {}),
           paymentBreakdown: [{
             method: paymentMethod,
             label: formatPaymentMethod(paymentMethod),

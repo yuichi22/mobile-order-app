@@ -174,10 +174,14 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
       (data.tableId ? `テーブル ${data.tableId}` : ''),
     // 使用レジ名（例: メインレジ1）。複数iPad/レジでどの端末の会計かを区別するため印字する。
     registerName: data.registerName || data.registerLabel || '',
+    // No: は会計ID(取引ID)を出す。トースト=transactionId / 再印刷=sourceTransactionId で
+    // 同じ会計IDになり両者が一致する。sessionId断片("takeout-"等)へは落とさない。
     receiptNo:
       data.receiptNo ||
       data.receiptNumber ||
-      (data.sessionId ? data.sessionId.slice(0, 8) : ''),
+      data.transactionId ||
+      data.sourceTransactionId ||
+      '',
     issuedAtText: issuedAt.toLocaleString('ja-JP'),
     recipientName: data.recipientName || '',
     recipientLabel: data.recipientName ? `${data.recipientName} 様` : '様',
