@@ -4,6 +4,17 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // デプロイ環境では firebase.json の rewrites が /api/** を Cloud Functions へ中継する。
+    // ローカル vite にはその中継が無く顧客導線(bootstrap等)が 404 になるため、
+    // dev Hosting 経由で同じ rewrite に乗せる。
+    proxy: {
+      '/api': {
+        target: 'https://mobile-order-dev-5f7fd.web.app',
+        changeOrigin: true
+      }
+    }
+  },
   build: {
     reportCompressedSize: false,
     rollupOptions: {

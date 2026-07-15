@@ -2068,18 +2068,24 @@ if (shouldWaitForSessionBeforeWelcome) {
                 </span>
               )}
             </h2>
-              <p className="mt-1 text-sm text-gray-400">
-                ご注文内容とお会計用バーコードを確認できます。
-              </p>
             </div>
             <button
               type="button"
               onClick={() => handleChangeView('menu')}
               className="-mt-[22px] translate-x-1 flex h-10 w-10 items-center justify-center self-start rounded-full text-2xl font-semibold leading-none text-gray-400 transition-colors hover:bg-gray-50"
-              aria-label="履歴を閉じる"
+              aria-label="閉じてメニューに戻る"
             >
               ×
             </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2.5">
+            <Barcode size={18} className="shrink-0 text-orange-600" />
+            <p className="text-sm font-bold leading-snug text-orange-700">
+              この伝票画面をレジへお持ちください
+              <span className="block text-xs font-medium text-orange-500">
+                お会計が終わるまで画面は閉じないでください
+              </span>
+            </p>
           </div>
         </div>
 
@@ -2266,12 +2272,18 @@ if (shouldWaitForSessionBeforeWelcome) {
         </div>
 
         <div
-          className="shrink-0 border-t border-gray-100 bg-white px-4 pt-4"
+          className="shrink-0 space-y-2.5 border-t border-gray-100 bg-white px-4 pt-4"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
         >
           <button
+            onClick={() => handleChangeView('menu')}
+            className="h-14 w-full rounded-[1.6rem] bg-orange-500 font-bold text-white shadow-lg shadow-orange-100 transition-transform active:scale-95"
+          >
+            メニューに戻る（追加注文）
+          </button>
+          <button
             onClick={() => handleCallStaff('accounting')}
-            className="h-14 w-full rounded-[1.6rem] bg-gray-800 font-bold text-white shadow-lg transition-transform active:scale-95"
+            className="h-12 w-full rounded-[1.4rem] border border-gray-200 bg-white text-sm font-bold text-gray-600 transition-transform active:scale-95"
           >
             スタッフにお会計を知らせる
           </button>
