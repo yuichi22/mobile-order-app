@@ -758,8 +758,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const settlementAdjustmentTotalValue = promoExpenseAmountValue + voucherAmountValue;
 
     const finalTotalAmount = Math.max(0, salesAmountBeforeSettlement - settlementAdjustmentTotalValue);
+    // 全額方式(A): 売上値引き＋販促費は課税対象を減らす。金券/売掛は充当(満額課税)なので含めない。
+    const taxableReducingAmount = salesDiscountAmount + promoExpenseAmountValue;
     const [reducedDiscountAmount, standardDiscountAmount] = allocateAmountByWeight(
-      salesDiscountAmount,
+      taxableReducingAmount,
       [totalReducedIncl, totalStandardIncl]
     );
     const currentReducedIncl = totalReducedIncl - reducedDiscountAmount;
@@ -1696,8 +1698,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         });
       });
 
+      // 全額方式(A): 売上値引き＋販促費を課税対象から控除。金券/売掛は満額課税(非控除)。
       const [transactionReducedDiscountAmount, transactionStandardDiscountAmount] = allocateAmountByWeight(
-        discountAmount,
+        Number(discountAmount) + Number(promoExpenseAmount),
         [rawTransactionReducedIncl, rawTransactionStandardIncl]
       );
 

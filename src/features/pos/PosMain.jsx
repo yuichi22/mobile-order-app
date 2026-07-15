@@ -1066,13 +1066,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const reducedInclRaw = sumItemsBy((it) => it.salesTaxRateType === 'reduced', 'salesTaxIncludedAmount');
       const standardInclRaw = sumItemsBy((it) => it.salesTaxRateType === 'standard', 'salesTaxIncludedAmount');
       const grossLineTotal = reducedInclRaw + standardInclRaw;
-      const discountRatio = grossLineTotal > 0 ? Number(takeoutCartTotal) / grossLineTotal : 1;
-      const reducedIncluded = Math.round(reducedInclRaw * discountRatio);
-      const standardIncluded = Math.round(standardInclRaw * discountRatio);
-      const reducedBreakdown = splitTaxIncludedAmount(reducedIncluded, reducedTax, taxRounding);
-      const standardBreakdown = splitTaxIncludedAmount(standardIncluded, standardTax, taxRounding);
-      const subTotalAmount = Number(reducedBreakdown.baseAmount) + Number(standardBreakdown.baseAmount);
-      const totalTaxAmount = Number(reducedBreakdown.taxAmount) + Number(standardBreakdown.taxAmount);
+      // 課税ベース(reducedIncluded/standardIncluded)は settlement 分解後に算出する。
+      // 全額方式: 金券/売掛・販促(settlement)は課税対象から差し引かず、売上値引きのみ控除する。
 
       const selectedAccountingAdjustmentItems = Array.isArray(takeoutSelectedDiscount?.items) && takeoutSelectedDiscount.items.length > 0
         ? takeoutSelectedDiscount.items
@@ -1162,6 +1157,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const promoExpenseItemsFinal = promoExpenseFinal > 0
         ? [{ id: appliedDiscount?.id || 'promo_expense', name: appliedDiscount?.name || '販促費', amount: promoExpenseFinal, value: promoExpenseFinal, count: 1, quantity: 1 }]
         : [];
+
+      // 全額方式(A): 課税ベース = 商品(税込) − 売上値引き − 販促費。金券/売掛は充当(満額課税)なので差し引かない。PosRegister と同一挙動。
+      const taxableIncludedTotal = Math.max(0, salesAmountBeforeSettlementFinal - promoExpenseFinal);
+      const discountRatio = grossLineTotal > 0 ? taxableIncludedTotal / grossLineTotal : 1;
+      const reducedIncluded = Math.round(reducedInclRaw * discountRatio);
+      const standardIncluded = Math.round(standardInclRaw * discountRatio);
+      const reducedBreakdown = splitTaxIncludedAmount(reducedIncluded, reducedTax, taxRounding);
+      const standardBreakdown = splitTaxIncludedAmount(standardIncluded, standardTax, taxRounding);
+      const subTotalAmount = Number(reducedBreakdown.baseAmount) + Number(standardBreakdown.baseAmount);
+      const totalTaxAmount = Number(reducedBreakdown.taxAmount) + Number(standardBreakdown.taxAmount);
 
       const taxSummary = {
         reducedTaxRate: Number(reducedTax),
