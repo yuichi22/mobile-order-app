@@ -57,6 +57,8 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
   const issuedAtText = escapeReceiptHtml(payload.issuedAtText || new Date().toLocaleString('ja-JP'));
   const tableName = escapeReceiptHtml(payload.tableName || payload.tableDisplayName || '');
   const registerName = escapeReceiptHtml(payload.registerName || '');
+  // 会計ID(取引No)。Star/ブリッジと同じ payload.receiptNo を使い、印字面で揃える。
+  const receiptNo = escapeReceiptHtml(payload.receiptNo || '');
   // 割引内訳（%割引・スタンプカード等）。配列が無ければ合計1行へフォールバックする。
   const discountLines = Array.isArray(payload.discounts) ? payload.discounts.filter((line) => Number(line?.amount || 0) > 0) : [];
   const discountRows = discountLines.length > 0
@@ -64,6 +66,32 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
     : (Number(payload.discount || payload.discountAmount || 0) > 0
       ? `<div class="row"><span>値引き</span><span>-¥${formatAmount(payload.discount || payload.discountAmount)}</span></div>`
       : '');
+  // 税率別の内訳行。税込対象額があれば「{率}%対象」+「（内消費税{率}%）」の2行、無ければ税額のみ(旧伝票)へフォールバック。
+  const taxRows = (() => {
+    const tir = Number(payload.taxableIncludedReduced || 0);
+    const tis = Number(payload.taxableIncludedStandard || 0);
+    const tar = Number(payload.taxAmountReduced || 0);
+    const tas = Number(payload.taxAmountStandard || 0);
+    const rr = Number(payload.taxRateReduced || 8);
+    const rs = Number(payload.taxRateStandard || 10);
+    let html = '';
+    if (tir > 0) {
+      html += `<div class="row"><span>${rr}%対象</span><span>¥${formatAmount(tir)}</span></div>`;
+      html += `<div class="row"><span>　（内消費税${rr}%）</span><span>¥${formatAmount(tar)}</span></div>`;
+    } else if (tar > 0) {
+      html += `<div class="row"><span>消費税 ${rr}%</span><span>¥${formatAmount(tar)}</span></div>`;
+    }
+    if (tis > 0) {
+      html += `<div class="row"><span>${rs}%対象</span><span>¥${formatAmount(tis)}</span></div>`;
+      html += `<div class="row"><span>　（内消費税${rs}%）</span><span>¥${formatAmount(tas)}</span></div>`;
+    } else if (tas > 0) {
+      html += `<div class="row"><span>消費税 ${rs}%</span><span>¥${formatAmount(tas)}</span></div>`;
+    }
+    if (tar === 0 && tas === 0) {
+      html += `<div class="row"><span>うち消費税</span><span>¥${formatAmount(payload.tax || payload.taxAmount)}</span></div>`;
+    }
+    return html;
+  })();
   const paymentMethod = escapeReceiptHtml(payload.paymentMethod || '');
   const hideRecipientAndProviso = payload.hideRecipientAndProviso === true;
   const recipientLabel = escapeReceiptHtml(payload.recipientLabel || (payload.recipientName ? `${payload.recipientName} 様` : '様'));
@@ -181,6 +209,7 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
 
           <div class="section">
             <div class="row"><span>発行日時</span><span>${issuedAtText}</span></div>
+            ${receiptNo ? `<div class="row"><span>会計No</span><span>${receiptNo}</span></div>` : ''}
             ${tableName ? `<div class="row"><span>テーブル</span><span>${tableName}</span></div>` : ''}
             ${registerName ? `<div class="row"><span>レジ</span><span>${registerName}</span></div>` : ''}
             ${paymentMethod ? `<div class="row"><span>支払い方法</span><span>${paymentMethod}</span></div>` : ''}
@@ -196,9 +225,7 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
           <div class="section">
             <div class="row"><span>小計</span><span>¥${formatAmount(payload.subtotal || payload.subTotal)}</span></div>
             ${discountRows}
-            ${Number(payload.taxAmountReduced || 0) > 0 ? `<div class="row"><span>消費税 8%</span><span>¥${formatAmount(payload.taxAmountReduced)}</span></div>` : ''}
-            ${Number(payload.taxAmountStandard || 0) > 0 ? `<div class="row"><span>消費税 10%</span><span>¥${formatAmount(payload.taxAmountStandard)}</span></div>` : ''}
-            ${Number(payload.taxAmountReduced || 0) === 0 && Number(payload.taxAmountStandard || 0) === 0 ? `<div class="row"><span>うち消費税</span><span>¥${formatAmount(payload.tax || payload.taxAmount)}</span></div>` : ''}
+            ${taxRows}
           </div>
 
           <div class="section">

@@ -392,6 +392,17 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     taxAmountReduced: Number(payment.taxAmountReduced || 0),
     taxAmountStandard: Number(payment.taxAmountStandard || 0),
     taxAmount: Number(payment.taxAmount || payment.tax || 0),
+    // 税率別の税込対象額を出すため、フラット値を引き継ぐ(payment優先、無ければ親ticket)。nested内訳も保険で残す。
+    taxableIncludedReduced: Number(payment.taxableIncludedReduced ?? parentTicket.taxableIncludedReduced ?? 0),
+    taxableIncludedStandard: Number(payment.taxableIncludedStandard ?? parentTicket.taxableIncludedStandard ?? 0),
+    taxBreakdown: payment.taxBreakdown || parentTicket.taxBreakdown || null,
+    taxSummary: payment.taxSummary || parentTicket.taxSummary || null,
+    // 支払い内訳の券名(おまっち等)/分割内訳を出すため、payment優先で無ければ親ticketから引き継ぐ。
+    voucherAmount: Number(payment.voucherAmount ?? parentTicket.voucherAmount ?? 0),
+    vouchers: (Array.isArray(payment.vouchers) && payment.vouchers.length > 0)
+      ? payment.vouchers
+      : (Array.isArray(parentTicket.vouchers) ? parentTicket.vouchers : []),
+    payments: Array.isArray(payment.payments) ? payment.payments : (Array.isArray(parentTicket.payments) ? parentTicket.payments : null),
     discountAmount: Number(payment.discountAmount || 0),
     paymentMethod: payment.paymentMethod || parentTicket.paymentMethod,
     paymentMethodGroup: payment.paymentMethod || parentTicket.paymentMethod,
@@ -1827,6 +1838,8 @@ export const PosTransactionHistory = ({
           subtotal: 0,
           taxAmountReduced: 0,
           taxAmountStandard: 0,
+          taxableIncludedReduced: 0,
+          taxableIncludedStandard: 0,
           discountAmount: 0,
           guestCount: Number(
             order.guestCount ||
@@ -1864,6 +1877,8 @@ export const PosTransactionHistory = ({
       ticket.subtotal += Number(order.subtotal || 0);
       ticket.taxAmountReduced += Number(order.taxAmountReduced || 0);
       ticket.taxAmountStandard += Number(order.taxAmountStandard || 0);
+      ticket.taxableIncludedReduced += Number(order.taxBreakdown?.reduced?.sales ?? order.taxSummary?.reducedTaxIncluded ?? 0);
+      ticket.taxableIncludedStandard += Number(order.taxBreakdown?.standard?.sales ?? order.taxSummary?.standardTaxIncluded ?? 0);
       ticket.discountAmount += Number(order.discountAmount || 0);
       ticket.guestCount = Math.max(
         Number(ticket.guestCount || 0),
@@ -2027,6 +2042,9 @@ export const PosTransactionHistory = ({
           taxAmount: Number(transaction.taxAmount || 0),
           taxAmountReduced: Number(transaction.taxAmountReduced || 0),
           taxAmountStandard: Number(transaction.taxAmountStandard || 0),
+          // 税率別の税込対象額を再印刷でも出すため、伝票の税内訳からフラット値で引き継ぐ。
+          taxableIncludedReduced: Number(transaction.taxBreakdown?.reduced?.sales ?? transaction.taxSummary?.reducedTaxIncluded ?? 0),
+          taxableIncludedStandard: Number(transaction.taxBreakdown?.standard?.sales ?? transaction.taxSummary?.standardTaxIncluded ?? 0),
           discountAmount: Number(transaction.discountAmount || 0),
           promoExpenseAmount: Number(transaction.promoExpenseAmount || 0),
           voucherAmount: Number(transaction.voucherAmount || 0),
@@ -2085,7 +2103,13 @@ export const PosTransactionHistory = ({
             taxAmount: Number(transaction.taxAmount || 0),
             taxAmountReduced: Number(transaction.taxAmountReduced || 0),
             taxAmountStandard: Number(transaction.taxAmountStandard || 0),
+            taxableIncludedReduced: Number(transaction.taxBreakdown?.reduced?.sales ?? transaction.taxSummary?.reducedTaxIncluded ?? 0),
+            taxableIncludedStandard: Number(transaction.taxBreakdown?.standard?.sales ?? transaction.taxSummary?.standardTaxIncluded ?? 0),
             discountAmount: Number(transaction.discountAmount || 0),
+            // 支払い内訳の券名(おまっち等)を再印刷でも出すため引き継ぐ。
+            voucherAmount: Number(transaction.voucherAmount || 0),
+            vouchers: Array.isArray(transaction.vouchers) ? transaction.vouchers : [],
+            payments: Array.isArray(transaction.payments) ? transaction.payments : null,
             paymentMethod,
             receiptType: transaction.receiptType || (transaction.isSessionComplete ? 'final' : 'partial'),
             receiptScopeLabel:
@@ -2484,9 +2508,12 @@ export const PosTransactionHistory = ({
           subtotal: 0,
           taxAmountReduced: 0,
           taxAmountStandard: 0,
+          taxableIncludedReduced: 0,
+          taxableIncludedStandard: 0,
           discountAmount: 0,
           promoExpenseAmount: 0,
           voucherAmount: 0,
+          vouchers: [],
           paymentBreakdown: [],
           paymentMethod: '',
           hasCancelledLinkedOrder: false
@@ -2554,9 +2581,16 @@ export const PosTransactionHistory = ({
       groupedTicket.subtotal += Number(ticket.subtotal || ticket.subTotal || ticketAmount || 0) || 0;
       groupedTicket.taxAmountReduced += Number(ticket.taxAmountReduced || 0);
       groupedTicket.taxAmountStandard += Number(ticket.taxAmountStandard || 0);
+      groupedTicket.taxableIncludedReduced = Number(groupedTicket.taxableIncludedReduced || 0) + Number(ticket.taxableIncludedReduced || 0);
+      groupedTicket.taxableIncludedStandard = Number(groupedTicket.taxableIncludedStandard || 0) + Number(ticket.taxableIncludedStandard || 0);
       groupedTicket.discountAmount += Number(ticket.discountAmount || 0);
       groupedTicket.promoExpenseAmount += Number(ticket.promoExpenseAmount || 0);
       groupedTicket.voucherAmount += Number(ticket.voucherAmount || 0);
+      // 券名(おまっち等)を再印刷で出すため、束ねる各取引の vouchers を集約する。
+      groupedTicket.vouchers = [
+        ...(Array.isArray(groupedTicket.vouchers) ? groupedTicket.vouchers : []),
+        ...(Array.isArray(ticket.vouchers) ? ticket.vouchers : [])
+      ];
       // 割引/クーポン名は最初に出たものを採用(同一伝票内の代表名)。
       if (!groupedTicket.discountLabelName && ticket.discountLabelName) groupedTicket.discountLabelName = ticket.discountLabelName;
       if (!groupedTicket.promoLabelName && ticket.promoLabelName) groupedTicket.promoLabelName = ticket.promoLabelName;
@@ -2614,7 +2648,12 @@ export const PosTransactionHistory = ({
               taxAmount: Number(payment.taxAmount || 0),
               taxAmountReduced: Number(payment.taxAmountReduced || 0),
               taxAmountStandard: Number(payment.taxAmountStandard || 0),
+              taxableIncludedReduced: Number(payment.taxableIncludedReduced || 0),
+              taxableIncludedStandard: Number(payment.taxableIncludedStandard || 0),
               discountAmount: Number(payment.discountAmount || 0),
+              voucherAmount: Number(payment.voucherAmount || 0),
+              vouchers: Array.isArray(payment.vouchers) ? payment.vouchers : [],
+              payments: Array.isArray(payment.payments) ? payment.payments : null,
               receiptType: payment.receiptType || 'partial',
               receiptScopeLabel: payment.receiptScopeLabel || '個別会計',
               timestamp: payment.timestamp || ticket.timestamp,

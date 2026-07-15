@@ -37,9 +37,10 @@ export const buildTenderText = (data = {}) => {
     const base = Math.max(0, Number(data.totalAmount ?? 0) || 0);
     if (base > 0) lines.push(`${formatPaymentMethod(data.paymentMethod)} ¥${base.toLocaleString()}`);
   }
-  // 使った金券/売掛の名称(券名)を併記する。
+  // 使った金券/売掛の名称(券名)を併記する。金額は別に出るため「×N枚」の枚数表記は券名から除去し、
+  // 保存データのばらつき(「おまっち ×1枚」/「おまっち」)を「おまっち」に統一する。
   const voucherNames = (Array.isArray(data.vouchers) ? data.vouchers : [])
-    .map((item) => String(item?.name || '').trim())
+    .map((item) => String(item?.name || '').replace(/\s*[×✕xX]\s*\d+\s*枚\s*$/, '').trim())
     .filter(Boolean);
   const voucherLabel = voucherNames.length > 0 ? `金券/売掛（${voucherNames.join('・')}）` : '金券/売掛';
   lines.push(`${voucherLabel} ¥${voucher.toLocaleString()}`);
@@ -160,6 +161,19 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     0;
   const total = Number(receivedTotal || 0) + Math.max(0, Number(data.voucherAmount || 0) || 0);
 
+  // 税率別の「税込対象額」(適格簡易請求書の「税率ごとの対価の合計額」)。
+  // 会計伝票の taxBreakdown(reduced/standard.sales=税込) を正とし、無ければ taxSummary(*TaxIncluded)へフォールバック。
+  const taxBreakdown = data.taxBreakdown || {};
+  const taxSummary = data.taxSummary || {};
+  // フラット値(data.taxableIncluded*)→ 税内訳(taxBreakdown.sales)→ taxSummary(*TaxIncluded) の順で解決。
+  // 履歴の再印刷では nested な taxBreakdown が落ちるため、フラット値を第一候補にする。
+  const taxableIncludedReduced = Number(
+    data.taxableIncludedReduced ?? taxBreakdown.reduced?.sales ?? taxSummary.reducedTaxIncluded ?? 0
+  ) || 0;
+  const taxableIncludedStandard = Number(
+    data.taxableIncludedStandard ?? taxBreakdown.standard?.sales ?? taxSummary.standardTaxIncluded ?? 0
+  ) || 0;
+
   return {
     title: data.title || '領収書',
     receiptType: data.receiptType || '',
@@ -174,9 +188,14 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
       (data.tableId ? `テーブル ${data.tableId}` : ''),
     // 使用レジ名（例: メインレジ1）。複数iPad/レジでどの端末の会計かを区別するため印字する。
     registerName: data.registerName || data.registerLabel || '',
+    // 会計No(会計ID)。取引IDを正とする。sessionId は takeout 会計だと "takeout-..." になり
+    // "takeout" と表示されてしまうため、transactionId/取引IDを優先し、最後の手段でのみ sessionId を使う。
     receiptNo:
       data.receiptNo ||
       data.receiptNumber ||
+      data.transactionId ||
+      data.sourceTransactionId ||
+      data.id ||
       (data.sessionId ? data.sessionId.slice(0, 8) : ''),
     issuedAtText: issuedAt.toLocaleString('ja-JP'),
     recipientName: data.recipientName || '',
@@ -191,6 +210,9 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     tax,
     taxAmountReduced: data.taxAmountReduced || 0,
     taxAmountStandard: data.taxAmountStandard || 0,
+    // 税率別の税込対象額(税率ごとの対価の合計額)。0のとき(旧伝票=内訳なし)は税額のみのフォールバック表示になる。
+    taxableIncludedReduced,
+    taxableIncludedStandard,
     // 税率（会計伝票と同じく 8%/10% を分けて表示するため。既定は軽減8%/標準10%）。
     taxRateReduced: Number(data.taxRateReduced) || 8,
     taxRateStandard: Number(data.taxRateStandard) || 10,

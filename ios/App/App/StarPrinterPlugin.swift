@@ -305,14 +305,23 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         // どちらも0のとき(税区分不明)は従来通り合計の内消費税1行にフォールバックする。
         let taxReduced = (r["taxAmountReduced"] as? NSNumber)?.intValue ?? 0
         let taxStandard = (r["taxAmountStandard"] as? NSNumber)?.intValue ?? 0
+        // 税率別の税込対象額(税率ごとの対価の合計額)。あれば「{率}%対象」+「(内消費税{率}%)」の2行で出す。
+        let taxableReduced = (r["taxableIncludedReduced"] as? NSNumber)?.intValue ?? 0
+        let taxableStandard = (r["taxableIncludedStandard"] as? NSNumber)?.intValue ?? 0
+        let rateReduced = (r["taxRateReduced"] as? NSNumber)?.intValue ?? 8
+        let rateStandard = (r["taxRateStandard"] as? NSNumber)?.intValue ?? 10
         if taxReduced > 0 || taxStandard > 0 {
-            if taxReduced > 0 {
-                let rate = (r["taxRateReduced"] as? NSNumber)?.intValue ?? 8
-                lr("(内消費税 \(rate)%)", "¥" + numberWithComma(taxReduced))
+            if taxableReduced > 0 {
+                lr("\(rateReduced)%対象", "¥" + numberWithComma(taxableReduced))
+                lr("  (内消費税 \(rateReduced)%)", "¥" + numberWithComma(taxReduced))
+            } else if taxReduced > 0 {
+                lr("(内消費税 \(rateReduced)%)", "¥" + numberWithComma(taxReduced))
             }
-            if taxStandard > 0 {
-                let rate = (r["taxRateStandard"] as? NSNumber)?.intValue ?? 10
-                lr("(内消費税 \(rate)%)", "¥" + numberWithComma(taxStandard))
+            if taxableStandard > 0 {
+                lr("\(rateStandard)%対象", "¥" + numberWithComma(taxableStandard))
+                lr("  (内消費税 \(rateStandard)%)", "¥" + numberWithComma(taxStandard))
+            } else if taxStandard > 0 {
+                lr("(内消費税 \(rateStandard)%)", "¥" + numberWithComma(taxStandard))
             }
         } else {
             lr("(内消費税)", yen(r["tax"]))

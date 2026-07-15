@@ -688,6 +688,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     return `¥${Number(takeoutDiscountValue || 0).toLocaleString()} 値引き`;
   }, [takeoutDiscountAmount, takeoutDiscountType, takeoutDiscountValue, takeoutSelectedDiscount]);
 
+  // 右ペイン最上段のサマリ用。割引の中身を「区分/券名」で解像度高く出す。
+  // 例: 売掛・金券/おまっち、販促費/○○、10%割引。名称の「×N枚」は金額が別途出るため除去。
+  const takeoutDiscountSummaryLabel = useMemo(() => {
+    const category = takeoutSelectedDiscount?.accountingCategory || 'sales_discount';
+    const name = String(takeoutSelectedDiscount?.name || '')
+      .replace(/\s*[×✕xX]\s*\d+\s*枚\s*$/, '')
+      .trim();
+    if (category === 'voucher_payment') return name ? `売掛・金券/${name}` : '売掛・金券';
+    if (category === 'promo_expense') return name ? `販促費/${name}` : '販促費';
+    if (name) return name;
+    if (takeoutDiscountType === 'percent') return `${Number(takeoutDiscountValue) || 0}%割引`;
+    return '割引';
+  }, [takeoutSelectedDiscount, takeoutDiscountType, takeoutDiscountValue]);
+
   const takeoutChangeAmount = useMemo(() => (
     Math.max((Number(takeoutPaymentAmount) || 0) - Number(takeoutCartTotal || 0), 0)
   ), [takeoutCartTotal, takeoutPaymentAmount]);
@@ -1243,9 +1257,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         taxAmount: Number(totalTaxAmount),
         taxAmountReduced: Number(reducedBreakdown.taxAmount),
         taxAmountStandard: Number(standardBreakdown.taxAmount),
+        taxRateReduced: Number(reducedTax),
+        taxRateStandard: Number(standardTax),
+        // レシートに税率別の税込対象額を出すため、会計伝票と同じ税内訳を渡す。
+        taxBreakdown,
+        taxSummary,
         discountAmount: Number(salesDiscountFinal),
         promoExpenseAmount: Number(promoExpenseFinal),
         voucherAmount: Number(voucherFinal),
+        // 支払い内訳の券名(おまっち等)/販促名をレシートに出すため引き継ぐ(トースト印字/ブラウザ印刷)。
+        vouchers: voucherItemsFinal,
+        promoExpenseItems: promoExpenseItemsFinal,
         settlementAdjustmentTotal: Number(settlementAdjustmentTotalFinal),
         salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementFinal),
         lineDiscountTotal: Number(takeoutLineDiscountTotal) || 0,
@@ -2385,7 +2407,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
                   <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
                   {takeoutDiscountAmount > 0 && (
-                    <span>割引 -¥{takeoutDiscountAmount.toLocaleString()}</span>
+                    <span>{takeoutDiscountSummaryLabel} -¥{takeoutDiscountAmount.toLocaleString()}</span>
                   )}
                 </div>
                 <div className="flex items-baseline justify-between gap-3">

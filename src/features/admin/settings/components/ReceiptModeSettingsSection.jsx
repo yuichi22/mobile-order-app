@@ -40,9 +40,11 @@ const buildStarTestReceipt = (modeLabel, cfg = {}, settings = {}) => ({
     { label: 'スタンプカード', amount: 50 }
   ],
   tax: 28,
-  // 消費税 8%/10% 分割印字の確認用サンプル。
+  // 消費税 8%/10% 分割印字の確認用サンプル（税率別の税込対象額＋内消費税）。
   taxAmountReduced: 8,
   taxAmountStandard: 20,
+  taxableIncludedReduced: 108,
+  taxableIncludedStandard: 202,
   total: 310,
   paymentMethod: '現金'
 });

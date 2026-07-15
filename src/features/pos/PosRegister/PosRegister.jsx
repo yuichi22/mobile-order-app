@@ -2032,6 +2032,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         taxAmount: Number(taxAmount),
         taxAmountReduced: Number(taxAmountReduced),
         taxAmountStandard: Number(taxAmountStandard),
+        // レシートに税率別の税込対象額を出すため、会計伝票と同じ税内訳を渡す。
+        taxBreakdown: transactionTaxBreakdown,
+        taxSummary: transactionTaxSummary,
         discountAmount: Number(discountAmount),
         promoExpenseAmount: Number(promoExpenseAmount),
         voucherAmount: Number(voucherAmount),

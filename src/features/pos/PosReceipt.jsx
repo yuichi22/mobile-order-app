@@ -122,6 +122,13 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
   const taxAmountReduced = Number(data.taxAmountReduced || 0);
   const taxAmountStandard = Number(data.taxAmountStandard || 0);
   const totalTaxAmount = taxAmountReduced + taxAmountStandard || Number(data.taxAmount || 0);
+  // 税率別の税込対象額(税率ごとの対価の合計額)。会計伝票の taxBreakdown/taxSummary から解決する。
+  const taxableIncludedReduced = Number(
+    data.taxableIncludedReduced ?? data.taxBreakdown?.reduced?.sales ?? data.taxSummary?.reducedTaxIncluded ?? 0
+  ) || 0;
+  const taxableIncludedStandard = Number(
+    data.taxableIncludedStandard ?? data.taxBreakdown?.standard?.sales ?? data.taxSummary?.standardTaxIncluded ?? 0
+  ) || 0;
   const paymentLabel = formatPaymentMethod(data.paymentMethod);
 
   // 金券/売掛(voucherAmount)は値引きではなく「お支払い(充当)」扱い。
@@ -289,18 +296,40 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               <span>-¥{promoExpenseAmount.toLocaleString()}</span>
             </div>
           )}
-          {taxAmountReduced > 0 && (
+          {taxableIncludedReduced > 0 ? (
+            <>
+              <div className="flex justify-between">
+                <span>{taxRateReduced}%対象</span>
+                <span>¥{taxableIncludedReduced.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>　（内消費税{taxRateReduced}%）</span>
+                <span>¥{taxAmountReduced.toLocaleString()}</span>
+              </div>
+            </>
+          ) : taxAmountReduced > 0 ? (
             <div className="flex justify-between">
               <span>消費税 {taxRateReduced}% (軽減税率)</span>
               <span>¥{taxAmountReduced.toLocaleString()}</span>
             </div>
-          )}
-          {taxAmountStandard > 0 && (
+          ) : null}
+          {taxableIncludedStandard > 0 ? (
+            <>
+              <div className="flex justify-between">
+                <span>{taxRateStandard}%対象</span>
+                <span>¥{taxableIncludedStandard.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>　（内消費税{taxRateStandard}%）</span>
+                <span>¥{taxAmountStandard.toLocaleString()}</span>
+              </div>
+            </>
+          ) : taxAmountStandard > 0 ? (
             <div className="flex justify-between">
               <span>消費税 {taxRateStandard}%</span>
               <span>¥{taxAmountStandard.toLocaleString()}</span>
             </div>
-          )}
+          ) : null}
           {taxAmountReduced === 0 && taxAmountStandard === 0 && (
             <div className="flex justify-between">
               <span>(うち消費税)</span>
