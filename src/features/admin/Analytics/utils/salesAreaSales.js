@@ -130,7 +130,43 @@ export const buildSalesAreaSales = (transactions = [], resolveItemSalesArea) => 
     });
   });
 
-  return Array.from(areas.values())
+  // 同名の売り場を1行へ統合する。
+  // 会計時に salesAreaId まで保存された取引と名前だけの取引が混在したり、売り場を作り直して
+  // id が変わると、集計キー(areaId||areaName)が割れて「同名なのに複数行」になる。表示は名前
+  // なので、正規化した名前で束ね直して1つにまとめる(内訳グループも同名で合算)。
+  const byName = new Map();
+  areas.forEach((area) => {
+    const nameKey = String(area.name || '').trim() || area.id;
+    if (!byName.has(nameKey)) {
+      byName.set(nameKey, {
+        id: area.id,
+        name: area.name,
+        quantity: 0,
+        total: 0,
+        groups: new Map()
+      });
+    }
+    const merged = byName.get(nameKey);
+    merged.quantity += area.quantity;
+    merged.total += area.total;
+
+    area.groups.forEach((group, groupKey) => {
+      const groupNameKey = String(group.name || '').trim() || groupKey;
+      if (!merged.groups.has(groupNameKey)) {
+        merged.groups.set(groupNameKey, {
+          id: group.id,
+          name: group.name,
+          quantity: 0,
+          total: 0
+        });
+      }
+      const mergedGroup = merged.groups.get(groupNameKey);
+      mergedGroup.quantity += group.quantity;
+      mergedGroup.total += group.total;
+    });
+  });
+
+  return Array.from(byName.values())
     .map((area) => ({
       id: area.id,
       name: area.name,
