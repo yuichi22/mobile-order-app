@@ -1437,13 +1437,30 @@ export const PosTransactionHistory = ({
         }
 
         // 当日・未締め: 従来どおり元伝票をその場で減額する。
+        // 返金内訳(現金/カード/QR + 金券/売掛)を保存する。voucherAmount は下で0化されるため、
+        // 取消時点の値(原値−残額)から算出して残す。表示の「返金 カード ¥/返金 おまっち ¥」に使う。
+        const refunds = [];
+        if (cancelledTotal > 0) {
+          refunds.push({ kind: 'payment', method: getPaymentMethodKey(transaction.paymentMethod), amount: cancelledTotal });
+        }
+        const refundVoucherPortion = num(transaction.voucherAmount) - num(remaining.voucherAmount);
+        if (refundVoucherPortion > 0) {
+          const rawVoucherName = String(
+            transaction.appliedDiscount?.name
+            || (Array.isArray(transaction.vouchers) && transaction.vouchers[0]?.name)
+            || '金券/売掛'
+          );
+          const voucherName = rawVoucherName.replace(/\s*[×✕ｘxX]\s*\d+\s*枚\s*$/, '').trim() || '金券/売掛';
+          refunds.push({ kind: 'voucher', name: voucherName, amount: refundVoucherPortion });
+        }
         const cancellationLog = {
           cancelledAt: new Date().toISOString(),
           reason: cancelReason.trim(),
           amount: cancelledTotal,
           type: fullyCancelled ? 'full' : 'partial',
           correctionType,
-          items: cancelledEntries
+          items: cancelledEntries,
+          refunds
         };
         const nextCancellations = [
           ...(Array.isArray(transaction.cancellations) ? transaction.cancellations : []),
@@ -2192,6 +2209,10 @@ export const PosTransactionHistory = ({
           paidAt: when,
           cancelledAt: when,
           items,
+          // 返金内訳(現金/カード/QR + 金券/売掛)。取消時に保存済み。旧データ用に支払方法も持たせる。
+          refunds: Array.isArray(cancellation.refunds) ? cancellation.refunds : [],
+          paymentMethod: transaction.paymentMethod || '',
+          paymentMethodGroup: transaction.paymentMethodGroup || transaction.paymentMethod || '',
           cancelType: cancellation.type || 'full',
           cancelReason: cancellation.reason || '',
           paidOrders: [],
@@ -3216,6 +3237,33 @@ export const PosTransactionHistory = ({
               cancelledTotalCount += q;
             });
           });
+          // 当日取消は元伝票の totalAmount/items が0/空になるため、金額・品名を取消記録(cancellations[])から復元して表示する。
+          const cancelledAmountTotal = (Array.isArray(ticket.cancellations) ? ticket.cancellations : [])
+            .reduce((sum, c) => sum + Math.abs(Number(c.amount || 0)), 0);
+          const cancelledItemsSummary = [...cancelledByName.entries()]
+            .map(([name, qty]) => `${name} ×${qty}`)
+            .join('、');
+          // 返金内訳(現金/カード/QR + 金券/売掛)。inPlace取消ticketは ticket.refunds、原本は cancellations[].refunds に持つ。
+          const refundByLabel = new Map();
+          const refundMethodLabel = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR決済' : m || '現金');
+          const addRefundList = (list) => {
+            (Array.isArray(list) ? list : []).forEach((r) => {
+              if (Number(r.amount || 0) <= 0) return;
+              const label = r.kind === 'voucher' ? (r.name || '金券/売掛') : refundMethodLabel(r.method);
+              refundByLabel.set(label, (refundByLabel.get(label) || 0) + Number(r.amount));
+            });
+          };
+          addRefundList(ticket.refunds);
+          (Array.isArray(ticket.cancellations) ? ticket.cancellations : []).forEach((c) => addRefundList(c.refunds));
+          // 旧データ(refunds未保存)は受領分のみ、元伝票の支払方法で推定表示(金券分は復元不可)。
+          if (refundByLabel.size === 0) {
+            const fallbackAmt = Number(ticketGrossTotal || 0)
+              || (Array.isArray(ticket.cancellations) ? ticket.cancellations : []).reduce((s, c) => s + Number(c.amount || 0), 0);
+            if (fallbackAmt > 0) {
+              refundByLabel.set(refundMethodLabel(getPaymentMethodKey(ticket.paymentMethodGroup || ticket.paymentMethod)), fallbackAmt);
+            }
+          }
+          const refundEntries = [...refundByLabel.entries()];
           const paymentRowsCount = Array.isArray(ticket.paidOrders) ? ticket.paidOrders.length : 0;
           const breakdownRowsCount = Array.isArray(ticket.paymentBreakdown)
             ? ticket.paymentBreakdown.reduce((sum, entry) => sum + Math.max(Number(entry?.count || 1), 1), 0)
@@ -3316,6 +3364,20 @@ export const PosTransactionHistory = ({
                     )}
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
                     <span>{totalItemsCount}点</span>
+                    {isCancelled && !isReversalCancel && cancelledItemsSummary && (
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-gray-300" />
+                        <span className="font-bold text-red-500">取消: {cancelledItemsSummary}</span>
+                      </>
+                    )}
+                    {isCancelled && !isReversalCancel && refundEntries.length > 0 && (
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-gray-300" />
+                        <span className="font-bold text-blue-600">
+                          {refundEntries.map(([label, amt]) => `返金 ${label} ¥${amt.toLocaleString()}`).join(' / ')}
+                        </span>
+                      </>
+                    )}
                     {Array.isArray(ticket.splitPayments) && ticket.splitPayments.length > 1 && (
                       <>
                         <span className="h-1 w-1 rounded-full bg-gray-300" />
@@ -3329,9 +3391,15 @@ export const PosTransactionHistory = ({
 
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    <span className="text-xl font-black leading-none tabular-nums text-gray-900">
-                      ¥{ticketGrossTotal.toLocaleString()}
-                    </span>
+                    {isCancelled && !isReversalCancel && cancelledAmountTotal > 0 ? (
+                      <span className="text-xl font-black leading-none tabular-nums text-red-600">
+                        −¥{cancelledAmountTotal.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-xl font-black leading-none tabular-nums text-gray-900">
+                        ¥{ticketGrossTotal.toLocaleString()}
+                      </span>
+                    )}
                   </div>
 
                   {isPaid && (
@@ -3580,7 +3648,9 @@ export const PosTransactionHistory = ({
                       </div>
                     )}
 
-                    {ticket.items && ticket.items.length > 0 && (
+                    {((ticket.items && ticket.items.length > 0)
+                      || (Array.isArray(ticket.cancellations) && ticket.cancellations.length > 0)
+                      || (Array.isArray(ticket.reversalEntries) && ticket.reversalEntries.length > 0)) && (
                       <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-end justify-between border-b-2 border-dashed border-gray-200 pb-2">
                           <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">注文内容</h4>
@@ -3588,7 +3658,7 @@ export const PosTransactionHistory = ({
                         </div>
 
                         <ul className="space-y-3">
-                          {ticket.items.map((item, index) => {
+                          {(ticket.items || []).map((item, index) => {
                             const isTakeoutItem = item.isTakeout === true;
                             const isRetailItem = isRetailExtraItem(item);
                             const itemTaxRate = item.taxRate || (
@@ -3659,6 +3729,20 @@ export const PosTransactionHistory = ({
                               ))
                             )}
                           </ul>
+                        )}
+
+                        {isCancelled && !isReversalCancel && refundEntries.length > 0 && (
+                          <div className="mt-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-3">
+                            <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-blue-500">返金内訳</div>
+                            <ul className="space-y-1">
+                              {refundEntries.map(([label, amt]) => (
+                                <li key={`refund-${label}`} className="flex items-center justify-between text-sm font-bold text-blue-700">
+                                  <span>返金 {label}</span>
+                                  <span className="tabular-nums">¥{amt.toLocaleString()}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
 
                         {Array.isArray(ticket.reversalEntries) && ticket.reversalEntries.length > 0 && (
