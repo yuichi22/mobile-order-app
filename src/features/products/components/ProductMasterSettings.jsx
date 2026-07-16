@@ -5759,7 +5759,14 @@ export const SimpleMasterPanel = ({
     }
   };
 
-  const canEdit = !editingId || isEditing;
+  // 即編集: 選択中でもフォームは常に編集可能(「編集」ボタンを押す動作を廃止)。
+  const canEdit = true;
+
+  // 変更が入ったか(draftが選択時スナップショットと異なるか)。true の間だけ保存/キャンセルを出す。
+  const isDirty = useMemo(() => {
+    if (!editingId || !selectedSnapshot) return false;
+    return JSON.stringify(draft) !== JSON.stringify(selectedSnapshot);
+  }, [editingId, selectedSnapshot, draft]);
 
   const renderListSubInfo = (item) => {
     if (label === '売場') {
@@ -6666,33 +6673,33 @@ export const SimpleMasterPanel = ({
       <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-lg font-black text-slate-900">{editingId ? `${label}を確認` : `${label}を新規作成`}</div>
-            <p className="mt-0.5 text-[11px] font-bold text-slate-400">左フォームは新規作成が基本です。右の一覧から選択すると確認・編集できます。</p>
+            <div className="text-lg font-black text-slate-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
+            <p className="mt-0.5 text-[11px] font-bold text-slate-400">左フォームは新規作成が基本です。右の一覧から選択するとそのまま編集でき、変更すると保存できます。</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {editingId ? (
               <>
                 <button
                   type="button"
-                  onClick={isEditing ? save : () => setIsEditing(true)}
-                  disabled={saving}
+                  onClick={save}
+                  disabled={saving || !isDirty}
                   className={classNames(
-                    'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black text-white shadow-lg transition disabled:opacity-60',
-                    isEditing
-                      ? 'bg-orange-500 shadow-orange-500/20'
-                      : 'bg-slate-900 shadow-slate-900/10'
+                    'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black text-white shadow-lg transition',
+                    isDirty
+                      ? 'bg-orange-500 shadow-orange-500/20 disabled:opacity-60'
+                      : 'cursor-not-allowed bg-slate-300 shadow-none'
                   )}
                 >
-                  {saving ? <LoadingSpinner size={16} /> : isEditing ? <Save size={13} /> : <Check size={14} />}
-                  {isEditing ? '保存' : '編集'}
+                  {saving ? <LoadingSpinner size={16} /> : isDirty ? <Save size={13} /> : <Check size={14} />}
+                  {isDirty ? '保存' : '編集'}
                 </button>
                 <button
                   type="button"
-                  onClick={isEditing ? cancelEdit : clearSelection}
+                  onClick={isDirty ? cancelEdit : clearSelection}
                   disabled={saving}
                   className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 px-4 text-sm font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-60"
                 >
-                  {isEditing ? 'キャンセル' : '選択解除'}
+                  {isDirty ? 'キャンセル' : '選択解除'}
                 </button>
               </>
             ) : (
