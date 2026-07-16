@@ -470,72 +470,92 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     resolvedCategoryName: posCategoryNameMap[raw.categoryId] || raw.categoryName || 'カテゴリー'
   });
 
+  // コードが複数SKUに該当したとき、検索リストに出す候補SKU群(空=非表示)。
+  const [scanCandidates, setScanCandidates] = useState([]);
+
+  // 候補を見やすい順(サイズ→価格→名前)に整列する。
+  const sortVariantCandidates = (candidates) => [...candidates].sort((a, b) => (
+    String(a.size || '').localeCompare(String(b.size || ''), 'ja')
+    || Number(a.resolvedPrice || 0) - Number(b.resolvedPrice || 0)
+    || String(a.colorName || '').localeCompare(String(b.colorName || ''), 'ja')
+    || String(a.name || '').localeCompare(String(b.name || ''), 'ja')
+  ));
+
   const addPosProductByCode = async (codeText) => {
     const rawCode = String(codeText || '').trim();
     const normalizedCode = rawCode.toLowerCase();
     if (!normalizedCode) return false;
 
-    // スキャン値と「バーコード/SKU/品番が完全一致」する商品を探す。
-    // 同一SKUグループは sku/productCode(=ブランド名)を共有するため、まず barcode の
-    // 完全一致を最優先し、無ければ sku/productCode の完全一致でフォールバックする。
-    const exactFieldMatch = (product, field) => (
+    const eq = (product, field) => (
       String(product?.[field] || '').trim().toLowerCase() === normalizedCode
     );
-    let matchedProduct = activePosProducts.find((product) => exactFieldMatch(product, 'barcode'))
-      || activePosProducts.find((product) => (
-        exactFieldMatch(product, 'sku') || exactFieldMatch(product, 'productCode')
-      ));
+    // barcode / sku / productCode のいずれかが完全一致するか。
+    const isExactCodeMatch = (product) => eq(product, 'barcode') || eq(product, 'sku') || eq(product, 'productCode');
 
-    // メモリ(直近200件)に無ければ Firestore を直接検索する。
-    // barcode 等の単一フィールドはインデックス対象外のため、検索用の searchKeywords(配列)で引く。
-    // ただし searchKeywords は前方一致(prefix)・ブランド名・品名断片も含むため、
-    // limit(1) の先頭ではなく「完全一致(バーコード優先)」を選び、別バリアントの先頭価格を拾わないようにする。
-    if (!matchedProduct && storeId) {
+    const productsRef = storeId ? collection(db, 'stores', storeId, 'products') : null;
+
+    // 新しいスキャン/入力のたびに前回の候補リストを消す。
+    setScanCandidates([]);
+
+    // 1) バーコード(JAN)完全一致は「一意」なので最優先で確定する。メモリ→Firestore。
+    //    barcode 直接クエリは trigger 非依存で確実(保存時の重複チェックと同じ単一フィールドクエリ)。
+    let barcodeMatch = activePosProducts.find((product) => eq(product, 'barcode'));
+    if (!barcodeMatch && productsRef) {
       try {
-        const productsRef = collection(db, 'stores', storeId, 'products');
-
-        // まず barcode 単一フィールドの完全一致で直接引く。
-        // searchKeywords はサーバ trigger(syncProductSearchKeywords)が後追いで生成するため、
-        // 新規登録直後は空でヒットしないことがある(＝新規商品がスキャンで反応しない原因)。
-        // barcode 直接クエリは trigger 非依存で確実。保存時の重複チェックと同じクエリ
-        // (=店舗スコープの自動 単一フィールドインデックスで動作)。
-        const barcodeSnapshot = await getDocs(
-          query(productsRef, where('barcode', '==', rawCode), limit(5))
-        );
+        const barcodeSnapshot = await getDocs(query(productsRef, where('barcode', '==', rawCode), limit(5)));
         if (!barcodeSnapshot.empty) {
           const docs = barcodeSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
           const resolved = docs.find((product) => String(product?.barcode || '').trim() === rawCode) || docs[0];
-          matchedProduct = buildResolvedPosProduct(resolved);
-        }
-
-        // それでも無ければ従来の searchKeywords(品番/SKU/前方一致・品名断片)で引く。
-        if (!matchedProduct) {
-          const candidates = Array.from(new Set([rawCode, normalizedCode])).filter(Boolean);
-          for (const term of candidates) {
-            const termLower = String(term).trim().toLowerCase();
-            const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', term), limit(30)));
-            if (snapshot.empty) continue;
-
-            const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-            const eq = (product, field) => String(product?.[field] || '').trim().toLowerCase() === termLower;
-            const resolved = docs.find((product) => eq(product, 'barcode'))
-              || docs.find((product) => eq(product, 'sku') || eq(product, 'productCode'))
-              || docs[0];
-            matchedProduct = buildResolvedPosProduct(resolved);
-            break;
-          }
+          barcodeMatch = buildResolvedPosProduct(resolved);
         }
       } catch (error) {
         console.error('[pos barcode lookup]', error);
       }
     }
+    if (barcodeMatch) return addPosProductToCart(barcodeMatch);
 
-    if (!matchedProduct) {
+    // 2) barcode で引けない場合(品番/ブランドの Code128 等)は sku/productCode 一致の候補を集める。
+    //    メモリは直近200件しか無いため、Firestore(searchKeywords)からも引いて「全バリアント」を集め、
+    //    先頭を無言採用せず、複数該当なら選択モーダルで正しいSKU(=正しい価格)を選ばせる。
+    const candidatesById = new Map();
+    const searchHits = [];
+    activePosProducts.forEach((product) => {
+      if (isExactCodeMatch(product)) candidatesById.set(product.id, product);
+    });
+    if (productsRef) {
+      try {
+        const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', normalizedCode), limit(50)));
+        snapshot.docs.forEach((docSnap) => {
+          const product = buildResolvedPosProduct({ id: docSnap.id, ...docSnap.data() });
+          searchHits.push(product);
+          if (isExactCodeMatch(product) && !candidatesById.has(product.id)) {
+            candidatesById.set(product.id, product);
+          }
+        });
+      } catch (error) {
+        console.error('[pos code lookup]', error);
+      }
+    }
+
+    // コード完全一致を最優先。無ければ searchKeywords ヒット(品名断片)を候補にする(こちらも先頭採用はしない)。
+    let candidates = [...candidatesById.values()];
+    if (candidates.length === 0) {
+      const seen = new Set();
+      candidates = searchHits.filter((product) => (seen.has(product.id) ? false : (seen.add(product.id), true)));
+    }
+
+    if (candidates.length === 0) {
       setPosMessage('商品マスターに一致するバーコード / 品番 / SKU がありません。', 'error');
       return false;
     }
+    if (candidates.length === 1) {
+      return addPosProductToCart(candidates[0]);
+    }
 
-    return addPosProductToCart(matchedProduct);
+    // 複数該当 → 先頭を無言採用せず、検索リストに候補SKU(サイズ/カラー/価格)を出して選ばせる。
+    setScanCandidates(sortVariantCandidates(candidates));
+    setPosMessage('複数のSKUが該当します。下のリストから選んでください。', 'info');
+    return false;
   };
 
   useEffect(() => {
@@ -2062,34 +2082,56 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   type="text"
                   value={scanInput}
                   // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
-                  onChange={(event) => setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value))}
+                  onChange={(event) => { if (scanCandidates.length > 0) setScanCandidates([]); setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value)); }}
                   onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
                   className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-3 text-base"
                   placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
-                {registerMode === 'pos' && scanInput.trim().length >= 2 && (searchLoading || searchResults.length > 0) && (
-                  <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-                    {searchResults.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => { addPosProductToCart(product); setScanInput(''); setSearchResults([]); }}
-                        className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-left hover:bg-blue-50 active:bg-blue-100"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-bold text-gray-900">{product.name || '商品'}</span>
-                          <span className="block truncate text-xs text-gray-400">
-                            {[product.barcode, product.sku || product.productCode].filter(Boolean).join(' / ') || 'コードなし'}
+                {(scanCandidates.length > 0 || (registerMode === 'pos' && scanInput.trim().length >= 2 && (searchLoading || searchResults.length > 0))) && (
+                  <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[28rem] overflow-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                    {scanCandidates.length > 0 && (
+                      <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-3 py-2">
+                        <span className="text-xs font-black text-amber-700">複数のSKUが該当します。正しい1点を選んでください（{scanCandidates.length}件）</span>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => setScanCandidates([])}
+                          className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-black text-slate-500 transition hover:bg-slate-200"
+                        >
+                          閉じる
+                        </button>
+                      </div>
+                    )}
+                    {(scanCandidates.length > 0 ? scanCandidates : searchResults).map((product) => {
+                      const variantDetail = [product.size, product.colorName].map((v) => String(v || '').trim()).filter(Boolean).join(' / ');
+                      const outOfStock = POS_ENFORCE_STOCK_LIMIT && Number(product.resolvedStock ?? 0) <= 0;
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          disabled={outOfStock}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => { addPosProductToCart(product); setScanInput(''); setSearchResults([]); setScanCandidates([]); }}
+                          className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2.5 text-left hover:bg-blue-50 active:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold text-gray-900">{product.name || '商品'}</span>
+                            <span className="block truncate text-xs text-gray-400">
+                              {variantDetail ? `${variantDetail} ・ ` : ''}
+                              {[product.barcode, product.sku || product.productCode].filter(Boolean).join(' / ') || 'コードなし'}
+                            </span>
                           </span>
-                        </span>
-                        <span className="shrink-0 text-sm font-bold text-gray-700">¥{Number(product.resolvedPrice || 0).toLocaleString()}</span>
-                      </button>
-                    ))}
-                    {searchLoading && searchResults.length === 0 && (
+                          <span className="shrink-0 text-right">
+                            <span className="block text-sm font-black text-gray-800">¥{Number(product.resolvedPrice || 0).toLocaleString()}</span>
+                            <span className="block text-[10px] font-bold text-gray-400">在庫 {Number(product.resolvedStock ?? 0).toLocaleString()}{outOfStock ? '（なし）' : ''}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {scanCandidates.length === 0 && searchLoading && searchResults.length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-400">検索中...</div>
                     )}
-                    {!searchLoading && searchResults.length === 0 && (
+                    {scanCandidates.length === 0 && !searchLoading && searchResults.length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-400">一致する商品がありません</div>
                     )}
                   </div>
@@ -2899,6 +2941,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       onClose={() => setFavoritesModalOpen(false)}
       onPickProduct={(rawProduct) => addPosProductToCart(buildResolvedPosProduct(rawProduct))}
     />
+
     </>
   );
 };
