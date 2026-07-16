@@ -127,6 +127,9 @@ const buildDateRangeFromInput = (dateInputValue) => {
   };
 };
 
+// 履歴の閲覧レジ切替で「全体(全レジ横断)」を表す擬似ID。
+const ALL_REGISTERS_ID = '__all__';
+
 // 伝票検索用: 開始日〜終了日(両端含む)のタイムスタンプ範囲。
 const buildRangeFromTo = (fromValue, toValue) => {
   const from = buildDateRangeFromInput(fromValue);
@@ -501,10 +504,13 @@ export const PosTransactionHistory = ({
     setPickingRegister(false);
   }, [ownRegisterId]);
   // 通常履歴は「このレジ単位」(既定=自レジ、他レジ閲覧可)。
+  // 「全体」= 全レジ横断表示(絞り込みなし)。
+  const isViewingAllRegisters = viewingRegisterId === ALL_REGISTERS_ID;
   const viewedRegister = registers.find((register) => register.id === viewingRegisterId) || null;
   const viewedRegisterMode = viewedRegister?.registerMode || null;
   const isViewingOtherRegister = Boolean(ownRegisterId) && viewingRegisterId !== ownRegisterId;
   const transactionMatchesViewingRegister = (transaction) => {
+    if (isViewingAllRegisters) return true;
     const rid = String(transaction?.registerId || '');
     if (!rid) return viewingRegisterId === ownRegisterId;
     return rid === viewingRegisterId;
@@ -2168,7 +2174,7 @@ export const PosTransactionHistory = ({
   // (a) 当日・未締めの「その場減額」取消 + (b) 締め後の反対仕訳(マイナス伝票)。
   const cancelledTransactionTickets = useMemo(() => {
     const matchesViewingRegister = (transaction) => {
-      if (!ownRegisterId) return true;
+      if (!ownRegisterId || isViewingAllRegisters) return true;
       const rid = String(transaction.registerId || '');
       if (!rid) return viewingRegisterId === ownRegisterId;
       return rid === viewingRegisterId;
@@ -2844,13 +2850,23 @@ export const PosTransactionHistory = ({
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3 font-black text-gray-700">
         <div className="flex min-w-0 items-center gap-2">
-          <Receipt size={18} className="shrink-0 text-gray-500" />
-          <span className="shrink-0">{searchMode ? '検索結果' : (filter === 'hold' ? '保留伝票' : '履歴')}</span>
-          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold tabular-nums text-gray-500">
-            {filter === 'hold' ? posHolds.length : displayTickets.length}件
-          </span>
-          {searchMode && searchSummary && (
-            <span className="truncate text-xs font-bold text-gray-400">{searchSummary}</span>
+          {searchMode ? (
+            <>
+              <Search size={16} className="shrink-0 text-gray-500" />
+              <span className="shrink-0 text-sm font-black text-gray-700">検索結果</span>
+              {searchSummary && (
+                <span className="truncate text-xs font-bold text-gray-400">{searchSummary}</span>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-gray-800 px-4 text-sm font-black text-white shadow-sm transition-colors hover:bg-gray-900"
+            >
+              <Search size={15} />
+              履歴
+            </button>
           )}
         </div>
 
@@ -2895,14 +2911,14 @@ export const PosTransactionHistory = ({
               <ChevronRight size={18} strokeWidth={3} />
             </button>
 
-            {/* 今日（右端）。当日表示中はオレンジで強調。 */}
+            {/* 今日（右端）。当日表示中は黒枠・黒文字で控えめに強調。 */}
             <button
               type="button"
               onClick={() => setSelectedPaidDate(todayDateValue)}
               className={`h-10 rounded-full px-4 text-xs font-black shadow-sm ring-1 transition-colors ${
                 isSelectedPaidDateToday
-                  ? 'bg-orange-500 text-white ring-orange-500'
-                  : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700'
+                  ? 'bg-white text-gray-900 ring-gray-900'
+                  : 'bg-white text-gray-500 ring-gray-200 hover:bg-gray-50 hover:text-gray-800'
               }`}
             >
               今日
@@ -2932,27 +2948,27 @@ export const PosTransactionHistory = ({
       </div>
 
       {!searchMode && (
-      <div className="flex shrink-0 gap-1 border-b border-gray-100 bg-white p-2">
+      <div className="flex shrink-0 gap-1 border-b border-gray-200 bg-white px-2">
         {viewedRegisterMode === 'pos' && !isViewingOtherRegister && (
           <button
             type="button"
             onClick={() => setFilter('hold')}
-            className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
+            className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
               filter === 'hold'
-                ? (posHolds.length > 0 ? 'bg-amber-500 text-white shadow-md' : 'bg-gray-200 text-gray-700')
-                : (posHolds.length > 0 ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-500 hover:bg-gray-50')
+                ? 'border-amber-500 text-amber-700'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
           >
             <PauseCircle size={14} />
             保留{posHolds.length > 0 ? `（${posHolds.length}）` : ''}
           </button>
         )}
-        {viewedRegisterMode !== 'pos' && (
+        {Boolean(viewedRegisterMode) && viewedRegisterMode !== 'pos' && (
           <button
             type="button"
             onClick={() => setFilter('unpaid')}
-            className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
-              filter === 'unpaid' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 hover:bg-orange-50'
+            className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
+              filter === 'unpaid' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
           >
             <Filter size={14} />
@@ -2963,8 +2979,8 @@ export const PosTransactionHistory = ({
         <button
           type="button"
           onClick={() => setFilter('paid')}
-          className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
-            filter === 'paid' ? 'bg-green-500 text-white shadow-md' : 'text-gray-500 hover:bg-green-50'
+          className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
+            filter === 'paid' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
           <CheckCircle2 size={14} />
@@ -2973,8 +2989,8 @@ export const PosTransactionHistory = ({
         <button
           type="button"
           onClick={() => setFilter('cancelled')}
-          className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold ${
-            filter === 'cancelled' ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 hover:bg-red-50'
+          className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
+            filter === 'cancelled' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
           <XCircle size={14} />
@@ -2983,119 +2999,121 @@ export const PosTransactionHistory = ({
       </div>
       )}
 
-      <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
+      <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
-          {/* 左: 検索中=対象部門 / 通常=レジ名＋他レジ切替 */}
+          {/* 左: 検索中=対象部門 / 通常=レジ切替(名前＋▸のみ) */}
           <div className="flex min-w-0 items-center gap-2">
             {searchMode ? (
               <span className="truncate text-sm font-black text-gray-800">
                 <span className="mr-1 text-xs font-bold text-gray-400">対象</span>
                 {searchDeptLabel}
               </span>
-            ) : (
-              <>
-                <span className="truncate text-sm font-black text-gray-800">
-                  {viewedRegister?.name || '自レジ'}
-                  {viewedRegister?.departmentName && (
-                    <span className="ml-1 text-xs font-bold text-gray-400">{viewedRegister.departmentName}</span>
-                  )}
+            ) : registers.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setPickingRegister((value) => !value)}
+                className="flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-sm font-black text-gray-800 hover:bg-gray-50"
+              >
+                <span className="truncate">
+                  {isViewingAllRegisters ? '全体' : (viewedRegister?.name || '自レジ')}
                 </span>
-                {registers.length > 1 && (
-                  isViewingOtherRegister ? (
-                    <button
-                      type="button"
-                      onClick={() => { setViewingRegisterId(ownRegisterId); setPickingRegister(false); }}
-                      className="flex shrink-0 items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200"
-                    >
-                      <ChevronLeft size={14} />
-                      自レジに戻る
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPickingRegister((value) => !value)}
-                      className="shrink-0 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
-                    >
-                      他のレジの履歴表示
-                    </button>
-                  )
-                )}
-              </>
+                <ChevronRight
+                  size={15}
+                  className={`shrink-0 text-gray-400 transition-transform ${pickingRegister ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <span className="truncate text-sm font-black text-gray-800">
+                {viewedRegister?.name || '自レジ'}
+              </span>
             )}
           </div>
-
-          {/* 右: 履歴検索（期間＋ワードで過去伝票を横断検索）。条件はクリアを押すまで保持。 */}
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700"
-          >
-            <Search size={14} />
-            履歴検索
-          </button>
+          {/* 検索は上部ヘッダーの「🔍履歴」ボタンに集約(重複ボタン廃止)。 */}
         </div>
 
         {!searchMode && pickingRegister && registers.length > 1 && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
+          <div className="mt-2.5 space-y-2">
+            {/* 戻る動線: 何も選ばなくても自レジ(元の表示)へ戻れる */}
+            <button
+              type="button"
+              onClick={() => { setViewingRegisterId(ownRegisterId); setPickingRegister(false); }}
+              className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-bold text-gray-500 hover:bg-gray-50"
+            >
+              <ChevronLeft size={14} />
+              {ownRegister?.name || '自レジ'}（{isViewingOtherRegister ? '自レジに戻る' : '閉じる'}）
+            </button>
+            <div className="grid grid-cols-2 gap-2">
               <button
-                key={register.id}
                 type="button"
-                onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-bold text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+                onClick={() => { setViewingRegisterId(ALL_REGISTERS_ID); setPickingRegister(false); setFilter('paid'); }}
+                className={`rounded-lg border px-3 py-2 text-left text-xs font-black ${
+                  isViewingAllRegisters
+                    ? 'border-gray-900 text-gray-900'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                }`}
               >
-                {register.name}
-                <span className="block text-[10px] font-bold text-gray-400">{register.departmentName}</span>
+                全体
+                <span className="block text-[10px] font-bold text-gray-400">全レジ横断</span>
               </button>
-            ))}
+              {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
+                <button
+                  key={register.id}
+                  type="button"
+                  onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
+                  className={`rounded-lg border px-3 py-2 text-left text-xs font-bold ${
+                    viewingRegisterId === register.id
+                      ? 'border-blue-500 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  {register.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       {(filter === 'paid' || filter === 'cancelled') && (
         <div className="shrink-0 border-b border-gray-100 bg-white px-3 py-2">
-          <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50 p-2.5">
-            <div className="grid grid-cols-4 gap-1 rounded-xl bg-white p-1 shadow-sm">
+          <div className="mb-2 grid grid-cols-4 gap-1.5">
               {[
                 {
                   id: 'all',
                   label: 'すべて',
-                  activeClassName: 'bg-green-500 text-white shadow-sm',
-                  inactiveClassName: 'bg-white text-gray-700 hover:bg-gray-50'
+                  activeClassName: 'bg-white text-gray-900 ring-2 ring-gray-900',
+                  inactiveClassName: 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'cash',
                   label: '現金',
-                  activeClassName: 'bg-slate-900 text-white shadow-sm',
-                  inactiveClassName: 'bg-white text-slate-800 hover:bg-slate-100'
+                  activeClassName: 'bg-white text-slate-900 ring-2 ring-slate-900',
+                  inactiveClassName: 'bg-white text-slate-500 ring-1 ring-gray-200 hover:bg-slate-50'
                 },
                 {
                   id: 'card',
                   label: 'カード',
-                  activeClassName: 'bg-blue-600 text-white shadow-sm',
-                  inactiveClassName: 'bg-white text-blue-700 hover:bg-blue-50'
+                  activeClassName: 'bg-white text-blue-700 ring-2 ring-blue-600',
+                  inactiveClassName: 'bg-white text-blue-600/70 ring-1 ring-gray-200 hover:bg-blue-50'
                 },
                 {
                   id: 'qr',
                   label: 'QR',
-                  activeClassName: 'bg-purple-600 text-white shadow-sm',
-                  inactiveClassName: 'bg-white text-purple-700 hover:bg-purple-50'
+                  activeClassName: 'bg-white text-purple-700 ring-2 ring-purple-600',
+                  inactiveClassName: 'bg-white text-purple-600/70 ring-1 ring-gray-200 hover:bg-purple-50'
                 }
               ].map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setPaidPaymentFilter(option.id)}
-                  className={`rounded-lg border px-2 py-1.5 text-xs font-black transition-colors ${
-                    paidPaymentFilter === option.id
-                      ? `${option.activeClassName} border-transparent`
-                      : `${option.inactiveClassName} border-gray-100`
+                  className={`rounded-lg px-2 py-1.5 text-xs font-black transition-colors ${
+                    paidPaymentFilter === option.id ? option.activeClassName : option.inactiveClassName
                   }`}
                 >
                   {option.label}
                 </button>
               ))}
-            </div>
           </div>
 
           {/* 合計・支払方法別集計は日付単位の集計なので、検索結果表示中は非表示にする。 */}

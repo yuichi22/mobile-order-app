@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, increment, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
@@ -779,7 +779,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   };
 
   const removeTakeoutCartItem = (itemId) => {
-    setTakeoutCart((current) => current.filter((item) => item.id !== itemId));
+    const next = takeoutCart.filter((item) => item.id !== itemId);
+    setTakeoutCart(next);
+    // POSで最後の1品を消したら「クリア」と同じ挙動でレジ初期画面(履歴)へ戻す。
+    if (next.length === 0 && registerMode === 'pos') {
+      setTakeoutPaymentAmount('');
+      setTakeoutPaymentMethod('');
+      setActivePosHoldId('');
+      setIsTakeoutMode(false);
+      setPosMessage('仮伝票をクリアしました。', 'success');
+    }
   };
 
   // 商品個別割引(percent)を対象カート行に適用/解除する。
@@ -1817,7 +1826,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 中央の会計リスト列。POSレジ・ORDERテイクアウトの両方で共有する。
   const renderTakeoutCartColumn = () => (
     <div className="flex min-h-0 min-w-0 flex-col bg-white">
-      <div className="shrink-0 border-b border-slate-100 p-4">
+      <div className={`shrink-0 border-b border-slate-100 px-4 pb-4 ${registerMode === 'pos' ? 'pt-3' : 'pt-4'}`}>
         {registerMode === 'pos' ? (
           // POSは税込合計を右の会計パネルに集約。ここは 割引・売掛 / 保留 / クリア の3ボタン横並び。
           <div className="grid grid-cols-3 gap-2">
@@ -1827,8 +1836,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               disabled={takeoutCart.length === 0}
               className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
                 takeoutDiscountAmount > 0
-                  ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
-                  : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
+                  ? 'border-orange-400 bg-orange-50 text-orange-700'
+                  : 'border-orange-300 bg-white text-orange-600 hover:bg-orange-50'
               }`}
             >
               <Percent size={15} />
@@ -1838,7 +1847,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               type="button"
               onClick={holdCurrentPosCart}
               disabled={takeoutCart.length === 0}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-amber-500 text-xs font-black text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white text-xs font-black text-amber-600 transition-all hover:bg-amber-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PauseCircle size={15} />
               保留する
@@ -2044,7 +2053,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <ChevronLeft size={20} />
             </button>
           )}
-          <div className="flex-1 rounded-xl bg-white p-4 shadow-sm">
+          <div className="flex-1 rounded-xl bg-white px-4 py-3.5 shadow-sm">
             <form onSubmit={handleScanSubmit} className="flex items-center gap-2">
               <div className="relative flex-grow">
                 <Barcode className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -2086,8 +2095,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   </div>
                 )}
               </div>
-              <button type="submit" className="h-11 whitespace-nowrap rounded-lg bg-blue-600 px-4 font-bold text-white">
-                開く
+              <button
+                type="submit"
+                title="開く"
+                aria-label="開く"
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white transition-colors ${
+                  registerMode === 'pos' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'
+                }`}
+              >
+                <Search size={18} />
               </button>
             </form>
           </div>
@@ -2102,7 +2118,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={() => setMenuOverrideOpen(true)}
-                    className="flex h-9 items-center gap-2 rounded-lg bg-orange-500 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-orange-600 active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-orange-300 bg-white px-3 text-xs font-black text-orange-600 transition-colors hover:bg-orange-50 active:scale-95"
                   >
                     <Clock size={15} />
                     時間帯メニュー変更
@@ -2111,7 +2127,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={() => setIsTakeoutMode(true)}
-                    className="flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-blue-700 active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 text-xs font-black text-blue-700 transition-colors hover:bg-blue-50 active:scale-95"
                   >
                     <ShoppingBag size={15} />
                     {registerMode === 'pos' ? 'POSレジ' : 'テイクアウト注文'}
@@ -2120,7 +2136,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={openStaffOrderTerminal}
-                    className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition-colors hover:bg-black active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 transition-colors hover:bg-slate-50 active:scale-95"
                   >
                     <ClipboardList size={15} />
                     スタッフ注文
@@ -2136,7 +2152,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <div className="flex h-full min-h-0 flex-col bg-slate-50">
                 {/* iPad小画面でもカートを広く見せるため、売り場カラムは細め(約1/3)・カートを中央で広く。 */}
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(96px,1fr)_minmax(0,2fr)] gap-0">
-                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-4">
+                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 px-4 pb-4 pt-3">
                     {/* よく売る商品をワンタップで出せるお気に入り(モーダル)。売り場ボタンの一番上に配置。 */}
                     <button
                       type="button"
@@ -2408,8 +2424,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。
                 body を縦flexにし、合計/支払い方法は固定・入力エリアを伸ばして下の隙間を無くす。 */}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-              <div className="mb-2 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-3.5">
-                <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+              <div className="mb-1.5 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 pb-1 pt-2">
+                <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
                   <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
                   {takeoutDiscountAmount > 0 && (
                     <span>{takeoutDiscountSummaryLabel} -¥{takeoutDiscountAmount.toLocaleString()}</span>
@@ -2423,7 +2439,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
               </div>
 
-              <div className="mb-2 shrink-0">
+              <div className="mb-[11.5px] mt-[5.5px] shrink-0">
                 <div className="grid grid-cols-3 gap-2">
                   {TAKEOUT_PAYMENT_METHOD_OPTIONS.map((method) => (
                     <button
