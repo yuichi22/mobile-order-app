@@ -1220,6 +1220,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <ReceiptText size={16} />
                 支払い方法別
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込（受領額）</span>
               </div>
 
               <div className="space-y-2">
@@ -1254,6 +1255,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <BadgeJapaneseYen size={16} />
                 税率別売上
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込／税抜内訳</span>
               </div>
 
               <div className="space-y-2">
@@ -1304,6 +1306,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <TicketPercent size={16} />
                 割引/金券
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
               </div>
 
               <div className="mb-3 rounded-xl bg-orange-50 px-4 py-3">
@@ -1424,6 +1427,7 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <Clock3 size={16} />
                 時間帯別売上
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
               </div>
 
               <div className="space-y-2">
@@ -1457,8 +1461,9 @@ const handleCloseDay = async (closingCheck = {}) => {
           </div>
 
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
-            <div className="mb-3 text-sm font-black text-gray-800">
+            <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
               部門別売上
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
@@ -1490,8 +1495,9 @@ const handleCloseDay = async (closingCheck = {}) => {
           </div>
 
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
-            <div className="mb-3 text-sm font-black text-gray-800">
+            <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
               売り場別売上
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">

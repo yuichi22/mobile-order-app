@@ -96,6 +96,7 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
     <div className="mt-4 rounded-2xl border border-gray-100 p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
         <TicketPercent size={16} /> 物販の内訳（期間合計）
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込（粗利・原価は税抜）</span>
       </div>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl bg-gray-50 p-4">
@@ -490,7 +491,8 @@ const PosAnalyticsView = ({
       </div>
 
       <div className="mt-3">
-        <div className="mb-2 text-[11px] font-bold text-gray-400">
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-gray-400">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
           行をクリックでグラフに反映（再クリックで解除）
           {canDrill && '／「詳細＞」で1つ下の階層を新しいタブで開く'}
         </div>
@@ -528,7 +530,10 @@ const PosAnalyticsView = ({
 
       {/* アイテム別 ABC 分析 */}
       <div className="print:break-inside-avoid mt-2">
-        <div className="mb-3 text-sm font-black text-gray-800">ABC分析（アイテム別）</div>
+        <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
+          ABC分析（アイテム別）
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+        </div>
         <AbcAnalysisView
           abcAnalysis={analytics.abcAnalysis}
           abcThresholds={abcThresholds}

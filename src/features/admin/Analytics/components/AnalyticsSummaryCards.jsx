@@ -193,6 +193,7 @@ const AnalyticsSummaryCards = ({
       icon={UserRoundCheck}
       label="客単価"
       value={formatCurrency(averageSpendPerCustomer)}
+      subText="税込"
       onClick={() => onMetricChange?.('customerUnitPrice')}
     />
 
@@ -201,7 +202,7 @@ const AnalyticsSummaryCards = ({
       icon={ReceiptText}
       label="組単価"
       value={formatCurrency(averageSpendPerTransaction)}
-      subText={`会計 ${Number(totalOrders || 0).toLocaleString()} 件`}
+      subText={`税込 ・ 会計 ${Number(totalOrders || 0).toLocaleString()} 件`}
       onClick={() => onMetricChange?.('transactionUnitPrice')}
     />
 
