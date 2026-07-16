@@ -160,10 +160,25 @@ const resolveClassificationGenderConfig = (value = {}, sources = {}) => {
 };
 
 // 分類の性別設定と商品の選択値から、確定 gender を求める。
+// 子優先(サブカテ>カテゴリー>グループ)で走査。固定→強制。選択→商品の明示値を採用、
+// 空欄なら「その選択ノードは透過」して上層の固定を継承する(＝未入力で自動UNISEXにはしない)。
+// どのノードにも固定が無く明示値も無ければ空('')。
 const resolveEffectiveGender = (value = {}, sources = {}) => {
-  const config = resolveClassificationGenderConfig(value, sources);
-  if (config.mode === 'fixed') return config.fixed;
-  if (config.mode === 'select') return normalizeGenderValue(value.gender) || 'UNISEX';
+  const { productCategoryGroups = [], productCategories = [], productSubCategories = [] } = sources;
+  const sub = productSubCategories.find((item) => (
+    String(item.name || '') === String(value.subCategoryName || '')
+    && (item.categoryId === value.categoryId || item.categoryName === value.categoryName)
+  ));
+  const cat = productCategories.find((item) => item.id === value.categoryId);
+  const grp = productCategoryGroups.find((item) => (
+    item.id === value.categoryGroupId || item.name === value.categoryGroupName
+  ));
+  const explicit = normalizeGenderValue(value.gender);
+  for (const node of [sub, cat, grp]) {
+    const mode = String(node?.genderMode || '').trim();
+    if (mode === 'fixed') return normalizeGenderValue(node.genderFixedValue);
+    if (mode === 'select' && explicit) return explicit;   // 明示選択のみ採用。空欄は透過して上層へ。
+  }
   return '';
 };
 
@@ -2051,7 +2066,7 @@ const ProductMasterTable = ({
     const matchedGroup = productCategoryGroups.find((group) => group.id === (draft.categoryGroupId || matchedCategory?.groupId));
     const matchedSupplier = suppliers.find((supplier) => supplier.id === (draft.supplierId || matchedBrand?.supplierId));
     const resolvedTax = resolveInheritedTaxForDraft({ ...draft, categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId });
-    // 分類の性別設定から確定 gender を再解決(固定は強制/選択は既定UNISEX/なしは空)。
+    // 分類の性別設定から確定 gender を再解決(固定は強制/選択は明示値・空欄は上層継承/なしは空)。
     const resolvedGender = resolveEffectiveGender(draft, {
       productCategoryGroups,
       productCategories,
@@ -5437,10 +5452,16 @@ const ProductClassificationControl = forwardRef(({
     productCategories,
     productSubCategories
   });
-  // 選択モードでの現在値(未選択は既定UNISEX表示)。
+  // 選択モードでの現在の明示値(空欄=自動継承)。
   const activeGender = genderConfig.mode === 'select'
-    ? (normalizeGenderValue(activeValue?.gender) || 'UNISEX')
+    ? normalizeGenderValue(activeValue?.gender)
     : genderConfig.fixed;
+  // 空欄(自動)のときに適用される上層の継承値。注記表示に使う。
+  const inheritedGender = resolveEffectiveGender(
+    { ...(activeValue || {}), gender: '' },
+    { productCategoryGroups, productCategories, productSubCategories }
+  );
+  const inheritedGenderLabel = GENDER_OPTIONS.find((option) => option.value === inheritedGender)?.label || '性別なし';
 
   const modalNode = open ? (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
@@ -5572,7 +5593,7 @@ const ProductClassificationControl = forwardRef(({
                   <div className="mt-1 text-xs font-bold text-slate-400">
                     {genderConfig.mode === 'fixed'
                       ? 'このカテゴリーは性別が固定されています。'
-                      : '未選択はユニセックス扱い（Shopifyはメンズ・レディース両方のタグ）。'}
+                      : `空欄（自動）の場合：${inheritedGenderLabel} が適用されます。個別に変えたい商品だけ選んでください。`}
                   </div>
                 </div>
                 {genderConfig.mode === 'fixed' ? (
@@ -5582,6 +5603,12 @@ const ProductClassificationControl = forwardRef(({
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    <ClassificationChoiceButton
+                      label="自動（継承）"
+                      subLabel={`空欄。上層を継承 → ${inheritedGenderLabel}`}
+                      active={!activeGender}
+                      onClick={() => selectGender('')}
+                    />
                     {GENDER_OPTIONS.map((option) => (
                       <ClassificationChoiceButton
                         key={option.value}
