@@ -70,7 +70,9 @@ export const AppConfirmHost = () => {
   } = current.options || {};
 
   return createPortal(
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+    // backdrop-blur は WebKit(iPad WKWebView/Safari) で背面再描画のたびにブラーが一瞬外れて
+    // ちらつく既知の癖があるため使わない(半透明オーバーレイのみ)。
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/60 px-4 py-6">
       <div className="w-full max-w-md overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
         <div className="px-6 pb-2 pt-5 text-base font-black text-slate-900">{title}</div>
         <div className="max-h-[55vh] overflow-y-auto whitespace-pre-line px-6 pb-5 text-sm font-bold leading-relaxed text-slate-600">

@@ -3185,12 +3185,111 @@ const buildShopifySyncPriceSnapshot = (product = {}, priceSyncMode = 'taxInclude
   };
 };
 
+// タイトルは「ブランド名｜商品名」(全角縦棒)。ブランド無し/商品名に既に｜がある/
+// 商品名がブランド名で始まる場合は二重付与しない。
 const resolveShopifyProductTitle = (group = {}, products = []) => {
   const primaryProduct = products.find((product) => product.productGroupRole === 'primary') || products[0] || {};
-  return normalizeShopifyText(
+  const baseTitle = normalizeShopifyText(
     primaryProduct.name || primaryProduct.productGroupName || group.name,
     group.baseProductName || group.name || 'Akuto Product'
   );
+  const brandName = normalizeShopifyText(group.brandName || primaryProduct.brandName, '');
+
+  if (!brandName) return baseTitle;
+  if (baseTitle.includes('｜')) return baseTitle;
+  if (baseTitle.toLowerCase().startsWith(brandName.toLowerCase())) return baseTitle;
+
+  return `${brandName}｜${baseTitle}`;
+};
+
+// productGroups ドキュメントは保存経路により brandName/categoryName/subCategoryName/
+// categoryGroupName を持たないことがあるため、primary商品の値で補完する。
+const enrichShopifyGroupContext = (group = {}, products = []) => {
+  const primaryProduct = products.find((product) => product.productGroupRole === 'primary') || products[0] || {};
+
+  return {
+    ...group,
+    brandId: group.brandId || primaryProduct.brandId || '',
+    brandName: normalizeShopifyText(group.brandName || primaryProduct.brandName, ''),
+    categoryName: normalizeShopifyText(group.categoryName || primaryProduct.categoryName, ''),
+    subCategoryName: normalizeShopifyText(group.subCategoryName || primaryProduct.subCategoryName, ''),
+    categoryGroupName: normalizeShopifyText(group.categoryGroupName || primaryProduct.categoryGroupName, '')
+  };
+};
+
+// ブランドプロフィール(商品メタフィールド my_fields._brand)の取得。
+// ブランドマスターUIの「ブランドプロフィール」欄は brands/{id}.note に保存されている。
+const fetchShopifyBrandProfile = async (storeRef, group = {}, products = []) => {
+  try {
+    const primaryProduct = products.find((product) => product.productGroupRole === 'primary') || products[0] || {};
+    const brandId = String(group.brandId || primaryProduct.brandId || '').trim();
+    if (!brandId) return '';
+    const brandSnap = await storeRef.collection('brands').doc(brandId).get();
+    if (!brandSnap.exists) return '';
+    return String(brandSnap.data()?.note || '').trim();
+  } catch (error) {
+    console.warn('[shopify] brand profile fetch failed', error?.message);
+    return '';
+  }
+};
+
+// 同期(作成/更新)直後にPOSの現在庫をShopifyへ初期反映する(on_hand絶対値set)。
+// productSet は在庫数量を扱わないため、これが無いと同期直後の Shopify 在庫は 0 のままになる。
+// inventorySyncEnabled かつ locationId 設定時のみ。失敗しても同期自体は成功として扱う。
+const pushInitialInventoryToShopify = async ({ shopDomain, accessToken, settings, products, savedVariants }) => {
+  try {
+    if (!settings.inventorySyncEnabled) return { pushed: 0, skipped: 'inventorySyncDisabled' };
+    const locationId = String(settings.locationId || '').trim();
+    if (!locationId) return { pushed: 0, skipped: 'noLocationId' };
+
+    const quantityByProductId = new Map(products.map((product) => [
+      String(product.id),
+      Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0)
+    ]));
+    // 商品単位の在庫同期OFFは初期反映もスキップ。
+    const syncDisabledProductIds = new Set(
+      products
+        .filter((product) => product.shopifyInventorySyncDisabled === true)
+        .map((product) => String(product.id))
+    );
+    const setQuantities = savedVariants
+      .filter((variant) => String(variant.shopifyInventoryItemId || '').trim())
+      .filter((variant) => !syncDisabledProductIds.has(String(variant.productId)))
+      .map((variant) => ({
+        inventoryItemId: variant.shopifyInventoryItemId,
+        locationId,
+        quantity: quantityByProductId.get(String(variant.productId)) ?? 0
+      }));
+    if (setQuantities.length === 0) return { pushed: 0, skipped: 'noLinkedItems' };
+
+    const mutation = 'mutation($input: InventorySetOnHandQuantitiesInput!){ inventorySetOnHandQuantities(input:$input){ userErrors{ field message } } }';
+    const data = await callShopifyGraphql({
+      shopDomain,
+      accessToken,
+      query: mutation,
+      variables: { input: { reason: 'correction', setQuantities } }
+    });
+    const userErrors = data.inventorySetOnHandQuantities?.userErrors || [];
+    if (userErrors.length) console.warn('[shopify] initial inventory push userErrors', userErrors);
+    return { pushed: setQuantities.length, userErrors: userErrors.length };
+  } catch (error) {
+    console.warn('[shopify] initial inventory push failed', error?.message);
+    return { pushed: 0, error: error?.message || 'failed' };
+  }
+};
+
+// 商品レベルの metafields (ブランドプロフィール)。空なら送らない(=Shopify側を上書きしない)。
+const buildShopifyProductMetafields = (brandProfile = '') => {
+  const value = String(brandProfile || '').trim();
+  if (!value) return [];
+  return [
+    {
+      namespace: 'my_fields',
+      key: '_brand',
+      type: 'multi_line_text_field',
+      value
+    }
+  ];
 };
 
 const normalizeShopifyText = (value, fallback = '') => {
@@ -3218,6 +3317,38 @@ const buildMergedShopifyTags = (...values) => {
       seen.add(key);
       return true;
     });
+};
+
+// 性別タグ。正データは products.gender(大文字 MEN/WOMEN/UNISEX/'')。性別はグループ単位=primary代表。
+// MEN→MEN / WOMEN→WOMEN / UNISEX→MEN+WOMEN+UNISEX / 空→なし。設計: docs/gender-attribute-design.md
+const SHOPIFY_GENDER_VALUES = new Set(['MEN', 'WOMEN', 'UNISEX']);
+
+const normalizeShopifyGenderValue = (value) => {
+  const upper = String(value || '').trim().toUpperCase();
+  return SHOPIFY_GENDER_VALUES.has(upper) ? upper : '';
+};
+
+const resolveShopifyGenderTags = (products = []) => {
+  const primary = products.find((product) => product.productGroupRole === 'primary') || products[0] || {};
+  const gender = normalizeShopifyGenderValue(primary.gender);
+  if (gender === 'MEN') return ['MEN'];
+  if (gender === 'WOMEN') return ['WOMEN'];
+  if (gender === 'UNISEX') return ['MEN', 'WOMEN', 'UNISEX'];
+  return [];
+};
+
+// カテゴリー系タグ = categoryGroupName + categoryName + subCategoryName。
+// 性別 literal(MEN/WOMEN/UNISEX)は性別タグへ委ねるため除外(重複はどのみち後段でdedup)。
+const resolveShopifyCategoryTags = (group = {}) => {
+  const tags = [];
+  if (!normalizeShopifyGenderValue(group.categoryGroupName)) {
+    tags.push(group.categoryGroupName);
+  }
+  tags.push(group.categoryName);
+  if (!normalizeShopifyGenderValue(group.subCategoryName)) {
+    tags.push(group.subCategoryName);
+  }
+  return tags;
 };
 
 const getShopifyProductTags = async ({ shopDomain, accessToken, productId }) => {
@@ -3350,25 +3481,21 @@ const resolveUniqueShopifyOptionValue = (product = {}, optionName = 'バリエ�
   return finalValue;
 };
 
-const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエーション') => {
+// バーコード重複のみ事前チェック(オプション値/サイズ×カラーの一意化は buildShopifyOptionAssignment 側で吸収)。
+const assertUniqueShopifyInputValues = (products = []) => {
   const seenBarcodes = new Map();
-  const usedOptionValues = new Set();
   const duplicated = [];
 
   products.forEach((product, index) => {
     const label = product.name || product.productGroupName || product.sku || product.productCode || product.id || `商品${index + 1}`;
     const barcode = String(product.barcode || '').trim();
-
-    if (barcode) {
-      const barcodeKey = barcode.toLowerCase();
-      if (seenBarcodes.has(barcodeKey)) {
-        duplicated.push(`JAN重複: ${barcode}（${seenBarcodes.get(barcodeKey)} / ${label}）`);
-      } else {
-        seenBarcodes.set(barcodeKey, label);
-      }
+    if (!barcode) return;
+    const barcodeKey = barcode.toLowerCase();
+    if (seenBarcodes.has(barcodeKey)) {
+      duplicated.push(`JAN重複: ${barcode}（${seenBarcodes.get(barcodeKey)} / ${label}）`);
+    } else {
+      seenBarcodes.set(barcodeKey, label);
     }
-
-    resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
   });
 
   if (duplicated.length > 0) {
@@ -3376,59 +3503,207 @@ const assertUniqueShopifyInputValues = (products = [], optionName = 'バリエ�
   }
 };
 
-const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded' }) => {
-  const optionName = resolveShopifyOptionName(products);
-  const usedOptionValues = new Set();
+// 単品(バリエーション無し)は Shopify 標準の Title/Default Title パターンで登録する。
+// → hasOnlyDefaultVariant=true となりバリエーション欄が表示されず、SKU空でも登録できる
+//   (品番にバーコードを入れてバリエーション表示される不自然さを回避)。
+const SHOPIFY_DEFAULT_OPTION_NAME = 'Title';
+const SHOPIFY_DEFAULT_OPTION_VALUE = 'Default Title';
+
+const SHOPIFY_SIZE_OPTION_NAME = 'Size';
+const SHOPIFY_COLOR_OPTION_NAME = 'Color';
+const SHOPIFY_GENERIC_OPTION_NAME = 'Variant';
+
+// サイズ・カラーを別オプションに分けて割り当てる(複数商品用)。
+// - サイズ/カラーそれぞれ「値が入力されている(1商品でも非空)」次元をオプション化。
+//   値が1種でも入力があれば作る(例: カラーがBROWN1色でも Color オプションを作る)。未入力の次元は作らない。
+//   両方入力あり→2オプション/片方→1/どちらも未入力→SKU の単一オプション。
+// - 各variantは全オプションの値を持つ必要があるため、空のサイズ/カラーは「フリー」「ワンカラー」で補う。
+// - 組合せ(サイズ×カラー)が衝突したら最後の軸に sku/連番を付けて一意化する。
+// 返り値: { productOptions:[{name,position,values:[{name}]}], optionValuesByIndex:[[{optionName,name}],...] }
+const buildShopifyOptionAssignment = (products = []) => {
+  const sizeOf = (product) => String(product.size || '').trim();
+  const colorOf = (product) => String(product.colorName || '').trim();
+  const sizeHasInput = products.some((product) => sizeOf(product) !== '');
+  const colorHasInput = products.some((product) => colorOf(product) !== '');
+
+  const defs = [];
+  if (sizeHasInput) defs.push({ name: SHOPIFY_SIZE_OPTION_NAME, get: (product) => sizeOf(product) || 'Free' });
+  if (colorHasInput) defs.push({ name: SHOPIFY_COLOR_OPTION_NAME, get: (product) => colorOf(product) || 'One Color' });
+  if (defs.length === 0) {
+    defs.push({
+      name: SHOPIFY_GENERIC_OPTION_NAME,
+      get: (product, index) => normalizeShopifyText(product.sku || product.productCode || `variant-${index + 1}`, `variant-${index + 1}`)
+    });
+  }
+
+  const usedCombos = new Set();
+  const optionValuesByIndex = products.map((product, index) => {
+    let values = defs.map((def) => def.get(product, index));
+    let key = values.join(' / ').toLowerCase();
+    if (usedCombos.has(key)) {
+      const suffix = normalizeShopifyText(product.sku || product.productCode || String(index + 1), String(index + 1));
+      let n = 1;
+      do {
+        values = defs.map((def, i) => (i === defs.length - 1 ? `${def.get(product, index)} (${suffix}${n > 1 ? `-${n}` : ''})` : def.get(product, index)));
+        key = values.join(' / ').toLowerCase();
+        n += 1;
+      } while (usedCombos.has(key));
+    }
+    usedCombos.add(key);
+    return defs.map((def, i) => ({ optionName: def.name, name: values[i] }));
+  });
+
+  const productOptions = defs.map((def, i) => {
+    const seen = new Set();
+    const values = [];
+    optionValuesByIndex.forEach((optionValues) => {
+      const name = optionValues[i].name;
+      const dedupeKey = name.toLowerCase();
+      if (!seen.has(dedupeKey)) { seen.add(dedupeKey); values.push({ name }); }
+    });
+    return { name: def.name, position: i + 1, values };
+  });
+
+  return { productOptions, optionValuesByIndex };
+};
+
+// ── SEO(メタディスクリプション / URLハンドル) ──────────────────────────
+// ハンドルはASCIIのみにして日本語URLの %エンコード を回避する。ラテンはそのまま、
+// カナ(ひら/カタ)はローマ字化、漢字は辞書無しで読めないためスラッグから落ちる(→フォールバック)。
+const KANA_ROMAJI_YOUON = {
+  キャ: 'kya', キュ: 'kyu', キョ: 'kyo', シャ: 'sha', シュ: 'shu', ショ: 'sho',
+  チャ: 'cha', チュ: 'chu', チョ: 'cho', ニャ: 'nya', ニュ: 'nyu', ニョ: 'nyo',
+  ヒャ: 'hya', ヒュ: 'hyu', ヒョ: 'hyo', ミャ: 'mya', ミュ: 'myu', ミョ: 'myo',
+  リャ: 'rya', リュ: 'ryu', リョ: 'ryo', ギャ: 'gya', ギュ: 'gyu', ギョ: 'gyo',
+  ジャ: 'ja', ジュ: 'ju', ジョ: 'jo', ビャ: 'bya', ビュ: 'byu', ビョ: 'byo',
+  ピャ: 'pya', ピュ: 'pyu', ピョ: 'pyo', ファ: 'fa', フィ: 'fi', フェ: 'fe', フォ: 'fo',
+  ティ: 'ti', ディ: 'di', ヴァ: 'va', ヴィ: 'vi', ヴェ: 've', ヴォ: 'vo', ウォ: 'wo'
+};
+const KANA_ROMAJI = {
+  ア: 'a', イ: 'i', ウ: 'u', エ: 'e', オ: 'o', カ: 'ka', キ: 'ki', ク: 'ku', ケ: 'ke', コ: 'ko',
+  サ: 'sa', シ: 'shi', ス: 'su', セ: 'se', ソ: 'so', タ: 'ta', チ: 'chi', ツ: 'tsu', テ: 'te', ト: 'to',
+  ナ: 'na', ニ: 'ni', ヌ: 'nu', ネ: 'ne', ノ: 'no', ハ: 'ha', ヒ: 'hi', フ: 'fu', ヘ: 'he', ホ: 'ho',
+  マ: 'ma', ミ: 'mi', ム: 'mu', メ: 'me', モ: 'mo', ヤ: 'ya', ユ: 'yu', ヨ: 'yo',
+  ラ: 'ra', リ: 'ri', ル: 'ru', レ: 're', ロ: 'ro', ワ: 'wa', ヲ: 'wo', ン: 'n',
+  ガ: 'ga', ギ: 'gi', グ: 'gu', ゲ: 'ge', ゴ: 'go', ザ: 'za', ジ: 'ji', ズ: 'zu', ゼ: 'ze', ゾ: 'zo',
+  ダ: 'da', ヂ: 'ji', ヅ: 'zu', デ: 'de', ド: 'do', バ: 'ba', ビ: 'bi', ブ: 'bu', ベ: 'be', ボ: 'bo',
+  パ: 'pa', ピ: 'pi', プ: 'pu', ペ: 'pe', ポ: 'po', ヴ: 'vu',
+  ァ: 'a', ィ: 'i', ゥ: 'u', ェ: 'e', ォ: 'o'
+};
+const hiraganaToKatakana = (text) => String(text || '').replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+const kanaToRomaji = (input) => {
+  const s = hiraganaToKatakana(input);
+  let out = '';
+  for (let i = 0; i < s.length; i += 1) {
+    const two = s.substr(i, 2);
+    if (KANA_ROMAJI_YOUON[two]) { out += KANA_ROMAJI_YOUON[two]; i += 1; continue; }
+    const ch = s[i];
+    if (ch === 'ッ') { const nx = KANA_ROMAJI_YOUON[s.substr(i + 1, 2)] || KANA_ROMAJI[s[i + 1]] || ''; if (nx) out += nx[0]; continue; }
+    if (ch === 'ー') continue; // 長音は落とす
+    out += KANA_ROMAJI[ch] || ch; // 非カナ(英数/漢字/記号)はそのまま(漢字は後段スラッグで除去)
+  }
+  return out;
+};
+const slugifyAscii = (text) => String(text || '')
+  .normalize('NFKC')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 90);
+
+// URLハンドル(ASCIIのみ)。ブランド-商品名(ローマ字)。漢字のみ等でスラッグ不能ならブランド-SKUへ。
+const buildShopifyHandle = (group = {}, products = []) => {
+  const primary = products.find((p) => p.productGroupRole === 'primary') || products[0] || {};
+  const brandSlug = slugifyAscii(kanaToRomaji(normalizeShopifyText(group.brandName || primary.brandName, '')));
+  const nameSlug = slugifyAscii(kanaToRomaji(normalizeShopifyText(primary.name || primary.productGroupName || group.name, '')));
+  // 名前がローマ字化できた(=nameSlugあり)ならブランド-名前。漢字のみ等でnameSlugが空なら
+  // ブランド-SKU で一意性を確保(ブランド名だけだと同ブランドの漢字商品同士で衝突するため)。
+  let handle;
+  if (nameSlug) {
+    handle = [brandSlug, nameSlug].filter(Boolean).join('-');
+  } else {
+    const skuSlug = slugifyAscii(String(primary.sku || primary.productCode || '').trim());
+    handle = [brandSlug, skuSlug].filter(Boolean).join('-') || slugifyAscii(String(group.id || primary.id || 'akuto-product'));
+  }
+  return handle.slice(0, 100);
+};
+
+// メタディスクリプション。ブランドプロフィール優先(冒頭要約)、無ければカテゴリー説明。
+const resolveShopifySeoDescription = (group = {}, products = [], brandProfile = '') => {
+  const primary = products.find((p) => p.productGroupRole === 'primary') || products[0] || {};
+  const brand = normalizeShopifyText(group.brandName || primary.brandName, '');
+  const name = normalizeShopifyText(primary.name || primary.productGroupName || group.name, '');
+  const head = brand ? `${brand}「${name}」` : name;
+  const profile = String(brandProfile || '').replace(/\s+/g, ' ').trim();
+  let tail;
+  if (profile) {
+    tail = profile.length > 100 ? `${profile.slice(0, 100)}…` : profile;
+  } else {
+    const cat = [normalizeShopifyText(group.categoryGroupName, ''), normalizeShopifyText(group.categoryName, '')].filter(Boolean).join(' ');
+    tail = cat ? `${cat}のアイテム。HAUSオンラインストアでお求めいただけます。` : 'HAUSオンラインストアでお求めいただけます。';
+  }
+  const desc = `${head}。${tail}`;
+  return desc.length > 160 ? `${desc.slice(0, 159)}…` : desc;
+};
+
+const buildShopifyVariantMetafields = (group = {}, product = {}) => ([
+  {
+    namespace: 'akuto',
+    key: 'product_id',
+    type: 'single_line_text_field',
+    value: String(product.id || '')
+  },
+  {
+    namespace: 'akuto',
+    key: 'product_group_id',
+    type: 'single_line_text_field',
+    value: String(group.id || '')
+  }
+]);
+
+const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
+  const isSingleProduct = products.length === 1;
+  const assignment = isSingleProduct ? null : buildShopifyOptionAssignment(products);
 
   const variants = products.map((product, index) => {
-    const optionValue = resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
+    const optionValues = isSingleProduct
+      ? [{ optionName: SHOPIFY_DEFAULT_OPTION_NAME, name: SHOPIFY_DEFAULT_OPTION_VALUE }]
+      : assignment.optionValuesByIndex[index];
+    const sku = String(product.sku || product.productCode || '').trim();
 
     return {
-      optionValues: [
-        {
-          optionName,
-          name: optionValue
-        }
-      ],
-      sku: String(product.sku || product.productCode || '').trim(),
+      optionValues,
+      ...(sku ? { sku } : {}),
       barcode: String(product.barcode || '').trim(),
       price: buildShopifySyncPriceSnapshot(product, priceSyncMode).price,
       taxable: true,
       inventoryItem: {
         tracked: true
       },
-      metafields: [
-        {
-          namespace: 'akuto',
-          key: 'product_id',
-          type: 'single_line_text_field',
-          value: String(product.id || '')
-        },
-        {
-          namespace: 'akuto',
-          key: 'product_group_id',
-          type: 'single_line_text_field',
-          value: String(group.id || '')
-        }
-      ]
+      metafields: buildShopifyVariantMetafields(group, product)
     };
   });
 
-  const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
-  const tags = buildMergedShopifyTags(group.categoryName, group.subCategoryName, 'akuto-sync');
+  const productOptions = isSingleProduct
+    ? [{ name: SHOPIFY_DEFAULT_OPTION_NAME, values: [{ name: SHOPIFY_DEFAULT_OPTION_VALUE }] }]
+    : assignment.productOptions;
+  const tags = buildMergedShopifyTags(
+    resolveShopifyCategoryTags(group),
+    resolveShopifyGenderTags(products),
+    'akuto-sync'
+  );
+  const productMetafields = buildShopifyProductMetafields(brandProfile);
 
   return {
     title: resolveShopifyProductTitle(group, products),
+    handle: buildShopifyHandle(group, products),
+    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile) },
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
+    ...(productMetafields.length > 0 ? { metafields: productMetafields } : {}),
     status: 'DRAFT',
-    productOptions: [
-      {
-        name: optionName,
-        values: optionValues
-      }
-    ],
+    productOptions,
     variants,
     metafields: [
       {
@@ -3493,6 +3768,26 @@ const extractShopifyProductSetResult = (data = {}) => {
   }
 
   return payload.product;
+};
+
+// handle を明示指定すると衝突時に Shopify がエラーを返す(自動で -1 は付かない)。
+// 「Handle ... already in use」なら handle に -2,-3… を付けて再試行する。
+const runProductSetWithHandleRetry = async ({ shopDomain, accessToken, query, input, synchronous = true }) => {
+  const baseHandle = String(input.handle || '').trim();
+  const MAX_RETRY = 10;
+  for (let attempt = 0; ; attempt += 1) {
+    const currentInput = (attempt === 0 || !baseHandle)
+      ? input
+      : { ...input, handle: `${baseHandle}-${attempt + 1}`.slice(0, 100) };
+    const data = await callShopifyGraphql({ shopDomain, accessToken, query, variables: { input: currentInput, synchronous } });
+    const userErrors = Array.isArray(data.productSet?.userErrors) ? data.productSet.userErrors : [];
+    const handleTaken = userErrors.some((error) => (
+      /handle/i.test(String(error.message || ''))
+      && /already in use|taken/i.test(String(error.message || ''))
+    ));
+    if (handleTaken && baseHandle && attempt < MAX_RETRY) continue;
+    return extractShopifyProductSetResult(data);
+  }
 };
 
 const fetchStoreMemberForRequest = async ({ storeId, uid }) => {
@@ -3603,18 +3898,25 @@ export const createShopifyDraftProduct = onRequest(
         throw new Error('Shopify作成対象のSKUがありません。');
       }
 
-      const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
-      if (invalidSku) {
-        throw new Error('SKU未入力の商品があります。');
+      // 複数バリエーションのみSKU必須(オプション値の一意性に必要)。
+      // 単品はSKU無しでもデフォルトバリアント(バリエーション非表示)で登録できる。
+      if (products.length > 1) {
+        const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
+        if (invalidSku) {
+          throw new Error('SKU未入力の商品があります。');
+        }
+        assertUniqueShopifyInputValues(products);
       }
 
-      assertUniqueShopifyInputValues(products, resolveShopifyOptionName(products));
+      const enrichedGroup = enrichShopifyGroupContext(group, products);
+      const brandProfile = await fetchShopifyBrandProfile(storeRef, enrichedGroup, products);
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
       const input = buildShopifyProductSetInput({
-        group,
+        group: enrichedGroup,
         products,
-        priceSyncMode
+        priceSyncMode,
+        brandProfile
       });
       const priceSnapshots = products.map((product) => ({
         productId: product.id,
@@ -3623,21 +3925,24 @@ export const createShopifyDraftProduct = onRequest(
         ...buildShopifySyncPriceSnapshot(product, priceSyncMode)
       }));
 
-      const graphqlData = await callShopifyGraphql({
+      const shopifyProduct = await runProductSetWithHandleRetry({
         shopDomain,
         accessToken,
         query: productSetCreateDraftMutation,
-        variables: {
-          input,
-          synchronous: true
-        }
+        input,
+        synchronous: true
       });
-
-      const shopifyProduct = extractShopifyProductSetResult(graphqlData);
       const shopifyVariants = Array.isArray(shopifyProduct.variants?.nodes)
         ? shopifyProduct.variants.nodes
         : [];
 
+      // barcode は variant ごとに一意。SKU(品番)はサイズ/色違いで共有されるため
+      // SKUキーだと衝突して在庫紐付けが壊れる。barcode を主キー、SKUを保険にする。
+      const variantsByBarcode = new Map(
+        shopifyVariants
+          .map((variant) => [String(variant.barcode || '').trim(), variant])
+          .filter(([barcode]) => barcode)
+      );
       const variantsBySku = new Map(
         shopifyVariants.map((variant) => [String(variant.sku || '').trim(), variant])
       );
@@ -3656,10 +3961,14 @@ export const createShopifyDraftProduct = onRequest(
 
         for (const product of products) {
           const sku = String(product.sku || product.productCode || '').trim();
-          const variant = variantsBySku.get(sku);
+          const barcode = String(product.barcode || '').trim();
+          // barcode(一意)優先で突合。単品はデフォルトバリアントに、最後の保険でSKU。
+          const variant = variantsByBarcode.get(barcode)
+            || ((products.length === 1 && shopifyVariants.length === 1) ? shopifyVariants[0] : undefined)
+            || variantsBySku.get(sku);
 
           if (!variant?.id) {
-            throw new Error(`Shopify variant ID を取得できませんでした: ${sku}`);
+            throw new Error(`Shopify variant ID を取得できませんでした: ${sku || barcode}`);
           }
 
           const productRef = storeRef.collection('products').doc(product.id);
@@ -3707,6 +4016,15 @@ export const createShopifyDraftProduct = onRequest(
         });
       });
 
+      // 現在庫をShopifyへ初期反映(在庫連携ON時のみ。ベストエフォート)。
+      const initialInventoryPush = await pushInitialInventoryToShopify({
+        shopDomain,
+        accessToken,
+        settings: shopifySettings,
+        products,
+        savedVariants
+      });
+
       return sendJson(res, 200, {
         ok: true,
         status: 'created',
@@ -3717,7 +4035,8 @@ export const createShopifyDraftProduct = onRequest(
         skuCount: products.length,
         variants: savedVariants,
         priceSyncMode,
-        priceSnapshots
+        priceSnapshots,
+        initialInventoryPush
       });
     } catch (error) {
       console.error('[createShopifyDraftProduct] failed', error);
@@ -3764,13 +4083,15 @@ const productSetUpdateMutation = `
   }
 `;
 
-const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded' }) => {
-  const optionName = resolveShopifyOptionName(products);
-  const usedOptionValues = new Set();
+const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
+  const isSingleProduct = products.length === 1;
+  const assignment = isSingleProduct ? null : buildShopifyOptionAssignment(products);
   const usedShopifyVariantIds = new Set();
 
   const variants = products.map((product, index) => {
-    const optionValue = resolveUniqueShopifyOptionValue(product, optionName, index, usedOptionValues);
+    const optionValues = isSingleProduct
+      ? [{ optionName: SHOPIFY_DEFAULT_OPTION_NAME, name: SHOPIFY_DEFAULT_OPTION_VALUE }]
+      : assignment.optionValuesByIndex[index];
     const shopifyVariantId = String(product.shopifyVariantId || '').trim();
     const shouldUseShopifyVariantId = shopifyVariantId && !usedShopifyVariantIds.has(shopifyVariantId.toLowerCase());
 
@@ -3778,37 +4099,37 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], pr
       usedShopifyVariantIds.add(shopifyVariantId.toLowerCase());
     }
 
+    const sku = String(product.sku || product.productCode || '').trim();
+
     return {
       ...(shouldUseShopifyVariantId ? { id: shopifyVariantId } : {}),
-      optionValues: [
-        {
-          optionName,
-          name: optionValue
-        }
-      ],
-      sku: String(product.sku || product.productCode || '').trim(),
+      optionValues,
+      ...(sku ? { sku } : {}),
       barcode: String(product.barcode || '').trim(),
       price: buildShopifySyncPriceSnapshot(product, priceSyncMode).price
     };
   });
 
-  const optionValues = variants.map((variant) => ({ name: variant.optionValues[0].name }));
+  const productOptions = isSingleProduct
+    ? [{ name: SHOPIFY_DEFAULT_OPTION_NAME, position: 1, values: [{ name: SHOPIFY_DEFAULT_OPTION_VALUE }] }]
+    : assignment.productOptions;
 
-  const tags = buildMergedShopifyTags(existingTags, group.categoryName, group.subCategoryName);
+  const tags = buildMergedShopifyTags(
+    existingTags,
+    resolveShopifyCategoryTags(group),
+    resolveShopifyGenderTags(products)
+  );
+  const productMetafields = buildShopifyProductMetafields(brandProfile);
 
   return {
     id: String(group.shopifyProductId || '').trim(),
     title: resolveShopifyProductTitle(group, products),
+    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile) },
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
-    productOptions: [
-      {
-        name: optionName,
-        position: 1,
-        values: optionValues
-      }
-    ],
+    ...(productMetafields.length > 0 ? { metafields: productMetafields } : {}),
+    productOptions,
     variants
   };
 };
@@ -3886,13 +4207,18 @@ export const updateShopifyProduct = onRequest(
         throw new Error('Shopify更新対象のSKUがありません。Shopify variant ID を確認してください。');
       }
 
-      const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
-      if (invalidSku) {
-        throw new Error('SKU未入力の商品があります。');
+      // 複数バリエーションのみSKU必須(単品はSKU無しのデフォルトバリアント運用を許可)。
+      const optionName = products.length === 1 ? SHOPIFY_DEFAULT_OPTION_NAME : resolveShopifyOptionName(products);
+      if (products.length > 1) {
+        const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
+        if (invalidSku) {
+          throw new Error('SKU未入力の商品があります。');
+        }
+        assertUniqueShopifyInputValues(products, optionName);
       }
 
-      const optionName = resolveShopifyOptionName(products);
-      assertUniqueShopifyInputValues(products, optionName);
+      const enrichedGroup = enrichShopifyGroupContext(group, products);
+      const brandProfile = await fetchShopifyBrandProfile(storeRef, enrichedGroup, products);
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
       const existingTags = await getShopifyProductTags({
@@ -3901,10 +4227,11 @@ export const updateShopifyProduct = onRequest(
         productId: group.shopifyProductId
       });
       const input = buildShopifyProductUpdateInput({
-        group,
+        group: enrichedGroup,
         products,
         existingTags,
-        priceSyncMode
+        priceSyncMode,
+        brandProfile
       });
       const priceSnapshots = products.map((product) => ({
         productId: product.id,
@@ -3913,17 +4240,13 @@ export const updateShopifyProduct = onRequest(
         ...buildShopifySyncPriceSnapshot(product, priceSyncMode)
       }));
 
-      const graphqlData = await callShopifyGraphql({
+      const shopifyProduct = await runProductSetWithHandleRetry({
         shopDomain,
         accessToken,
         query: productSetUpdateMutation,
-        variables: {
-          input,
-          synchronous: true
-        }
+        input,
+        synchronous: true
       });
-
-      const shopifyProduct = extractShopifyProductSetResult(graphqlData);
       const shopifyVariants = Array.isArray(shopifyProduct.variants?.nodes)
         ? shopifyProduct.variants.nodes
         : [];
@@ -3963,10 +4286,14 @@ export const updateShopifyProduct = onRequest(
         const optionValue = resolveShopifyOptionValue(product, optionName);
         const normalizedOptionValue = String(optionValue || '').trim().toLowerCase();
 
+        // barcode(variant毎に一意)優先。旧SKU共有バグで複数商品が同一 shopifyVariantId に
+        // 誤紐付けされた場合、variantId優先だと再同期でも直らないため barcode を最優先にする。
         const variant = (
-          variantsById.get(currentVariantId) ||
           variantsByBarcode.get(barcode) ||
-          variantsByOptionValue.get(normalizedOptionValue)
+          variantsById.get(currentVariantId) ||
+          variantsByOptionValue.get(normalizedOptionValue) ||
+          // 単品(デフォルトバリアント)はoptionValueで一致しないため、唯一のvariantに対応付ける。
+          ((products.length === 1 && shopifyVariants.length === 1) ? shopifyVariants[0] : undefined)
         );
 
         if (!variant) {
@@ -3975,9 +4302,9 @@ export const updateShopifyProduct = onRequest(
 
         const resolvedVariantId = String(variant.id || currentVariantId).trim();
         const inventoryItemId = variant?.inventoryItem?.id || product.shopifyInventoryItemId || '';
-        const matchedBy = variantsById.get(currentVariantId)
-          ? 'variantId'
-          : (variantsByBarcode.get(barcode) ? 'barcode' : 'optionValue');
+        const matchedBy = variantsByBarcode.get(barcode)
+          ? 'barcode'
+          : (variantsById.get(currentVariantId) ? 'variantId' : 'optionValue');
 
         batch.set(productsRef.doc(product.id), {
           shopifyProductId: shopifyProduct.id,
@@ -4018,6 +4345,16 @@ export const updateShopifyProduct = onRequest(
 
       await batch.commit();
 
+      // 現在庫をShopifyへ初期反映(在庫連携ON時のみ。ベストエフォート)。
+      // 「同期したのに在庫が0のまま」を防ぐ。更新同期でもPOS現在庫を正としてsetする。
+      const initialInventoryPush = await pushInitialInventoryToShopify({
+        shopDomain,
+        accessToken,
+        settings: shopifySettings,
+        products,
+        savedVariants
+      });
+
       return sendJson(res, 200, {
         ok: true,
         status: 'updated',
@@ -4028,7 +4365,8 @@ export const updateShopifyProduct = onRequest(
         skuCount: products.length,
         variants: savedVariants,
         priceSyncMode,
-        priceSnapshots
+        priceSnapshots,
+        initialInventoryPush
       });
     } catch (error) {
       console.error('[updateShopifyProduct] failed', error);
@@ -4220,6 +4558,8 @@ export const pushInventoryToShopify = onRequest(
         const snap = await storeRef.collection('products').doc(id).get();
         if (!snap.exists) continue;
         const product = snap.data() || {};
+        // 商品単位の在庫同期OFF(商品マスターのShopifyボタンで切替)はスキップ。
+        if (product.shopifyInventorySyncDisabled === true) continue;
         const inventoryItemId = String(product.shopifyInventoryItemId || '').trim();
         if (!inventoryItemId) continue;
         const quantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
@@ -4324,6 +4664,10 @@ export const shopifyInventoryWebhook = onRequest(
         return response.status(200).send('product not linked');
       }
       const productDoc = matched.docs[0];
+      // 商品単位の在庫同期OFFは inbound(Shopify→POS) も取り込まない。
+      if (productDoc.data()?.shopifyInventorySyncDisabled === true) {
+        return response.status(200).send('product inventory sync disabled');
+      }
 
       // on_hand を問い合わせ(対象ロケーション合計)。設定が無ければイベントのロケーションを使用。
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
@@ -4489,6 +4833,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     const product = docSnap.data() || {};
     const itemGid = String(product.shopifyInventoryItemId || '').trim();
     if (!itemGid) return;
+    // 商品単位の在庫同期OFFは意図的な非同期なので差分レポートから除外(ノイズ防止)。
+    if (product.shopifyInventorySyncDisabled === true) return;
     totalLinked += 1;
 
     const pos = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);

@@ -408,7 +408,8 @@ export const saveProductMasterItem = async (storeId, itemData) => {
       departmentId: itemData.departmentId || 'retail',
       labelEnabled: Boolean(itemData.labelEnabled),
       shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
-      shopifyProductId: String(itemData.shopifyProductId || '').trim(),
+      // Shopify紐付けIDはサーバ同期が書く。空で上書きすると紐付けが消えるため、値がある時のみ保存。
+      ...(String(itemData.shopifyProductId || '').trim() ? { shopifyProductId: String(itemData.shopifyProductId).trim() } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
@@ -424,7 +425,8 @@ export const saveProductMasterItem = async (storeId, itemData) => {
         departmentId: itemData.departmentId || 'retail',
         labelEnabled: Boolean(itemData.labelEnabled),
         shopifyEnabled: Boolean(itemData.shopifyCreateEnabled || itemData.shopifyEnabled),
-        shopifyProductId: String(itemData.shopifyProductId || '').trim(),
+        // 同上: 空のshopifyProductIdで既存の紐付けを消さない。
+        ...(String(itemData.shopifyProductId || '').trim() ? { shopifyProductId: String(itemData.shopifyProductId).trim() } : {}),
         updatedAt: serverTimestamp()
       },
       { merge: true }

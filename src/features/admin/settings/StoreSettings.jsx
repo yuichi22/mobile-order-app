@@ -126,6 +126,34 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
 ];
 
+// 分類ノード(グループ/カテゴリー/サブカテ)の性別(ジェンダー)設定フィールド。
+// 設計: docs/gender-attribute-design.md。子(サブカテ)>親(カテゴリー)>グループ の順で優先。
+const GENDER_OPTION_FIELDS = [
+  {
+    id: 'genderMode',
+    label: 'ジェンダー設定',
+    type: 'select',
+    placeholder: 'なし',
+    options: [
+      { value: 'fixed', label: '固定（このカテゴリーは自動でその性別）' },
+      { value: 'select', label: '選択（商品ごとに性別を選ぶ）' }
+    ],
+    helpText: '固定=配下の商品を自動でその性別に / 選択=商品登録時に性別セレクタを表示（未選択=ユニセックス）。空欄=性別なし。子カテゴリーの設定が親より優先されます。'
+  },
+  {
+    id: 'genderFixedValue',
+    label: '固定の性別',
+    type: 'select',
+    placeholder: '—',
+    options: [
+      { value: 'MEN', label: 'メンズ' },
+      { value: 'WOMEN', label: 'レディース' },
+      { value: 'UNISEX', label: 'ユニセックス' }
+    ],
+    helpText: 'ジェンダー設定=固定 のときの性別。'
+  }
+];
+
 const getDefaultSettingsSubTab = (role) => {
   const normalizedRole = normalizeUserRole(role);
 
@@ -1993,6 +2021,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           fields={[
             { id: 'name', label: 'カテゴリー名' },
             { id: 'groupId', label: 'カテゴリーグループ', type: 'categoryGroupSelect' },
+            ...GENDER_OPTION_FIELDS,
           ]}
           onSave={productMaster?.saveCategory}
           onDelete={productMaster?.deleteCategory}
@@ -2014,6 +2043,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             { id: 'name', label: 'サブカテゴリー名' },
             { id: 'categoryId', label: '親カテゴリー', type: 'categorySelect' },
             { id: 'sortOrder', label: '並び順', type: 'number' },
+            ...GENDER_OPTION_FIELDS,
           ]}
           onSave={(payload) => {
             const { color, categoryColor, subCategoryColor, ...cleanSubCategoryPayload } = payload;
@@ -2080,6 +2110,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           onSaveChildItem={productMaster?.saveCategory}
           fields={[
             { id: 'name', label: 'グループ名' },
+            ...GENDER_OPTION_FIELDS,
           ]}
           onSave={productMaster?.saveCategoryGroup}
           onDelete={productMaster?.deleteCategoryGroup}

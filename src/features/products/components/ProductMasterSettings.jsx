@@ -122,8 +122,50 @@ const GROUP_CLASSIFICATION_FIELDS = [
   'categoryId',
   'categoryName',
   'subCategoryName',
-  'departmentId'
+  'departmentId',
+  'gender'
 ];
+
+// 性別(gender)。設計: docs/gender-attribute-design.md
+const GENDER_VALUES = new Set(['MEN', 'WOMEN', 'UNISEX']);
+const normalizeGenderValue = (value) => {
+  const upper = String(value || '').trim().toUpperCase();
+  return GENDER_VALUES.has(upper) ? upper : '';
+};
+const GENDER_OPTIONS = [
+  { value: 'MEN', label: 'メンズ' },
+  { value: 'WOMEN', label: 'レディース' },
+  { value: 'UNISEX', label: 'ユニセックス' }
+];
+
+// 分類ノード(サブカテ > カテゴリー > カテゴリーグループ の順=子優先)から支配的な性別設定を解決。
+// { mode: 'fixed'|'select'|'', fixed: 'MEN'|'WOMEN'|'UNISEX'|'' }
+const resolveClassificationGenderConfig = (value = {}, sources = {}) => {
+  const { productCategoryGroups = [], productCategories = [], productSubCategories = [] } = sources;
+  const sub = productSubCategories.find((item) => (
+    String(item.name || '') === String(value.subCategoryName || '')
+    && (item.categoryId === value.categoryId || item.categoryName === value.categoryName)
+  ));
+  const cat = productCategories.find((item) => item.id === value.categoryId);
+  const grp = productCategoryGroups.find((item) => (
+    item.id === value.categoryGroupId || item.name === value.categoryGroupName
+  ));
+  for (const node of [sub, cat, grp]) {
+    const mode = String(node?.genderMode || '').trim();
+    if (mode === 'fixed' || mode === 'select') {
+      return { mode, fixed: normalizeGenderValue(node.genderFixedValue) };
+    }
+  }
+  return { mode: '', fixed: '' };
+};
+
+// 分類の性別設定と商品の選択値から、確定 gender を求める。
+const resolveEffectiveGender = (value = {}, sources = {}) => {
+  const config = resolveClassificationGenderConfig(value, sources);
+  if (config.mode === 'fixed') return config.fixed;
+  if (config.mode === 'select') return normalizeGenderValue(value.gender) || 'UNISEX';
+  return '';
+};
 
 const blankProduct = {
   name: '',
@@ -134,6 +176,7 @@ const blankProduct = {
   subCategoryName: '',
   salesAreaName: '',
   categoryGroupId: '',
+  gender: '',
   brandId: '',
   supplierId: '',
   departmentId: 'retail',
@@ -326,7 +369,21 @@ const getProductMasterSortTimestamp = (product) => Math.max(
   getProductMasterTimestampMs(product.updated_at)
 );
 
-const normalizeProductPayload = (draft) => ({
+// Shopify紐付けID(shopifyProductId等)はサーバの同期処理が書き込む。
+// draft(行スナップショット)が同期前の空値を持っていると、保存時にmergeで紐付けを
+// 消してしまうため、空のときはペイロードから除外して既存値を保持する。
+const SHOPIFY_LINK_FIELDS = ['shopifyProductId', 'shopifyVariantId', 'shopifyInventoryItemId', 'shopifyStatus'];
+
+const applyShopifyLinkFields = (payload, draft) => {
+  for (const field of SHOPIFY_LINK_FIELDS) {
+    const value = String(draft[field] || '').trim();
+    if (value) payload[field] = value;
+    else delete payload[field];
+  }
+  return payload;
+};
+
+const normalizeProductPayload = (draft) => applyShopifyLinkFields({
   ...draft,
   name: String(draft.name || '').trim(),
   sku: String(draft.sku || '').trim(),
@@ -336,6 +393,7 @@ const normalizeProductPayload = (draft) => ({
   subCategoryName: String(draft.subCategoryName || '').trim(),
   salesAreaName: String(draft.salesAreaName || '').trim(),
   categoryGroupId: String(draft.categoryGroupId || '').trim(),
+  gender: normalizeGenderValue(draft.gender),
   brandId: String(draft.brandId || '').trim(),
   supplierId: String(draft.supplierId || '').trim(),
   departmentId: draft.departmentId || 'retail',
@@ -368,15 +426,11 @@ const normalizeProductPayload = (draft) => ({
   shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled),
   isActive: draft.isActive !== false,
   isArchived: Boolean(draft.isArchived),
-  shopifyProductId: String(draft.shopifyProductId || '').trim(),
-  shopifyVariantId: String(draft.shopifyVariantId || '').trim(),
-  shopifyInventoryItemId: String(draft.shopifyInventoryItemId || '').trim(),
-  shopifyStatus: String(draft.shopifyStatus || '').trim(),
   productGroupId: String(draft.productGroupId || '').trim(),
   productGroupRole: draft.productGroupRole || 'primary',
   productGroupName: String(draft.productGroupName || '').trim(),
   groupCode: String(draft.groupCode || '').trim()
-});
+}, draft);
 
 const normalizeSimplePayload = (draft, fallback = {}) => {
   const hasTaxRateType = draft.taxRateType !== undefined || fallback.taxRateType !== undefined;
@@ -1491,9 +1545,12 @@ const ProductMasterTable = ({
 
   const hasMoreProductGroups = visibleProductGroupLimit < groupedProducts.length;
 
+  // 表示件数リセットはストア切替時のみ。
+  // products/productGroups は onSnapshot ライブ購読で営業中は頻繁に更新が届くため、
+  // 更新のたびにリセットすると一覧が丸ごと作り直されて画面がちらつく(モーダル表示中も背後で発生)。
   useEffect(() => {
     setVisibleProductGroupLimit(PRODUCT_MASTER_INITIAL_GROUP_LIMIT);
-  }, [products, productGroups]);
+  }, [storeId]);
 
 
   const getDraftShopifyTarget = (product) => {
@@ -1994,9 +2051,16 @@ const ProductMasterTable = ({
     const matchedGroup = productCategoryGroups.find((group) => group.id === (draft.categoryGroupId || matchedCategory?.groupId));
     const matchedSupplier = suppliers.find((supplier) => supplier.id === (draft.supplierId || matchedBrand?.supplierId));
     const resolvedTax = resolveInheritedTaxForDraft({ ...draft, categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId });
+    // 分類の性別設定から確定 gender を再解決(固定は強制/選択は既定UNISEX/なしは空)。
+    const resolvedGender = resolveEffectiveGender(draft, {
+      productCategoryGroups,
+      productCategories,
+      productSubCategories
+    });
 
     return normalizeProductPayload({
       ...draft,
+      gender: resolvedGender,
       taxRateType: resolvedTax.type,
       taxRate: resolvedTax.rate,
       brandName: matchedBrand?.name || draft.brandName || '',
@@ -2663,6 +2727,55 @@ const ProductMasterTable = ({
     });
   };
 
+  // 紐付け済み(掲載中)グループの「在庫同期」を商品単位でON/OFFする(即時保存)。
+  // OFF中はPOS⇔Shopifyの在庫反映(販売/取消/在庫調整/棚卸し/同期時の初期反映/webhook取込)を
+  // この商品だけスキップする(サーバ側でゲート)。掲載自体や商品情報の同期は止めない。
+  const toggleGroupShopifyInventorySync = async (group, disableNext) => {
+    const targets = (group.products || []).filter((product) => product.id);
+    if (targets.length === 0 || savingKey) return;
+
+    if (disableNext) {
+      const ok = await appConfirm(
+        `「${getGroupDisplayName(group)}」の在庫同期をOFFにします。\nPOSの在庫変動(販売・取消・在庫調整・棚卸し)をShopifyへ反映せず、Shopify側の在庫変動もPOSへ取り込みません。\nよろしいですか？`,
+        { title: 'Shopify在庫同期', okLabel: 'OFFにする' }
+      );
+      if (!ok) return;
+    }
+
+    setSavingKey(`shopifyInv:${group.key}`);
+    try {
+      for (const product of targets) {
+        await setDoc(
+          doc(db, 'stores', storeId, 'products', product.id),
+          { shopifyInventorySyncDisabled: Boolean(disableNext), updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+        rememberSavedProduct({ ...product, shopifyInventorySyncDisabled: Boolean(disableNext) });
+      }
+      onSaved?.();
+
+      // ONに戻したときは現在庫を即 Shopify へ push(在庫連携ON=prodのみ で実反映。関数側でゲート)。
+      // フラグ解除がFirestoreに反映された後に push されるよう、setDoc完了後に発火する。
+      if (!disableNext) {
+        const productIds = targets.map((product) => product.id);
+        (async () => {
+          try {
+            const idToken = await getAuth().currentUser?.getIdToken?.();
+            if (idToken) {
+              await pushInventoryToShopify({ storeId, productIds, idToken });
+            }
+          } catch (pushError) {
+            console.warn('failed to push inventory on sync re-enable', pushError);
+          }
+        })();
+      }
+    } catch (error) {
+      alert(`在庫同期の切替に失敗しました: ${error?.message || error}`);
+    } finally {
+      setSavingKey('');
+    }
+  };
+
 
   const saveProductMasterChanges = async () => {
     if (hasNewProductDraft) {
@@ -2787,6 +2900,21 @@ const ProductMasterTable = ({
         ...inventoryAdjustModalRow,
         inventoryUnmanaged: unmanaged,
         ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {})
+      });
+
+      // 行に編集中draftが残っていると表示はdraft優先(getDraft)のため、古い在庫数の
+      // スナップショットが画面に残る。draftにも調整後の在庫を反映して表示を一致させる。
+      setDraftRows((current) => {
+        const draft = current[adjustedProductId];
+        if (!draft) return current;
+        return {
+          ...current,
+          [adjustedProductId]: {
+            ...draft,
+            inventoryUnmanaged: unmanaged,
+            ...(quantityChanged ? { inventoryQuantity: afterQuantity, quantity: afterQuantity } : {})
+          }
+        };
       });
 
       onSaved?.();
@@ -4009,9 +4137,10 @@ const ProductMasterTable = ({
 
                           // barcode突合で実際にShopifyに紐付いている(=掲載中)かを判定し、
                           // 掲載状況(公開中/下書き/非公開)でボタンを点灯色分けする。
-                          const linkedShopifyProducts = group.products.filter(
-                            (product) => product.shopifyProductId || product.shopifyVariantId
-                          );
+                          // recentlySavedRows を優先して読むことで、在庫同期ON/OFF切替の即時反映を可能にする。
+                          const linkedShopifyProducts = group.products
+                            .map((product) => recentlySavedRows[product.id] || product)
+                            .filter((product) => product.shopifyProductId || product.shopifyVariantId);
                           const isShopifyLinked = isShopifySynced || linkedShopifyProducts.length > 0;
                           const linkedStatusSet = new Set(
                             linkedShopifyProducts.map((product) => String(product.shopifyStatus || '').trim().toUpperCase())
@@ -4024,24 +4153,39 @@ const ProductMasterTable = ({
                                 ? 'ARCHIVED'
                                 : '';
                           const shopifyStatusLabel = SHOPIFY_STATUS_LABEL[groupShopifyStatus] || '掲載中';
+                          // 在庫同期OFF(商品単位)。全SKUがOFFのときにOFF表示にする。
+                          const inventorySyncDisabled = linkedShopifyProducts.length > 0
+                            && linkedShopifyProducts.every((product) => product.shopifyInventorySyncDisabled === true);
 
                           return (
                             <PillToggle
                               checked={isShopifyLinked || isShopifyTarget}
-                              onChange={(value) => updateProductGroupShopifyDraft(group, value)}
-                              disabled={savingKey === `shopify:${group.key}`}
-                              onLabel="Shopify"
+                              // 紐付け済み(掲載中)はもう一度押すと「在庫同期」を商品単位でON/OFFする。
+                              // 未連携は従来どおり同期対象のON/OFF(draft)。
+                              onChange={(value) => {
+                                if (isShopifyLinked) {
+                                  void toggleGroupShopifyInventorySync(group, !inventorySyncDisabled);
+                                  return;
+                                }
+                                updateProductGroupShopifyDraft(group, value);
+                              }}
+                              disabled={savingKey === `shopify:${group.key}` || savingKey === `shopifyInv:${group.key}`}
+                              onLabel={isShopifyLinked && inventorySyncDisabled ? '在庫OFF' : 'Shopify'}
                               offLabel="Shopify"
                               activeClassName={
                                 isShopifyLinked
-                                  ? (SHOPIFY_BUTTON_CLASS[groupShopifyStatus] || SHOPIFY_BUTTON_CLASS.ACTIVE)
+                                  ? (inventorySyncDisabled
+                                    ? 'bg-rose-500 text-white shadow-sm shadow-rose-200'
+                                    : (SHOPIFY_BUTTON_CLASS[groupShopifyStatus] || SHOPIFY_BUTTON_CLASS.ACTIVE))
                                   : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
                               }
                               inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
                               className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
                               title={
                                 isShopifyLinked
-                                  ? `Shopifyに${shopifyStatusLabel}の商品です（barcode突合で紐付け済み）。`
+                                  ? (inventorySyncDisabled
+                                    ? `在庫同期OFF（Shopify${shopifyStatusLabel}）。POS⇔Shopifyの在庫反映を停止中です。クリックでONに戻します。`
+                                    : `Shopifyに${shopifyStatusLabel}の商品です（在庫同期ON）。クリックでこの商品の在庫同期をOFFにします。`)
                                   : isShopifyPending
                                     ? 'Shopify同期対象です。Shopify同期ボタンから下書き作成または更新を実行します。'
                                     : 'Shopify未連携です。ONにするとShopify同期対象になります。'
@@ -5194,7 +5338,12 @@ const ProductClassificationControl = forwardRef(({
   };
 
   const applyModalDraft = () => {
-    onChange(modalDraft || {});
+    const gender = resolveEffectiveGender(modalDraft || {}, {
+      productCategoryGroups,
+      productCategories,
+      productSubCategories
+    });
+    onChange({ ...(modalDraft || {}), gender });
     setOpen(false);
     onApply?.();
   };
@@ -5277,6 +5426,21 @@ const ProductClassificationControl = forwardRef(({
       subCategoryName: subCategory?.name || ''
     });
   };
+
+  const selectGender = (gender) => {
+    updateModalDraft({ gender: normalizeGenderValue(gender) });
+  };
+
+  // 支配的な性別設定(固定/選択)。分類の選択に追従して変わる。
+  const genderConfig = resolveClassificationGenderConfig(activeValue, {
+    productCategoryGroups,
+    productCategories,
+    productSubCategories
+  });
+  // 選択モードでの現在値(未選択は既定UNISEX表示)。
+  const activeGender = genderConfig.mode === 'select'
+    ? (normalizeGenderValue(activeValue?.gender) || 'UNISEX')
+    : genderConfig.fixed;
 
   const modalNode = open ? (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
@@ -5400,6 +5564,36 @@ const ProductClassificationControl = forwardRef(({
                 )}
               </div>
             </section>
+
+            {genderConfig.mode && (
+              <section className="space-y-3">
+                <div>
+                  <div className="text-sm font-black text-slate-900">5. 性別</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">
+                    {genderConfig.mode === 'fixed'
+                      ? 'このカテゴリーは性別が固定されています。'
+                      : '未選択はユニセックス扱い（Shopifyはメンズ・レディース両方のタグ）。'}
+                  </div>
+                </div>
+                {genderConfig.mode === 'fixed' ? (
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+                    {GENDER_OPTIONS.find((option) => option.value === genderConfig.fixed)?.label || genderConfig.fixed || '—'}
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-500">固定</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {GENDER_OPTIONS.map((option) => (
+                      <ClassificationChoiceButton
+                        key={option.value}
+                        label={option.label}
+                        active={activeGender === option.value}
+                        onClick={() => selectGender(option.value)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         </div>
 
