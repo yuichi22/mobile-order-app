@@ -48,10 +48,17 @@ export const buildPosItemResolver = ({
   };
 };
 
+// 売り場/グループのキーは「名前優先」で作る。
+// 会計時に salesAreaId まで保存された明細と名前だけの明細が混在したり、売り場を作り直して id が
+// 変わると、同名なのにキー(旧: id||name)が割れて重複表示された。表示は名前なので、名前優先キーで
+// 束ね直す。グルーピングとドリルダウンの絞り込み(inArea/inGroup)を同じキーで一致させる。
+const areaKeyOf = (c) => String(c?.areaName || '').trim() || String(c?.areaId || '').trim() || '__no_area__';
+const groupKeyOf = (c) => String(c?.groupName || '').trim() || String(c?.groupId || '').trim() || '__no_group__';
+
 // 各階層のキー(未設定は専用バケットに寄せる)。
 const KEY = {
-  area: (c) => ({ id: c.areaId || c.areaName || '__no_area__', name: c.areaName || '売り場未設定' }),
-  group: (c) => ({ id: c.groupId || c.groupName || '__no_group__', name: c.groupName || 'グループ未設定' }),
+  area: (c) => ({ id: areaKeyOf(c), name: c.areaName || '売り場未設定' }),
+  group: (c) => ({ id: groupKeyOf(c), name: c.groupName || 'グループ未設定' }),
   category: (c) => ({ id: c.categoryId || '__no_category__', name: c.categoryName || 'カテゴリー未設定' }),
   subCategory: (c) => ({ id: c.subCategoryId || '__no_sub__', name: c.subCategoryName || 'サブカテゴリ未設定' })
 };
@@ -127,8 +134,8 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
   return Array.from(map.values()).sort((left, right) => right.total - left.total);
 };
 
-const inArea = (areaId) => (cls) => String(cls.areaId || cls.areaName || '__no_area__') === String(areaId);
-const inGroup = (groupId) => (cls) => String(cls.groupId || cls.groupName || '__no_group__') === String(groupId);
+const inArea = (areaKey) => (cls) => areaKeyOf(cls) === String(areaKey);
+const inGroup = (groupKey) => (cls) => groupKeyOf(cls) === String(groupKey);
 const inCategory = (categoryId) => (cls) => String(cls.categoryId || '__no_category__') === String(categoryId);
 
 export const buildAreaBreakdown = (slices, resolvePosItem) =>
