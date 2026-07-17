@@ -1046,6 +1046,23 @@ const ProductMasterTable = ({
   labelPrinterSettings
 }) => {
   const [draftRows, setDraftRows] = useState({});
+
+  // ===== 要修正(データ不備)フィルタの状態 =====
+  // 一覧・下書きの土台・変更比較・保存対象は必ず同じ「実効ソース」を見る必要があるため、
+  // 状態はコンポーネント先頭で宣言し effectiveProducts に集約する(片方だけ切替えると
+  // updateDraft の土台が空になり、保存時に商品内容を空で上書きする事故になる)。
+  const [deficiencyMode, setDeficiencyMode] = useState(false);
+  const [deficientProducts, setDeficientProducts] = useState([]);
+  const [deficiencyLoading, setDeficiencyLoading] = useState(false);
+  // 不備商品が存在するか(ボタン表示可否)。件数集計のみで判定＝商品docは取得しないので軽い。
+  const [hasDeficientProducts, setHasDeficientProducts] = useState(false);
+
+  // 画面が扱う商品の実体。要修正モードでは不備抽出結果、それ以外は親から渡る products。
+  const effectiveProducts = useMemo(
+    () => (deficiencyMode ? deficientProducts : (products || [])),
+    [deficiencyMode, deficientProducts, products]
+  );
+
   // 検索ハイライト対象の行DOM(バーコード等でヒットが1件のとき自動スクロールする)。
   const highlightRowRef = useRef(null);
   const highlightedIdList = useMemo(
@@ -1255,7 +1272,7 @@ const ProductMasterTable = ({
       const next = { ...current };
       let changed = false;
 
-      products.forEach((product) => {
+      effectiveProducts.forEach((product) => {
         const saved = next[product.id];
         if (saved && isSavedProductVisibleInSnapshot(product, saved)) {
           delete next[product.id];
@@ -1266,7 +1283,7 @@ const ProductMasterTable = ({
 
       return changed ? next : current;
     });
-  }, [products]);
+  }, [effectiveProducts]);
 
   useEffect(() => {
     if (!pendingSkuFocusProductId) return;
@@ -1278,7 +1295,7 @@ const ProductMasterTable = ({
     const len = el.value.length;
     el.setSelectionRange(len, len);
     setPendingSkuFocusProductId(null);
-  }, [products, pendingSkuFocusProductId]);
+  }, [effectiveProducts, pendingSkuFocusProductId]);
 
   const buildOptimisticSavedProductPayload = (payload = {}) => {
     const stockInQuantity = Math.max(Number(payload.stockInQuantityDraft || 0), 0);
@@ -1310,7 +1327,7 @@ const ProductMasterTable = ({
     setRecentlySavedRows((current) => ({
       ...current,
       [payload.id]: {
-        ...(products.find((product) => product.id === payload.id) || {}),
+        ...(effectiveProducts.find((product) => product.id === payload.id) || {}),
         ...(current[payload.id] || {}),
         ...optimisticPayload
       }
@@ -1471,11 +1488,7 @@ const ProductMasterTable = ({
 
   // ===== 要修正(データ不備)フィルタ =====
   // 商品マスターは直近200件しか常駐しないため、不備商品はFirestoreを直接引いて全件から集める。
-  const [deficiencyMode, setDeficiencyMode] = useState(false);
-  const [deficientProducts, setDeficientProducts] = useState([]);
-  const [deficiencyLoading, setDeficiencyLoading] = useState(false);
-  // 不備商品が存在するか(ボタン表示可否)。件数集計のみで判定＝商品docは取得しないので軽い。
-  const [hasDeficientProducts, setHasDeficientProducts] = useState(false);
+  // (状態は effectiveProducts と揃えるためコンポーネント先頭で宣言済み)
 
   // 税率が「継承」以外で設定されたグループ/カテゴリーが1つでもあるか
   // (=分類グループ未設定だと税率が正しく引けない＝不備)。現状 FOOD 8% があるので true。
@@ -1556,9 +1569,7 @@ const ProductMasterTable = ({
   const groupedProducts = useMemo(() => {
     const productGroupById = new Map((productGroups || []).map((group) => [group.id, group]));
     const groups = new Map();
-    const sourceProducts = deficiencyMode ? deficientProducts : (products || []);
-
-    for (const product of sourceProducts) {
+    for (const product of effectiveProducts) {
       const savedProductGroup = productGroupById.get(product.productGroupId || product.groupId || '');
       const productWithGroup = {
         ...product,
@@ -1645,7 +1656,7 @@ const ProductMasterTable = ({
         if (byName !== 0) return byName;
         return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
       });
-  }, [products, productGroups, deficiencyMode, deficientProducts]);
+  }, [effectiveProducts, productGroups]);
 
   const visibleProductGroups = useMemo(
     () => groupedProducts.slice(0, visibleProductGroupLimit),
@@ -1725,8 +1736,8 @@ const ProductMasterTable = ({
     || groupHasSavedUnsyncedShopifyReservation(group);
 
   const productByIdMap = useMemo(
-    () => new Map((products || []).filter((product) => product?.id).map((product) => [product.id, product])),
-    [products]
+    () => new Map(effectiveProducts.filter((product) => product?.id).map((product) => [product.id, product])),
+    [effectiveProducts]
   );
 
   const normalizeComparableText = (value) => String(value ?? '').trim();
@@ -1947,7 +1958,7 @@ const ProductMasterTable = ({
   const updateDraft = (productId, patch) => {
     setDraftRows((current) => {
       const currentDraft = current[productId];
-      const savedProduct = products.find((product) => product.id === productId) || {};
+      const savedProduct = effectiveProducts.find((product) => product.id === productId) || {};
       const baseDraft = { ...(currentDraft || savedProduct) };
 
       if (!currentDraft) {
@@ -4179,7 +4190,7 @@ const ProductMasterTable = ({
             </div>
           )}
 
-          {((products || []).length > 0 || deficiencyMode) && visibleProductGroups.map((group) => (
+          {effectiveProducts.length > 0 && visibleProductGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
                 {deficiencyMode && (() => {
@@ -4412,7 +4423,7 @@ const ProductMasterTable = ({
         </div>
       </div>
 
-      {(products || []).length === 0 && (
+      {effectiveProducts.length === 0 && (
         <div className="border-t border-slate-100 px-5 py-4 text-sm font-bold text-slate-400">
           まずは最上段の新規行に商品名を入力して保存してください。
         </div>
