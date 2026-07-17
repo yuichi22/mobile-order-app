@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
+  CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -3311,12 +3311,15 @@ export const PosTransactionHistory = ({
                 }}
               >
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="text-lg font-black leading-none text-gray-800">
-                      {getTableDisplayName(ticket) || 'テイクアウト'}
+                      {(getTableDisplayName(ticket) || 'テイクアウト').replace('POSレジ', 'POS')}
                     </span>
+                  </div>
+                  {/* ステータス系バッジは iPad 幅対策で2列グリッド(3個目は2行目へ)。アイコン/送り仮名は省略。 */}
+                  <div className="grid grid-cols-2 gap-1">
                     <span
-                      className={`rounded px-2 py-0.5 text-[10px] font-black tracking-wider ${
+                      className={`rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider ${
                         isCancelled
                           ? isReversalCancel
                             ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
@@ -3336,28 +3339,27 @@ export const PosTransactionHistory = ({
                         ? (isReversalCancel
                           ? `締め後${correctionWord}${reversalOriginLabel ? `（${reversalOriginLabel}分）` : ''}`
                           : correctionWord)
-                        : isPaid ? '会計済み' : '未会計'}
+                        : isPaid ? '会計済' : '未会計'}
                     </span>
                     {isReversedOriginal && (
-                      <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
-                        {reversedOnLabel ? `${reversedOnLabel} ` : ''}取消済み
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
+                        {reversedOnLabel ? `${reversedOnLabel} ` : ''}取消済
                       </span>
                     )}
                     {isPaid && methodAdjustments.length > 0 && (
-                      <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
-                        支払方法訂正
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                        支払訂正
                       </span>
                     )}
                     {isPaid && ticket.hasCancelledLinkedOrder && (
-                      <span className="rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
-                        注文キャンセルあり
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
+                        注文取消
                       </span>
                     )}
                     {(Number(ticket.discountAmount || 0) > 0
                       || Number(ticket.promoExpenseAmount || 0) > 0
                       || Number(ticket.voucherAmount || 0) > 0) && (
-                      <span className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-black tracking-wider bg-rose-50 text-rose-600 ring-1 ring-rose-100">
-                        <Tag size={10} />
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-rose-50 text-rose-600 ring-1 ring-rose-100">
                         割引・クーポン
                       </span>
                     )}
@@ -3444,25 +3446,13 @@ export const PosTransactionHistory = ({
 
                         printReceipt(ticket, settings);
                       }}
-                      className="flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                      title={hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
+                      aria-label={hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                     >
-                      <Printer size={13} />
-                      {hasMultiplePayments ? (
-                        '明細印刷'
-                      ) : (
-                        <span className="flex flex-col items-center leading-none">
-                          <span>レシート</span>
-                          <span>再印刷</span>
-                        </span>
-                      )}
+                      <Printer size={16} />
                     </button>
                   )}
-
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    isExpanded ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200 group-hover:text-gray-600'
-                  }`}>
-                    <ChevronDown size={18} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                  </div>
                 </div>
               </div>
 
