@@ -4602,6 +4602,8 @@ export const pushInventoryToShopify = onRequest(
 export const shopifyInventoryWebhook = onRequest(
   { region: REGION, cors: false, invoker: 'public' },
   async (request, response) => {
+    // 処理が途中失敗したら冪等記録を消して 500 を返し、Shopify に再送させる(取りこぼし防止)。
+    let recordedWebhookRef = null;
     try {
       if (request.method !== 'POST') {
         return response.status(405).send('Method Not Allowed');
@@ -4634,8 +4636,10 @@ export const shopifyInventoryWebhook = onRequest(
       // 冪等性: Webhook ID で二重処理防止
       const webhookId = String(request.get('X-Shopify-Webhook-Id') || '').replace(/[^A-Za-z0-9_-]/g, '_');
       if (webhookId) {
+        const webhookRef = storeRef.collection('shopifyWebhookEvents').doc(webhookId);
         try {
-          await storeRef.collection('shopifyWebhookEvents').doc(webhookId).create({ topic: 'inventory_levels/update', receivedAt: FieldValue.serverTimestamp() });
+          await webhookRef.create({ topic: 'inventory_levels/update', receivedAt: FieldValue.serverTimestamp() });
+          recordedWebhookRef = webhookRef; // 失敗時にcatchで消して再送させるため保持
         } catch (e) {
           return response.status(200).send('already processed');
         }
@@ -4728,7 +4732,11 @@ export const shopifyInventoryWebhook = onRequest(
       return response.status(200).send('ok');
     } catch (error) {
       console.error('[shopifyInventoryWebhook] failed', error);
-      return response.status(200).send('error-logged'); // 200で再送ストーム回避(エラーはログ)
+      // 冪等記録を消してから 500 を返す → Shopify が再送し、次回で再処理される(取りこぼし防止)。
+      if (recordedWebhookRef) {
+        try { await recordedWebhookRef.delete(); } catch (cleanupError) { console.error('[shopifyInventoryWebhook] cleanup failed', cleanupError?.message); }
+      }
+      return response.status(500).send('error, will retry');
     }
   }
 );
@@ -4802,7 +4810,7 @@ const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericS
   return onHandByItemGid;
 };
 
-const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '' }) => {
+const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false }) => {
   const storeRef = db.collection('stores').doc(storeId);
   const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
   const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
@@ -4824,6 +4832,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
 
   const MISMATCH_CAP = 1000;
   const mismatches = [];
+  const corrections = []; // autoApply時に POS=Shopify on_hand へ補正する対象(uncapped)
   let totalLinked = 0;
   let matched = 0;
   let mismatchedCount = 0;
@@ -4848,6 +4857,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
       return;
     } else {
       mismatchedCount += 1;
+      // Shopify on_hand を正として POS を合わせる(webフック取りこぼしの追いつき)。missingInShopify(幽霊リンク)は対象外。
+      corrections.push({ productId: docSnap.id, shopify: Math.max(shopify, 0) });
     }
 
     if (mismatches.length < MISMATCH_CAP) {
@@ -4865,6 +4876,25 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     }
   });
 
+  // autoApply時: Shopify on_hand を正として POS を一括補正(inbound同期の追いつき)。
+  let appliedCount = 0;
+  if (autoApply && corrections.length) {
+    for (let i = 0; i < corrections.length; i += 250) {
+      const batch = db.batch();
+      for (const c of corrections.slice(i, i + 250)) {
+        batch.set(storeRef.collection('products').doc(c.productId), {
+          inventoryQuantity: c.shopify, quantity: c.shopify,
+          inventorySource: 'shopify', inventoryUpdatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        batch.set(storeRef.collection('inventory').doc(c.productId), {
+          productId: c.productId, quantity: c.shopify, updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      await batch.commit();
+      appliedCount += Math.min(250, corrections.length - i);
+    }
+  }
+
   const summary = {
     at: FieldValue.serverTimestamp(),
     source,
@@ -4876,7 +4906,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     reportedRows: mismatches.length,
     truncated: (mismatchedCount + missingInShopify) > mismatches.length,
     shopifyVariantsScanned: onHandByItemGid.size,
-    autoResolved: false,
+    autoResolved: appliedCount > 0,
+    appliedCount,
     mismatches
   };
 
@@ -4888,6 +4919,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     matched,
     mismatched: mismatchedCount,
     missingInShopify,
+    appliedCount,
     reportedRows: mismatches.length,
     truncated: summary.truncated,
     shopifyVariantsScanned: onHandByItemGid.size
@@ -4928,13 +4960,17 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
   { region: REGION, schedule: 'every day 03:00', timeZone: 'Asia/Tokyo', timeoutSeconds: 540, memory: '1GiB' },
   async () => {
     try {
-      const settingsSnap = await db.collectionGroup('settings').where('inventorySyncEnabled', '==', true).get();
-      for (const docSnap of settingsSnap.docs) {
-        if (docSnap.id !== 'shopify') continue;
-        const storeId = docSnap.ref.parent.parent?.id;
-        if (!storeId) continue;
+      // collectionGroup('settings') クエリは collection-group インデックスが必要で未整備のため失敗していた。
+      // 店舗数は少ないので stores を走査し、各店の settings/shopify を直接読んで判定する(インデックス不要)。
+      const storesSnap = await db.collection('stores').get();
+      for (const storeDoc of storesSnap.docs) {
+        const storeId = storeDoc.id;
         try {
-          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled' });
+          const shopifySettingsSnap = await storeDoc.ref.collection('settings').doc('shopify').get();
+          const shopifySettings = shopifySettingsSnap.data() || {};
+          if (shopifySettings.inventorySyncEnabled !== true) continue;
+          // inventoryReconcileAutoApply=true の店舗は差分を自動補正(POS=Shopify on_hand)。既定OFFはレポートのみ。
+          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true });
           console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...result });
         } catch (error) {
           console.error('[scheduledShopifyInventoryReconcile] store failed', { storeId, message: error?.message });
