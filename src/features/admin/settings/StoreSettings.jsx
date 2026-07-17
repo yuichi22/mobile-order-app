@@ -3153,7 +3153,7 @@ export const StoreSettings = ({
       )}
 
       <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-white shadow-2xl">
-        <div className="settings-sidebar-inner flex h-full w-64 min-w-[16rem] flex-col">
+        <div className="settings-sidebar-inner flex h-full w-56 min-w-[14rem] flex-col">
         <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
 
         <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
