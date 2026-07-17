@@ -1484,11 +1484,12 @@ const ProductMasterTable = ({
     || (productCategories || []).some((c) => c.taxRateType && c.taxRateType !== 'inherit')
   ), [productCategoryGroups, productCategories]);
 
-  // 不備判定(IDが空を基準)。ブランド未設定 / 売り場未設定 /(税設定あり時)カテゴリーグループ未設定。
+  // 不備判定。ブランド/売り場は「名前が空」を基準(名前が入っていれば設定済みとみなす＝
+  // ID紐付けが切れた孤立名は #3 の補修で埋める)。分類グループは税率継承にIDが要るのでID基準。
   const getProductDeficiencies = (product) => {
     const missing = [];
-    if (!String(product?.brandId || '').trim()) missing.push('ブランド');
-    if (!String(product?.salesAreaId || '').trim()) missing.push('売り場');
+    if (!String(product?.brandName || '').trim()) missing.push('ブランド');
+    if (!String(product?.salesAreaName || '').trim()) missing.push('売り場');
     if (hasTaxConfiguredClassification && !String(product?.categoryGroupId || '').trim()) missing.push('分類グループ');
     return missing;
   };
@@ -1498,7 +1499,7 @@ const ProductMasterTable = ({
     setDeficiencyLoading(true);
     try {
       const ref = collection(db, 'stores', storeId, 'products');
-      const targetFields = ['brandId', 'salesAreaId'];
+      const targetFields = ['brandName', 'salesAreaName'];
       if (hasTaxConfiguredClassification) targetFields.push('categoryGroupId');
       const snaps = await Promise.all(
         targetFields.map((field) => getDocs(query(ref, where(field, '==', ''), limit(1000))))
@@ -1523,7 +1524,7 @@ const ProductMasterTable = ({
     if (!storeId) return;
     try {
       const ref = collection(db, 'stores', storeId, 'products');
-      const targetFields = ['brandId', 'salesAreaId'];
+      const targetFields = ['brandName', 'salesAreaName'];
       if (hasTaxConfiguredClassification) targetFields.push('categoryGroupId');
       const counts = await Promise.all(
         targetFields.map((field) => getCountFromServer(query(ref, where(field, '==', ''))))
