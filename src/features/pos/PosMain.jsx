@@ -1139,6 +1139,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       // 全額売掛などは voucher_payment として日計で別枠集計する必要があるため分解する。
       // 商品個別割引(takeoutLineDiscountItems)も区分付きでここに合算する。
       const settlementByCategory = { sales_discount: 0, promo_expense: 0, voucher_payment: 0 };
+      // 区分ごとの明細(名前つき)。日計の「割引/金券」欄は name をそのまま表示するため、
+      // 全体割引名で集約せず「実際にその区分へ寄与した割引」の名前で残す。
+      // (例: 商品の販促費30% と 支払のおまっちぇ を併用した際、販促費が「おまっちぇ」名義で
+      //  表示される不具合の対策)
+      const settlementItemsByCategory = { sales_discount: [], promo_expense: [], voucher_payment: [] };
       const totalSettlementAmount = Math.max(
         0,
         (Number(takeoutLineDiscountTotal) || 0) + (Number(takeoutDiscountAmount) || 0)
@@ -1168,6 +1173,21 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               : Math.floor(totalSettlementAmount * (Math.max(Number(item.amount) || 0, 0) / rawItemsTotal));
             settlementByCategory[category] += portion;
             allocated += portion;
+            if (portion > 0) {
+              settlementItemsByCategory[category].push({
+                id: item.id || category,
+                name: item.name
+                  || (category === 'promo_expense'
+                    ? '販促費'
+                    : category === 'voucher_payment' ? '金券/売掛' : '値引き'),
+                type: item.type || '',
+                value: Number(item.value ?? portion) || 0,
+                amount: portion,
+                count: Number(item.count ?? 1) || 1,
+                quantity: Number(item.quantity ?? item.count ?? 1) || 1,
+                accountingCategory: category
+              });
+            }
           });
         } else {
           settlementByCategory.sales_discount = totalSettlementAmount;
@@ -1179,12 +1199,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const voucherFinal = Math.max(0, settlementByCategory.voucher_payment);
       const settlementAdjustmentTotalFinal = promoExpenseFinal + voucherFinal;
       const salesAmountBeforeSettlementFinal = Math.max(0, Number(takeoutCartRawTotal) - salesDiscountFinal);
-      const voucherItemsFinal = voucherFinal > 0
-        ? [{ id: appliedDiscount?.id || 'voucher_payment', name: appliedDiscount?.name || '金券/売掛', amount: voucherFinal, value: voucherFinal, count: 1, quantity: 1 }]
-        : [];
-      const promoExpenseItemsFinal = promoExpenseFinal > 0
-        ? [{ id: appliedDiscount?.id || 'promo_expense', name: appliedDiscount?.name || '販促費', amount: promoExpenseFinal, value: promoExpenseFinal, count: 1, quantity: 1 }]
-        : [];
+      // 区分別の明細が取れていればそれを使う(名前が正しい)。取れないときだけ集約1件で補完する。
+      const voucherItemsFinal = settlementItemsByCategory.voucher_payment.length > 0
+        ? settlementItemsByCategory.voucher_payment
+        : (voucherFinal > 0
+          ? [{ id: 'voucher_payment', name: '金券/売掛', amount: voucherFinal, value: voucherFinal, count: 1, quantity: 1 }]
+          : []);
+      const promoExpenseItemsFinal = settlementItemsByCategory.promo_expense.length > 0
+        ? settlementItemsByCategory.promo_expense
+        : (promoExpenseFinal > 0
+          ? [{ id: 'promo_expense', name: '販促費', amount: promoExpenseFinal, value: promoExpenseFinal, count: 1, quantity: 1 }]
+          : []);
 
       // 全額方式(A): 課税ベース = 商品(税込) − 売上値引き − 販促費。金券/売掛は充当(満額課税)なので差し引かない。PosRegister と同一挙動。
       const taxableIncludedTotal = Math.max(0, salesAmountBeforeSettlementFinal - promoExpenseFinal);
