@@ -2,6 +2,7 @@ import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, ser
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Barcode,
@@ -1468,11 +1469,95 @@ const ProductMasterTable = ({
       || ''
   );
 
+  // ===== 要修正(データ不備)フィルタ =====
+  // 商品マスターは直近200件しか常駐しないため、不備商品はFirestoreを直接引いて全件から集める。
+  const [deficiencyMode, setDeficiencyMode] = useState(false);
+  const [deficientProducts, setDeficientProducts] = useState([]);
+  const [deficiencyLoading, setDeficiencyLoading] = useState(false);
+  // 不備商品が存在するか(ボタン表示可否)。件数集計のみで判定＝商品docは取得しないので軽い。
+  const [hasDeficientProducts, setHasDeficientProducts] = useState(false);
+
+  // 税率が「継承」以外で設定されたグループ/カテゴリーが1つでもあるか
+  // (=分類グループ未設定だと税率が正しく引けない＝不備)。現状 FOOD 8% があるので true。
+  const hasTaxConfiguredClassification = useMemo(() => (
+    (productCategoryGroups || []).some((g) => g.taxRateType && g.taxRateType !== 'inherit')
+    || (productCategories || []).some((c) => c.taxRateType && c.taxRateType !== 'inherit')
+  ), [productCategoryGroups, productCategories]);
+
+  // 不備判定(IDが空を基準)。ブランド未設定 / 売り場未設定 /(税設定あり時)カテゴリーグループ未設定。
+  const getProductDeficiencies = (product) => {
+    const missing = [];
+    if (!String(product?.brandId || '').trim()) missing.push('ブランド');
+    if (!String(product?.salesAreaId || '').trim()) missing.push('売り場');
+    if (hasTaxConfiguredClassification && !String(product?.categoryGroupId || '').trim()) missing.push('分類グループ');
+    return missing;
+  };
+
+  const loadDeficientProducts = async () => {
+    if (!storeId) return;
+    setDeficiencyLoading(true);
+    try {
+      const ref = collection(db, 'stores', storeId, 'products');
+      const targetFields = ['brandId', 'salesAreaId'];
+      if (hasTaxConfiguredClassification) targetFields.push('categoryGroupId');
+      const snaps = await Promise.all(
+        targetFields.map((field) => getDocs(query(ref, where(field, '==', ''), limit(1000))))
+      );
+      const byId = new Map();
+      snaps.forEach((snap) => snap.docs.forEach((docSnap) => {
+        if (byId.has(docSnap.id)) return;
+        const data = { id: docSnap.id, ...docSnap.data() };
+        if (data.isArchived !== true && data.isActive !== false) byId.set(docSnap.id, data);
+      }));
+      setDeficientProducts([...byId.values()]);
+    } catch (error) {
+      console.error('failed to load deficient products', error);
+      alert(`不備商品の取得に失敗しました: ${error?.message || error}`);
+    } finally {
+      setDeficiencyLoading(false);
+    }
+  };
+
+  // 不備商品が1件でも存在するかを件数集計だけで確認(docは取得しない=軽い)。ボタン表示可否に使う。
+  const checkHasDeficient = async () => {
+    if (!storeId) return;
+    try {
+      const ref = collection(db, 'stores', storeId, 'products');
+      const targetFields = ['brandId', 'salesAreaId'];
+      if (hasTaxConfiguredClassification) targetFields.push('categoryGroupId');
+      const counts = await Promise.all(
+        targetFields.map((field) => getCountFromServer(query(ref, where(field, '==', ''))))
+      );
+      setHasDeficientProducts(counts.some((snap) => Number(snap.data().count || 0) > 0));
+    } catch (error) {
+      console.error('failed to count deficient products', error);
+    }
+  };
+
+  useEffect(() => {
+    checkHasDeficient();
+    // storeId / 税率設定の有無が変わった時だけ再確認する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, hasTaxConfiguredClassification]);
+
+  const toggleDeficiencyMode = () => {
+    if (deficiencyMode) {
+      setDeficiencyMode(false);
+      setDeficientProducts([]);
+      // 修正で不備が解消していれば次からボタンを隠すため、件数を取り直す。
+      checkHasDeficient();
+      return;
+    }
+    setDeficiencyMode(true);
+    loadDeficientProducts();
+  };
+
   const groupedProducts = useMemo(() => {
     const productGroupById = new Map((productGroups || []).map((group) => [group.id, group]));
     const groups = new Map();
+    const sourceProducts = deficiencyMode ? deficientProducts : (products || []);
 
-    for (const product of products || []) {
+    for (const product of sourceProducts) {
       const savedProductGroup = productGroupById.get(product.productGroupId || product.groupId || '');
       const productWithGroup = {
         ...product,
@@ -1559,7 +1644,7 @@ const ProductMasterTable = ({
         if (byName !== 0) return byName;
         return String(a.key || '').localeCompare(String(b.key || ''), 'ja');
       });
-  }, [products, productGroups]);
+  }, [products, productGroups, deficiencyMode, deficientProducts]);
 
   const visibleProductGroups = useMemo(
     () => groupedProducts.slice(0, visibleProductGroupLimit),
@@ -2160,6 +2245,16 @@ const ProductMasterTable = ({
 
     if (!String(primaryGroupDraft.name || '').trim()) {
       alert('新規登録する商品名を入力してください。');
+      return;
+    }
+
+    // データ不備防止: ブランド / 売り場 /(税率設定がある時は)カテゴリーグループ が未設定なら登録させない。
+    const missingRequired = [];
+    if (!String(primaryGroupDraft.brandId || '').trim()) missingRequired.push('ブランド');
+    if (!String(primaryGroupDraft.salesAreaId || '').trim() && !String(primaryGroupDraft.salesAreaName || '').trim()) missingRequired.push('売り場');
+    if (hasTaxConfiguredClassification && !String(primaryGroupDraft.categoryGroupId || '').trim()) missingRequired.push('カテゴリーグループ');
+    if (missingRequired.length > 0) {
+      alert(`${missingRequired.join('・')} が未設定です。データ不備になるため、設定してから登録してください。`);
       return;
     }
 
@@ -3936,19 +4031,42 @@ const ProductMasterTable = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowNewProductEntry((current) => !current)}
-          className={classNames(
-            'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
-            showNewProductEntry
-              ? 'bg-orange-700 text-white shadow-orange-200/70 hover:bg-orange-800'
-              : 'bg-orange-600 text-white shadow-orange-200/70 hover:bg-orange-700'
+        <div className="flex items-center gap-2">
+          {(hasDeficientProducts || deficiencyMode) && (
+            <button
+              type="button"
+              onClick={toggleDeficiencyMode}
+              title="ブランド・売り場・分類グループ(税)が未設定の商品だけを表示します"
+              className={classNames(
+                'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
+                deficiencyMode
+                  ? 'bg-rose-700 text-white shadow-rose-200/70 hover:bg-rose-800'
+                  : 'bg-rose-600 text-white shadow-rose-200/70 hover:bg-rose-700'
+              )}
+            >
+              <AlertTriangle size={16} strokeWidth={2.6} />
+              {deficiencyLoading
+                ? '抽出中…'
+                : deficiencyMode
+                  ? `要修正 解除（${deficientProducts.length.toLocaleString()}）`
+                  : '要修正商品'}
+            </button>
           )}
-        >
-          {showNewProductEntry ? <ChevronUp size={17} strokeWidth={2.6} /> : <ChevronDown size={17} strokeWidth={2.6} />}
-          {showNewProductEntry ? '閉じる' : '新規登録'}
-        </button>
+
+          <button
+            type="button"
+            onClick={() => setShowNewProductEntry((current) => !current)}
+            className={classNames(
+              'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
+              showNewProductEntry
+                ? 'bg-orange-700 text-white shadow-orange-200/70 hover:bg-orange-800'
+                : 'bg-orange-600 text-white shadow-orange-200/70 hover:bg-orange-700'
+            )}
+          >
+            {showNewProductEntry ? <ChevronUp size={17} strokeWidth={2.6} /> : <ChevronDown size={17} strokeWidth={2.6} />}
+            {showNewProductEntry ? '閉じる' : '新規登録'}
+          </button>
+        </div>
       </div>
       {activeStocktake && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3">
@@ -4060,9 +4178,22 @@ const ProductMasterTable = ({
             </div>
           )}
 
-          {(products || []).length > 0 && visibleProductGroups.map((group) => (
+          {((products || []).length > 0 || deficiencyMode) && visibleProductGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+                {deficiencyMode && (() => {
+                  const primary = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
+                  const defs = getProductDeficiencies(getDraft(primary) || primary || {});
+                  if (defs.length === 0) return null;
+                  return (
+                    <div className="mb-2 flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] font-black text-rose-500">要修正:</span>
+                      {defs.map((d) => (
+                        <span key={d} className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600 ring-1 ring-rose-200">{d}未設定</span>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {(() => {
                   const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
                   const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
