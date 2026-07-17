@@ -4700,9 +4700,9 @@ export const ShopifySettingsPanel = ({
         <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
           <div className="text-sm font-black text-slate-700">在庫の差分を確認（リコンサイル）</div>
           <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
-            紐付け済み商品について、POSの在庫数とShopifyのon_handを突合して不一致レポートを作成します。
-            読み取りのみで在庫は自動修正しません（人が確認して判断）。go-live前の初期確認や、定期点検にお使いください。
-            ※毎日深夜に自動でも実行されます（在庫連携ONの店舗のみ）。
+            紐付け済み商品について、POSの在庫数とShopifyのon_handを突合します。
+            <br />この<span className="text-slate-500">手動ボタンは読み取りのみ</span>で在庫は修正しません（差分レポートを作成し、人が確認）。go-live前の初期確認や臨時点検にお使いください。
+            <br />※<span className="text-slate-500">毎日深夜03:00に自動リコンサイル</span>が走り、この店舗は差分を<span className="text-slate-500">自動補正します（POSをShopify on_handに合わせる＝Shopifyで売れた分をPOSへ反映）</span>。webフック取りこぼしの追いつき用です。
           </p>
 
           <div className="mt-3 flex items-center gap-3">
