@@ -4306,12 +4306,22 @@ export const ShopifySettingsPanel = ({
   const [reconcileRunning, setReconcileRunning] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
   const [reconcileError, setReconcileError] = useState('');
+  // 不一致行のその場修正: productId -> 入力値(文字列) / 反映後の値 / 保存中id。
+  const [mismatchDrafts, setMismatchDrafts] = useState({});
+  const [mismatchResolved, setMismatchResolved] = useState({});
+  const [mismatchSavingId, setMismatchSavingId] = useState('');
+
+  const reconcileMismatchRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'mismatch');
+  const reconcileMissingRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'missingInShopify');
 
   const runInventoryReconcile = async () => {
     if (!onReconcileInventory || reconcileRunning) return;
     setReconcileRunning(true);
     setReconcileError('');
     setReconcileResult(null);
+    setMismatchDrafts({});
+    setMismatchResolved({});
+    setMismatchSavingId('');
     try {
       const result = await onReconcileInventory();
       setReconcileResult(result);
@@ -4319,6 +4329,30 @@ export const ShopifySettingsPanel = ({
       setReconcileError(error?.message || '在庫の差分確認に失敗しました。');
     } finally {
       setReconcileRunning(false);
+    }
+  };
+
+  // 不一致行のPOS在庫を手入力の絶対値へ修正する(products+inventory更新・調整履歴記録)。
+  const saveMismatchInventory = async (row) => {
+    if (!storeId || !row?.productId || mismatchSavingId) return;
+    const raw = mismatchDrafts[row.productId];
+    const numeric = Number(raw);
+    if (raw === '' || raw == null || !Number.isFinite(numeric)) return;
+    const nextQuantity = Math.max(Math.floor(numeric), 0);
+
+    setMismatchSavingId(row.productId);
+    setReconcileError('');
+    try {
+      await adjustProductInventory(storeId, row.productId, {
+        quantity: nextQuantity,
+        note: 'Shopify在庫差分リコンサイルから手修正'
+      });
+      setMismatchResolved((current) => ({ ...current, [row.productId]: nextQuantity }));
+      onSaved?.();
+    } catch (error) {
+      setReconcileError(error?.message || '在庫の修正に失敗しました。');
+    } finally {
+      setMismatchSavingId('');
     }
   };
 
@@ -4732,8 +4766,75 @@ export const ShopifySettingsPanel = ({
               一致 {Number(reconcileResult.matched || 0).toLocaleString()} /
               不一致 {Number(reconcileResult.mismatched || 0).toLocaleString()} /
               Shopify側に無し {Number(reconcileResult.missingInShopify || 0).toLocaleString()}。
-              {reconcileResult.truncated ? `（レポートは先頭${Number(reconcileResult.reportedRows || 0).toLocaleString()}件まで記録）` : ''}
+              {reconcileResult.truncated ? `（明細は先頭${Number(reconcileResult.reportedRows || 0).toLocaleString()}件まで表示）` : ''}
               <br />レポートは inventoryReconcileReports に保存されました（自動修復なし）。
+            </div>
+          )}
+
+          {reconcileResult?.ok && reconcileMismatchRows.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-amber-200 bg-white">
+              <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">
+                不一致 {reconcileMismatchRows.length.toLocaleString()}件 — POS在庫を手入力で修正できます
+              </div>
+              <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                {reconcileMismatchRows.map((row) => {
+                  const resolved = mismatchResolved[row.productId];
+                  return (
+                    <div key={row.productId} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black text-slate-800">{row.name || '(名称未設定)'}</div>
+                        <div className="truncate text-[11px] font-bold text-slate-400">
+                          {[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right text-[11px] font-bold text-slate-500">
+                        <div>POS <span className="font-black text-slate-800">{Number(row.pos || 0).toLocaleString()}</span> / Shopify <span className="font-black text-slate-800">{Number(row.shopify || 0).toLocaleString()}</span></div>
+                        <div className={Number(row.diff || 0) > 0 ? 'text-rose-500' : 'text-blue-500'}>差分 {Number(row.diff || 0) > 0 ? '+' : ''}{Number(row.diff || 0).toLocaleString()}</div>
+                      </div>
+                      {resolved !== undefined ? (
+                        <span className="shrink-0 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-600">→ {Number(resolved).toLocaleString()} 反映済</span>
+                      ) : (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <input
+                            type="number"
+                            value={mismatchDrafts[row.productId] ?? ''}
+                            onChange={(event) => setMismatchDrafts((current) => ({ ...current, [row.productId]: event.target.value }))}
+                            placeholder={String(row.pos ?? '')}
+                            className="h-9 w-20 rounded-lg border-2 border-slate-200 px-2 text-right text-sm font-bold outline-none focus:border-orange-400"
+                          />
+                          <button
+                            type="button"
+                            disabled={mismatchSavingId === row.productId || (mismatchDrafts[row.productId] ?? '') === ''}
+                            onClick={() => saveMismatchInventory(row)}
+                            className="inline-flex h-9 items-center rounded-lg bg-slate-700 px-3 text-xs font-black text-white transition hover:bg-slate-900 disabled:opacity-40"
+                          >
+                            {mismatchSavingId === row.productId ? '…' : '保存'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {reconcileResult?.ok && reconcileMissingRows.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <div className="border-b border-slate-200 px-3 py-2 text-[11px] font-black leading-relaxed text-slate-500">
+                Shopify側に無し（要確認）{reconcileMissingRows.length.toLocaleString()}件 — 紐付けは有るがShopifyに在庫データが無い（幽霊リンク/削除済み等）。在庫合わせでは直せません。
+              </div>
+              <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto">
+                {reconcileMissingRows.map((row) => (
+                  <div key={row.productId} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-slate-700">{row.name || '(名称未設定)'}</div>
+                      <div className="truncate text-[11px] font-bold text-slate-400">{[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}</div>
+                    </div>
+                    <div className="shrink-0 text-[11px] font-bold text-slate-500">POS {Number(row.pos || 0).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

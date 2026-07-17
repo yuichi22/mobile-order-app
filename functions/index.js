@@ -4922,7 +4922,9 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     appliedCount,
     reportedRows: mismatches.length,
     truncated: summary.truncated,
-    shopifyVariantsScanned: onHandByItemGid.size
+    shopifyVariantsScanned: onHandByItemGid.size,
+    // 不一致明細(上限MISMATCH_CAP件)。UIでリスト表示＋その場修正に使う。
+    mismatches
   };
 };
 
