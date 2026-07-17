@@ -554,7 +554,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     // 複数該当 → 先頭を無言採用せず、検索リストに候補SKU(サイズ/カラー/価格)を出して選ばせる。
     setScanCandidates(sortVariantCandidates(candidates));
-    setPosMessage('複数のSKUが該当します。下のリストから選んでください。', 'info');
     return false;
   };
 
@@ -2084,24 +2083,22 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
                   onChange={(event) => { if (scanCandidates.length > 0) setScanCandidates([]); setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value)); }}
                   onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
-                  className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-3 text-base"
+                  className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-10 text-base"
                   placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
+                {(scanInput !== '' || scanCandidates.length > 0) && (
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => { setScanInput(''); setSearchResults([]); setScanCandidates([]); }}
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                    aria-label="クリア"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
                 {(scanCandidates.length > 0 || (registerMode === 'pos' && scanInput.trim().length >= 2 && (searchLoading || searchResults.length > 0))) && (
                   <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[28rem] overflow-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-                    {scanCandidates.length > 0 && (
-                      <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-3 py-2">
-                        <span className="text-xs font-black text-amber-700">複数のSKUが該当します。正しい1点を選んでください（{scanCandidates.length}件）</span>
-                        <button
-                          type="button"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => setScanCandidates([])}
-                          className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-black text-slate-500 transition hover:bg-slate-200"
-                        >
-                          閉じる
-                        </button>
-                      </div>
-                    )}
                     {(scanCandidates.length > 0 ? scanCandidates : searchResults).map((product) => {
                       const variantDetail = [product.size, product.colorName].map((v) => String(v || '').trim()).filter(Boolean).join(' / ');
                       const outOfStock = POS_ENFORCE_STOCK_LIMIT && Number(product.resolvedStock ?? 0) <= 0;
