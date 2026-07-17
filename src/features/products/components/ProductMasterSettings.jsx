@@ -2006,6 +2006,27 @@ const ProductMasterTable = ({
     }
   };
 
+  // グループ共通項目(ブランド/商品名/ラベル等)をグループ内の全SKUの下書きへ展開する。
+  // 見出しで編集した値は primary だけでなく全SKUに保存されるべき(分類と同じ扱い)。
+  // patch には共通項目だけを渡すこと(SKU固有の品番/JAN/価格を上書きしないため)。
+  const applyGroupSharedDraft = (group, primaryProduct, patch = {}) => {
+    if (!primaryProduct?.id || Object.keys(patch).length === 0) return;
+
+    updateDraft(primaryProduct.id, patch);
+
+    for (const product of group?.products || []) {
+      if (!product?.id || product.id === primaryProduct.id) continue;
+
+      const currentDraft = getDraft(product);
+      const changed = Object.entries(patch).some(([key, value]) => (
+        normalizeComparableText(currentDraft?.[key]) !== normalizeComparableText(value)
+      ));
+      if (!changed) continue;
+
+      updateDraft(product.id, patch);
+    }
+  };
+
   const updateNewRow = (patch) => {
     setNewRow((current) => ({
       ...current,
@@ -4210,9 +4231,6 @@ const ProductMasterTable = ({
                   const primaryProduct = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
                   const primaryDraft = primaryProduct ? getDraft(primaryProduct) : {};
                   const groupRegisteredAtText = formatProductMasterDateTimeText(primaryProduct?.createdAt || primaryProduct?.created_at || group.createdAt || group.created_at);
-                  const updatePrimary = primaryProduct
-                    ? (patch) => updateDraft(primaryProduct.id, patch)
-                    : () => {};
 
                   return (
                     <div className="grid grid-cols-[minmax(540px,2.55fr)_minmax(360px,1.75fr)_300px] gap-2 xl:gap-2.5">
@@ -4226,7 +4244,8 @@ const ProductMasterTable = ({
                               productSalesAreas={getSalesAreaOptions()}
                               onSaveBrand={onSaveBrand}
                               onSaveSupplier={onSaveSupplier}
-                              onChange={(value, brand) => updatePrimary(buildBrandPatch(brand))}
+                              // ブランドはグループ共通項目のため全SKUへ展開する。
+                              onChange={(value, brand) => applyGroupSharedDraft(group, primaryProduct, buildBrandPatch(brand))}
                               compact
                             />
                           </div>
@@ -4235,7 +4254,8 @@ const ProductMasterTable = ({
                             <FieldLabel>商品名</FieldLabel>
                             <TableTextInput
                               value={primaryDraft.name || ''}
-                              onChange={(value) => updatePrimary({ name: value })}
+                              // 商品名はグループ共通項目のため全SKUへ展開する(productGroupName も揃える)。
+                              onChange={(value) => applyGroupSharedDraft(group, primaryProduct, { name: value, productGroupName: value })}
                               placeholder="商品名"
                             />
                           </div>
@@ -4260,7 +4280,8 @@ const ProductMasterTable = ({
                           <div className="flex min-w-0 items-center justify-start">
                             <PillToggle
                               checked={Boolean(primaryDraft.labelEnabled)}
-                              onChange={(value) => updatePrimary({ labelEnabled: value })}
+                              // ラベルON/OFFもグループ共通項目のため全SKUへ展開する。
+                              onChange={(value) => applyGroupSharedDraft(group, primaryProduct, { labelEnabled: value })}
                               onLabel="ラベル"
                               offLabel="ラベル"
                               className="!h-8 !min-w-[72px] !px-3 text-[11px]"
