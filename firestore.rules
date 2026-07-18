@@ -1,4 +1,5 @@
 rules_version = '2';
+// rev: ecOrders 読み取り許可を named DB 'main' へ確実に反映するための版数更新 (2026-07-18)
 service cloud.firestore {
   match /databases/{database}/documents {
 
