@@ -308,12 +308,16 @@ const addTaxSummary = (summary, transaction) => {
   }
 
   if (reducedTax <= 0 && standardTax <= 0) {
+    const unknownTotal = Number(transaction.totalAmount || 0);
+    const unknownTax = Number(transaction.taxAmount || 0);
     addTaxBreakdown(
       summary,
       'unknown',
       0,
-      Number(transaction.totalAmount || 0),
-      Number(transaction.taxAmount || 0)
+      unknownTotal,
+      unknownTax,
+      // baseAmount(税抜)。EC等 taxSummary を持たない取引で税抜が0になり税込へフォールバックするのを防ぐ。
+      Math.max(unknownTotal - unknownTax, 0)
     );
   }
 };
