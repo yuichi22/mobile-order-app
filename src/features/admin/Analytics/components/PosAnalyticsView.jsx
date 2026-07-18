@@ -230,6 +230,7 @@ const CompositionBar = ({ items = [], title = '売上割合' }) => {
 const PosAnalyticsView = ({
   storeId,
   posSlices,
+  ecSlices = [],
   period,
   currentDate,
   customRange,
@@ -242,7 +243,7 @@ const PosAnalyticsView = ({
   productCategories,
   productCategoryGroups
 }) => {
-  const [viewMode, setViewMode] = useState('store'); // 'store' | 'ec'
+  const [viewMode, setViewMode] = useState('store'); // 'store' | 'ec' | 'all'
   const [selection, setSelection] = useState({ level: 'all' });
   const [drillTabs, setDrillTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState('area');
@@ -264,9 +265,14 @@ const PosAnalyticsView = ({
     [salesAreas, productCategories, productCategoryGroups, subcatProductMap]
   );
 
-  // EC はデータ源未連携のため空。連携後にここへ EC 取引を差す。
-  const EC_SLICES = useMemo(() => [], []);
-  const sourceSlices = viewMode === 'store' ? (posSlices || []) : EC_SLICES;
+  // EC(Shopify)取引スライス。AnalyticsDashboard から ecOrders 由来で渡る。
+  const EC_SLICES = useMemo(() => ecSlices || [], [ecSlices]);
+  const hasEc = EC_SLICES.length > 0;
+  const sourceSlices = viewMode === 'store'
+    ? (posSlices || [])
+    : viewMode === 'ec'
+      ? EC_SLICES
+      : [...(posSlices || []), ...EC_SLICES]; // 'all' = 店舗+EC
 
   // 物販の内訳(値引き/販促/売掛/粗利)は日計と同じ集計で期間合計を出す。
   const financial = useMemo(
@@ -296,9 +302,9 @@ const PosAnalyticsView = ({
     selectedPeriodId: 'all'
   });
 
-  const baseTab = viewMode === 'store'
-    ? { id: 'area', kind: 'area', label: '売場別' }
-    : { id: 'group', kind: 'group', label: 'カテゴリーグループ別' };
+  const baseTab = viewMode === 'ec'
+    ? { id: 'group', kind: 'group', label: 'カテゴリーグループ別' }
+    : { id: 'area', kind: 'area', label: '売場別' };
   const tabs = [baseTab, ...drillTabs];
   const activeTab = tabs.find((t) => t.id === activeTabId) || baseTab;
 
@@ -307,7 +313,7 @@ const PosAnalyticsView = ({
     setViewMode(mode);
     setDrillTabs([]);
     setSelection({ level: 'all' });
-    setActiveTabId(mode === 'store' ? 'area' : 'group');
+    setActiveTabId(mode === 'ec' ? 'group' : 'area');
   };
 
   const activeList = useMemo(() => {
@@ -402,7 +408,7 @@ const PosAnalyticsView = ({
 
   return (
     <div className="flex-grow">
-      {/* 店舗 / EC 切替（既定=店舗） */}
+      {/* 店舗 / EC / 全体 切替（既定=店舗） */}
       <div className="mb-4 flex items-center justify-between">
         <div className="inline-flex rounded-full bg-gray-100 p-1">
           <button
@@ -423,10 +429,19 @@ const PosAnalyticsView = ({
           >
             <Globe size={15} /> EC
           </button>
+          <button
+            type="button"
+            onClick={() => switchMode('all')}
+            className={`flex h-9 items-center gap-1.5 rounded-full px-5 text-sm font-black transition ${
+              viewMode === 'all' ? 'bg-slate-900 text-white shadow-sm' : 'text-gray-500 hover:text-slate-700'
+            }`}
+          >
+            全体
+          </button>
         </div>
-        {viewMode === 'ec' && (
+        {(viewMode === 'ec' || viewMode === 'all') && !hasEc && (
           <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-500">
-            EC売上はデータ連携後に表示されます（準備中）
+            この期間のEC売上はありません
           </span>
         )}
       </div>
@@ -499,7 +514,7 @@ const PosAnalyticsView = ({
         <div className="grid gap-2 md:grid-cols-2">
           {activeList.length === 0 ? (
             <div className="md:col-span-2">
-              <EmptyList label={viewMode === 'ec' ? 'EC売上は準備中です' : 'データがありません'} />
+              <EmptyList label={viewMode === 'ec' ? 'この期間のEC売上はありません' : 'データがありません'} />
             </div>
           ) : (
             activeList.map((entry) => (

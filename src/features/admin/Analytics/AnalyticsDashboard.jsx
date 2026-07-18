@@ -312,9 +312,24 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
   );
   const posDepartmentSlices = useMemo(() => {
     if (!isPosDepartmentView || !posDepartmentId) return [];
-    return splitTransactionsByDepartment(channelFilteredOrders, resolveItemDepartment)
+    // 店頭(POS)分のみ。ECは salesChannel で除外し、下の ecDepartmentSlices として別に渡す。
+    return splitTransactionsByDepartment(orders.filter((record) => record?.salesChannel !== 'shopify'), resolveItemDepartment)
       .filter((slice) => String(slice?.departmentId || '') === String(posDepartmentId));
-  }, [isPosDepartmentView, posDepartmentId, channelFilteredOrders, resolveItemDepartment]);
+  }, [isPosDepartmentView, posDepartmentId, orders, resolveItemDepartment]);
+
+  // EC(shopify)取引を物販ビューの EC/全体 に流すためのスライス。明細の productId を補完(サブカテゴリ用)。
+  const ecDepartmentSlices = useMemo(
+    () => (orders || [])
+      .filter((record) => record?.salesChannel === 'shopify')
+      .map((record) => ({
+        ...record,
+        items: (Array.isArray(record.items) ? record.items : []).map((item) => ({
+          ...item,
+          productId: item.productId || item.matchedProductId || ''
+        }))
+      })),
+    [orders]
+  );
 
   const analytics = useAnalyticsSummary({
     orders: departmentFilteredOrders,
@@ -368,7 +383,7 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
           activeRegister={activeRegister}
           selectedChannel={selectedChannel}
           setSelectedChannel={setSelectedChannel}
-          showEcChannel={hasEcData}
+          showEcChannel={hasEcData && !isPosDepartmentView}
         >
           {period === 'custom' && (
             <CustomRangePicker
@@ -391,6 +406,7 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
         <PosAnalyticsView
           storeId={storeId}
           posSlices={posDepartmentSlices}
+          ecSlices={ecDepartmentSlices}
           period={period}
           currentDate={effectiveAnalyticsDate}
           customRange={customRange}
