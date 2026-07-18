@@ -144,6 +144,8 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
   });
   // 分析も部門単位で表示。既定=自レジの部門、'all'=全体（日計と同じ方式）。
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
+  // 販売チャネル: 'all'(全体=店頭+EC) | 'pos'(店舗) | 'ec'(Shopify)。既定は全体。
+  const [selectedChannel, setSelectedChannel] = useState('all');
   // 部門振り分け用の商品カテゴリーマスター（当日中はほぼ不変なので一度だけ取得）。
   const [productCategories, setProductCategories] = useState([]);
   const [productCategoryGroups, setProductCategoryGroups] = useState([]);
@@ -283,10 +285,24 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     [productCategories, productCategoryGroups, storeSettings?.departments]
   );
 
+  // チャネル(店舗/EC/全体)で先に絞る。department帰属が salesChannel を消す(departmentAttribution)ため、
+  // チャネル→部門の順で適用する。EC(shopify)判定は正規化時に付与した salesChannel を使う。
+  const channelFilteredOrders = useMemo(() => {
+    if (selectedChannel === 'ec') return orders.filter((record) => record?.salesChannel === 'shopify');
+    if (selectedChannel === 'pos') return orders.filter((record) => record?.salesChannel !== 'shopify');
+    return orders;
+  }, [orders, selectedChannel]);
+
+  // EC売上が期間内に存在する時だけチャネルトグルのEC欄を出す(単一チャネル店の混乱防止)。
+  const hasEcData = useMemo(
+    () => orders.some((record) => record?.salesChannel === 'shopify'),
+    [orders]
+  );
+
   // 選択部門で order レコードを絞った分析入力（'all' は全件＝従来挙動）。
   const departmentFilteredOrders = useMemo(
-    () => filterAnalyticsOrdersByDepartment(orders, resolveItemDepartment, selectedDepartmentId),
-    [orders, resolveItemDepartment, selectedDepartmentId]
+    () => filterAnalyticsOrdersByDepartment(channelFilteredOrders, resolveItemDepartment, selectedDepartmentId),
+    [channelFilteredOrders, resolveItemDepartment, selectedDepartmentId]
   );
 
   // POS(物販)ビュー用: 物販部門スライス（日計と同一ルールで物販に絞った取引）。
@@ -296,9 +312,9 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
   );
   const posDepartmentSlices = useMemo(() => {
     if (!isPosDepartmentView || !posDepartmentId) return [];
-    return splitTransactionsByDepartment(orders, resolveItemDepartment)
+    return splitTransactionsByDepartment(channelFilteredOrders, resolveItemDepartment)
       .filter((slice) => String(slice?.departmentId || '') === String(posDepartmentId));
-  }, [isPosDepartmentView, posDepartmentId, orders, resolveItemDepartment]);
+  }, [isPosDepartmentView, posDepartmentId, channelFilteredOrders, resolveItemDepartment]);
 
   const analytics = useAnalyticsSummary({
     orders: departmentFilteredOrders,
@@ -350,6 +366,9 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
           setSelectedDepartmentId={setSelectedDepartmentId}
           activeDepartment={activeDepartment}
           activeRegister={activeRegister}
+          selectedChannel={selectedChannel}
+          setSelectedChannel={setSelectedChannel}
+          showEcChannel={hasEcData}
         >
           {period === 'custom' && (
             <CustomRangePicker

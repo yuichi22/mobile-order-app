@@ -6,6 +6,7 @@ import {
   updateShopifyProductFromGroup,
   syncShopifyProductLinks,
   reconcileShopifyInventory,
+  syncShopifyEcOrders,
   deleteProductMasterDoc,
   isValidStoreId,
   saveProductBrand,
@@ -225,6 +226,13 @@ export const useProductMasterData = (storeId, options = {}) => {
     return await reconcileShopifyInventory({ storeId, idToken });
   };
 
+  const syncShopifyEcOrdersData = async (sinceOverride = null) => {
+    const auth = getAuth();
+    const idToken = await auth.currentUser?.getIdToken?.();
+
+    return await syncShopifyEcOrders({ storeId, idToken, sinceOverride });
+  };
+
   return {
     products: productsState.items,
     productGroups: productGroupsState.items,
@@ -264,6 +272,7 @@ export const useProductMasterData = (storeId, options = {}) => {
     createShopifyDraftProduct: createShopifyDraftProductData,
     updateShopifyProduct: updateShopifyProductData,
     syncShopifyProductLinks: syncShopifyProductLinksData,
-    reconcileShopifyInventory: reconcileShopifyInventoryData
+    reconcileShopifyInventory: reconcileShopifyInventoryData,
+    syncShopifyEcOrders: syncShopifyEcOrdersData
   };
 };

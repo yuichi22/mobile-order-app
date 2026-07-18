@@ -257,6 +257,39 @@ export const useAnalyticsOrders = ({
           .map(mapTransactionDoc)
           .filter((transaction) => transaction.isPaid !== false);
 
+        // ── EC(Shopify)売上を第2ソースとして取得しマージ ──────────────────
+        // ecOrders は分析専用コレクション(レジ締め/POS履歴は読まない)。取引と同じ paidAt レンジで
+        // 取得し、buildAnalyticsSummary が食える形(totalAmount/items/taxAmount/paidAt)へ正規化する。
+        // EC取得の失敗が店頭分析を巻き込まないよう独立 try/catch。空なら店頭数値は現状と完全一致。
+        let ecFetched = [];
+        try {
+          const ecOrdersCollection = collection(db, 'stores', storeId, 'ecOrders');
+          const ecQuery = query(
+            ecOrdersCollection,
+            where('paidAt', '>=', startTimestamp),
+            where('paidAt', '<=', endTimestamp)
+          );
+          const ecSnapshot = await getDocs(ecQuery);
+          if (!isActive) return;
+          ecFetched = ecSnapshot.docs
+            .map((ecDoc) => {
+              const data = ecDoc.data();
+              const paidAt = data.paidAt?.toDate ? data.paidAt.toDate() : toDate(data.paidAt);
+              return {
+                id: ecDoc.id,
+                ...data,
+                salesChannel: 'shopify',
+                timestamp: paidAt || new Date(),
+                paidAt,
+                orderAnalyticsRecords: []
+              };
+            })
+            .filter((record) => record.isPaid !== false);
+        } catch (ecError) {
+          console.error('Firestore Error (Analytics EC Orders):', ecError);
+          ecFetched = [];
+        }
+
         // 月次・週次・任意期間（かつ提供時間帯フィルタ無し）は、グラフの粒度が日/週/月のため
         // order単位の「時刻」配分が不要。注文の取得を丸ごと省いて表示を高速化する。
         // 集計(buildAnalyticsSummary)は orderAnalyticsRecords が空なら取引レベル
@@ -268,7 +301,10 @@ export const useAnalyticsOrders = ({
 
         if (!needsOrderRecords) {
           if (isActive) {
-            setOrders(fetched.map((transaction) => ({ ...transaction, orderAnalyticsRecords: [] })));
+            setOrders([
+              ...fetched.map((transaction) => ({ ...transaction, orderAnalyticsRecords: [] })),
+              ...ecFetched
+            ]);
           }
           return;
         }
@@ -327,7 +363,7 @@ export const useAnalyticsOrders = ({
         });
 
         if (isActive) {
-          setOrders(withOrderAnalyticsRecords);
+          setOrders([...withOrderAnalyticsRecords, ...ecFetched]);
         }
       } catch (error) {
         console.error('Firestore Error (Analytics Transactions):', error);

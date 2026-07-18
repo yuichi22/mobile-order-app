@@ -4460,12 +4460,17 @@ export const ShopifySettingsPanel = ({
   onSave,
   onSyncProductLinks,
   onReconcileInventory,
+  onSyncEcOrders,
   onSaved
 }) => {
   const [syncStatuses, setSyncStatuses] = useState(['ACTIVE']);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [syncError, setSyncError] = useState('');
+
+  const [ecSyncRunning, setEcSyncRunning] = useState(false);
+  const [ecSyncResult, setEcSyncResult] = useState(null);
+  const [ecSyncError, setEcSyncError] = useState('');
 
   const [reconcileRunning, setReconcileRunning] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
@@ -4493,6 +4498,26 @@ export const ShopifySettingsPanel = ({
       setReconcileError(error?.message || '在庫の差分確認に失敗しました。');
     } finally {
       setReconcileRunning(false);
+    }
+  };
+
+  // EC(Shopify)売上の取り込み。backfill=true で直近60日を遡って取り込む。
+  const runEcOrdersSync = async (backfill = false) => {
+    if (!onSyncEcOrders || ecSyncRunning) return;
+    setEcSyncRunning(true);
+    setEcSyncError('');
+    setEcSyncResult(null);
+    try {
+      const sinceOverride = backfill
+        ? new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+      const result = await onSyncEcOrders(sinceOverride);
+      setEcSyncResult(result);
+      onSaved?.();
+    } catch (error) {
+      setEcSyncError(error?.message || 'EC売上の取り込みに失敗しました。');
+    } finally {
+      setEcSyncRunning(false);
     }
   };
 
@@ -4610,7 +4635,8 @@ export const ShopifySettingsPanel = ({
     clientSecret: '',
     locationId: '',
     syncEnabled: false,
-    inventorySyncEnabled: false
+    inventorySyncEnabled: false,
+    ecSalesSyncEnabled: false
   });
   const [saving, setSaving] = useState(false);
 
@@ -4621,9 +4647,10 @@ export const ShopifySettingsPanel = ({
       clientSecret: settings?.clientSecret || '',
       locationId: settings?.locationId || '',
       syncEnabled: Boolean(settings?.syncEnabled),
-      inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled)
+      inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
+      ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled)
     });
-  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled]);
+  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled]);
 
   const update = (patch) => {
     setDraft((current) => ({
@@ -4677,6 +4704,7 @@ export const ShopifySettingsPanel = ({
         locationId,
         syncEnabled: Boolean(draft.syncEnabled),
         inventorySyncEnabled: Boolean(draft.inventorySyncEnabled),
+        ecSalesSyncEnabled: Boolean(draft.ecSalesSyncEnabled),
         authMode: 'devDashboard'
       });
       onSaved?.();
@@ -4817,6 +4845,15 @@ export const ShopifySettingsPanel = ({
                 className="h-5 w-5 rounded border-slate-300"
               />
               <span className="text-sm font-black text-slate-700">在庫連携を有効にする</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={draft.ecSalesSyncEnabled}
+                onChange={(event) => update({ ecSalesSyncEnabled: event.target.checked })}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              <span className="text-sm font-black text-slate-700">EC売上の取込を有効にする</span>
             </label>
           </div>
         </div>
@@ -4999,6 +5036,54 @@ export const ShopifySettingsPanel = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
+          <div className="text-sm font-black text-slate-700">EC売上の取り込み（分析用）</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+            Shopify（EC）の注文を取り込み、分析ダッシュボードの<span className="text-slate-500">「EC / 全体」</span>で見られるようにします。
+            税抜（純売上）も店頭と同じ基準で集計します。<span className="text-slate-500">レジ締め・POS履歴には一切混ざりません</span>（分析専用の別データ）。
+            <br />※<span className="text-slate-500">毎時自動</span>で取り込まれます（「EC売上の取込を有効にする」ONの店舗のみ）。下のボタンは手動実行/初回のバックフィル用です。
+            <br />※<span className="text-slate-500">read_orders スコープ</span>がShopify側に必要です（未設定だと認証エラー）。取込対象は直近60日。
+          </p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => runEcOrdersSync(false)}
+              disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {ecSyncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
+              {ecSyncRunning ? '取り込み中…' : '今すぐ取り込む'}
+            </button>
+            <button
+              type="button"
+              onClick={() => runEcOrdersSync(true)}
+              disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+            >
+              直近60日をバックフィル
+            </button>
+          </div>
+
+          {!draft.ecSalesSyncEnabled && (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500">
+              「EC売上の取込を有効にする」をONにして保存してから実行してください。
+            </div>
+          )}
+          {ecSyncError && (
+            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+              {ecSyncError}
+            </div>
+          )}
+          {ecSyncResult?.ok && (
+            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold leading-relaxed text-emerald-700">
+              {ecSyncResult.skipped
+                ? 'EC売上の取込が無効のためスキップしました（設定をONにして保存してください）。'
+                : `取り込み完了：注文 ${Number(ecSyncResult.upserted || 0).toLocaleString()}件 / 明細マッチ ${Number(ecSyncResult.matchedItems || 0).toLocaleString()} ・未マッチ ${Number(ecSyncResult.unmatchedItems || 0).toLocaleString()}。分析の「EC/全体」で確認できます。`}
             </div>
           )}
         </div>

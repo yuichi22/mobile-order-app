@@ -389,6 +389,7 @@ const EcIntegrationPanel = ({
         onSave={productMaster?.saveShopifySettings}
         onSyncProductLinks={productMaster?.syncShopifyProductLinks}
         onReconcileInventory={productMaster?.reconcileShopifyInventory}
+        onSyncEcOrders={productMaster?.syncShopifyEcOrders}
         onSaved={onSaved}
       />
     );

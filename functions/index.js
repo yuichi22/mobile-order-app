@@ -4985,6 +4985,261 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
 );
 
 
+// ── Shopify EC(オンラインストア)売上の取り込み ─────────────────────────────
+// Shopify注文を updated_at 昇順でページング取得し stores/{id}/ecOrders/{orderId} に upsert する。
+// 返金/編集/キャンセルは updated_at が動くので再取得され、current* の純額で上書きされる。
+// **このコレクションは分析だけが読む**。transactions には入れないので、レジ締め/POS履歴/訂正には一切混ざらない。
+const SHOPIFY_ORDERS_QUERY = `query($cursor: String, $q: String) {
+  orders(first: 50, after: $cursor, query: $q, sortKey: UPDATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id
+      name
+      processedAt
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      cancelledAt
+      currentTotalPriceSet { shopMoney { amount currencyCode } }
+      currentTotalTaxSet { shopMoney { amount } }
+      totalRefundedSet { shopMoney { amount } }
+      lineItems(first: 100) {
+        nodes {
+          quantity
+          sku
+          title
+          name
+          originalUnitPriceSet { shopMoney { amount } }
+          discountedTotalSet { shopMoney { amount } }
+          variant { id barcode }
+        }
+      }
+    }
+  }
+}`;
+
+// 商品マスターを1回だけ読み、EC明細を突合するための索引(variantId/barcode/sku → カテゴリ等)を作る。
+const buildEcProductMatchIndex = async (storeRef) => {
+  const snap = await storeRef.collection('products')
+    .select('shopifyVariantId', 'barcode', 'sku', 'categoryId', 'categoryName', 'categoryGroupName', 'salesAreaId', 'gender', 'name')
+    .get();
+  const byVariantId = new Map();
+  const byBarcode = new Map();
+  const bySku = new Map();
+  snap.forEach((docSnap) => {
+    const p = docSnap.data() || {};
+    const entry = {
+      productId: docSnap.id,
+      categoryId: String(p.categoryId || ''),
+      categoryName: String(p.categoryName || ''),
+      categoryGroupName: String(p.categoryGroupName || ''),
+      salesAreaId: String(p.salesAreaId || ''),
+      gender: String(p.gender || ''),
+      name: String(p.name || '')
+    };
+    const vid = String(p.shopifyVariantId || '').trim().toLowerCase();
+    const bc = String(p.barcode || '').trim().toLowerCase();
+    const sku = String(p.sku || '').trim().toLowerCase();
+    if (vid && !byVariantId.has(vid)) byVariantId.set(vid, entry);
+    if (bc && !byBarcode.has(bc)) byBarcode.set(bc, entry);
+    if (sku && !bySku.has(sku)) bySku.set(sku, entry);
+  });
+  return { byVariantId, byBarcode, bySku };
+};
+
+// variant.id → variant.barcode → sku の順でPOS商品にマッチ(無ければnull)。
+const matchEcLineItem = (lineItem, index) => {
+  const variantGid = String(lineItem?.variant?.id || '').trim().toLowerCase();
+  const barcode = String(lineItem?.variant?.barcode || '').trim().toLowerCase();
+  const sku = String(lineItem?.sku || '').trim().toLowerCase();
+  return (variantGid && index.byVariantId.get(variantGid))
+    || (barcode && index.byBarcode.get(barcode))
+    || (sku && index.bySku.get(sku))
+    || null;
+};
+
+const runShopifyEcOrdersSync = async ({ storeId, source = 'scheduled', triggeredBy = '', sinceOverride = null }) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  if (settings.ecSalesSyncEnabled !== true) {
+    return { skipped: true, reason: 'ecSalesSyncEnabled=false' };
+  }
+
+  const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+
+  // cursor 決定: 明示override > 保存cursor > 既定72h前。updated_at フィルタで増分取得。
+  const cursorRef = storeRef.collection('settings').doc('shopifyEcSync');
+  const cursorSnap = await cursorRef.get();
+  const savedCursor = cursorSnap.exists ? (cursorSnap.data() || {}).cursor : null;
+  const defaultSince = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+  const since = String(sinceOverride || savedCursor || defaultSince);
+  const queryFilter = `updated_at:>='${since}'`;
+
+  const productIndex = await buildEcProductMatchIndex(storeRef);
+  const EXCLUDED_STATUSES = new Set(['VOIDED', 'REFUNDED', 'EXPIRED']);
+
+  let cursor = null;
+  let pages = 0;
+  let scanned = 0;
+  let upserted = 0;
+  let matchedItems = 0;
+  let unmatchedItems = 0;
+  let maxUpdatedAt = since;
+
+  do {
+    const data = await callShopifyGraphqlWithRetry({ shopDomain, accessToken, query: SHOPIFY_ORDERS_QUERY, variables: { cursor, q: queryFilter } });
+    const connection = data.orders || {};
+    const nodes = connection.nodes || [];
+
+    for (let i = 0; i < nodes.length; i += 250) {
+      const batch = db.batch();
+      for (const order of nodes.slice(i, i + 250)) {
+        const orderGid = String(order?.id || '');
+        const numericId = orderGid.split('/').pop();
+        if (!numericId) continue;
+        scanned += 1;
+
+        const updatedAtIso = order.updatedAt || order.processedAt || order.createdAt || null;
+        if (updatedAtIso && updatedAtIso > maxUpdatedAt) maxUpdatedAt = updatedAtIso;
+
+        const financialStatus = String(order.displayFinancialStatus || '');
+        const cancelled = Boolean(order.cancelledAt);
+        const totalAmount = Number(order.currentTotalPriceSet?.shopMoney?.amount || 0);
+        const taxAmount = Number(order.currentTotalTaxSet?.shopMoney?.amount || 0);
+        const totalRefunded = Number(order.totalRefundedSet?.shopMoney?.amount || 0);
+        const currency = order.currentTotalPriceSet?.shopMoney?.currencyCode || 'JPY';
+        // 全額返金/失効/キャンセルは売上から除外(部分返金は current* が純額なので計上したまま)。
+        const isPaid = !cancelled && !EXCLUDED_STATUSES.has(financialStatus);
+
+        const items = (order.lineItems?.nodes || []).map((li) => {
+          const match = matchEcLineItem(li, productIndex);
+          if (match) matchedItems += 1; else unmatchedItems += 1;
+          const quantity = Number(li.quantity || 0);
+          const unitPrice = Number(li.originalUnitPriceSet?.shopMoney?.amount || 0);
+          const totalPrice = Number(li.discountedTotalSet?.shopMoney?.amount ?? (unitPrice * quantity));
+          return {
+            shopifyVariantId: String(li.variant?.id || ''),
+            barcode: String(li.variant?.barcode || ''),
+            sku: String(li.sku || ''),
+            title: String(li.title || li.name || ''),
+            quantity,
+            unitPrice,
+            totalPrice,
+            matchedProductId: match ? match.productId : null,
+            categoryId: match ? match.categoryId : '',
+            categoryName: match ? match.categoryName : '',
+            categoryGroupName: match ? match.categoryGroupName : '',
+            salesAreaId: match ? match.salesAreaId : '',
+            gender: match ? match.gender : ''
+          };
+        });
+
+        const paidAtIso = order.processedAt || order.createdAt || null;
+        batch.set(storeRef.collection('ecOrders').doc(numericId), {
+          shopifyOrderId: numericId,
+          shopifyOrderGid: orderGid,
+          name: String(order.name || ''),
+          paidAt: paidAtIso ? new Date(paidAtIso) : null,
+          orderCreatedAt: order.createdAt ? new Date(order.createdAt) : null,
+          orderUpdatedAt: order.updatedAt ? new Date(order.updatedAt) : null,
+          financialStatus,
+          cancelledAt: order.cancelledAt ? new Date(order.cancelledAt) : null,
+          isCancelled: cancelled,
+          totalAmount,
+          taxAmount,
+          totalRefunded,
+          currency,
+          salesChannel: 'shopify',
+          isPaid,
+          items,
+          syncedAt: FieldValue.serverTimestamp(),
+          source
+        }, { merge: true });
+        upserted += 1;
+      }
+      await batch.commit();
+    }
+
+    cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+    pages += 1;
+    if (cursor) await sleepMs(500); // ペース調整(スロットル回避)
+  } while (cursor && pages < 1000);
+
+  // cursor は前進のみ(空振り/過去バックフィルで巻き戻さない)。2分オーバーラップで境界の取りこぼしを防ぐ。
+  const overlapMs = 2 * 60 * 1000;
+  const candidateIso = scanned > 0 ? new Date(new Date(maxUpdatedAt).getTime() - overlapMs).toISOString() : null;
+  let nextCursorIso = savedCursor || null;
+  if (candidateIso && (!nextCursorIso || candidateIso > nextCursorIso)) nextCursorIso = candidateIso;
+  if (!nextCursorIso) nextCursorIso = since;
+  await cursorRef.set({
+    cursor: nextCursorIso,
+    lastRunAt: FieldValue.serverTimestamp(),
+    lastSource: source,
+    lastScanned: scanned,
+    lastUpserted: upserted
+  }, { merge: true });
+
+  const result = { scanned, upserted, matchedItems, unmatchedItems, pages, since, cursor: nextCursorIso };
+  await storeRef.collection('ecOrderSyncReports').add({ at: FieldValue.serverTimestamp(), source, triggeredBy: triggeredBy || null, ...result });
+  return result;
+};
+
+// 手動トリガー(EC連携「今すぐ取り込む/バックフィル」)。sinceOverride を渡すと過去分を取り込む。
+export const syncShopifyEcOrders = onRequest(
+  { region: REGION, cors: true, timeoutSeconds: 540, memory: '1GiB' },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+      const authUser = await verifyRequestUser(req);
+      const { storeId, sinceOverride } = parseJsonBody(req);
+      const normalizedStoreId = String(storeId || '').trim();
+      if (!normalizedStoreId) {
+        return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
+      }
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const result = await runShopifyEcOrdersSync({
+        storeId: normalizedStoreId,
+        source: 'manual',
+        triggeredBy: authUser.uid,
+        sinceOverride: sinceOverride ? String(sinceOverride) : null
+      });
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      console.error('[syncShopifyEcOrders] failed', error);
+      return sendJson(res, 400, { ok: false, error: { message: error.message || 'EC売上の取り込みに失敗しました。' } });
+    }
+  }
+);
+
+// 毎時の自動取り込み。ecSalesSyncEnabled=true の店舗だけ実行する。
+export const scheduledShopifyEcOrdersSync = onSchedule(
+  { region: REGION, schedule: 'every 1 hours', timeZone: 'Asia/Tokyo', timeoutSeconds: 540, memory: '1GiB' },
+  async () => {
+    try {
+      const storesSnap = await db.collection('stores').get();
+      for (const storeDoc of storesSnap.docs) {
+        const storeId = storeDoc.id;
+        try {
+          const shopifySettingsSnap = await storeDoc.ref.collection('settings').doc('shopify').get();
+          const shopifySettings = shopifySettingsSnap.data() || {};
+          if (shopifySettings.ecSalesSyncEnabled !== true) continue;
+          const result = await runShopifyEcOrdersSync({ storeId, source: 'scheduled' });
+          console.log('[scheduledShopifyEcOrdersSync] done', { storeId, ...result });
+        } catch (error) {
+          console.error('[scheduledShopifyEcOrdersSync] store failed', { storeId, message: error?.message });
+        }
+      }
+    } catch (error) {
+      console.error('[scheduledShopifyEcOrdersSync] failed', error);
+    }
+  }
+);
+
+
 export const createPrepayOrder = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
     const authUser = await verifyRequestUser(req);

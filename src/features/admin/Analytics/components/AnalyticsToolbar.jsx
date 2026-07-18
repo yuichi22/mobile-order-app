@@ -109,7 +109,10 @@ const AnalyticsToolbar = ({
   selectedDepartmentId = 'all',
   setSelectedDepartmentId,
   activeDepartment = null,
-  activeRegister = null
+  activeRegister = null,
+  selectedChannel = 'all',
+  setSelectedChannel,
+  showEcChannel = false
 }) => {
   const dateInputRef = useRef(null);
   const monthInputRef = useRef(null);
@@ -210,6 +213,31 @@ const AnalyticsToolbar = ({
               自部門に戻る
             </button>
           )}
+        </div>
+      )}
+
+      {/* 販売チャネル切替（店舗 / EC / 全体）。EC売上が存在する時のみ表示。 */}
+      {showEcChannel && setSelectedChannel && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+          <span className="mr-1 text-xs font-black text-slate-400">販売チャネル</span>
+          {[
+            { id: 'pos', label: '店舗', activeClass: 'bg-blue-600 text-white shadow-sm' },
+            { id: 'ec', label: 'EC', activeClass: 'bg-emerald-600 text-white shadow-sm' },
+            { id: 'all', label: '全体', activeClass: 'bg-slate-900 text-white shadow-sm' }
+          ].map((channel) => (
+            <button
+              key={channel.id}
+              type="button"
+              onClick={() => setSelectedChannel(channel.id)}
+              className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+                selectedChannel === channel.id
+                  ? channel.activeClass
+                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+              }`}
+            >
+              {channel.label}
+            </button>
+          ))}
         </div>
       )}
 

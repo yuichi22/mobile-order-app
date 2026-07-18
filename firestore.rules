@@ -543,6 +543,15 @@ service cloud.firestore {
         allow read: if isStoreManager(storeId);
         allow write: if isStoreStaff(storeId);
       }
+      // Shopify EC売上(分析専用)。取り込みはFunctions(Admin SDK)のみ＝クライアント書込不可。
+      match /ecOrders/{ecOrderId} {
+        allow read: if isStoreManager(storeId);
+        allow write: if false;
+      }
+      match /ecOrderSyncReports/{reportId} {
+        allow read: if isStoreManager(storeId);
+        allow write: if false;
+      }
       match /dailyClosings/{closingId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
         allow write: if isPlatformAdmin() || isStoreStaff(storeId);

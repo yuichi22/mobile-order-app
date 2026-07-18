@@ -222,6 +222,7 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
     locationId: String(settings.locationId || '').trim(),
     syncEnabled: Boolean(settings.syncEnabled),
     inventorySyncEnabled: Boolean(settings.inventorySyncEnabled),
+    ecSalesSyncEnabled: Boolean(settings.ecSalesSyncEnabled),
     authMode: settings.authMode || 'devDashboard',
     accessToken: deleteField(),
     updatedAt: serverTimestamp()
@@ -1303,6 +1304,36 @@ export const reconcileShopifyInventory = async ({ storeId, idToken }) => {
 
   if (!response.ok || body?.ok === false) {
     throw new Error(body?.error?.message || body?.message || '在庫の差分確認に失敗しました。');
+  }
+
+  return body;
+};
+
+
+// Shopify EC(オンラインストア)注文を取り込む。sinceOverride(ISO文字列)でバックフィル。
+export const syncShopifyEcOrders = async ({ storeId, idToken, sinceOverride = null }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId || !token) {
+    throw new Error('EC売上の取り込みにはログインが必要です。');
+  }
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/syncShopifyEcOrders`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ storeId: normalizedStoreId, ...(sinceOverride ? { sinceOverride } : {}) })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    throw new Error(body?.error?.message || body?.message || 'EC売上の取り込みに失敗しました。');
   }
 
   return body;
