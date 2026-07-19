@@ -1162,15 +1162,23 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         );
 
         if (rawItemsTotal > 0) {
+          // 合計が一致する通常ケースは按分せず各割引の金額をそのまま使う。
+          // (按分すると 3850×(500/3850)=499.99999999999994 のような浮動小数点誤差で
+          //  スタンプカード値引き500円が499円、最後の項目が3351円になる等のズレが出る)
+          const isExactMatch = totalSettlementAmount === rawItemsTotal;
           let allocated = 0;
           allocationItems.forEach((item, index) => {
             const category = item.accountingCategory === 'promo_expense' || item.accountingCategory === 'voucher_payment'
               ? item.accountingCategory
               : 'sales_discount';
+            const itemAmount = Math.max(Number(item.amount) || 0, 0);
             const isLast = index === allocationItems.length - 1;
-            const portion = isLast
-              ? totalSettlementAmount - allocated
-              : Math.floor(totalSettlementAmount * (Math.max(Number(item.amount) || 0, 0) / rawItemsTotal));
+            const portion = isExactMatch
+              ? itemAmount
+              : isLast
+                ? totalSettlementAmount - allocated
+                // 先に乗算してから除算する(比率を先に出すと誤差が乗る)。
+                : Math.floor((totalSettlementAmount * itemAmount) / rawItemsTotal);
             settlementByCategory[category] += portion;
             allocated += portion;
             if (portion > 0) {
