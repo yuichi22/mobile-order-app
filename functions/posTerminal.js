@@ -167,6 +167,20 @@ export const registerCardReader = onCall({ region: REGION }, async (request) => 
   });
 });
 
+// ---- 【テスト専用】シミュレーター端末にカード提示をシミュレート ----
+// 物理端末が無くても待機モーダルから会計を succeeded まで通すための補助。
+// 本番キーでは Core 側で failed-precondition になる(実害なし)。
+export const simulateCardPresentation = onCall({ region: REGION }, async (request) => {
+  const ctx = await resolveContext(request);
+  const paymentIntentId = str(request.data?.paymentIntentId);
+  if (!paymentIntentId)
+    throw new HttpsError("invalid-argument", "paymentIntentId が必要です。");
+  return await callCore("simulatePosTerminalCardHttp", {
+    tenantId: ctx.coreTenantId,
+    paymentIntentId,
+  });
+});
+
 // ---- 会計開始: PaymentIntent 作成 + reader 送出 ----
 export const startCardPayment = onCall({ region: REGION }, async (request) => {
   const ctx = await resolveContext(request, { requireCardEnabled: true, needReader: true });

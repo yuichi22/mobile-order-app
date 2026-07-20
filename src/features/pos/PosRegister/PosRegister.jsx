@@ -2503,7 +2503,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         onClose={onBack}
       />
 
-      <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} />
+      <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} onSimulate={term.simulate} />
 
       <style>{'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}'}</style>
     </div>

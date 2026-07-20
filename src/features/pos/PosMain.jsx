@@ -2997,7 +2997,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       onPickProduct={(rawProduct) => addPosProductToCart(buildResolvedPosProduct(rawProduct))}
     />
 
-    <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} />
+    <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} onSimulate={term.simulate} />
 
     </>
   );

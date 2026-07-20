@@ -5,9 +5,10 @@ import React from 'react';
 
 const yen = (n) => `¥${Math.round(Number(n) || 0).toLocaleString()}`;
 
-const TerminalPaymentModal = ({ state, onCancel, onClose }) => {
+const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
   if (!state) return null;
   const { phase, amount, message } = state;
+  const showSimulate = phase === 'waiting' && onSimulate && Boolean(import.meta.env?.DEV);
 
   const isBusy = phase === 'starting' || phase === 'waiting' || phase === 'canceling';
   const isError = phase === 'error';
@@ -52,13 +53,24 @@ const TerminalPaymentModal = ({ state, onCancel, onClose }) => {
         {/* 操作 */}
         <div className="mt-6">
           {phase === 'waiting' && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="h-11 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition active:scale-95 hover:bg-slate-200"
-            >
-              決済を中止
-            </button>
+            <div className="space-y-2">
+              {showSimulate && (
+                <button
+                  type="button"
+                  onClick={onSimulate}
+                  className="h-11 w-full rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 text-sm font-black text-amber-700 transition active:scale-95"
+                >
+                  テスト: カード提示をシミュレート
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onCancel}
+                className="h-11 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition active:scale-95 hover:bg-slate-200"
+              >
+                決済を中止
+              </button>
+            </div>
           )}
           {isError && (
             <button

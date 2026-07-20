@@ -140,5 +140,19 @@ export function useTerminalCardPayment(storeId) {
 
   const close = useCallback(() => setModal(null), []);
 
-  return { modal, runCardPayment, cancel, close };
+  // 【テスト専用】シミュレーター端末にカード提示をシミュレート(物理端末なしで succeeded まで通す)。
+  const simulate = useCallback(async () => {
+    if (!piRef.current) return;
+    try {
+      await httpsCallable(functionsApi, 'simulateCardPresentation')({
+        storeId,
+        paymentIntentId: piRef.current,
+      });
+      // 実際の成立はポーリング(getCardPaymentStatus)が反映する。
+    } catch (_e) {
+      // 本番キー等でシミュレート不可でも、実端末なら通常操作で成立するため無視。
+    }
+  }, [storeId]);
+
+  return { modal, runCardPayment, cancel, close, simulate };
 }
