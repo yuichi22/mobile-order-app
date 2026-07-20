@@ -36,6 +36,8 @@ import UncodedSaleModal from './components/UncodedSaleModal';
 import PosFavoritesModal from './components/PosFavoritesModal';
 import { PosModals } from './PosRegister/components/PosModals';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
+import { useTerminalCardPayment } from './terminal/useTerminalCardPayment';
+import TerminalPaymentModal from './terminal/TerminalPaymentModal';
 import { pushInventoryToShopify } from '../store/services/storeDataService';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../inventory/services/stocktakeDataService';
 import { getAuth } from 'firebase/auth';
@@ -167,6 +169,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     () => getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments),
     [storeId, storeSettings]
   );
+  // カード会計をこの端末に割り当てた Stripe リーダーへ送る待機フロー。
+  const term = useTerminalCardPayment(storeId);
   const allRegisters = useMemo(
     () => getAvailableRegisters(storeSettings?.registers, storeSettings?.departments),
     [storeSettings]
@@ -1344,6 +1348,26 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         serviceType: 'takeout'
       };
 
+      // --- カード会計: この端末に割り当てた Stripe リーダーで決済 ---
+      // レジに reader 割当があり支払いにカードが含まれる時のみ端末へ送る。
+      // 未割当レジ/現金/QR/売掛は従来どおり(端末を通さない)。分割はカード分のみ。
+      let stripePaymentIntentId = null;
+      const takeoutCardAmount = paymentSplit.isSplit
+        ? (paymentSplit.otherMethod === 'card' ? Number(paymentSplit.otherPortion) : 0)
+        : (takeoutPaymentMethod === 'card' ? Number(takeoutCartTotal) : 0);
+      if (takeoutCardAmount > 0 && registerContext.stripeReaderId) {
+        try {
+          const cardResult = await term.runCardPayment({
+            orderId: transactionRef.id,
+            amount: takeoutCardAmount,
+          });
+          stripePaymentIntentId = cardResult?.paymentIntentId || null;
+        } catch (paymentError) {
+          // 失敗/中止。モーダルが理由を表示済み。売上は記録せず中断(finally でロック解除)。
+          return;
+        }
+      }
+
       const batch = writeBatch(db);
 
       batch.set(transactionRef, {
@@ -1419,6 +1443,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           paymentMethodGroup: takeoutPaymentMethod,
           paymentMethodLabel,
           ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
+          ...(stripePaymentIntentId ? { stripePaymentIntentId, cardPaymentProvider: 'stripe_terminal' } : {}),
 
           timestamp: serverTimestamp(),
           paidAt: serverTimestamp(),
@@ -2971,6 +2996,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       onClose={() => setFavoritesModalOpen(false)}
       onPickProduct={(rawProduct) => addPosProductToCart(buildResolvedPosProduct(rawProduct))}
     />
+
+    <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} />
 
     </>
   );

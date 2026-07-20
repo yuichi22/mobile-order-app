@@ -24,6 +24,8 @@ import { PosRegisterLeft } from './components/PosRegisterLeft';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 import { computePaymentSplit, getSplitMethodLabel } from '../utils/paymentSplit';
+import { useTerminalCardPayment } from '../terminal/useTerminalCardPayment';
+import TerminalPaymentModal from '../terminal/TerminalPaymentModal';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../store/services/storeDataService';
 import { getAuth } from 'firebase/auth';
@@ -99,6 +101,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  // カード会計をこの端末に割り当てた Stripe リーダーへ送る待機フロー。
+  const term = useTerminalCardPayment(storeId);
 
   const [takeoutItemKeys, setTakeoutItemKeys] = useState(new Set());
   const [paidItemKeys, setPaidItemKeys] = useState(new Set());
@@ -1826,6 +1830,29 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
 
       const transactionRef = doc(collection(db, 'stores', storeId, 'transactions'));
+
+      // --- カード会計: この端末に割り当てた Stripe リーダーで決済 ---
+      // reader 割当があり支払いにカードが含まれる時のみ端末へ。未割当/現金/QR/売掛は従来どおり。
+      // 分割はカード分のみ。batch はまだ未 commit なので失敗時 return で売上は記録されない。
+      let stripePaymentIntentId = null;
+      const registerCardAmount = paymentSplit.isSplit
+        ? (paymentSplit.otherMethod === 'card' ? Number(paymentSplit.otherPortion) : 0)
+        : (resolvedPaymentMethod === 'card' ? Number(checkoutTotalAmount) : 0);
+      if (registerCardAmount > 0 && registerContext.stripeReaderId) {
+        try {
+          const cardResult = await term.runCardPayment({
+            orderId: transactionRef.id,
+            amount: registerCardAmount,
+          });
+          stripePaymentIntentId = cardResult?.paymentIntentId || null;
+        } catch (paymentError) {
+          // 失敗/中止。モーダルが理由を表示済み。会計を中断しロックを解除。
+          setIsPaymentSubmitting(false);
+          setIsPaymentFlowLocked(false);
+          return;
+        }
+      }
+
       batch.set(transactionRef, {
         sessionId,
         tableId,
@@ -1885,6 +1912,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         paymentMethodGroup: resolvedPaymentMethod,
         ...(resolvedPaymentMethodLabel ? { paymentMethodLabel: resolvedPaymentMethodLabel } : {}),
         ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
+        ...(stripePaymentIntentId ? { stripePaymentIntentId, cardPaymentProvider: 'stripe_terminal' } : {}),
 
         timestamp: serverTimestamp(),
         paidAt: serverTimestamp(),
@@ -2474,6 +2502,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         tableDisplayName={tableDisplayName}
         onClose={onBack}
       />
+
+      <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} />
 
       <style>{'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}'}</style>
     </div>
