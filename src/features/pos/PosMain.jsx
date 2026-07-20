@@ -1360,6 +1360,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           const cardResult = await term.runCardPayment({
             orderId: transactionRef.id,
             amount: takeoutCardAmount,
+            registerId: registerContext.id,
           });
           stripePaymentIntentId = cardResult?.paymentIntentId || null;
         } catch (paymentError) {

@@ -62,7 +62,7 @@ export function useTerminalCardPayment(storeId) {
   }, [storeId]);
 
   const runCardPayment = useCallback(
-    ({ orderId, amount, label }) =>
+    ({ orderId, amount, label, registerId }) =>
       new Promise((resolve, reject) => {
         resolverRef.current = { resolve, reject };
         canceledRef.current = false;
@@ -76,6 +76,7 @@ export function useTerminalCardPayment(storeId) {
               orderId,
               amount,
               idempotencyKey: orderId,
+              ...(registerId ? { registerId } : {}),
               ...(label ? { label } : {}),
             });
             const pi = res.data?.paymentIntentId;

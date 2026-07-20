@@ -1843,6 +1843,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           const cardResult = await term.runCardPayment({
             orderId: transactionRef.id,
             amount: registerCardAmount,
+            registerId: registerContext.id,
           });
           stripePaymentIntentId = cardResult?.paymentIntentId || null;
         } catch (paymentError) {
