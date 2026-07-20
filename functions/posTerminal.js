@@ -73,8 +73,24 @@ async function callCore(fnName, body) {
   }
 }
 
+// レジ(register)から Stripe リーダーIDを解決する。
+// マッピング:
+//   店舗単位  settings/terminal      = { coreTenantId, coreSpaceId }（店舗の Core identity）
+//   レジ単位  settings/basic.registers[].stripeReaderId（各レジに割り当てたリーダー）
+//   フォールバック settings/terminal.coreReaderId（店舗デフォルト。単一レジ/テイクアウト向け）
+// 「リーダー割当の有無」が唯一のスイッチ。連携/非連携トグルは設けない。
+function resolveReaderId(basicData, term, registerId) {
+  const rid = str(registerId);
+  if (rid && basicData && Array.isArray(basicData.registers)) {
+    const reg = basicData.registers.find((r) => str(r?.id) === rid);
+    const fromReg = str(reg?.stripeReaderId);
+    if (fromReg) return fromReg;
+  }
+  return str(term?.coreReaderId); // 店舗デフォルト（無ければ空）
+}
+
 // スタッフ認可 + store→Core マッピング解決の共通前段。
-async function resolveContext(request, { requireCardEnabled = false } = {}) {
+async function resolveContext(request, { requireCardEnabled = false, needReader = false } = {}) {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です。");
 
@@ -85,25 +101,36 @@ async function resolveContext(request, { requireCardEnabled = false } = {}) {
   if (!role) throw new HttpsError("permission-denied", "この店舗の権限がありません。");
 
   const storeRef = db.collection("stores").doc(storeId);
+  const [basicSnap, termSnap] = await Promise.all([
+    storeRef.collection("settings").doc("basic").get(),
+    storeRef.collection("settings").doc("terminal").get(),
+  ]);
+  const basicData = basicSnap.exists ? basicSnap.data() || {} : {};
+  const term = termSnap.exists ? termSnap.data() || {} : {};
 
   if (requireCardEnabled) {
-    const basicSnap = await storeRef.collection("settings").doc("basic").get();
-    const accepted = basicSnap.exists ? basicSnap.data()?.acceptedPaymentMethods : null;
+    const accepted = basicData.acceptedPaymentMethods;
     if (!Array.isArray(accepted) || !accepted.includes("card")) {
       throw new HttpsError("failed-precondition", "この店舗はカード決済が無効です。");
     }
   }
 
-  const termSnap = await storeRef.collection("settings").doc("terminal").get();
-  const term = termSnap.exists ? termSnap.data() || {} : {};
+  // 店舗が Core にリンクされているか（連携の実体は enabled フラグではなく tenant/space の設定有無）
   const coreTenantId = str(term.coreTenantId);
   const coreSpaceId = str(term.coreSpaceId);
-  const coreReaderId = str(term.coreReaderId);
-  if (term.enabled !== true || !coreTenantId || !coreSpaceId) {
-    throw new HttpsError(
-      "failed-precondition",
-      "端末連携(settings/terminal)が未設定です。"
-    );
+  if (!coreTenantId || !coreSpaceId) {
+    throw new HttpsError("failed-precondition", "端末連携(settings/terminal)が未設定です。");
+  }
+
+  let coreReaderId = "";
+  if (needReader) {
+    coreReaderId = resolveReaderId(basicData, term, request.data?.registerId);
+    if (!coreReaderId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このレジにStripeリーダーが割り当てられていません。"
+      );
+    }
   }
 
   return { uid, role, storeId, coreTenantId, coreSpaceId, coreReaderId };
@@ -111,14 +138,12 @@ async function resolveContext(request, { requireCardEnabled = false } = {}) {
 
 // ---- 会計開始: PaymentIntent 作成 + reader 送出 ----
 export const startCardPayment = onCall({ region: REGION }, async (request) => {
-  const ctx = await resolveContext(request, { requireCardEnabled: true });
+  const ctx = await resolveContext(request, { requireCardEnabled: true, needReader: true });
 
   const orderId = str(request.data?.orderId);
   const idempotencyKey = str(request.data?.idempotencyKey) || orderId;
   const amount = Number(request.data?.amount);
   if (!orderId) throw new HttpsError("invalid-argument", "orderId が必要です。");
-  if (!ctx.coreReaderId)
-    throw new HttpsError("failed-precondition", "リーダー(coreReaderId)が未設定です。");
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new HttpsError("invalid-argument", "amount は正の整数(JPY)。");
   }
