@@ -136,6 +136,15 @@ async function resolveContext(request, { requireCardEnabled = false, needReader 
   return { uid, role, storeId, coreTenantId, coreSpaceId, coreReaderId };
 }
 
+// ---- リーダー一覧(設定UIのレジ割当用) ----
+export const listCardReaders = onCall({ region: REGION }, async (request) => {
+  const ctx = await resolveContext(request); // reader不要。店舗リンク済みが前提
+  return await callCore("listPosTerminalReadersHttp", {
+    tenantId: ctx.coreTenantId,
+    spaceId: ctx.coreSpaceId,
+  });
+});
+
 // ---- 会計開始: PaymentIntent 作成 + reader 送出 ----
 export const startCardPayment = onCall({ region: REGION }, async (request) => {
   const ctx = await resolveContext(request, { requireCardEnabled: true, needReader: true });

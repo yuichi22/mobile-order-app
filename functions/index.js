@@ -7117,4 +7117,4 @@ export const processProductCsvImportJob = onDocumentWritten(
 
 
 // --- POS Terminal (Stripe Terminal 店頭カード決済 / Core への S2S 委譲) ---
-export { startCardPayment, getCardPaymentStatus, cancelCardPayment } from "./posTerminal.js";
+export { startCardPayment, getCardPaymentStatus, cancelCardPayment, listCardReaders } from "./posTerminal.js";
