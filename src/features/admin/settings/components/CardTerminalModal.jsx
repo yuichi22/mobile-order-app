@@ -17,13 +17,51 @@ const STATUS_LABEL = {
   offline: 'オフライン',
 };
 
-const CardTerminalModal = ({ storeId, readers = [], state = 'idle', onClose, onChanged }) => {
+const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation = true, onClose, onChanged }) => {
   const [registrationCode, setRegistrationCode] = useState('');
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null); // {type:'ok'|'error', text}
 
+  // 拠点住所(Terminal Location 作成用)。JP は state/city/line1/postal 必須。
+  const [addr, setAddr] = useState({ postalCode: '', state: '', city: '', line1: '', line2: '' });
+  const [locSubmitting, setLocSubmitting] = useState(false);
+  const [locMessage, setLocMessage] = useState(null);
+
   const linked = state === 'ready';
+  const needsLocation = linked && !hasLocation;
+  const canRegister = linked && hasLocation;
+
+  const handleEnsureLocation = async () => {
+    const postal = str(addr.postalCode);
+    const st = str(addr.state);
+    const city = str(addr.city);
+    const line1 = str(addr.line1);
+    if (!postal || !st || !city || !line1) {
+      setLocMessage({ type: 'error', text: '郵便番号・都道府県・市区町村・番地は必須です。' });
+      return;
+    }
+    setLocSubmitting(true);
+    setLocMessage(null);
+    try {
+      await httpsCallable(functionsApi, 'ensureCardTerminalLocation')({
+        storeId,
+        addressKanji: {
+          postal_code: postal,
+          state: st,
+          city,
+          line1,
+          ...(str(addr.line2) ? { line2: str(addr.line2) } : {}),
+        },
+      });
+      setLocMessage({ type: 'ok', text: '拠点を設定しました。端末を登録できます。' });
+      if (onChanged) await onChanged();
+    } catch (error) {
+      setLocMessage({ type: 'error', text: error?.message || '拠点の設定に失敗しました。' });
+    } finally {
+      setLocSubmitting(false);
+    }
+  };
 
   const handleRegister = async () => {
     const code = str(registrationCode);
@@ -87,16 +125,18 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', onClose, onC
             </span>
             <span
               className={`rounded-full px-3 py-1 text-xs font-black ${
-                linked ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                canRegister ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
               }`}
             >
-              {state === 'ready'
-                ? '利用可能'
-                : state === 'loading'
+              {state === 'loading'
                 ? '確認中…'
                 : state === 'unlinked'
-                ? '準備中（拠点未設定）'
-                : '確認できません'}
+                ? '準備中（運営設定待ち）'
+                : state === 'error'
+                ? '確認できません'
+                : needsLocation
+                ? '拠点住所の登録が必要'
+                : '利用可能'}
             </span>
           </div>
           {state === 'unlinked' && (
@@ -104,7 +144,67 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', onClose, onC
               この店舗の端末決済はまだ準備中です。運営側の初期設定が完了すると、ここで端末を登録できます。
             </p>
           )}
+          {needsLocation && (
+            <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+              最初に、この店舗（拠点）の住所を登録してください。登録後に端末を追加できます。
+            </p>
+          )}
         </div>
+
+        {/* 拠点住所の登録(Location 未作成時のみ) */}
+        {needsLocation && (
+          <div className="mb-5 rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-4">
+            <h3 className="mb-2 text-sm font-black text-slate-800">店舗（拠点）の住所を登録</h3>
+            <p className="mb-3 text-xs font-bold leading-relaxed text-slate-400">
+              カード決済端末を使う拠点の住所です。売上・端末はこの拠点ごとに分かれます。
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={addr.postalCode}
+                onChange={(e) => setAddr((s) => ({ ...s, postalCode: e.target.value }))}
+                placeholder="郵便番号（例: 1500001）"
+                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+              <input
+                value={addr.state}
+                onChange={(e) => setAddr((s) => ({ ...s, state: e.target.value }))}
+                placeholder="都道府県（例: 東京都）"
+                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+              <input
+                value={addr.city}
+                onChange={(e) => setAddr((s) => ({ ...s, city: e.target.value }))}
+                placeholder="市区町村（例: 渋谷区神南）"
+                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+              <input
+                value={addr.line1}
+                onChange={(e) => setAddr((s) => ({ ...s, line1: e.target.value }))}
+                placeholder="番地（例: 1-2-3）"
+                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+              <input
+                value={addr.line2}
+                onChange={(e) => setAddr((s) => ({ ...s, line2: e.target.value }))}
+                placeholder="建物名など（任意）"
+                className="col-span-2 h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleEnsureLocation}
+              disabled={locSubmitting}
+              className="mt-2 h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
+            >
+              {locSubmitting ? '登録中…' : '拠点を登録'}
+            </button>
+            {locMessage && (
+              <p className={`mt-2 text-xs font-bold ${locMessage.type === 'error' ? 'text-red-500' : 'text-emerald-600'}`}>
+                {locMessage.text}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* 端末登録 */}
         <div className="mb-5">
@@ -119,20 +219,20 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', onClose, onC
               value={registrationCode}
               onChange={(e) => setRegistrationCode(e.target.value)}
               placeholder="登録コード（例: simulated-wpe）"
-              disabled={submitting || !linked}
+              disabled={submitting || !canRegister}
               className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
             />
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="端末名（任意・例: レジ横S700）"
-              disabled={submitting || !linked}
+              disabled={submitting || !canRegister}
               className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
             />
             <button
               type="button"
               onClick={handleRegister}
-              disabled={submitting || !linked}
+              disabled={submitting || !canRegister}
               className="h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
             >
               {submitting ? '登録中…' : '端末を登録'}

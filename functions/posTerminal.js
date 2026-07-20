@@ -167,6 +167,24 @@ export const registerCardReader = onCall({ region: REGION }, async (request) => 
   });
 });
 
+// ---- 拠点の Terminal Location を用意(店舗セルフ・住所入力) ----
+// 端末登録の前提。拠点(space)に Location が無ければ、店舗が住所を入れて作成する。管理者のみ。
+export const ensureCardTerminalLocation = onCall({ region: REGION }, async (request) => {
+  const ctx = await resolveContext(request); // 店舗リンク済みが前提
+  if (!READER_ADMIN_ROLES.has(ctx.role)) {
+    throw new HttpsError("permission-denied", "拠点の設定は店舗管理者のみ可能です。");
+  }
+  const d = request.data || {};
+  return await callCore("ensurePosTerminalLocationHttp", {
+    tenantId: ctx.coreTenantId,
+    spaceId: ctx.coreSpaceId,
+    displayName: str(d.displayName),
+    addressKanji: d.addressKanji || null,
+    addressKana: d.addressKana || null,
+    phone: str(d.phone) || null,
+  });
+});
+
 // ---- 【テスト専用】シミュレーター端末にカード提示をシミュレート ----
 // 物理端末が無くても待機モーダルから会計を succeeded まで通すための補助。
 // 本番キーでは Core 側で failed-precondition になる(実害なし)。

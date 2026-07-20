@@ -139,6 +139,7 @@ const BasicSettings = ({
   // 店舗が Core に未連携(プラットフォーム側 settings/terminal 未設定)なら 'unlinked'。
   const [cardReaders, setCardReaders] = useState([]);
   const [cardReadersState, setCardReadersState] = useState('idle'); // idle|loading|ready|unlinked|error
+  const [cardHasLocation, setCardHasLocation] = useState(true);
   const [showTerminalModal, setShowTerminalModal] = useState(false);
 
   const loadCardReaders = useCallback(async () => {
@@ -147,6 +148,7 @@ const BasicSettings = ({
     try {
       const res = await httpsCallable(functionsApi, 'listCardReaders')({ storeId });
       setCardReaders(Array.isArray(res.data?.readers) ? res.data.readers : []);
+      setCardHasLocation(res.data?.hasLocation !== false);
       setCardReadersState('ready');
     } catch (error) {
       setCardReadersState(error?.code === 'functions/failed-precondition' ? 'unlinked' : 'error');
@@ -707,6 +709,7 @@ const confirmDeleteCookingCategory = () => {
             storeId={storeId}
             readers={cardReaders}
             state={cardReadersState}
+            hasLocation={cardHasLocation}
             onClose={() => setShowTerminalModal(false)}
             onChanged={loadCardReaders}
           />
