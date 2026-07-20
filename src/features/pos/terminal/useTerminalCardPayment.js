@@ -101,7 +101,9 @@ export function useTerminalCardPayment(storeId) {
                 });
                 const status = st.data?.status;
                 if (status === 'succeeded') {
-                  setModal({ phase: 'success', amount, paymentIntentId: pi, message: '決済が完了しました。' });
+                  // 成功表示は既存の会計完了トーストに任せる(画面被り・二重表示を避ける)。
+                  // モーダルを閉じ、呼び出し側の会計処理(売上記録→トースト)へ進める。
+                  setModal(null);
                   settle(true, { paymentIntentId: pi });
                 } else if (status === 'failed' || status === 'canceled') {
                   setModal({
