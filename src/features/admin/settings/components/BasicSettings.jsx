@@ -1,5 +1,5 @@
 //basicSettings.jsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
   AlertCircle,
@@ -31,6 +31,7 @@ import LabelPrinterSettingsSection from './LabelPrinterSettingsSection';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { httpsCallable } from 'firebase/functions';
 import { functionsApi } from '../../../../shared/api/firebase/client';
+import CardTerminalModal from './CardTerminalModal';
 import {
   REGISTER_MODE_OPTIONS,
   getActiveRegisterContext,
@@ -138,26 +139,23 @@ const BasicSettings = ({
   // 店舗が Core に未連携(プラットフォーム側 settings/terminal 未設定)なら 'unlinked'。
   const [cardReaders, setCardReaders] = useState([]);
   const [cardReadersState, setCardReadersState] = useState('idle'); // idle|loading|ready|unlinked|error
+  const [showTerminalModal, setShowTerminalModal] = useState(false);
+
+  const loadCardReaders = useCallback(async () => {
+    if (!storeId) return;
+    setCardReadersState('loading');
+    try {
+      const res = await httpsCallable(functionsApi, 'listCardReaders')({ storeId });
+      setCardReaders(Array.isArray(res.data?.readers) ? res.data.readers : []);
+      setCardReadersState('ready');
+    } catch (error) {
+      setCardReadersState(error?.code === 'functions/failed-precondition' ? 'unlinked' : 'error');
+    }
+  }, [storeId]);
 
   useEffect(() => {
-    if (!storeId) return;
-    let cancelled = false;
-    (async () => {
-      setCardReadersState('loading');
-      try {
-        const res = await httpsCallable(functionsApi, 'listCardReaders')({ storeId });
-        if (cancelled) return;
-        setCardReaders(Array.isArray(res.data?.readers) ? res.data.readers : []);
-        setCardReadersState('ready');
-      } catch (error) {
-        if (cancelled) return;
-        setCardReadersState(error?.code === 'functions/failed-precondition' ? 'unlinked' : 'error');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [storeId]);
+    loadCardReaders();
+  }, [loadCardReaders]);
 
   const updateRegisterReaderDraft = async (registerId, readerId) => {
     const next = getAvailableRegisters(registerDrafts, departmentDrafts).map((register) =>
@@ -695,6 +693,24 @@ const confirmDeleteCookingCategory = () => {
             レジ名と、この端末で使用するレジを設定します。選択したレジはORDER/POS会計に記録されます。
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowTerminalModal(true)}
+          className="mb-5 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white transition active:scale-95"
+        >
+          カード決済端末連携
+        </button>
+
+        {showTerminalModal && (
+          <CardTerminalModal
+            storeId={storeId}
+            readers={cardReaders}
+            state={cardReadersState}
+            onClose={() => setShowTerminalModal(false)}
+            onChanged={loadCardReaders}
+          />
+        )}
 
         <div className="mb-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

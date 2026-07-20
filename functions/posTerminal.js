@@ -145,6 +145,28 @@ export const listCardReaders = onCall({ region: REGION }, async (request) => {
   });
 });
 
+// ---- 端末登録(店舗セルフサービス) ----
+// 「カード決済端末連携」モーダルから、登録コードで物理端末(テストはシミュレーター)を登録。
+// 登録済み端末はレジ→リーダー割当に出てくる。管理者のみ。
+const READER_ADMIN_ROLES = new Set(["owner", "manager", "super_admin"]);
+export const registerCardReader = onCall({ region: REGION }, async (request) => {
+  const ctx = await resolveContext(request); // 店舗リンク済みが前提
+  if (!READER_ADMIN_ROLES.has(ctx.role)) {
+    throw new HttpsError("permission-denied", "端末登録は店舗管理者のみ可能です。");
+  }
+  const registrationCode = str(request.data?.registrationCode);
+  const label = str(request.data?.label);
+  if (!registrationCode)
+    throw new HttpsError("invalid-argument", "登録コードが必要です。");
+
+  return await callCore("registerPosTerminalReaderHttp", {
+    tenantId: ctx.coreTenantId,
+    spaceId: ctx.coreSpaceId,
+    registrationCode,
+    label,
+  });
+});
+
 // ---- 会計開始: PaymentIntent 作成 + reader 送出 ----
 export const startCardPayment = onCall({ region: REGION }, async (request) => {
   const ctx = await resolveContext(request, { requireCardEnabled: true, needReader: true });
