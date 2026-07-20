@@ -160,13 +160,19 @@ const normalizeRegister = (register, fallback = {}, departments = DEFAULT_DEPART
     departments
   );
 
+  // Stripe Terminal リーダー割当(レジ単位)。正規化で消えないよう第一級フィールドとして保持。
+  // 未割当は null。この値の有無が「そのレジでカードを端末決済するか」の唯一のスイッチ。
+  const stripeReaderId =
+    (register?.stripeReaderId ?? fallback.stripeReaderId ?? null) || null;
+
   return {
     id,
     name,
     label: name,
     departmentId: department.id,
     departmentName: department.name,
-    registerMode: normalizeRegisterMode(department.registerMode)
+    registerMode: normalizeRegisterMode(department.registerMode),
+    stripeReaderId: stripeReaderId ? String(stripeReaderId).trim() : null
   };
 };
 

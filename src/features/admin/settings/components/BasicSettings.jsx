@@ -29,6 +29,8 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
+import { httpsCallable } from 'firebase/functions';
+import { functionsApi } from '../../../../shared/api/firebase/client';
 import {
   REGISTER_MODE_OPTIONS,
   getActiveRegisterContext,
@@ -130,6 +132,42 @@ const BasicSettings = ({
   useEffect(() => {
     setRegisterDrafts(registerOptions);
   }, [registerOptions]);
+
+  // Stripe Terminal: この店舗に割り当て可能なリーダー一覧。
+  // 店舗が Core に未連携(プラットフォーム側 settings/terminal 未設定)なら 'unlinked'。
+  const [cardReaders, setCardReaders] = useState([]);
+  const [cardReadersState, setCardReadersState] = useState('idle'); // idle|loading|ready|unlinked|error
+
+  useEffect(() => {
+    if (!storeId) return;
+    let cancelled = false;
+    (async () => {
+      setCardReadersState('loading');
+      try {
+        const res = await httpsCallable(functionsApi, 'listCardReaders')({ storeId });
+        if (cancelled) return;
+        setCardReaders(Array.isArray(res.data?.readers) ? res.data.readers : []);
+        setCardReadersState('ready');
+      } catch (error) {
+        if (cancelled) return;
+        // 未連携(store→Core マッピング未設定)は failed-precondition
+        setCardReadersState(error?.code === 'functions/failed-precondition' ? 'unlinked' : 'error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
+  const updateRegisterReaderDraft = async (registerId, readerId) => {
+    const next = getAvailableRegisters(registerDrafts, departmentDrafts).map((register) =>
+      register.id === registerId
+        ? { ...register, stripeReaderId: readerId ? String(readerId) : null }
+        : register
+    );
+    setRegisterDrafts(next);
+    await saveRegisterDrafts(next, departmentDrafts);
+  };
 
   const saveRegisterDrafts = async (nextRegisters = registerDrafts, nextDepartments = departmentDrafts) => {
     const normalizedDepartments = getAvailableDepartments(nextDepartments);
@@ -770,6 +808,39 @@ const handleTestPrinter = async () => {
                     </option>
                   ))}
                 </select>
+
+                <label className="mb-2 mt-3 block text-[11px] font-black uppercase text-gray-400">
+                  Stripe リーダー（カード決済端末）
+                </label>
+                {cardReadersState === 'unlinked' ? (
+                  <p className="rounded-2xl bg-gray-50 px-4 py-3 text-xs font-bold text-gray-400">
+                    この店舗はStripe端末に未連携です。連携はプラットフォーム管理者に依頼してください。
+                  </p>
+                ) : cardReadersState === 'error' ? (
+                  <p className="rounded-2xl bg-red-50 px-4 py-3 text-xs font-bold text-red-400">
+                    リーダー一覧の取得に失敗しました。
+                  </p>
+                ) : (
+                  <select
+                    value={register.stripeReaderId || ''}
+                    onChange={(event) => updateRegisterReaderDraft(register.id, event.target.value)}
+                    disabled={cardReadersState === 'loading'}
+                    className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900 disabled:opacity-50"
+                  >
+                    <option value="">未割当（このレジのカードは従来どおり手動）</option>
+                    {cardReaders.map((reader) => (
+                      <option key={reader.id} value={reader.id}>
+                        {(reader.label || reader.id)}（{reader.status || '不明'}）
+                      </option>
+                    ))}
+                    {register.stripeReaderId &&
+                      !cardReaders.some((reader) => reader.id === register.stripeReaderId) && (
+                        <option value={register.stripeReaderId}>
+                          {register.stripeReaderId}（現在の割当・一覧に無し）
+                        </option>
+                      )}
+                  </select>
+                )}
 
                 <button
                   type="button"
