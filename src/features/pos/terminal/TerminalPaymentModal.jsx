@@ -8,7 +8,10 @@ const yen = (n) => `¥${Math.round(Number(n) || 0).toLocaleString()}`;
 const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
   if (!state) return null;
   const { phase, amount, message } = state;
-  const showSimulate = phase === 'waiting' && onSimulate && Boolean(import.meta.env?.DEV);
+  // 本番ビルド(build:prod=--mode production)以外で表示。vite build は --mode development でも
+  // import.meta.env.DEV が false になるため MODE で判定する。
+  const isTestBuild = import.meta.env?.MODE !== 'production';
+  const showSimulate = phase === 'waiting' && Boolean(onSimulate) && isTestBuild;
 
   const isBusy = phase === 'starting' || phase === 'waiting' || phase === 'canceling';
   const isError = phase === 'error';
