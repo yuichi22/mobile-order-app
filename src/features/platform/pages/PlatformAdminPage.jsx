@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../../app/providers/useAuth';
 import { auth, db } from '../../../shared/api/firebase/client';
 import LoadingSpinner from '../../../shared/components/feedback/LoadingSpinner';
+import StoreTerminalLinkPanel from '../components/StoreTerminalLinkPanel';
 import { USER_ROLES, normalizeUserRole } from '../../../shared/utils/roles';
 
 const PLATFORM_ADMIN_SESSION_STORAGE_KEY = 'akuto_platform_admin_session_token';
@@ -2380,6 +2381,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                             契約未作成
                           </div>
                         )}
+
+                        <StoreTerminalLinkPanel storeId={store.id} />
                       </div>
                     </div>
 
