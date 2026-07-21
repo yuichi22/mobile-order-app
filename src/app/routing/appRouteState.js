@@ -42,6 +42,13 @@ export const getInitialMode = (urlParams) => {
     return mode;
   }
 
+  // Akuto Core ポータルの「開く」リンク (?tenantId&spaceId&app=order|pos)。
+  // app=pos はレジ(admin)へ直行、app=order は既定のランチャーへ。
+  // 拠点(spaceId)の突き合わせは CoreSpaceLinkGuard が行う。
+  const coreApp = urlParams.get('app');
+  if (coreApp === 'pos') return 'admin';
+  if (coreApp === 'order') return 'launcher';
+
   return 'launcher';
 };
 
