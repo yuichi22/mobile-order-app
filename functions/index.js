@@ -8469,3 +8469,6 @@ export const syncProductNeedsReorder = onDocumentWritten(
 
 // --- POS Terminal (Stripe Terminal 店頭カード決済 / Core への S2S 委譲) ---
 export { startCardPayment, getCardPaymentStatus, cancelCardPayment, listCardReaders, registerCardReader, simulateCardPresentation, ensureCardTerminalLocation } from "./posTerminal.js";
+
+// --- 売上同期 (取引を Akuto Core の拠点別売上へ毎時送信) ---
+export { syncSalesToCore, runSalesSyncNow } from "./salesSync.js";
