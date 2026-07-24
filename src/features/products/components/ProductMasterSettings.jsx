@@ -1566,6 +1566,24 @@ const ProductMasterTable = ({
     loadDeficientProducts();
   };
 
+  // 保存後、不備が解消した商品を要修正リストから取り除く(ボタンの件数も同じ配列を見ているため同時に減る)。
+  // 判定には保存直後の payload を使う。draftRows は保存時に破棄されるため、
+  // ここで元の product を見てしまうと「修正したのに不備のまま」と誤判定する。
+  const pruneResolvedDeficientProducts = (savedPayloads = []) => {
+    if (!deficiencyMode) return;
+
+    const resolvedIds = new Set(
+      savedPayloads
+        .filter((payload) => payload?.id && getProductDeficiencies(payload).length === 0)
+        .map((payload) => payload.id)
+    );
+    if (resolvedIds.size === 0) return;
+
+    setDeficientProducts((current) => current.filter((product) => !resolvedIds.has(product.id)));
+    // 残件0になった時に(モード解除後)ボタンを消せるよう、サーバ側の件数も取り直す。
+    checkHasDeficient();
+  };
+
   const groupedProducts = useMemo(() => {
     const productGroupById = new Map((productGroups || []).map((group) => [group.id, group]));
     const groups = new Map();
@@ -2657,6 +2675,7 @@ const ProductMasterTable = ({
     setProductMasterBulkSaving(true);
     // 入庫自動印刷: ラベルON かつ 入庫数>0 の商品を入庫枚数ぶん収集する。
     const autoLabelItems = [];
+    const savedPayloads = [];
     let saveSucceeded = false;
 
     try {
@@ -2664,6 +2683,7 @@ const ProductMasterTable = ({
         const payload = buildProductSavePayload(row);
         await onSaveProduct(payload);
         rememberSavedProduct(payload);
+        savedPayloads.push(payload);
 
         const stockInQuantity = Math.max(Number(row.stockInQuantityDraft || 0), 0);
         if (payload.labelEnabled && stockInQuantity > 0) {
@@ -2679,6 +2699,9 @@ const ProductMasterTable = ({
         }
         return next;
       });
+
+      // 要修正モード中なら、不備が解消した行を一覧とボタン件数から取り除く。
+      pruneResolvedDeficientProducts(savedPayloads);
 
       onSaved?.();
       saveSucceeded = true;
@@ -2719,6 +2742,9 @@ const ProductMasterTable = ({
       }
       return next;
     });
+
+    // 要修正モード中なら、不備が解消した行を一覧とボタン件数から取り除く。
+    pruneResolvedDeficientProducts(savedRows);
 
     return savedRows;
   };
