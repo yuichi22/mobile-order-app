@@ -382,7 +382,17 @@ export const saveProductMasterItem = async (storeId, itemData) => {
   const productGroupId = itemData.productGroupId || itemData.groupId || '';
 
   const stockInQuantity = Math.max(Number(itemData.stockInQuantityDraft || 0), 0);
-  const currentInventoryQuantity = Math.max(Number(itemData.inventoryQuantity ?? itemData.quantity ?? 0), 0);
+
+  // 在庫の現在値は「画面の下書き」ではなく必ずDBの最新値を読む。
+  // 画面の値を使うと、入庫後に別項目(ブランド等)を保存しただけで在庫が
+  // 画面を開いた時点の古い値へ巻き戻る(=履歴に残らない在庫消失事故)。
+  const existingProductSnap = itemData.id
+    ? await getDoc(doc(db, 'stores', storeId, 'products', itemData.id))
+    : null;
+  const existingProductData = existingProductSnap?.exists() ? existingProductSnap.data() : null;
+  const currentInventoryQuantity = existingProductData
+    ? Math.max(Number(existingProductData.inventoryQuantity ?? existingProductData.quantity ?? 0), 0)
+    : Math.max(Number(itemData.inventoryQuantity ?? itemData.quantity ?? 0), 0);
 
   // 棚卸し進行中の入庫は live 在庫に加算せず、棚卸しカウント側へ反映する。
   // (finalizeStocktake が在庫を上書きするため、live加算では確定時に消える)
@@ -446,8 +456,12 @@ export const saveProductMasterItem = async (storeId, itemData) => {
     groupId: nextProductGroupId,
     productGroupName: itemData.productGroupName || itemData.name || '',
     productGroupRole: itemData.productGroupRole || 'primary',
-    inventoryQuantity: nextInventoryQuantity,
-    quantity: nextInventoryQuantity,
+    // 在庫は入庫がある時(と新規作成時)だけ書く。通常の編集保存では在庫フィールドを
+    // 一切送らない＝会計/在庫調整/Shopify同期が更新した最新在庫を上書きしない。
+    ...((stockInQuantity > 0 || !existingProductData) ? {
+      inventoryQuantity: nextInventoryQuantity,
+      quantity: nextInventoryQuantity
+    } : {}),
     ...(stockInQuantity > 0 ? {
       lastStockInQuantity: stockInQuantity,
       lastStockInAt: serverTimestamp()
@@ -456,12 +470,13 @@ export const saveProductMasterItem = async (storeId, itemData) => {
 
   const savedProductId = await saveStoreCollectionDoc(storeId, 'products', productPayload);
 
+  // inventory も同様に、在庫が動く保存(入庫/新規)の時だけ数量を書く。
   await setDoc(
     doc(db, 'stores', storeId, 'inventory', savedProductId),
     {
       productId: savedProductId,
       productGroupId: nextProductGroupId,
-      quantity: nextInventoryQuantity,
+      ...((stockInQuantity > 0 || !existingProductData) ? { quantity: nextInventoryQuantity } : {}),
       updatedAt: serverTimestamp()
     },
     { merge: true }
