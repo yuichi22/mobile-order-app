@@ -113,6 +113,12 @@ const main = async () => {
     const diff = actual - expected;
     if (diff === 0) continue;
 
+    // Shopify連携商品は webhook/棚卸同期(functions)が履歴を残さず在庫を上書きするため、
+    // 「バグ由来」と断定できない。切り分けのため印をつける。
+    const shopifyLinked = Boolean(
+      p.data.shopifyProductId || p.data.shopifyVariantId || p.data.shopifyInventoryItemId
+    );
+
     drifts.push({
       id: p.id,
       name: String(p.data.name || ''),
@@ -123,7 +129,8 @@ const main = async () => {
       expected,
       actual,
       diff,
-      soldAfter
+      soldAfter,
+      shopifyLinked
     });
   }
 
@@ -133,15 +140,32 @@ const main = async () => {
 
   console.log(`[audit] 説明できない差異: ${drifts.length}件 (在庫が減っている ${lost.length} / 増えている ${gained.length})`);
   console.log(`  減少分の合計: ${lost.reduce((s, d) => s + d.diff, 0)}個\n`);
-  console.log('=== 在庫が記録より少ない商品(被害の疑い・上位30) ===');
-  lost.slice(0, 30).forEach((d) => console.log(
+
+  const sum = (arr) => arr.reduce((s, d) => s + d.diff, 0);
+  const lostPure = lost.filter((d) => !d.shopifyLinked);
+  const lostShopify = lost.filter((d) => d.shopifyLinked);
+  console.log('=== 切り分け ===');
+  console.log(`  Shopify連携なし(バグ由来の疑い濃厚): ${lostPure.length}件 / ${sum(lostPure)}個`);
+  console.log(`  Shopify連携あり(同期上書きの可能性) : ${lostShopify.length}件 / ${sum(lostShopify)}個`);
+  const byMonth = {};
+  lostPure.forEach((d) => {
+    const m = d.lastAt.slice(0, 7);
+    byMonth[m] = byMonth[m] || { n: 0, q: 0 };
+    byMonth[m].n += 1;
+    byMonth[m].q += d.diff;
+  });
+  console.log('  ↑うちShopify連携なしの月別(最終記録日基準):');
+  Object.keys(byMonth).sort().forEach((m) => console.log(`    ${m}: ${byMonth[m].n}件 ${byMonth[m].q}個`));
+
+  console.log('\n=== 在庫が記録より少ない商品(Shopify連携なし・上位30) ===');
+  lostPure.slice(0, 30).forEach((d) => console.log(
     `  ${d.name} [${d.brand}] JAN=${d.barcode} : 記録上=${d.expected} 実際=${d.actual} (差${d.diff}) 最終記録=${d.lastType}@${d.lastAt} 以降販売=${d.soldAfter}`
   ));
 
   if (csvPath) {
     const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const cols = ['productId', '商品名', 'ブランド', 'JAN', '記録上の在庫', '実際の在庫', '差', '最終記録種別', '最終記録日時', '最終記録以降の販売数'];
-    const rows = drifts.map((d) => [d.id, d.name, d.brand, d.barcode, d.expected, d.actual, d.diff, d.lastType, d.lastAt, d.soldAfter].map(esc).join(','));
+    const cols = ['productId', '商品名', 'ブランド', 'JAN', '記録上の在庫', '実際の在庫', '差', '最終記録種別', '最終記録日時', '最終記録以降の販売数', 'Shopify連携'];
+    const rows = drifts.map((d) => [d.id, d.name, d.brand, d.barcode, d.expected, d.actual, d.diff, d.lastType, d.lastAt, d.soldAfter, d.shopifyLinked ? 'あり' : 'なし'].map(esc).join(','));
     fs.writeFileSync(csvPath, '﻿' + cols.join(',') + '\n' + rows.join('\n') + '\n');
     console.log(`\n[audit] CSV出力: ${csvPath} (${drifts.length}件)`);
   }

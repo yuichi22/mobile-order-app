@@ -17,6 +17,7 @@ import {
   runTransaction,
   writeBatch
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
@@ -510,6 +511,21 @@ export const saveProductMasterItem = async (storeId, itemData) => {
     });
 
     await addDoc(storeCollectionRef(storeId, 'stockMovements'), movementPayload);
+
+    // 入庫分を Shopify の on_hand へ反映する(販売・取消・在庫調整・棚卸しと同じ扱い)。
+    // これが無いと Shopify 側は入庫前のままで、毎日03:00のリコンサイル
+    // (Shopify on_hand を正として POS を合わせる)が入庫を無かったことにしてしまう。
+    // 在庫連携ON=prodのみ実反映(サーバ側でゲート)。失敗しても入庫自体は成功扱いの fire-and-forget。
+    (async () => {
+      try {
+        const idToken = await getAuth().currentUser?.getIdToken?.();
+        if (idToken) {
+          await pushInventoryToShopify({ storeId, productIds: [savedProductId], idToken });
+        }
+      } catch (pushError) {
+        console.warn('failed to push stock-in inventory to Shopify', pushError);
+      }
+    })();
   }
 
   return savedProductId;
