@@ -4562,6 +4562,21 @@ export const ShopifySettingsPanel = ({
         quantity: nextQuantity,
         note: 'Shopify在庫差分リコンサイルから手修正'
       });
+
+      // 手入力した実数を Shopify の on_hand にも反映する。これが無いと Shopify 側は
+      // 差分のままなので、翌朝03:00のリコンサイルで手修正が元へ引き戻されてしまう。
+      // 在庫連携ON=prodのみ実反映(サーバ側でゲート)。失敗しても手修正自体は成功扱い。
+      (async () => {
+        try {
+          const idToken = await getAuth().currentUser?.getIdToken?.();
+          if (idToken) {
+            await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken });
+          }
+        } catch (pushError) {
+          console.warn('failed to push reconcile-fixed inventory to Shopify', pushError);
+        }
+      })();
+
       setMismatchResolved((current) => ({ ...current, [row.productId]: nextQuantity }));
       onSaved?.();
     } catch (error) {
