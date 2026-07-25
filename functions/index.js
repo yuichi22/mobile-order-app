@@ -4516,9 +4516,78 @@ export const syncShopifyProductLinks = onRequest(
 );
 
 
+// Shopify書き込みを止める安全弁(dev検証用)。functions/.env.<projectId> で SHOPIFY_DRY_RUN=1 を設定すると
+// 実mutationを送らずログのみになる。トリガー/キュー/履歴など他は本番同様に動くので dev で挙動を検証できる。
+// ★prodには絶対に設定しない(dev と prod は同一Shopifyストアを指すため)。
+const isShopifyDryRun = () => ['1', 'true', 'yes'].includes(
+  String(process.env.SHOPIFY_DRY_RUN || '').trim().toLowerCase()
+);
+
+// 指定商品の「現在庫(絶対値)」を Shopify の on_hand へ set する共通処理。
+// onRequest(pushInventoryToShopify=即時パス) と キュー drainer(確実パス) の両方から呼ぶ。
+// - inventorySyncEnabled かつ locationId 設定時のみ。商品単位OFF・未連携はスキップ。
+// - dry-run 時は送信せずログのみ(件数は返す)。
+const runShopifyInventoryPush = async ({ storeId, productIds = [] }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const ids = Array.isArray(productIds)
+    ? [...new Set(productIds.map((x) => String(x || '').trim()).filter(Boolean))]
+    : [];
+  if (!normalizedStoreId) return { pushed: 0, skipped: 'noStoreId', userErrors: [] };
+  if (ids.length === 0) return { pushed: 0, skipped: 'noProductIds', userErrors: [] };
+
+  const storeRef = db.collection('stores').doc(normalizedStoreId);
+  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  if (!settings.inventorySyncEnabled) return { pushed: 0, skipped: 'inventorySyncDisabled', userErrors: [] };
+  const locationId = String(settings.locationId || '').trim();
+  if (!locationId) return { pushed: 0, skipped: 'noLocationId', userErrors: [] };
+
+  const setQuantities = [];
+  for (const id of ids) {
+    const snap = await storeRef.collection('products').doc(id).get();
+    if (!snap.exists) continue;
+    const product = snap.data() || {};
+    // 商品単位の在庫同期OFF(商品マスターのShopifyボタンで切替)はスキップ。
+    if (product.shopifyInventorySyncDisabled === true) continue;
+    const inventoryItemId = String(product.shopifyInventoryItemId || '').trim();
+    if (!inventoryItemId) continue;
+    const quantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
+    setQuantities.push({ inventoryItemId, locationId, quantity });
+  }
+  if (setQuantities.length === 0) return { pushed: 0, skipped: 'noLinkedItems', userErrors: [] };
+
+  if (isShopifyDryRun()) {
+    console.log('[shopify][DRY_RUN] would set on_hand', {
+      storeId: normalizedStoreId,
+      count: setQuantities.length,
+      sample: setQuantities.slice(0, 10)
+    });
+    return { pushed: setQuantities.length, dryRun: true, userErrors: [] };
+  }
+
+  const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+  const mutation = 'mutation($input: InventorySetOnHandQuantitiesInput!){ inventorySetOnHandQuantities(input:$input){ userErrors{ field message } } }';
+  let pushed = 0;
+  const userErrors = [];
+  for (let i = 0; i < setQuantities.length; i += 250) {
+    const chunk = setQuantities.slice(i, i + 250);
+    const data = await callShopifyGraphqlWithRetry({
+      shopDomain,
+      accessToken,
+      query: mutation,
+      variables: { input: { reason: 'correction', setQuantities: chunk } }
+    });
+    const errs = data.inventorySetOnHandQuantities?.userErrors || [];
+    if (errs.length) userErrors.push(...errs);
+    pushed += chunk.length;
+  }
+  return { pushed, userErrors };
+};
+
 // POS側の在庫変更(会計/手動調整/棚卸しfinalize)をShopifyの在庫(onHand)へ反映する。
 // inventorySyncEnabled(=prodのみON想定)かつ shopifyInventoryItemId 紐付け済みの商品のみ。
 // Firestoreの現在庫を「絶対値」でShopifyに set する(差分でなくsetで drift を防ぐ)。
+// ※これは「即時パス」。落ちても enqueueShopifyInventoryPush→drainShopifyInventoryPushQueue が確実に追いつく。
 export const pushInventoryToShopify = onRequest(
   { region: REGION, cors: true, timeoutSeconds: 120, memory: '512MiB' },
   async (req, res) => {
@@ -4529,63 +4598,14 @@ export const pushInventoryToShopify = onRequest(
       const authUser = await verifyRequestUser(req);
       const { storeId, productIds } = parseJsonBody(req);
       const normalizedStoreId = String(storeId || '').trim();
-      const ids = Array.isArray(productIds)
-        ? [...new Set(productIds.map((x) => String(x || '').trim()).filter(Boolean))]
-        : [];
       if (!normalizedStoreId) {
         return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
-      }
-      if (ids.length === 0) {
-        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noProductIds' });
       }
 
       await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
 
-      const storeRef = db.collection('stores').doc(normalizedStoreId);
-      const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-      const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
-      if (!settings.inventorySyncEnabled) {
-        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'inventorySyncDisabled' });
-      }
-      const locationId = String(settings.locationId || '').trim();
-      if (!locationId) {
-        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noLocationId' });
-      }
-      const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
-
-      const setQuantities = [];
-      for (const id of ids) {
-        const snap = await storeRef.collection('products').doc(id).get();
-        if (!snap.exists) continue;
-        const product = snap.data() || {};
-        // 商品単位の在庫同期OFF(商品マスターのShopifyボタンで切替)はスキップ。
-        if (product.shopifyInventorySyncDisabled === true) continue;
-        const inventoryItemId = String(product.shopifyInventoryItemId || '').trim();
-        if (!inventoryItemId) continue;
-        const quantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
-        setQuantities.push({ inventoryItemId, locationId, quantity });
-      }
-      if (setQuantities.length === 0) {
-        return sendJson(res, 200, { ok: true, pushed: 0, skipped: 'noLinkedItems' });
-      }
-
-      const mutation = 'mutation($input: InventorySetOnHandQuantitiesInput!){ inventorySetOnHandQuantities(input:$input){ userErrors{ field message } } }';
-      let pushed = 0;
-      const userErrors = [];
-      for (let i = 0; i < setQuantities.length; i += 250) {
-        const chunk = setQuantities.slice(i, i + 250);
-        const data = await callShopifyGraphql({
-          shopDomain,
-          accessToken,
-          query: mutation,
-          variables: { input: { reason: 'correction', setQuantities: chunk } }
-        });
-        const errs = data.inventorySetOnHandQuantities?.userErrors || [];
-        if (errs.length) userErrors.push(...errs);
-        pushed += chunk.length;
-      }
-
-      return sendJson(res, 200, { ok: true, pushed, userErrors: userErrors.slice(0, 20) });
+      const result = await runShopifyInventoryPush({ storeId: normalizedStoreId, productIds });
+      return sendJson(res, 200, { ok: true, ...result, userErrors: (result.userErrors || []).slice(0, 20) });
     } catch (error) {
       console.error('[pushInventoryToShopify] failed', error);
       return sendJson(res, 400, { ok: false, error: { message: error.message || 'Shopify在庫反映に失敗しました。' } });
@@ -4858,7 +4878,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     } else {
       mismatchedCount += 1;
       // Shopify on_hand を正として POS を合わせる(webフック取りこぼしの追いつき)。missingInShopify(幽霊リンク)は対象外。
-      corrections.push({ productId: docSnap.id, shopify: Math.max(shopify, 0) });
+      // pos(補正前)も持っておき、自動補正の履歴(stockMovements)に残す。
+      corrections.push({ productId: docSnap.id, pos, shopify: Math.max(shopify, 0) });
     }
 
     if (mismatches.length < MISMATCH_CAP) {
@@ -4877,11 +4898,14 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
   });
 
   // autoApply時: Shopify on_hand を正として POS を一括補正(inbound同期の追いつき)。
+  // 補正は在庫履歴(stockMovements type=shopify_reconcile)に必ず残す。これが無いと
+  // 「毎晩どの商品がShopify都合で何個変わったか」が後から追えず、毎日レポートを見る運用になってしまう。
+  // 商品1件につき products/inventory/stockMovements の3書き込み → Firestoreバッチ上限(500)を割るため150件ずつ。
   let appliedCount = 0;
   if (autoApply && corrections.length) {
-    for (let i = 0; i < corrections.length; i += 250) {
+    for (let i = 0; i < corrections.length; i += 150) {
       const batch = db.batch();
-      for (const c of corrections.slice(i, i + 250)) {
+      for (const c of corrections.slice(i, i + 150)) {
         batch.set(storeRef.collection('products').doc(c.productId), {
           inventoryQuantity: c.shopify, quantity: c.shopify,
           inventorySource: 'shopify', inventoryUpdatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
@@ -4889,9 +4913,20 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
         batch.set(storeRef.collection('inventory').doc(c.productId), {
           productId: c.productId, quantity: c.shopify, updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
+        batch.set(storeRef.collection('stockMovements').doc(), {
+          productId: c.productId,
+          type: 'shopify_reconcile',
+          quantity: c.shopify - Math.max(Number(c.pos || 0), 0),
+          beforeQuantity: Math.max(Number(c.pos || 0), 0),
+          afterQuantity: c.shopify,
+          note: 'Shopify在庫リコンサイル自動補正',
+          source,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
       }
       await batch.commit();
-      appliedCount += Math.min(250, corrections.length - i);
+      appliedCount += Math.min(150, corrections.length - i);
     }
   }
 
@@ -8464,5 +8499,121 @@ export const syncProductNeedsReorder = onDocumentWritten(
     }
 
     await afterSnapshot.ref.update({ needsReorder });
+  }
+);
+
+// === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
+// 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
+//       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、
+//       在庫が巻き戻る。人間が毎日レポートを見る運用も非現実的。
+// 方針: 在庫が変わったら即Shopifyへ投げず、まずキューに積む(=Firestore書き込みなので確実に残る)。
+//       別の定期関数がキューを「まとめてバッチ送信」する。1件でも数千件でも数回のバッチに収束するので
+//       件数によらず挙動が同じ(レート制限に強い)。落ちても次回に自動リトライ。
+
+const tsMillisSafe = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : (typeof v === 'number' ? v : 0));
+
+// 在庫数が変わった商品を push キューに積む(coalesce: productId をdocIdにして最新の1件へ集約)。
+export const enqueueShopifyInventoryPush = onDocumentWritten(
+  {
+    region: REGION,
+    database: FIRESTORE_DATABASE_ID,
+    document: 'stores/{storeId}/products/{productId}'
+  },
+  async (event) => {
+    const afterSnap = event.data?.after;
+    if (!afterSnap?.exists) return; // 削除は対象外
+    const after = afterSnap.data() || {};
+    const before = event.data?.before?.exists ? event.data.before.data() : null;
+
+    const aq = Math.max(Number(after.inventoryQuantity ?? after.quantity ?? 0), 0);
+    const bq = before ? Math.max(Number(before.inventoryQuantity ?? before.quantity ?? 0), 0) : null;
+    if (bq !== null && bq === aq) return; // 在庫数が変わっていない(名前/価格/分類などの編集)
+
+    // Shopify連携が無い/OFFの商品は push 先が無い。
+    if (!String(after.shopifyInventoryItemId || '').trim()) return;
+    if (after.shopifyInventorySyncDisabled === true) return;
+
+    // Shopify由来の書き込み(webフック/リコンサイル)は inventoryUpdatedAt を更新する → 押し返さない(ループ防止)。
+    const beforeInvAt = tsMillisSafe(before?.inventoryUpdatedAt);
+    const afterInvAt = tsMillisSafe(after.inventoryUpdatedAt);
+    if (afterInvAt && afterInvAt !== beforeInvAt) return;
+
+    // CSV一括取込(importJobId が変わる書き込み)は push しない(古い/0の値でShopifyの実在庫を壊さないため)。
+    if (String(after.importJobId || '') !== String(before?.importJobId || '')) return;
+
+    const { storeId, productId } = event.params;
+    await db.collection('stores').doc(storeId)
+      .collection('shopifyInventoryPushQueue').doc(productId)
+      .set({
+        productId,
+        quantity: aq,
+        status: 'pending',
+        attempts: 0,
+        enqueuedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+  }
+);
+
+// 1分毎に push キューを処理して Shopify へ反映。まとめて送るので件数によらず同じ挙動。
+export const drainShopifyInventoryPushQueue = onSchedule(
+  { region: REGION, schedule: 'every 1 minutes', timeZone: 'Asia/Tokyo', timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    const storesSnap = await db.collection('stores').get();
+    for (const storeDoc of storesSnap.docs) {
+      const storeId = storeDoc.id;
+      try {
+        const shopifySettings = (await storeDoc.ref.collection('settings').doc('shopify').get()).data() || {};
+        if (shopifySettings.inventorySyncEnabled !== true) continue;
+
+        const queueRef = storeDoc.ref.collection('shopifyInventoryPushQueue');
+        const pendingSnap = await queueRef.where('status', '==', 'pending').limit(400).get();
+        if (pendingSnap.empty) continue;
+
+        // 読み取り時点の enqueuedAt を控える(処理中に来た新しい変更を消さないため)。
+        const readAtById = new Map(pendingSnap.docs.map((d) => [d.id, tsMillisSafe(d.data()?.enqueuedAt)]));
+        const productIds = pendingSnap.docs.map((d) => d.id);
+
+        let result;
+        try {
+          // drainer は「現在庫(絶対値)」を送る(キュー内の数量ではなく最新のproducts値)。
+          result = await runShopifyInventoryPush({ storeId, productIds });
+        } catch (pushError) {
+          // 送信失敗: attempts を増やして pending のまま残す。上限超過は failed(手当てが要る)。
+          const failBatch = db.batch();
+          for (const d of pendingSnap.docs) {
+            const attempts = Number(d.data()?.attempts || 0) + 1;
+            failBatch.set(d.ref, {
+              attempts,
+              status: attempts >= 5 ? 'failed' : 'pending',
+              lastError: String(pushError?.message || pushError).slice(0, 300),
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+          await failBatch.commit();
+          console.error('[drainShopifyInventoryPushQueue] push failed', { storeId, count: productIds.length, message: pushError?.message });
+          continue;
+        }
+
+        // 成功: 処理した分を削除。ただし処理中に再enqueueされた(enqueuedAtが進んだ)ものは次回に回す。
+        let removed = 0;
+        let deleteBatch = db.batch();
+        let ops = 0;
+        for (const d of pendingSnap.docs) {
+          const fresh = await d.ref.get();
+          if (!fresh.exists) continue;
+          if (tsMillisSafe(fresh.data()?.enqueuedAt) > (readAtById.get(d.id) || 0)) continue;
+          deleteBatch.delete(d.ref);
+          removed += 1;
+          ops += 1;
+          if (ops >= 400) { await deleteBatch.commit(); deleteBatch = db.batch(); ops = 0; }
+        }
+        if (ops > 0) await deleteBatch.commit();
+
+        console.log('[drainShopifyInventoryPushQueue] done', { storeId, drained: productIds.length, removed, ...result });
+      } catch (error) {
+        console.error('[drainShopifyInventoryPushQueue] store failed', { storeId, message: error?.message });
+      }
+    }
   }
 );
