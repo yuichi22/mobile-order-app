@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDocs, increment, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db } from '../../shared/api/firebase/client';
@@ -246,7 +246,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [lineDiscountCategory, setLineDiscountCategory] = useState('sales_discount');
   const [isTakeoutSubmitting, setIsTakeoutSubmitting] = useState(false);
   // 全額売掛のワンタップ会計: stateを全額売掛に切り替えた後、派生値(memo)が更新されてから会計確定を発火する。
-  const [pendingTakeoutFullCredit, setPendingTakeoutFullCredit] = useState(false);
   const [menuOverrideOpen, setMenuOverrideOpen] = useState(false);
   const [menuOverrideProcessing, setMenuOverrideProcessing] = useState(false);
   const { orders, calls, checks } = useKitchenBoard(storeId);
@@ -687,9 +686,35 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     return 0;
   }, [takeoutSubtotalAfterLine, takeoutDiscountType, takeoutDiscountValue]);
 
+  // お釣りON金券(voucher_payment×定型金額×allowsChange)の額面が支払残額を超えた分を現金お釣りで返す。
+  // お釣りはON金券の額面合計が上限(OFF金券・クーポン由来の超過は従来どおり切り捨て)。
+  const takeoutVoucherChangeAmount = useMemo(() => {
+    if (takeoutDiscountType !== 'amount') return 0;
+    const base = Number(takeoutSubtotalAfterLine || 0);
+    const overflow = Math.max(0, (Number(takeoutDiscountValue) || 0) - base);
+    if (overflow <= 0) return 0;
+    const items = Array.isArray(takeoutSelectedDiscount?.items) && takeoutSelectedDiscount.items.length > 0
+      ? takeoutSelectedDiscount.items
+      : takeoutSelectedDiscount ? [takeoutSelectedDiscount] : [];
+    const changeEligibleFace = items
+      .filter((item) => (
+        item?.accountingCategory === 'voucher_payment' &&
+        item?.allowsChange === true &&
+        (item?.type || 'amount') === 'amount'
+      ))
+      .reduce((sum, item) => sum + Math.max(0, Number(item.amount ?? item.value) || 0), 0);
+    return Math.min(overflow, changeEligibleFace);
+  }, [takeoutDiscountType, takeoutDiscountValue, takeoutSubtotalAfterLine, takeoutSelectedDiscount]);
+
   const takeoutCartTotal = useMemo(() => (
     Math.max(Number(takeoutSubtotalAfterLine || 0) - Number(takeoutDiscountAmount || 0), 0)
   ), [takeoutSubtotalAfterLine, takeoutDiscountAmount]);
+
+  // 割引・金券・売掛で支払額が0になった会計。支払い方法の選択は不要になり、
+  // 「会計を確定」ボタン1つで確定する(内部的には売掛系(credit)として記録=従来の全額売掛と同じ)。
+  const takeoutZeroPayable = takeoutCart.length > 0
+    && Number(takeoutCartRawTotal) > 0
+    && Number(takeoutCartTotal) === 0;
 
   const takeoutDiscountLabel = useMemo(() => {
     if (takeoutDiscountType === 'none' || takeoutDiscountAmount <= 0) return '未設定';
@@ -925,12 +950,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const handleSubmitTakeoutTransaction = async () => {
     if (!storeId || isTakeoutSubmitting || takeoutCart.length === 0) return;
 
-    if (!takeoutPaymentMethod) {
+    if (!takeoutPaymentMethod && !takeoutZeroPayable) {
       alert('支払い方法を選択してください');
       return;
     }
 
-    if (takeoutPaymentMethod === 'cash' && (Number(takeoutPaymentAmount) || 0) < takeoutCartTotal) {
+    if (!takeoutZeroPayable && takeoutPaymentMethod === 'cash' && (Number(takeoutPaymentAmount) || 0) < takeoutCartTotal) {
       alert('お預かり金額が不足しています');
       return;
     }
@@ -938,15 +963,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setIsTakeoutSubmitting(true);
 
     try {
-      const selectedPaymentOption = TAKEOUT_PAYMENT_METHOD_OPTIONS.find((option) => option.id === takeoutPaymentMethod);
+      // 支払額0(全額充当)の会計は支払い方法を選ばず「会計を確定」で確定するため、
+      // 記録上は売掛系(credit)に寄せる(従来の全額売掛ワンタップと同じ扱い)。
+      const effectivePaymentMethod = takeoutZeroPayable ? 'credit' : takeoutPaymentMethod;
+      const selectedPaymentOption = TAKEOUT_PAYMENT_METHOD_OPTIONS.find((option) => option.id === effectivePaymentMethod);
       // 現金＋カード/QR の分割会計。成立時は payments[] に現金/カードの内訳を持たせて記録する。
-      const paymentSplit = computePaymentSplit(takeoutPaymentMethod, takeoutPaymentAmount, takeoutCartTotal);
+      const paymentSplit = computePaymentSplit(effectivePaymentMethod, takeoutPaymentAmount, takeoutCartTotal);
       const paymentMethodLabel = paymentSplit.isSplit
         ? `現金＋${getSplitMethodLabel(paymentSplit.otherMethod)}`
-        : takeoutPaymentMethod === 'credit'
+        : effectivePaymentMethod === 'credit'
           ? '売掛'
-          : (selectedPaymentOption?.label || takeoutPaymentMethod);
-      const paymentAmountNumber = takeoutPaymentMethod === 'cash'
+          : (selectedPaymentOption?.label || effectivePaymentMethod);
+      const paymentAmountNumber = effectivePaymentMethod === 'cash'
         ? Number(takeoutPaymentAmount || 0)
         : Number(takeoutCartTotal);
       const modeTax = resolveModeTaxSettings(storeSettings, registerMode === 'pos' ? 'pos' : 'order');
@@ -1110,6 +1138,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               type: takeoutSelectedDiscount.type || takeoutDiscountType,
               value: Number(takeoutSelectedDiscount.value ?? takeoutDiscountValue) || 0,
               accountingCategory: takeoutSelectedDiscount.accountingCategory || 'sales_discount',
+              allowsChange: takeoutSelectedDiscount.allowsChange === true,
               count: takeoutSelectedDiscount.type === 'amount'
                 ? Number(takeoutSelectedDiscount.quantity || takeoutSelectedDiscount.count || 1)
                 : 1,
@@ -1119,6 +1148,23 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               amount: Number(takeoutDiscountType === 'percent' ? takeoutDiscountAmount : takeoutDiscountValue || 0)
             }]
           : [];
+
+      // お釣りON金券は「額面のうち支払いに充当した分」と「現金で返すお釣り」に分ける。
+      // settlement配分は充当額(amount)で行い、額面(faceAmount)とお釣り(changeAmount)は明細に残して
+      // 日計・レシートで「金券回収=額面」を出せるようにする。
+      const voucherChangeAmountFinal = Math.max(0, Number(takeoutVoucherChangeAmount) || 0);
+      let voucherChangeRemaining = voucherChangeAmountFinal;
+      const adjustmentItemsWithChange = selectedAccountingAdjustmentItems.map((item) => {
+        if (voucherChangeRemaining <= 0) return item;
+        const isChangeEligible = item.accountingCategory === 'voucher_payment' &&
+          item.allowsChange === true &&
+          (item.type || 'amount') === 'amount';
+        if (!isChangeEligible) return item;
+        const face = Math.max(0, Number(item.amount) || 0);
+        const change = Math.min(face, voucherChangeRemaining);
+        voucherChangeRemaining -= change;
+        return { ...item, faceAmount: face, changeAmount: change, amount: face - change };
+      });
 
       const appliedDiscount = Number(takeoutDiscountAmount) > 0
         ? {
@@ -1134,7 +1180,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               : 1,
             amount: Number(takeoutDiscountAmount),
             accountingCategory: takeoutSelectedDiscount?.accountingCategory || 'sales_discount',
-            items: selectedAccountingAdjustmentItems
+            items: adjustmentItemsWithChange
           }
         : null;
 
@@ -1155,7 +1201,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       if (totalSettlementAmount > 0) {
         const combinedAdjustmentItems = [
           ...takeoutLineDiscountItems,
-          ...selectedAccountingAdjustmentItems
+          ...adjustmentItemsWithChange
         ];
         const allocationItems = combinedAdjustmentItems.length > 0
           ? combinedAdjustmentItems
@@ -1185,7 +1231,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 : Math.floor((totalSettlementAmount * itemAmount) / rawItemsTotal);
             settlementByCategory[category] += portion;
             allocated += portion;
-            if (portion > 0) {
+            if (portion > 0 || Number(item.changeAmount) > 0) {
               settlementItemsByCategory[category].push({
                 id: item.id || category,
                 name: item.name
@@ -1197,7 +1243,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 amount: portion,
                 count: Number(item.count ?? 1) || 1,
                 quantity: Number(item.quantity ?? item.count ?? 1) || 1,
-                accountingCategory: category
+                accountingCategory: category,
+                // お釣りON金券: 額面(充当+お釣り)とお釣り額。日計は faceAmount を回収額として読む。
+                ...(Number(item.changeAmount) > 0
+                  ? {
+                      faceAmount: Number(item.faceAmount) || portion + Number(item.changeAmount),
+                      changeAmount: Number(item.changeAmount)
+                    }
+                  : {})
               });
             }
           });
@@ -1299,18 +1352,35 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               : 'POS販売'
         : 'テイクアウト注文会計';
 
+      // 金券お釣りは現金ドロワーから出るため、現金マイナスの入金内訳として記録する。
+      // 日計の入金内訳は payments[] を優先合算するので、現金内訳・ドロワー突合に自動で効く
+      // (反対仕訳の現金払戻と同じ経路)。isVoucherChange はレシートの内訳表示で除外するための印。
+      const paymentsForRecord = voucherChangeAmountFinal > 0
+        ? [
+            // お釣りが出る=金券が支払残額を全て充当した状態なので通常 takeoutCartTotal は 0 だが、
+            // 万一残額があれば選択中の支払方法の入金として保持する(payments[]は日計で排他的に使われるため)。
+            ...(paymentSplit.isSplit
+              ? paymentSplit.payments
+              : Number(takeoutCartTotal) > 0
+                ? [{ method: effectivePaymentMethod, amount: Number(takeoutCartTotal) }]
+                : []),
+            { method: 'cash', amount: -voucherChangeAmountFinal, isVoucherChange: true }
+          ]
+        : (paymentSplit.isSplit ? paymentSplit.payments : null);
+
       const takeoutPaymentResultPayload = {
         totalAmount: Number(takeoutCartTotal),
         total: Number(takeoutCartTotal),
         paymentAmount: Number(paymentAmountNumber),
         amountPaid: Number(paymentAmountNumber),
         receivedAmount: Number(paymentAmountNumber),
-        changeAmount: Number(takeoutPaymentMethod === 'cash' ? takeoutChangeAmount : 0),
-        change: Number(takeoutPaymentMethod === 'cash' ? takeoutChangeAmount : 0),
-        method: takeoutPaymentMethod,
-        paymentMethod: takeoutPaymentMethod,
+        changeAmount: Number(effectivePaymentMethod === 'cash' ? takeoutChangeAmount : 0),
+        change: Number(effectivePaymentMethod === 'cash' ? takeoutChangeAmount : 0),
+        voucherChangeAmount: Number(voucherChangeAmountFinal),
+        method: effectivePaymentMethod,
+        paymentMethod: effectivePaymentMethod,
         paymentMethodLabel,
-        payments: paymentSplit.payments || null,
+        payments: paymentsForRecord,
         isSplitPayment: paymentSplit.isSplit,
         transactionId: transactionRef.id,
         sessionId,
@@ -1354,7 +1424,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       let stripePaymentIntentId = null;
       const takeoutCardAmount = paymentSplit.isSplit
         ? (paymentSplit.otherMethod === 'card' ? Number(paymentSplit.otherPortion) : 0)
-        : (takeoutPaymentMethod === 'card' ? Number(takeoutCartTotal) : 0);
+        : (effectivePaymentMethod === 'card' ? Number(takeoutCartTotal) : 0);
       if (takeoutCardAmount > 0 && registerContext.stripeReaderId) {
         try {
           const cardResult = await term.runCardPayment({
@@ -1412,6 +1482,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           discountAmount: Number(salesDiscountFinal),
           promoExpenseAmount: Number(promoExpenseFinal),
           voucherAmount: Number(voucherFinal),
+          voucherChangeAmount: Number(voucherChangeAmountFinal),
+          // 履歴からの再印字でレシートにお預かり/おつりを出すため保存する(現金以外は釣銭0)。
+          paymentAmount: Number(paymentAmountNumber),
+          receivedAmount: Number(paymentAmountNumber),
+          changeAmount: Number(effectivePaymentMethod === 'cash' ? takeoutChangeAmount : 0),
           settlementAdjustmentTotal: Number(settlementAdjustmentTotalFinal),
           salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementFinal),
           lineDiscountTotal: Number(takeoutLineDiscountTotal) || 0,
@@ -1440,10 +1515,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           appliedDiscount,
           appliedDiscounts: appliedDiscount ? [appliedDiscount] : [],
 
-          paymentMethod: takeoutPaymentMethod,
-          paymentMethodGroup: takeoutPaymentMethod,
+          paymentMethod: effectivePaymentMethod,
+          paymentMethodGroup: effectivePaymentMethod,
           paymentMethodLabel,
-          ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
+          ...(paymentsForRecord ? { payments: paymentsForRecord } : {}),
+          ...(paymentSplit.isSplit ? { isSplitPayment: true } : {}),
           ...(stripePaymentIntentId ? { stripePaymentIntentId, cardPaymentProvider: 'stripe_terminal' } : {}),
 
           timestamp: serverTimestamp(),
@@ -1527,66 +1603,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     }
   };
 
-  // 全額売掛ボタン: 全額を売掛にして即会計確定する。
-  // state更新は非同期なので、ここでは全額売掛の状態をセットするだけにし、
-  // 派生値(takeoutDiscountAmount等)が反映された後に下のeffectで会計を発火する。
-  const requestTakeoutFullCreditCheckout = () => {
-    if (takeoutCart.length === 0 || isTakeoutSubmitting) return;
-    // 全額売掛は「個別割引適用後の残額」を売掛に計上する。
-    const fullAmount = Math.max(0, Math.floor(Number(takeoutSubtotalAfterLine) || 0));
-    if (fullAmount <= 0) return;
-
-    setTakeoutDiscountType('amount');
-    setTakeoutDiscountValue(fullAmount);
-    setTakeoutSelectedDiscount({
-      id: 'full_credit',
-      name: '全額売掛',
-      type: 'full_credit',
-      value: fullAmount,
-      accountingCategory: 'voucher_payment',
-      count: 1,
-      quantity: 1,
-      amount: fullAmount
-    });
-    setTakeoutDiscountQuantities({});
-    setTakeoutPaymentMethod('credit');
-    setTakeoutPaymentAmount('0');
-    setPendingTakeoutFullCredit(true);
-  };
-
-  // 全額手入力(指定区分)のワンタップ会計。全額売掛と同じ「適用→確定」パターンを使う。
-  const requestTakeoutManualFullCheckout = (discount) => {
-    if (takeoutCart.length === 0 || isTakeoutSubmitting) return;
-    const fullAmount = Math.max(0, Math.floor(Number(takeoutSubtotalAfterLine) || 0));
-    if (fullAmount <= 0) return;
-
-    setTakeoutDiscountType('amount');
-    setTakeoutDiscountValue(fullAmount);
-    setTakeoutSelectedDiscount({
-      id: discount?.id || 'manual_full',
-      name: discount?.name || '手入力',
-      // 締めで定型金額(枚数照合)と区別するため元の種類を残す。
-      type: discount?.type || 'manual',
-      value: fullAmount,
-      accountingCategory: discount?.accountingCategory || 'voucher_payment',
-      count: 1,
-      quantity: 1,
-      amount: fullAmount
-    });
-    setTakeoutDiscountQuantities({});
-    setTakeoutPaymentMethod('credit');
-    setTakeoutPaymentAmount('0');
-    setPendingTakeoutFullCredit(true);
-  };
-
-  useEffect(() => {
-    if (!pendingTakeoutFullCredit) return;
-    // 全額売掛/全額手入力の状態が反映され、支払方法も売掛に切り替わってから確定する。
-    if (!takeoutSelectedDiscount || takeoutPaymentMethod !== 'credit') return;
-    setPendingTakeoutFullCredit(false);
-    handleSubmitTakeoutTransaction();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTakeoutFullCredit, takeoutSelectedDiscount, takeoutPaymentMethod]);
+  // 全額売掛/全額手入力の即会計フローは廃止。モーダルで「適用」した後、
+  // 支払額0の会計は「会計を確定」ボタン(takeoutZeroPayable)で確定する。
 
   const getSessionByTableId = (tableId) => (
     displaySessions.find((session) => String(session.tableId) === String(tableId)) || null
@@ -2528,6 +2546,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   {takeoutDiscountAmount > 0 && (
                     <span>{takeoutDiscountSummaryLabel} -¥{takeoutDiscountAmount.toLocaleString()}</span>
                   )}
+                  {takeoutVoucherChangeAmount > 0 && (
+                    <span className="text-blue-600">金券お釣り ¥{takeoutVoucherChangeAmount.toLocaleString()}</span>
+                  )}
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="shrink-0 text-sm font-black text-slate-600">お支払い額</span>
@@ -2537,27 +2558,53 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
               </div>
 
-              <div className="mb-[11.5px] mt-[5.5px] shrink-0">
-                <div className="grid grid-cols-3 gap-2">
-                  {TAKEOUT_PAYMENT_METHOD_OPTIONS.map((method) => (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => setTakeoutPaymentMethod(method.id)}
-                      className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-black transition-all active:scale-[0.98] ${
-                        takeoutPaymentMethod === method.id
-                          ? method.activeClassName
-                          : method.inactiveClassName
-                      }`}
-                    >
-                      <method.icon size={15} />
-                      {method.label}
-                    </button>
-                  ))}
+              {!takeoutZeroPayable && (
+                <div className="mb-[11.5px] mt-[5.5px] shrink-0">
+                  <div className="grid grid-cols-3 gap-2">
+                    {TAKEOUT_PAYMENT_METHOD_OPTIONS.map((method) => (
+                      <button
+                        key={method.id}
+                        type="button"
+                        onClick={() => setTakeoutPaymentMethod(method.id)}
+                        className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-black transition-all active:scale-[0.98] ${
+                          takeoutPaymentMethod === method.id
+                            ? method.activeClassName
+                            : method.inactiveClassName
+                        }`}
+                      >
+                        <method.icon size={15} />
+                        {method.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {takeoutPaymentMethod === 'cash' ? (
+              {takeoutZeroPayable ? (
+                <div className={`mb-3 mt-[5.5px] flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 ${
+                  registerMode === 'pos' ? 'border-blue-200 bg-blue-50/40' : 'border-orange-200 bg-orange-50/40'
+                }`}>
+                  <div className={`mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white shadow-sm ${
+                    registerMode === 'pos' ? 'text-blue-500' : 'text-orange-500'
+                  }`}>
+                    <HandCoins size={44} strokeWidth={2.2} />
+                  </div>
+                  <p className="text-xl font-black text-gray-700">お支払いは不要です</p>
+                  <p className="mt-2 text-center text-sm font-bold text-gray-400">
+                    割引・金券・売掛で全額充当されています。
+                    <br />
+                    「会計を確定」を押すと会計が完了します。
+                  </p>
+                  {takeoutVoucherChangeAmount > 0 && (
+                    <div className="mt-4 flex items-baseline gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm">
+                      <span className="text-sm font-bold text-gray-500">お釣り（現金）</span>
+                      <span className="font-mono text-3xl font-black tracking-tight text-blue-600">
+                        ¥{takeoutVoucherChangeAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : takeoutPaymentMethod === 'cash' ? (
                 <div className="flex min-h-0 flex-1 flex-col pb-2">
                   <div className="mb-2 grid shrink-0 grid-cols-2 gap-2">
                     <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -2702,19 +2749,29 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 type="button"
                 disabled={
                   takeoutCart.length === 0 ||
-                  !takeoutPaymentMethod ||
                   isTakeoutSubmitting ||
-                  (takeoutPaymentMethod === 'cash' && (Number(takeoutPaymentAmount) || 0) < takeoutCartTotal)
+                  (!takeoutZeroPayable && (
+                    !takeoutPaymentMethod ||
+                    (takeoutPaymentMethod === 'cash' && (Number(takeoutPaymentAmount) || 0) < takeoutCartTotal)
+                  ))
                 }
                 onClick={handleSubmitTakeoutTransaction}
-                className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${takeoutPaymentActionClassName}`}
+                className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${
+                  takeoutZeroPayable
+                    ? (registerMode === 'pos'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+                        : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-xl')
+                    : takeoutPaymentActionClassName
+                }`}
               >
                 <Check size={24} />
                 {isTakeoutSubmitting
                   ? '会計処理中...'
                   : takeoutCart.length === 0
                     ? '商品を選択してください'
-                    : takeoutPaymentActionLabel}
+                    : takeoutZeroPayable
+                      ? '会計を確定'
+                      : takeoutPaymentActionLabel}
                 {isTakeoutSubmitting && (
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                 )}
@@ -2753,8 +2810,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       setSelectedDiscount={setTakeoutSelectedDiscount}
       discountQuantities={takeoutDiscountQuantities}
       setDiscountQuantities={setTakeoutDiscountQuantities}
-      onFullCreditCheckout={requestTakeoutFullCreditCheckout}
-      onManualFullCheckout={requestTakeoutManualFullCheckout}
       showAbortModal={false}
       setShowAbortModal={() => {}}
       abortReason="manual_abort"

@@ -26,8 +26,6 @@ export const PosModals = ({
   setSelectedDiscount,
   discountQuantities,
   setDiscountQuantities,
-  onFullCreditCheckout,
-  onManualFullCheckout,
   showAbortModal,
   setShowAbortModal,
   abortReason = 'manual_abort',
@@ -90,6 +88,8 @@ export const PosModals = ({
         type,
         value: unitValue,
         accountingCategory: discount.accountingCategory || 'sales_discount',
+        // お釣りON金券(額面超過分を現金で返す)の判定を会計側へ引き継ぐ。
+        allowsChange: discount.allowsChange === true,
         count: quantity,
         quantity,
         amount: unitValue * quantity
@@ -132,15 +132,10 @@ export const PosModals = ({
   };
 
   // 全額売掛を適用。amount経路 + voucher_payment区分で、値引き前の支払全額を売掛として計上する。
-  // onFullCreditCheckout が渡されていれば「適用＋会計確定」を親に委ねる(ワンタップ会計)。
+  // 即会計はしない。適用後は会計画面の「会計を確定」ボタンで確定する(誤タップ防止で確定を1箇所に統一)。
   const fullCreditAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
   const applyFullCredit = () => {
     if (fullCreditAmount <= 0) return;
-    if (onFullCreditCheckout) {
-      setShowDiscountModal(false);
-      onFullCreditCheckout();
-      return;
-    }
     setDiscountType('amount');
     setDiscountValue(fullCreditAmount);
     setSelectedDiscount?.({
@@ -228,6 +223,15 @@ export const PosModals = ({
                   <span>おつり</span>
                   <span className="font-mono text-2xl font-bold">
                     ¥{Number(lastTransaction?.change || 0).toLocaleString()}
+                  </span>
+                </div>
+              )}
+
+              {Number(lastTransaction?.voucherChangeAmount || 0) > 0 && (
+                <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-blue-600">
+                  <span>おつり（金券）</span>
+                  <span className="font-mono text-2xl font-bold">
+                    ¥{Number(lastTransaction?.voucherChangeAmount || 0).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -336,7 +340,7 @@ export const PosModals = ({
               <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-2">
                 <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-black text-sky-600">
                   <HandCoins size={13} />
-                  全額売掛{onFullCreditCheckout ? '（即会計）' : ''}
+                  全額売掛
                 </div>
                 <button
                   type="button"
@@ -345,7 +349,7 @@ export const PosModals = ({
                   className="flex h-10 w-full items-center justify-center gap-1 rounded-lg bg-sky-500 px-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                 >
                   {fullCreditAmount > 0
-                    ? `全額 ¥${fullCreditAmount.toLocaleString()} を売掛${onFullCreditCheckout ? 'で会計' : ''}`
+                    ? `全額 ¥${fullCreditAmount.toLocaleString()} を売掛に充当`
                     : '全額を売掛にする'}
                 </button>
               </div>
@@ -431,6 +435,11 @@ export const PosModals = ({
                             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
                               {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
                             </span>
+                            {discount.accountingCategory === 'voucher_payment' && discount.allowsChange === true && isAmountDiscount && (
+                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                                お釣り可
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -562,12 +571,7 @@ export const PosModals = ({
         const applyManualAmount = (isFull) => {
           const value = isFull ? base : amt;
           if (value <= 0) return;
-          if (isFull && onManualFullCheckout) {
-            closeManual();
-            setShowDiscountModal(false);
-            onManualFullCheckout({ ...manualTarget, amount: value });
-            return;
-          }
+          // 即会計はしない。適用後は会計画面の「会計を確定」ボタンで確定する。
           // 数量選択済みの金額クーポンと手入力額を束ねて併用する。
           const manualItem = {
             id: manualTarget.id || 'manual_discount',
@@ -625,7 +629,7 @@ export const PosModals = ({
                     className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                   >
                     <HandCoins size={16} />
-                    全額 ¥{base.toLocaleString()} で会計
+                    全額 ¥{base.toLocaleString()} を充当
                   </button>
                 )}
 

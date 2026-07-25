@@ -409,7 +409,8 @@ const addDiscountCounts = (summary, transaction) => {
 // 締めモーダルのクーポン確認用に、使われた全割引(全体＋単品/全区分)を集約する。
 // 金額クーポン(type=amount かつ券面あり)は枚数照合可、% / 手入力 / 単品割引は金額のみ表示。
 const addCouponUsageEntry = (summary, entry) => {
-  const amount = Number(entry?.amount || 0);
+  // お釣りON金券は額面(faceAmount)で照合する(定型金額×枚数=額面と一致させるため)。
+  const amount = Number(entry?.faceAmount ?? entry?.amount ?? 0) || 0;
   if (amount <= 0) return;
   const category = entry.accountingCategory === 'promo_expense' || entry.accountingCategory === 'voucher_payment'
     ? entry.accountingCategory
@@ -570,7 +571,8 @@ const addDiscounts = (summary, transaction) => {
 };
 
 const addAdjustmentEntry = (summary, key, entry, fallbackIndex = 0) => {
-  const amount = Number(entry?.amount || 0);
+  // お釣りON金券は faceAmount(額面=充当+お釣り) を回収額として表示する(タイル合計と揃える)。
+  const amount = Number(entry?.faceAmount ?? entry?.amount ?? 0) || 0;
   if (amount <= 0) return;
 
   const quantity = Math.max(1, Number(entry?.quantity ?? entry?.count ?? 1) || 1);
@@ -598,9 +600,13 @@ const addAdjustmentEntry = (summary, key, entry, fallbackIndex = 0) => {
 const addSettlementAdjustments = (summary, transaction) => {
   const promoExpenseAmount = Number(transaction.promoExpenseAmount || 0);
   const voucherAmount = Number(transaction.voucherAmount || 0);
+  // お釣りON金券は「回収=額面(充当+お釣り)」で計上する。お釣り分の現金マイナスは
+  // payments[] の isVoucherChange エントリが addPaymentMethod 経由で現金内訳に効く。
+  const voucherChangeAmount = Number(transaction.voucherChangeAmount || 0);
 
   if (promoExpenseAmount > 0) summary.promoExpenseTotal += promoExpenseAmount;
   if (voucherAmount > 0) summary.voucherTotal += voucherAmount;
+  if (voucherChangeAmount > 0) summary.voucherTotal += voucherChangeAmount;
 
   if (Array.isArray(transaction.promoExpenseItems) && transaction.promoExpenseItems.length > 0) {
     transaction.promoExpenseItems.forEach((item, index) => addAdjustmentEntry(summary, 'promoExpenses', item, index));
@@ -617,12 +623,12 @@ const addSettlementAdjustments = (summary, transaction) => {
 
   if (Array.isArray(transaction.vouchers) && transaction.vouchers.length > 0) {
     transaction.vouchers.forEach((item, index) => addAdjustmentEntry(summary, 'vouchers', item, index));
-  } else if (voucherAmount > 0) {
+  } else if (voucherAmount > 0 || voucherChangeAmount > 0) {
     addAdjustmentEntry(summary, 'vouchers', {
       id: 'voucher_payment',
       name: '金券/売掛',
-      amount: voucherAmount,
-      value: voucherAmount,
+      amount: voucherAmount + voucherChangeAmount,
+      value: voucherAmount + voucherChangeAmount,
       count: 1,
       quantity: 1
     }, 0);
@@ -951,7 +957,8 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
         summary.cancelReturnTotal += totalAmount + settlementAdjustmentTotal;
         // 金券・売掛の払戻分は「売掛」タイルにも反映する(現金/カードの払戻と並べて
         // ドロワー内訳を出すため。現金タイルは addPaymentMethod で既に負を含む)。
-        summary.voucherTotal += Number(transaction.voucherAmount || 0);
+        // お釣りON金券は回収=額面(充当+お釣り)なので、払戻も両フィールドを合算する。
+        summary.voucherTotal += Number(transaction.voucherAmount || 0) + Number(transaction.voucherChangeAmount || 0);
       }
       return;
     }

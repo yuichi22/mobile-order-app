@@ -25,11 +25,15 @@ const formatPaymentMethodText = (data) => {
 // 現金/カード等と並べて表示する。金券/売掛が無い会計は従来表示のまま。
 export const buildTenderText = (data = {}) => {
   const voucher = Math.max(0, Number(data.voucherAmount || 0) || 0);
-  if (voucher <= 0) return formatPaymentMethodText(data);
+  // お釣りON金券は「回収=額面(充当+お釣り)」で表示し、お釣りを別行で出す。
+  const voucherChange = Math.max(0, Number(data.voucherChangeAmount || 0) || 0);
+  if (voucher <= 0 && voucherChange <= 0) return formatPaymentMethodText(data);
 
   const lines = [];
   if (Array.isArray(data.payments) && data.payments.length > 0) {
     data.payments.forEach((payment) => {
+      // 金券お釣りの現金マイナス(ドロワー記録用)は「おつり」行で出すため内訳からは除外する。
+      if (payment?.isVoucherChange) return;
       const amount = Number(payment.amount || 0) || 0;
       if (amount !== 0) lines.push(`${formatPaymentMethod(payment.method)} ¥${amount.toLocaleString()}`);
     });
@@ -43,7 +47,8 @@ export const buildTenderText = (data = {}) => {
     .map((item) => String(item?.name || '').replace(/\s*[×✕xX]\s*\d+\s*枚\s*$/, '').trim())
     .filter(Boolean);
   const voucherLabel = voucherNames.length > 0 ? `金券/売掛（${voucherNames.join('・')}）` : '金券/売掛';
-  lines.push(`${voucherLabel} ¥${voucher.toLocaleString()}`);
+  lines.push(`${voucherLabel} ¥${(voucher + voucherChange).toLocaleString()}`);
+  // お釣り額は独立した「おつり」行(receivedAmount/changeAmount)で印字するためここには含めない。
   return lines.join(' / ');
 };
 
@@ -174,6 +179,13 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     data.taxableIncludedStandard ?? taxBreakdown.standard?.sales ?? taxSummary.standardTaxIncluded ?? 0
   ) || 0;
 
+  // お預かり(現金の預かり額)とおつり。おつりは現金の釣銭＋金券お釣り(額面超過の現金払い戻し)の合算。
+  // お預かりは現金会計のみ意味を持つ(カード/QRは総額が入るだけなので出さない)。
+  const isCashTender = String(data.paymentMethod || data.method || '') === 'cash';
+  const receivedAmount = isCashTender ? Number(data.receivedAmount ?? data.paymentAmount ?? 0) || 0 : 0;
+  const changeAmount = (isCashTender ? Number(data.changeAmount ?? data.change ?? 0) || 0 : 0)
+    + Math.max(0, Number(data.voucherChangeAmount || 0) || 0);
+
   return {
     title: data.title || '領収書',
     receiptType: data.receiptType || '',
@@ -217,6 +229,9 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     taxRateReduced: Number(data.taxRateReduced) || 8,
     taxRateStandard: Number(data.taxRateStandard) || 10,
     total,
-    paymentMethod: buildTenderText(data)
+    paymentMethod: buildTenderText(data),
+    // レンダラ(ブラウザ印刷/Starネイティブ/ブリッジ)で「お預かり」「おつり」行を出すための金額。
+    receivedAmount,
+    changeAmount
   };
 };

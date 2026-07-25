@@ -43,12 +43,16 @@ const createBlankDiscount = () => ({
   type: 'amount',
   value: '',
   accountingCategory: 'sales_discount',
+  allowsChange: false,
   note: ''
 });
 
 const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }) => {
   const [editingDiscount, setEditingDiscount] = useState(null);
   const [discountType, setDiscountType] = useState('amount');
+  // 会計区分と「お釣りを出す」は選択中の値で条件表示するため state で持つ(他はFormDataの非制御)。
+  const [accountingCategory, setAccountingCategory] = useState('sales_discount');
+  const [allowsChange, setAllowsChange] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingDiscount, setDeletingDiscount] = useState(null);
   const [isReordering, setIsReordering] = useState(false);
@@ -81,6 +85,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
   const startCreating = () => {
     setEditingDiscount(createBlankDiscount());
     setDiscountType('amount');
+    setAccountingCategory('sales_discount');
+    setAllowsChange(false);
   };
 
   const startEditing = (discount) => {
@@ -91,11 +97,15 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
       accountingCategory: discount.accountingCategory || 'sales_discount'
     });
     setDiscountType(discount.type || 'amount');
+    setAccountingCategory(discount.accountingCategory || 'sales_discount');
+    setAllowsChange(discount.allowsChange === true);
   };
 
   const cancelEditing = () => {
     setEditingDiscount(null);
     setDiscountType('amount');
+    setAccountingCategory('sales_discount');
+    setAllowsChange(false);
   };
 
   const handleSubmit = async (event) => {
@@ -113,6 +123,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
         type: discountType,
         value: Number(formData.get('value')) || 0,
         accountingCategory: String(formData.get('accountingCategory') || 'sales_discount'),
+        // お釣りは「金券/売掛 × 定型金額」のときだけ意味を持つ。他の組み合わせでは必ずfalseで保存する。
+        allowsChange: accountingCategory === 'voucher_payment' && discountType === 'amount' && allowsChange,
         note: String(formData.get('note') || '').trim()
       });
 
@@ -311,7 +323,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                             type="radio"
                             name="accountingCategory"
                             value={option.id}
-                            defaultChecked={(editingDiscount.accountingCategory || 'sales_discount') === option.id}
+                            checked={accountingCategory === option.id}
+                            onChange={() => setAccountingCategory(option.id)}
                             className="mt-1 h-4 w-4 accent-orange-500"
                           />
                           <span className="min-w-0">
@@ -321,6 +334,37 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         </label>
                       ))}
                     </div>
+
+                    {accountingCategory === 'voucher_payment' && discountType === 'amount' && (
+                      <button
+                        type="button"
+                        onClick={() => setAllowsChange((previous) => !previous)}
+                        className={`mt-3 flex w-full cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
+                          allowsChange
+                            ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500'
+                            : 'border-gray-100 bg-white hover:border-orange-200'
+                        }`}
+                      >
+                        <span
+                          className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                            allowsChange ? 'bg-orange-500' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                              allowsChange ? 'translate-x-[22px]' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-gray-800">お釣りを出す</span>
+                          <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-400">
+                            会計で金券の額面が支払額を超えたとき、超過分を現金のお釣りとして出します。
+                            日計では金券回収を額面で計上し、お釣りは現金内訳のマイナスになります。
+                          </span>
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   <div>
@@ -501,8 +545,15 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                     </td>
 
                     <td className="px-4 py-5">
-                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-                        {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                          {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
+                        </span>
+                        {discount.allowsChange === true && (
+                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+                            お釣り可
+                          </span>
+                        )}
                       </span>
                     </td>
 

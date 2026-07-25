@@ -4,6 +4,7 @@ import {
   ChevronRight,
   CreditCard,
   DollarSign,
+  HandCoins,
   LogOut,
   Percent,
   QrCode,
@@ -62,6 +63,8 @@ export const PosRegisterRight = ({
   discountAmount,
   promoExpenseAmount,
   voucherAmount,
+  voucherChangeAmount,
+  isZeroPayable = false,
   settlementAdjustmentTotal,
   salesAmountBeforeSettlementAdjustments,
   taxAmount,
@@ -120,13 +123,18 @@ export const PosRegisterRight = ({
     [paymentMethod, paymentAmount, totalAmount]
   );
 
-  const paymentActionLabel = paymentSplit.isSplit
-    ? getSplitActionLabel(paymentSplit.otherMethod)
-    : selectedPaymentMethodOption
-      ? selectedPaymentMethodOption.buttonLabel
-      : '支払い方法を選択してください';
+  // 支払額0(割引・金券・売掛で全額充当)は支払い方法を選ばず「会計を確定」1つで確定する。
+  const paymentActionLabel = isZeroPayable
+    ? '会計を確定'
+    : paymentSplit.isSplit
+      ? getSplitActionLabel(paymentSplit.otherMethod)
+      : selectedPaymentMethodOption
+        ? selectedPaymentMethodOption.buttonLabel
+        : '支払い方法を選択してください';
 
-  const paymentActionClassName = selectedPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500';
+  const paymentActionClassName = isZeroPayable
+    ? 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-xl'
+    : (selectedPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500');
 
   const handleNumClick = (value) => {
     if (value === 'clear') setPaymentAmount('');
@@ -190,9 +198,9 @@ export const PosRegisterRight = ({
 
   const isPaymentDisabled =
     hasNoCustomSelection
-    || hasNoPaymentMethod
+    || (hasNoPaymentMethod && !isZeroPayable)
     || (Number(totalPayableItemCount || 0) === 0)
-    || (paymentMethod === 'cash' && (parseInt(paymentAmount, 10) || 0) < totalAmount);
+    || (!isZeroPayable && paymentMethod === 'cash' && (parseInt(paymentAmount, 10) || 0) < totalAmount);
 
   return (
     <div className="relative flex h-full min-h-0 w-5/12 flex-col overflow-hidden bg-white">
@@ -239,6 +247,11 @@ export const PosRegisterRight = ({
                       金券/売掛 -¥{Number(voucherAmount || 0).toLocaleString()}
                     </div>
                   )}
+                  {Number(voucherChangeAmount || 0) > 0 && (
+                    <div className="mb-1 truncate text-xs font-black text-blue-600">
+                      金券お釣り ¥{Number(voucherChangeAmount || 0).toLocaleString()}
+                    </div>
+                  )}
                   {Number(settlementAdjustmentTotal || 0) > 0 && (
                     <div className="mb-1 truncate text-[11px] font-bold text-gray-400">
                       調整前 ¥{Number(salesAmountBeforeSettlementAdjustments || 0).toLocaleString()}
@@ -257,26 +270,48 @@ export const PosRegisterRight = ({
           </div>
         </div>
 
-        <div className="mb-3 shrink-0">
-          <div className={`grid gap-2 ${availablePaymentMethods.length === 1 ? 'grid-cols-1' : availablePaymentMethods.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-            {availablePaymentMethods.map((method) => (
-              <button
-                key={method.id}
-                onClick={() => setPaymentMethod(method.id)}
-                className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
-                  paymentMethod === method.id
-                    ? method.activeClassName
-                    : method.inactiveClassName
-                }`}
-              >
-                <method.icon size={15} />
-                {method.label}
-              </button>
-            ))}
+        {!isZeroPayable && (
+          <div className="mb-3 shrink-0">
+            <div className={`grid gap-2 ${availablePaymentMethods.length === 1 ? 'grid-cols-1' : availablePaymentMethods.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {availablePaymentMethods.map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => setPaymentMethod(method.id)}
+                  className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-black transition-all active:scale-[0.98] ${
+                    paymentMethod === method.id
+                      ? method.activeClassName
+                      : method.inactiveClassName
+                  }`}
+                >
+                  <method.icon size={15} />
+                  {method.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {paymentMethod === 'cash' ? (
+        {isZeroPayable ? (
+          <div className="mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-orange-200 bg-orange-50/40 p-6">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white text-orange-500 shadow-sm">
+              <HandCoins size={44} strokeWidth={2.2} />
+            </div>
+            <p className="text-xl font-black text-gray-700">お支払いは不要です</p>
+            <p className="mt-2 text-center text-sm font-bold text-gray-400">
+              割引・金券・売掛で全額充当されています。
+              <br />
+              「会計を確定」を押すと会計が完了します。
+            </p>
+            {Number(voucherChangeAmount || 0) > 0 && (
+              <div className="mt-4 flex items-baseline gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm">
+                <span className="text-sm font-bold text-gray-500">お釣り（現金）</span>
+                <span className="font-mono text-3xl font-black tracking-tight text-blue-600">
+                  ¥{Number(voucherChangeAmount || 0).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        ) : paymentMethod === 'cash' ? (
           <div className="flex min-h-0 flex-1 flex-col pb-2">
             <div className="mb-3 grid shrink-0 grid-cols-2 gap-2">
               <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">

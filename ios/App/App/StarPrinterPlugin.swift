@@ -330,6 +330,12 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
         lr("合計", yen(r["total"]))
         _ = printerBuilder.styleMagnification(StarXpandCommand.MagnificationParameter(width: 1, height: 1))
         if !str("paymentMethod").isEmpty { lr("お支払", str("paymentMethod")) }
+        // お預かり(現金)・おつり。おつりは現金の釣銭＋金券お釣り(額面超過の現金払い戻し)の合算値が
+        // payload.changeAmount に入る。現金以外のみの会計では両方0でどちらも印字しない。
+        let receivedAmount = (r["receivedAmount"] as? NSNumber)?.intValue ?? 0
+        let changeAmount = (r["changeAmount"] as? NSNumber)?.intValue ?? 0
+        if receivedAmount > 0 { lr("お預かり", "¥" + numberWithComma(receivedAmount)) }
+        if receivedAmount > 0 || changeAmount > 0 { lr("おつり", "¥" + numberWithComma(changeAmount)) }
         divider()
 
         // フッタ（前に余白）

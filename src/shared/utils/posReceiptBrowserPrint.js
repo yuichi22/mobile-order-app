@@ -230,6 +230,8 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
 
           <div class="section">
             <div class="row total"><span>合計</span><span>¥${formatAmount(payload.total || payload.totalAmount || payload.totalPrice)}</span></div>
+            ${Number(payload.receivedAmount || 0) > 0 ? `<div class="row"><span>お預かり</span><span>¥${formatAmount(payload.receivedAmount)}</span></div>` : ''}
+            ${(Number(payload.receivedAmount || 0) > 0 || Number(payload.changeAmount || 0) > 0) ? `<div class="row"><span>おつり</span><span>¥${formatAmount(payload.changeAmount || 0)}</span></div>` : ''}
           </div>
 
           <div class="section footer">

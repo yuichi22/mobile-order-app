@@ -134,6 +134,9 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
   // 金券/売掛(voucherAmount)は値引きではなく「お支払い(充当)」扱い。
   // 合計は満額(金券/売掛の充当前)で表示し、充当は支払い内訳に出す。
   const voucherAmount = Math.max(0, Number(data.voucherAmount || 0));
+  // 金券お釣り(額面超過の現金払い戻し)。現金の釣銭と合算して「おつり」表示に使う。
+  const voucherChangeAmount = Math.max(0, Number(data.voucherChangeAmount || 0));
+  const displayChangeAmount = Number(data.changeAmount || 0) + voucherChangeAmount;
   const promoExpenseAmount = Math.max(0, Number(data.promoExpenseAmount || 0));
   const receivedTotal = Number(data.totalAmount || 0);
   const grossTotal = receivedTotal + voucherAmount; // 満額
@@ -179,10 +182,10 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             <span>お支払い</span>
             <span>{tenderText}</span>
           </div>
-          {voucherAmount === 0 && (
+          {(voucherAmount === 0 || voucherChangeAmount > 0) && (
             <div className="flex justify-between text-gray-400">
               <span>おつり</span>
-              <span>¥{Number(data.changeAmount || 0).toLocaleString()}</span>
+              <span>¥{displayChangeAmount.toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -344,10 +347,24 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             <span>¥{grossTotal.toLocaleString()}</span>
           </div>
           {voucherAmount > 0 ? (
-            <div className="flex justify-between">
-              <span>お支払い</span>
-              <span>{tenderText}</span>
-            </div>
+            <>
+              <div className="flex justify-between">
+                <span>お支払い</span>
+                <span>{tenderText}</span>
+              </div>
+              {data.paymentMethod === 'cash' && Number(data.totalAmount || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span>お預かり (現金)</span>
+                  <span>¥{(Number(data.totalAmount || 0) + Number(data.changeAmount || 0)).toLocaleString()}</span>
+                </div>
+              )}
+              {(displayChangeAmount > 0 || data.paymentMethod === 'cash') && (
+                <div className="flex justify-between">
+                  <span>おつり</span>
+                  <span>¥{displayChangeAmount.toLocaleString()}</span>
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div className="flex justify-between">

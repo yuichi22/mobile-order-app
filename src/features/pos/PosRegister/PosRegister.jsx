@@ -113,7 +113,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
   const [discountQuantities, setDiscountQuantities] = useState({});
   // 全額売掛のワンタップ会計用。全額売掛stateを反映させた後にhandlePaymentを発火する。
-  const [pendingFullCreditCheckout, setPendingFullCreditCheckout] = useState(false);
 
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [issueReceipt, setIssueReceipt] = useState(false);
@@ -670,6 +669,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     discountAmount,
     promoExpenseAmount,
     voucherAmount,
+    voucherChangeAmount,
     settlementAdjustmentTotal,
     salesAmountBeforeSettlementAdjustments,
     taxAmountReduced,
@@ -686,6 +686,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         discountAmount: 0,
         promoExpenseAmount: 0,
         voucherAmount: 0,
+        voucherChangeAmount: 0,
         settlementAdjustmentTotal: 0,
         salesAmountBeforeSettlementAdjustments: 0,
         taxAmountReduced: 0,
@@ -761,6 +762,25 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const voucherAmountValue = Math.min(voucherRaw, Math.max(0, salesAmountBeforeSettlement - promoExpenseAmountValue));
     const settlementAdjustmentTotalValue = promoExpenseAmountValue + voucherAmountValue;
 
+    // お釣りON金券(voucher_payment×定型金額×allowsChange)の額面が支払残額を超えた分を現金お釣りで返す。
+    // お釣りはON金券の額面合計が上限(OFF金券・手入力由来の超過は従来どおり切り捨て)。
+    const changeSourceItems = discountType === 'amount'
+      ? (Array.isArray(selectedDiscount?.items) && selectedDiscount.items.length > 0
+          ? selectedDiscount.items
+          : selectedDiscount ? [selectedDiscount] : [])
+      : [];
+    const voucherChangeEligibleFace = changeSourceItems
+      .filter((item) => (
+        item?.accountingCategory === 'voucher_payment' &&
+        item?.allowsChange === true &&
+        (item?.type || 'amount') === 'amount'
+      ))
+      .reduce((sum, item) => sum + Math.max(0, Number(item.amount ?? item.value) || 0), 0);
+    const voucherChangeAmountValue = Math.min(
+      Math.max(0, voucherRaw - voucherAmountValue),
+      voucherChangeEligibleFace
+    );
+
     const finalTotalAmount = Math.max(0, salesAmountBeforeSettlement - settlementAdjustmentTotalValue);
     // 全額方式(A): 売上値引き＋販促費は課税対象を減らす。金券/売掛は充当(満額課税)なので含めない。
     const taxableReducingAmount = salesDiscountAmount + promoExpenseAmountValue;
@@ -782,6 +802,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       discountAmount: Number(salesDiscountAmount),
       promoExpenseAmount: Number(promoExpenseAmountValue),
       voucherAmount: Number(voucherAmountValue),
+      voucherChangeAmount: Number(voucherChangeAmountValue),
       settlementAdjustmentTotal: Number(settlementAdjustmentTotalValue),
       salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlement),
       taxAmountReduced: Number(reducedBreakdown.taxAmount),
@@ -795,6 +816,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const paid = Number(paymentAmount) || 0;
     return Math.max(0, paid - totalAmount);
   }, [paymentAmount, totalAmount]);
+
+  // 割引・金券・売掛で支払額が0になった会計。支払い方法の選択は不要になり、
+  // 「会計を確定」ボタン1つで確定する(内部的には売掛系(credit)として記録=従来の全額売掛と同じ)。
+  const isZeroPayableCheckout = Array.isArray(consolidatedItems)
+    && consolidatedItems.length > 0
+    && Number(rawTotalAmount) > 0
+    && Number(totalAmount) === 0;
 
   // reset stale payment input when checkout target changes
   useEffect(() => {
@@ -1485,9 +1513,12 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     if (isPaymentSubmitting) return;
     if (consolidatedItems.length === 0) return;
 
-    const isFullCredit = resolvedPaymentMethod === 'credit';
+    // 支払額0(全額充当)の会計は支払い方法を選ばず「会計を確定」で確定するため、
+    // 記録上は売掛系(credit)に寄せる(従来の全額売掛ワンタップと同じ扱い)。
+    const paymentMethodForCheckout = isZeroPayableCheckout ? 'credit' : resolvedPaymentMethod;
+    const isFullCredit = paymentMethodForCheckout === 'credit';
     const checkoutTotalAmount = Number(totalAmount || 0);
-    // 全額売掛は売掛で全額相殺するため支払総額0が正常。値引き前の総額があれば許可する。
+    // 全額売掛・全額充当は支払総額0が正常。値引き前の総額があれば許可する。
     if (isFullCredit) {
       if (Number(rawTotalAmount || 0) <= 0) {
         alert('会計金額が正しくありません。会計対象を選び直してください。');
@@ -1498,16 +1529,31 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       return;
     }
 
-    if (resolvedPaymentMethod === 'cash' && (Number(paymentAmount) || 0) < checkoutTotalAmount) {
+    if (paymentMethodForCheckout === 'cash' && (Number(paymentAmount) || 0) < checkoutTotalAmount) {
       alert('お預かり金額が不足しています');
       return;
     }
 
     // 現金＋カード/QR の分割会計。成立時は payments[] に現金/カードの内訳を持たせて記録する。
-    const paymentSplit = computePaymentSplit(resolvedPaymentMethod, paymentAmount, checkoutTotalAmount);
+    const paymentSplit = computePaymentSplit(paymentMethodForCheckout, paymentAmount, checkoutTotalAmount);
     const resolvedPaymentMethodLabel = paymentSplit.isSplit
       ? `現金＋${getSplitMethodLabel(paymentSplit.otherMethod)}`
       : '';
+
+    // 金券お釣りは現金ドロワーから出るため、現金マイナスの入金内訳として記録する。
+    // 日計の入金内訳は payments[] を優先合算するので、現金内訳・ドロワー突合に自動で効く。
+    const paymentsForRecord = Number(voucherChangeAmount) > 0
+      ? [
+          // お釣りが出る=金券が支払残額を全て充当した状態なので通常 totalAmount は 0 だが、
+          // 万一残額があれば選択中の支払方法の入金として保持する(payments[]は日計で排他的に使われるため)。
+          ...(paymentSplit.isSplit
+            ? paymentSplit.payments
+            : Number(totalAmount) > 0
+              ? [{ method: paymentMethodForCheckout, amount: Number(totalAmount) }]
+              : []),
+          { method: 'cash', amount: -Number(voucherChangeAmount), isVoucherChange: true }
+        ]
+      : (paymentSplit.isSplit ? paymentSplit.payments : null);
 
     setIsPaymentSubmitting(true);
     setIsPaymentFlowLocked(true);
@@ -1665,7 +1711,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
         batch.update(doc(db, 'stores', storeId, 'orders', summary.id), {
           paymentStatus: isOrderCompleteAfterPayment ? 'paid' : 'partial_paid',
-          paymentMethod: resolvedPaymentMethod,
+          paymentMethod: paymentMethodForCheckout,
           paidAt: isOrderCompleteAfterPayment ? serverTimestamp() : null,
           partialPaidAt: serverTimestamp(),
           isTakeout: summary.orderHasTakeoutItem,
@@ -1733,6 +1779,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
             type: selectedDiscount.type || discountType,
             value: Number(selectedDiscount.value ?? discountValue) || 0,
             accountingCategory: selectedDiscount.accountingCategory || 'sales_discount',
+            allowsChange: selectedDiscount.allowsChange === true,
             count: selectedDiscount.type === 'amount'
               ? Number(selectedDiscount.quantity || selectedDiscount.count || 1)
               : 1,
@@ -1747,9 +1794,22 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       .filter((item) => item.accountingCategory === 'promo_expense')
       .map((item) => ({ ...item, type: item.type || 'amount', accountingCategory: 'promo_expense' }));
 
+    // お釣りON金券は「額面(faceAmount)・充当(appliedAmount)・お釣り(changeAmount)」を明細に残す。
+    // ダインインの vouchers は従来から額面(amount)で保存しており、日計側も額面回収として読む。
+    let voucherChangeRemaining = Math.max(0, Number(voucherChangeAmount) || 0);
     const voucherItems = selectedAccountingAdjustmentItems
       .filter((item) => item.accountingCategory === 'voucher_payment')
-      .map((item) => ({ ...item, type: item.type || 'amount', accountingCategory: 'voucher_payment' }));
+      .map((item) => {
+        const normalized = { ...item, type: item.type || 'amount', accountingCategory: 'voucher_payment' };
+        const isChangeEligible = item.allowsChange === true && (item.type || 'amount') === 'amount';
+        if (voucherChangeRemaining > 0 && isChangeEligible) {
+          const face = Math.max(0, Number(item.amount) || 0);
+          const change = Math.min(face, voucherChangeRemaining);
+          voucherChangeRemaining -= change;
+          return { ...normalized, faceAmount: face, appliedAmount: face - change, changeAmount: change };
+        }
+        return normalized;
+      });
 
     const appliedDiscount = Number(discountAmount) > 0
       ? {
@@ -1837,7 +1897,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       let stripePaymentIntentId = null;
       const registerCardAmount = paymentSplit.isSplit
         ? (paymentSplit.otherMethod === 'card' ? Number(paymentSplit.otherPortion) : 0)
-        : (resolvedPaymentMethod === 'card' ? Number(checkoutTotalAmount) : 0);
+        : (paymentMethodForCheckout === 'card' ? Number(checkoutTotalAmount) : 0);
       if (registerCardAmount > 0 && registerContext.stripeReaderId) {
         try {
           const cardResult = await term.runCardPayment({
@@ -1881,6 +1941,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         discountAmount: Number(discountAmount),
         promoExpenseAmount: Number(promoExpenseAmount),
         voucherAmount: Number(voucherAmount),
+        voucherChangeAmount: Number(voucherChangeAmount),
+        // 履歴からの再印字でレシートにお預かり/おつりを出すため保存する(現金以外は釣銭0)。
+        paymentAmount: Number(paymentMethodForCheckout === 'cash' ? (Number(paymentAmount) || 0) : totalAmount),
+        receivedAmount: Number(paymentMethodForCheckout === 'cash' ? (Number(paymentAmount) || 0) : totalAmount),
+        changeAmount: Number(paymentMethodForCheckout === 'cash' ? changeAmount : 0),
         settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
         salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments),
         totalAmount: Number(totalAmount),
@@ -1909,10 +1974,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         vouchers: voucherItems,
         accountingAdjustments: selectedAccountingAdjustmentItems,
 
-        paymentMethod: resolvedPaymentMethod,
-        paymentMethodGroup: resolvedPaymentMethod,
+        paymentMethod: paymentMethodForCheckout,
+        paymentMethodGroup: paymentMethodForCheckout,
         ...(resolvedPaymentMethodLabel ? { paymentMethodLabel: resolvedPaymentMethodLabel } : {}),
-        ...(paymentSplit.isSplit ? { payments: paymentSplit.payments, isSplitPayment: true } : {}),
+        ...(paymentsForRecord ? { payments: paymentsForRecord } : {}),
+        ...(paymentSplit.isSplit ? { isSplitPayment: true } : {}),
         ...(stripePaymentIntentId ? { stripePaymentIntentId, cardPaymentProvider: 'stripe_terminal' } : {}),
 
         timestamp: serverTimestamp(),
@@ -2014,12 +2080,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       setLastTransaction({
         total: Number(totalAmount),
         change: Number(changeAmount),
-        method: resolvedPaymentMethod,
+        method: paymentMethodForCheckout,
         receiptId: issuedReceipt?.receiptId || '',
         receiptNo: issuedReceipt?.receiptNo || '',
         transactionId: transactionRef.id,
         promoExpenseAmount: Number(promoExpenseAmount),
         voucherAmount: Number(voucherAmount),
+        voucherChangeAmount: Number(voucherChangeAmount),
         settlementAdjustmentTotal: Number(settlementAdjustmentTotal),
         salesAmountBeforeSettlementAdjustments: Number(salesAmountBeforeSettlementAdjustments)
       });
@@ -2041,10 +2108,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         paymentAmount: Number(paymentAmount) || Number(totalAmount),
         changeAmount: Number(changeAmount),
         change: Number(changeAmount),
-        method: resolvedPaymentMethod,
-        paymentMethod: resolvedPaymentMethod,
+        voucherChangeAmount: Number(voucherChangeAmount),
+        method: paymentMethodForCheckout,
+        paymentMethod: paymentMethodForCheckout,
         ...(resolvedPaymentMethodLabel ? { paymentMethodLabel: resolvedPaymentMethodLabel } : {}),
-        payments: paymentSplit.payments || null,
+        payments: paymentsForRecord,
         isSplitPayment: paymentSplit.isSplit,
         receiptId: issuedReceipt?.receiptId || '',
         receiptNo: issuedReceipt?.receiptNo || '',
@@ -2095,64 +2163,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     }
   };
 
-  // 全額売掛ボタン: 全額を売掛にして即会計確定する。
-  // state更新は非同期のため、全額売掛の状態をセットだけして、
-  // 派生値(totalAmount=0/voucherAmount=全額)が反映された後に下のeffectで会計を発火する。
-  const requestFullCreditCheckout = () => {
-    if (isPaymentSubmitting || consolidatedItems.length === 0) return;
-    const fullAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
-    if (fullAmount <= 0) return;
-
-    setDiscountType('amount');
-    setDiscountValue(fullAmount);
-    setSelectedDiscount({
-      id: 'full_credit',
-      name: '全額売掛',
-      type: 'full_credit',
-      value: fullAmount,
-      accountingCategory: 'voucher_payment',
-      count: 1,
-      quantity: 1,
-      amount: fullAmount
-    });
-    setDiscountQuantities({});
-    setPaymentMethod('credit');
-    setPendingFullCreditCheckout(true);
-  };
-
-  // 手入力タイプ(会計時に金額入力)の割引/売掛で「全額 ¥X で会計」を押した時の即会計。
-  // 区分(売掛/販促費/売上値引)は元の割引設定を尊重する。全額売掛と同じ確定フローに乗せる。
-  const requestManualFullCheckout = (discount) => {
-    if (isPaymentSubmitting || consolidatedItems.length === 0) return;
-    const fullAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
-    if (fullAmount <= 0) return;
-
-    setDiscountType('amount');
-    setDiscountValue(fullAmount);
-    setSelectedDiscount({
-      id: discount?.id || 'manual_full',
-      name: discount?.name || '手入力',
-      // 締めで定型金額(枚数照合)と区別するため元の種類を残す。
-      type: discount?.type || 'manual',
-      value: fullAmount,
-      accountingCategory: discount?.accountingCategory || 'voucher_payment',
-      count: 1,
-      quantity: 1,
-      amount: fullAmount
-    });
-    setDiscountQuantities({});
-    setPaymentMethod('credit');
-    setPendingFullCreditCheckout(true);
-  };
-
-  useEffect(() => {
-    if (!pendingFullCreditCheckout) return;
-    // 全額売掛/全額手入力の状態が反映され、支払方法も売掛に切り替わってから確定する。
-    if (!selectedDiscount || resolvedPaymentMethod !== 'credit') return;
-    setPendingFullCreditCheckout(false);
-    handlePayment();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFullCreditCheckout, selectedDiscount, resolvedPaymentMethod]);
+  // 全額売掛/全額手入力の即会計フローは廃止。モーダルで「適用」した後、
+  // 支払額0の会計は「会計を確定」ボタン(isZeroPayableCheckout)で確定する。
 
   const toggleItemTakeout = (event, itemKey) => {
     if (!allowTakeout) return;
@@ -2414,8 +2426,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         setSelectedDiscount={setSelectedDiscount}
         discountQuantities={discountQuantities}
         setDiscountQuantities={setDiscountQuantities}
-        onFullCreditCheckout={requestFullCreditCheckout}
-        onManualFullCheckout={requestManualFullCheckout}
         showAbortModal={showAbortModal}
         setShowAbortModal={setShowAbortModal}
         abortReason={abortReason}
@@ -2462,6 +2472,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         discountAmount={discountAmount}
         promoExpenseAmount={promoExpenseAmount}
         voucherAmount={voucherAmount}
+        voucherChangeAmount={voucherChangeAmount}
+        isZeroPayable={isZeroPayableCheckout}
         settlementAdjustmentTotal={settlementAdjustmentTotal}
         salesAmountBeforeSettlementAdjustments={salesAmountBeforeSettlementAdjustments}
         taxAmount={taxAmount}

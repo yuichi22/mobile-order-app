@@ -402,6 +402,10 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     taxSummary: payment.taxSummary || parentTicket.taxSummary || null,
     // 支払い内訳の券名(おまっち等)/分割内訳を出すため、payment優先で無ければ親ticketから引き継ぐ。
     voucherAmount: Number(payment.voucherAmount ?? parentTicket.voucherAmount ?? 0),
+    // お預かり/おつり(現金釣銭・金券お釣り)を再印字レシートに出すため引き継ぐ。
+    voucherChangeAmount: Number(payment.voucherChangeAmount ?? parentTicket.voucherChangeAmount ?? 0),
+    receivedAmount: Number(payment.receivedAmount ?? parentTicket.receivedAmount ?? 0),
+    changeAmount: Number(payment.changeAmount ?? parentTicket.changeAmount ?? 0),
     vouchers: (Array.isArray(payment.vouchers) && payment.vouchers.length > 0)
       ? payment.vouchers
       : (Array.isArray(parentTicket.vouchers) ? parentTicket.vouchers : []),
@@ -2071,6 +2075,13 @@ export const PosTransactionHistory = ({
           discountAmount: Number(transaction.discountAmount || 0),
           promoExpenseAmount: Number(transaction.promoExpenseAmount || 0),
           voucherAmount: Number(transaction.voucherAmount || 0),
+          // お預かり/おつり(現金釣銭・金券お釣り)。履歴表示と再印字レシートの両方で使う。
+          // 保存が無い旧取引は0のままで、表示側は出さない。
+          voucherChangeAmount: Number(transaction.voucherChangeAmount || 0),
+          paymentAmount: Number(transaction.paymentAmount ?? transaction.receivedAmount ?? 0),
+          receivedAmount: Number(transaction.receivedAmount ?? transaction.paymentAmount ?? 0),
+          changeAmount: Number(transaction.changeAmount || 0),
+          payments: Array.isArray(transaction.payments) ? transaction.payments : null,
           // 再印刷レシートでも使用レジ名・割引内訳を出すため、取引の元データを引き継ぐ。
           registerName: transaction.registerName || '',
           registerMode: transaction.registerMode || '',
@@ -3886,6 +3897,29 @@ export const PosTransactionHistory = ({
                             <span className="tabular-nums">¥{Number(ticket.totalPrice || 0).toLocaleString()}</span>
                           </div>
                         )}
+                        {(() => {
+                          // お預かり/おつり。おつりは現金の釣銭＋金券お釣り(額面超過の現金払い戻し)の合算。
+                          // 預かり金の保存が無い旧伝票では出さない(receivedAmount保存は2026-07以降の取引)。
+                          const isCashTicket = (ticket.paymentMethod || ticket.paymentMethodGroup) === 'cash';
+                          const receivedAmount = isCashTicket ? Number(ticket.receivedAmount ?? ticket.paymentAmount ?? 0) : 0;
+                          const changeTotal = (isCashTicket ? Number(ticket.changeAmount || 0) : 0)
+                            + Math.max(0, Number(ticket.voucherChangeAmount || 0));
+                          if (receivedAmount <= 0 && changeTotal <= 0) return null;
+                          return (
+                            <div className="mt-2 space-y-1 text-xs font-bold text-gray-500">
+                              {receivedAmount > 0 && (
+                                <div className="flex justify-between">
+                                  <span>お預かり（現金）</span>
+                                  <span className="tabular-nums">¥{receivedAmount.toLocaleString()}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between text-blue-600">
+                                <span>おつり{Number(ticket.voucherChangeAmount || 0) > 0 ? '（金券お釣り含む）' : ''}</span>
+                                <span className="tabular-nums">¥{changeTotal.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
