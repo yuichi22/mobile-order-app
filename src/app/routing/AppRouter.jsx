@@ -12,6 +12,7 @@ import {
 } from '../../shared/utils/roles';
 import { isStoreStopped } from '../../shared/utils/storeAccess';
 import { buildSessionUrl, buildPendingCustomerEntryUrl, getRouteState } from './appRouteState';
+import SlugEntryRedirect from './SlugEntryRedirect';
 
 const loadLoginPage = () => import('../../features/auth/pages/LoginPage');
 const loadRegisterPage = () => import('../../features/auth/pages/RegisterPage');
@@ -53,6 +54,25 @@ const PlatformSignupPage = lazyWithRetry(loadPlatformSignupPage, 'platform-signu
 const RouteLoader = () => <AppLoading />;
 
 const QR_NAVIGATION_TIMEOUT_MS = 1800;
+
+// 公開URL(スラッグ) /haus 等の1セグメントパス。既存のローカルパスは除外する。
+// 形式は Core 側の slugRules (英小文字始まり・英小文字数字ハイフン・3〜30文字) と同じ。
+const SLUG_PATH_RE = /^\/([a-z][a-z0-9-]{1,28}[a-z0-9])$/;
+const LOCAL_TOP_PATHS = new Set([
+  'signup',
+  'reset-password',
+  'auth',
+  'm',
+  'staff-order',
+  'stocktake',
+  'register',
+  't'
+]);
+const matchEntrySlug = (pathname) => {
+  const m = String(pathname || '').match(SLUG_PATH_RE);
+  if (!m || LOCAL_TOP_PATHS.has(m[1])) return null;
+  return m[1];
+};
 
 const AppRouter = () => {
   const { currentUser, storeId: contextStoreId, role, storeAccessStatus, loading } = useAuth();
@@ -228,6 +248,12 @@ const AppRouter = () => {
       window.clearTimeout(fallbackTimer);
     };
   }, [pendingSessionNavigation]);
+
+  // 公開URL(スラッグ)入口はログイン状態に関係なく Core ディープリンクへ変換する。
+  const entrySlug = matchEntrySlug(location.pathname);
+  if (entrySlug) {
+    return <SlugEntryRedirect slug={entrySlug} />;
+  }
 
   if (isAuthTransitioning) {
     return <RouteLoader />;
