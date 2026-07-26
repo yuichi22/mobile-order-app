@@ -25,6 +25,7 @@ import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint'
 import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
 import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
+import { useCoreEntitlements } from '../../shared/hooks/useCoreEntitlements';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 import { normalizeScannedCode, toHalfWidthCode } from '../../shared/utils/halfWidth';
@@ -152,6 +153,19 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const canViewSettings = canAccessSettings(normalizedRole);
   const showAdminHeader = canViewAnalytics || canViewSettings;
 
+  // Core契約による出し分け: 片方のみ契約ならそのレジモードに固定。
+  // キャッシュ無し(未連携/未取得)や両方false(異常時)はフェイルオープンで従来通り。
+  const coreEnt = useCoreEntitlements(storeId);
+  const entOrderOnly = coreEnt.hasData && coreEnt.order && !coreEnt.pos;
+  const entPosOnly = coreEnt.hasData && coreEnt.pos && !coreEnt.order;
+
+  // 契約外モードに入っていたら即座に許可モードへ寄せる(レンダー中の状態調整パターン)。
+  if (entOrderOnly && registerMode !== 'order') {
+    setRegisterMode('order');
+  } else if (entPosOnly && registerMode !== 'pos') {
+    setRegisterMode('pos');
+  }
+
 
   useEffect(() => {
     const normalizedMode = registerMode === 'pos' ? 'pos' : 'order';
@@ -219,7 +233,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   }, [activeAdminTab, mountedAdminTab]);
 
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
-  const showRegisterModeToggle = activeAdminTab === 'pos';
+  const showRegisterModeToggle = activeAdminTab === 'pos' && !entOrderOnly && !entPosOnly;
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
     || activeAdminTab === 'analytics'
     || activeAdminTab === 'settings';

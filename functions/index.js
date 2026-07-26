@@ -8508,6 +8508,9 @@ export { startCardPayment, getCardPaymentStatus, cancelCardPayment, listCardRead
 // --- 売上同期 (取引を Akuto Core の拠点別売上へ毎時送信) ---
 export { syncSalesToCore, runSalesSyncNow } from "./salesSync.js";
 
+// --- エンタイトルメント (Core契約状態を取得し settings/coreApps へキャッシュ) ---
+export { refreshEntitlements } from "./entitlements.js";
+
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
 //       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、

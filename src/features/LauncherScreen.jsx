@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../app/providers/useAuth';
+import { useCoreEntitlements } from '../shared/hooks/useCoreEntitlements';
 import {
   USER_ROLES,
   canAccessAdminPanel,
@@ -18,11 +19,16 @@ import {
 } from '../shared/utils/roles';
 
 const LauncherScreen = ({ onModeSelect }) => {
-  const { logout, currentUser, role, profileName } = useAuth();
+  const { logout, currentUser, role, profileName, storeId } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // Core契約がPOSのみの拠点ではキッチンディスプレイ(モバイルオーダー機能)を出さない。
+  // キャッシュ無し(未連携)や両方false(異常時)はフェイルオープン。
+  const coreEnt = useCoreEntitlements(storeId);
+  const posOnlyContract = coreEnt.hasData && coreEnt.pos && !coreEnt.order;
+
   const normalizedRole = normalizeUserRole(role);
-  const canUseKitchen = canAccessKitchen(normalizedRole);
+  const canUseKitchen = canAccessKitchen(normalizedRole) && !posOnlyContract;
   const canUseAdminPanel = canAccessAdminPanel(normalizedRole);
   const isStaffOnly = normalizedRole === USER_ROLES.STAFF;
   const isSuperAdmin = normalizedRole === USER_ROLES.SUPER_ADMIN;
