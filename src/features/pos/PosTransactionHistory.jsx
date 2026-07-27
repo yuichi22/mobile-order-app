@@ -440,7 +440,7 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
 
     const statementItems = paymentRows.map((payment, index) => {
       const method = payment.paymentMethod || payment.method || '';
-      const paidAtText = formatDateTimeShort(payment.paidAt || payment.timestamp) || formatTime(payment.paidAt || payment.timestamp) || '';
+      const paidAtText = formatDateTimeShort(payment.paidAt || payment.timestamp) || '';
       const sourceId = String(payment.sourceTransactionId || payment.id || '').slice(-8);
 
       return {
