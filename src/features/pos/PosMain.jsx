@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDocs, increment, limit, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
@@ -283,6 +283,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     if (registerMode !== 'pos' || !storeId) return;
     setPosHolds(readPosHoldsFromStorage(storeId, activeRegister?.id));
   }, [registerMode, storeId, activeRegister?.id]);
+
+  // groom(予約アプリ)からの会計依頼伝票。activeな状態(pending/claimed)だけを購読する
+  // (⚠sessions全件購読で重くなった前例があるため、終端状態のpaid/cancelledは対象外)。
+  const [checkoutRequests, setCheckoutRequests] = useState([]);
+  // 呼出中(カートに展開済み)の会計依頼。会計確定時に paid 化と取引docへの紐付けに使う。
+  const [activeCheckoutRequest, setActiveCheckoutRequest] = useState(null);
+  useEffect(() => {
+    if (registerMode !== 'pos' || !storeId) return undefined;
+    const requestsQuery = query(
+      collection(db, 'stores', storeId, 'checkoutRequests'),
+      where('status', 'in', ['pending', 'claimed'])
+    );
+    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+      // 期限切れ(expiresAt超過)はここで判定して isExpired として渡す(遅延判定・groomからの再送で復活)。
+      // render中のDate.now()はlint(react-hooks/purity)で禁止のため、購読コールバック側で判定する。
+      const nowMs = Date.now();
+      const rows = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          isExpired: Boolean(data.expiresAt?.toMillis && data.expiresAt.toMillis() < nowMs)
+        };
+      });
+      rows.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+      setCheckoutRequests(rows);
+    }, (error) => {
+      console.error('[PosMain] checkoutRequests subscribe failed', error);
+    });
+    return unsubscribe;
+  }, [registerMode, storeId]);
 
   const savePosHolds = (nextHolds) => {
     setPosHolds(nextHolds);
@@ -913,6 +944,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     savePosHolds(posHolds.filter((item) => item.id !== holdId));
 
     setTakeoutCart(Array.isArray(hold.cart) ? hold.cart : []);
+    // 保留カートにgroom会計依頼の明細が含まれていたら紐付けを復元する
+    // (復元できないと会計してもcheckoutRequestがpaidにならず一覧に残り続けるため)。
+    const heldGroomRequestId = (Array.isArray(hold.cart) ? hold.cart : [])
+      .map((item) => String(item.id || '').match(/^groomreq:(.+):\d+$/)?.[1])
+      .find(Boolean) || null;
+    setActiveCheckoutRequest(
+      heldGroomRequestId
+        ? (checkoutRequests.find((request) => request.id === heldGroomRequestId) || null)
+        : null
+    );
     if (registerMode === 'pos') setIsTakeoutMode(true);
     setTakeoutPaymentAmount('');
     setTakeoutPaymentMethod('');
@@ -941,6 +982,91 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     const nextHolds = posHolds.filter((item) => item.id !== activePosHoldId);
     savePosHolds(nextHolds);
     setActivePosHoldId('');
+  };
+
+  // groom会計依頼を呼び出してカートに展開する(pending→claimed)。
+  // 他レジとの競合はトランザクションの status/claimedBy 検査で防ぐ。
+  const claimCheckoutRequest = async (request) => {
+    if (!storeId || !request?.id) return;
+    const registerId = activeRegister?.id || 'pos';
+
+    if (takeoutCart.length > 0 && !(await appConfirm('現在の仮伝票を置き換えて、予約会計を呼び出しますか？', { okLabel: '呼び出す' }))) {
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const requestRef = doc(db, 'stores', storeId, 'checkoutRequests', request.id);
+        const snap = await tx.get(requestRef);
+        const data = snap.exists() ? snap.data() : null;
+        if (!data || data.status === 'paid' || data.status === 'cancelled') {
+          throw new Error('この伝票はすでに処理済みです。');
+        }
+        if (data.status === 'claimed' && data.claimedBy && data.claimedBy !== registerId) {
+          throw new Error('他のレジで処理中です。');
+        }
+        tx.update(requestRef, {
+          status: 'claimed',
+          claimedBy: registerId,
+          claimedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+    } catch (error) {
+      setPosMessage(error?.message || '呼出に失敗しました。', 'error');
+      return;
+    }
+
+    setTakeoutCart((Array.isArray(request.lines) ? request.lines : []).map((line, index) => ({
+      id: `groomreq:${request.id}:${index}`,
+      sourceType: 'groom',
+      name: line.name || 'トリミング',
+      categoryId: '',
+      categoryName: '予約会計(Groom)',
+      takeoutPrice: Number(line.unitPrice || 0),
+      unitPrice: Number(line.unitPrice || 0),
+      priceTaxIncluded: Number(line.unitPrice || 0),
+      // 店内役務=標準税率。伝票側の taxRate(既定10)をそのまま採用する。
+      taxRate: Number.isFinite(Number(line.taxRate)) && Number(line.taxRate) > 0 ? Number(line.taxRate) : 10,
+      quantity: Number(line.qty || 1)
+    })));
+    setActiveCheckoutRequest(request);
+    setActivePosHoldId('');
+    setTakeoutPaymentAmount('');
+    setTakeoutPaymentMethod('');
+    clearTakeoutDiscount();
+    setIsTakeoutMode(true);
+    setPosMessage(`${request.customerName || '予約会計'} を呼び出しました。`, 'success');
+  };
+
+  // 呼出を解除して一覧(pending)へ戻す。カートに展開済みならカートも空にする。
+  const releaseCheckoutRequest = async (request) => {
+    if (!storeId || !request?.id) return;
+    if (!(await appConfirm(`${request.customerName || '予約会計'} の呼出を解除して一覧に戻しますか？`, { okLabel: '戻す' }))) return;
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const requestRef = doc(db, 'stores', storeId, 'checkoutRequests', request.id);
+        const snap = await tx.get(requestRef);
+        const data = snap.exists() ? snap.data() : null;
+        if (!data || data.status !== 'claimed') return; // 既にpaid/cancelled/pendingなら何もしない
+        tx.update(requestRef, {
+          status: 'pending',
+          claimedBy: null,
+          claimedAt: null,
+          updatedAt: serverTimestamp()
+        });
+      });
+    } catch (error) {
+      setPosMessage(error?.message || '呼出解除に失敗しました。', 'error');
+      return;
+    }
+
+    if (activeCheckoutRequest?.id === request.id) {
+      setActiveCheckoutRequest(null);
+      setTakeoutCart((current) => current.filter((item) => !String(item.id || '').startsWith(`groomreq:${request.id}:`)));
+    }
+    setPosMessage('予約会計を一覧に戻しました。', 'success');
   };
 
   const closeTakeoutMode = () => {
@@ -1439,6 +1565,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         }
       }
 
+      // groom会計依頼の呼出中で、その明細がまだカートに残っている場合のみ紐付ける
+      // (呼出後に明細を全て消して別の会計をしたケースでは paid 化しない)。
+      const groomRequestForPayment = activeCheckoutRequest &&
+        takeoutCart.some((item) => String(item.id || '').startsWith(`groomreq:${activeCheckoutRequest.id}:`))
+        ? activeCheckoutRequest
+        : null;
+
       const batch = writeBatch(db);
 
       batch.set(transactionRef, {
@@ -1526,8 +1659,27 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           paidAt: serverTimestamp(),
           businessDate,
 
-          isPaid: true
+          isPaid: true,
+
+          // groom会計依頼との紐付け(②の売上→CRMポイント付与で personId/bookingId を使う)。
+          ...(groomRequestForPayment ? {
+            source: 'groom',
+            sourceRequestId: groomRequestForPayment.id,
+            groomBookingId: groomRequestForPayment.bookingId || null,
+            groomTenantId: groomRequestForPayment.groomTenantId || null,
+            personId: groomRequestForPayment.personId || null,
+            crmLineUserId: groomRequestForPayment.lineUserId || null
+          } : {})
         });
+
+      if (groomRequestForPayment) {
+        batch.update(doc(db, 'stores', storeId, 'checkoutRequests', groomRequestForPayment.id), {
+          status: 'paid',
+          paidAt: serverTimestamp(),
+          transactionId: transactionRef.id,
+          updatedAt: serverTimestamp()
+        });
+      }
 
       const retailQuantityByProductId = new Map();
       takeoutCart.forEach((item) => {
@@ -1584,6 +1736,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       }
 
       clearActivePosHoldAfterPayment();
+      setActiveCheckoutRequest(null);
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
       setTakeoutPaymentMethod('');
@@ -2786,6 +2939,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             posHolds={posHolds}
             onResumeHold={restorePosHold}
             onDeleteHold={deletePosHold}
+            checkoutRequests={checkoutRequests}
+            activeCheckoutRequestId={activeCheckoutRequest?.id || null}
+            onClaimCheckoutRequest={claimCheckoutRequest}
+            onReleaseCheckoutRequest={releaseCheckoutRequest}
           />
         )}
       </div>

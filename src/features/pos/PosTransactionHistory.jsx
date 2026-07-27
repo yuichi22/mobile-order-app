@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
+  CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -497,7 +497,12 @@ export const PosTransactionHistory = ({
   registers = [],
   posHolds = [],
   onResumeHold = null,
-  onDeleteHold = null
+  onDeleteHold = null,
+  // groom(予約アプリ)からの会計依頼伝票(親がpending/claimed限定で購読)と呼出/解除の操作。
+  checkoutRequests = [],
+  activeCheckoutRequestId = null,
+  onClaimCheckoutRequest = null,
+  onReleaseCheckoutRequest = null
 }) => {
   // 履歴は登録レジ単位。既定は自レジ(ownRegisterId)。「その他のレジ」で他レジを閲覧可。
   const [viewingRegisterId, setViewingRegisterId] = useState(ownRegisterId);
@@ -2974,6 +2979,20 @@ export const PosTransactionHistory = ({
             保留{posHolds.length > 0 ? `（${posHolds.length}）` : ''}
           </button>
         )}
+        {viewedRegisterMode === 'pos' && !isViewingOtherRegister && (
+          <button
+            type="button"
+            onClick={() => setFilter('groom')}
+            className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
+              filter === 'groom'
+                ? 'border-indigo-500 text-indigo-700'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            <CalendarClock size={14} />
+            予約会計{checkoutRequests.length > 0 ? `（${checkoutRequests.length}）` : ''}
+          </button>
+        )}
         {Boolean(viewedRegisterMode) && viewedRegisterMode !== 'pos' && (
           <button
             type="button"
@@ -3188,13 +3207,96 @@ export const PosTransactionHistory = ({
           );
         })}
 
-        {filter !== 'hold' && loading && (
+        {filter === 'groom' && checkoutRequests.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
+            <CalendarClock size={56} strokeWidth={1.5} />
+            <p className="mt-3 text-sm font-black">
+              予約の会計依頼はありません
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-300">
+              Groomの「POSへ会計送信」で届きます
+            </p>
+          </div>
+        )}
+
+        {filter === 'groom' && checkoutRequests.map((request) => {
+          const isExpired = request.isExpired === true;
+          const isClaimed = request.status === 'claimed';
+          const claimedByOwn = isClaimed && String(request.claimedBy || '') === String(ownRegisterId || '');
+          const claimedRegisterName = isClaimed
+            ? (registers.find((register) => register.id === request.claimedBy)?.name || '他のレジ')
+            : '';
+          const requestedAt = request.createdAt?.toDate
+            ? request.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+            : '';
+          const lineSummary = (Array.isArray(request.lines) ? request.lines : [])
+            .map((line) => line.name)
+            .filter(Boolean)
+            .join('・');
+          return (
+            <div
+              key={request.id}
+              className={`rounded-2xl border bg-white p-3 shadow-sm ${
+                isExpired ? 'border-slate-200 opacity-60' : activeCheckoutRequestId === request.id ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-indigo-100'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-black text-slate-800">
+                      {request.customerName || '予約のお客様'}
+                    </span>
+                    {isExpired ? (
+                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">期限切れ</span>
+                    ) : isClaimed ? (
+                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-600">
+                        呼出中{claimedByOwn ? '' : `・${claimedRegisterName}`}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="truncate text-xs font-bold text-slate-400">
+                    {requestedAt && `${requestedAt} ・ `}¥{Number(request.totalAmount || 0).toLocaleString()}
+                    {lineSummary && ` ・ ${lineSummary}`}
+                  </div>
+                  {request.note && (
+                    <div className="truncate text-[11px] font-bold text-slate-400">{request.note}</div>
+                  )}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  {claimedByOwn && (
+                    <button
+                      type="button"
+                      onClick={() => onReleaseCheckoutRequest?.(request)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 hover:bg-slate-50"
+                    >
+                      戻す
+                    </button>
+                  )}
+                  {isExpired ? (
+                    <span className="self-center text-[11px] font-bold text-slate-400">Groomから再送で復活</span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isClaimed && !claimedByOwn}
+                      onClick={() => onClaimCheckoutRequest?.(request)}
+                      className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                    >
+                      呼出
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filter !== 'hold' && filter !== 'groom' && loading && (
           <div className="py-10 text-center">
               <LoadingSpinner size={32} className="inline" />
           </div>
         )}
 
-        {filter !== 'hold' && !loading && displayTickets.length === 0 && (
+        {filter !== 'hold' && filter !== 'groom' && !loading && displayTickets.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
               filter === 'paid' && paidPaymentFilter === 'cash'
@@ -3231,7 +3333,7 @@ export const PosTransactionHistory = ({
           </div>
         )}
 
-        {filter !== 'hold' && !loading && displayTickets.map((ticket) => {
+        {filter !== 'hold' && filter !== 'groom' && !loading && displayTickets.map((ticket) => {
           const isExpanded = expandedTicketIds.has(ticket.id);
           const isPaid = ticket.status === 'paid';
           const isCancelled = ticket.status === 'cancelled';
