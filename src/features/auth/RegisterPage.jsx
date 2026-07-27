@@ -1,8 +1,11 @@
-﻿import React, { useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, ShieldCheck, UserPlus } from 'lucide-react';
 
+import { doc, getDoc } from 'firebase/firestore';
+
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
+import { db } from '../../shared/api/firebase/client';
 import { useAuth } from '../../app/providers/useAuth';
 import { getAuthErrorMessage } from '../../shared/utils/authErrorMessages';
 
@@ -14,13 +17,31 @@ const RegisterPage = () => {
   const [inviteCode, setInviteCode] = useState(searchParams.get('invite') || '');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [inviteRole, setInviteRole] = useState(null);
 
   const inviteStoreId = searchParams.get('store_id') || '';
   const hasInvite = Boolean(inviteCode && inviteStoreId);
-  const pageTitle = useMemo(
-    () => (hasInvite ? 'スタッフアカウント登録' : 'オーナーアカウント登録'),
-    [hasInvite]
-  );
+
+  // 招待のロールで表示を出し分ける(ポータルの管理者登録リンクは role=owner)。
+  // 招待docは active の間だけ公開getできる。取得失敗時は従来のスタッフ表示のまま。
+  useEffect(() => {
+    if (!hasInvite) return undefined;
+    let cancelled = false;
+    getDoc(doc(db, 'stores', inviteStoreId, 'staffInvites', inviteCode))
+      .then((snap) => {
+        if (!cancelled && snap.exists()) setInviteRole(snap.data()?.role || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [hasInvite, inviteStoreId, inviteCode]);
+
+  const isAdminInvite = inviteRole === 'owner';
+  const pageTitle = useMemo(() => {
+    if (!hasInvite) return 'オーナーアカウント登録';
+    return isAdminInvite ? '管理者アカウント登録' : 'スタッフアカウント登録';
+  }, [hasInvite, isAdminInvite]);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -60,7 +81,9 @@ const RegisterPage = () => {
             <h1 className="mb-1 text-2xl font-bold text-gray-800">{pageTitle}</h1>
             <p className="text-sm leading-relaxed text-gray-500">
               {hasInvite
-                ? '招待リンクからスタッフ用アカウントを登録します。'
+                ? (isAdminInvite
+                  ? 'この店舗（拠点）を管理する管理者アカウントを作成します。登録後、このアカウントでログインするとレジ・設定が使えます。'
+                  : '招待リンクからスタッフ用アカウントを登録します。')
                 : '最初の店舗オーナーアカウントを登録します。'}
             </p>
           </div>
@@ -80,7 +103,7 @@ const RegisterPage = () => {
               type="text"
               required
               className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
-              placeholder="河野 瑛篤"
+              placeholder="氏名を入力"
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
