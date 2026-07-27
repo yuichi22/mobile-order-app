@@ -59,6 +59,7 @@ const QR_NAVIGATION_TIMEOUT_MS = 1800;
 // 形式は Core 側の slugRules (英小文字始まり・英小文字数字ハイフン・3〜30文字) と同じ。
 const SLUG_PATH_RE = /^\/([a-z][a-z0-9-]{1,28}[a-z0-9])$/;
 const LOCAL_TOP_PATHS = new Set([
+  'login',
   'signup',
   'reset-password',
   'auth',
@@ -66,6 +67,7 @@ const LOCAL_TOP_PATHS = new Set([
   'staff-order',
   'stocktake',
   'register',
+  'api',
   't'
 ]);
 const matchEntrySlug = (pathname) => {
