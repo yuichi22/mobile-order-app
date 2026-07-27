@@ -544,6 +544,12 @@ service cloud.firestore {
         allow read: if isStoreManager(storeId);
         allow write: if isStoreStaff(storeId);
       }
+      // groom等からの会計依頼伝票。作成はFunctions(Admin SDK)のみ。
+      // レジ(スタッフ)は閲覧と状態遷移(claim/paid/cancel)のupdateだけ許可。
+      match /checkoutRequests/{requestId} {
+        allow read, update: if isStoreStaff(storeId);
+        allow create, delete: if false;
+      }
       // Shopify EC売上(分析専用)。取り込みはFunctions(Admin SDK)のみ＝クライアント書込不可。
       match /ecOrders/{ecOrderId} {
         allow read: if isStoreManager(storeId);

@@ -8519,6 +8519,9 @@ export { refreshEntitlements } from "./entitlements.js";
 // --- 店舗自動プロビジョニング (Core拠点のorder/pos有効化で店舗を自動作成) ---
 export { provisionStoreForSpace, onProvisionInviteUsed } from "./provisioning.js";
 
+// --- 会計依頼伝票 (groom「作業完了・お会計」→POSレジへの伝票受け口) ---
+export { receiveCheckoutRequest } from "./checkoutRequests.js";
+
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
 //       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、
