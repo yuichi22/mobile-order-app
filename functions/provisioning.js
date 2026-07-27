@@ -8,6 +8,7 @@
 //   owner ロールの招待(staffInvites, source=core-provision)を発行し、初期設定リンクを返す。
 //   リンクは既存の /register?store_id&invite フロー(createInvitedMember)で消化される。
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -122,6 +123,71 @@ export const provisionStoreForSpace = onRequest(
     } catch (e) {
       console.error("[provisionStoreForSpace] error:", e);
       return res.status(500).json({ ok: false, error: e?.message || "internal error" });
+    }
+  }
+);
+
+// Core側の拠点プロビジョニング更新受け口(dev)。prod展開時は差し替える。
+const CORE_PROVISION_UPDATE_URL =
+  "https://asia-northeast1-suomin-9ff5a.cloudfunctions.net/updateSpaceProvision";
+
+// プロビジョニング招待(owner)が使用されたら、登録された管理者のメール/氏名を
+// Core の space.provision.mobileOrder に書き戻す(ポータルに「管理者登録 <メール>」を出す用)。
+export const onProvisionInviteUsed = onDocumentUpdated(
+  {
+    region: REGION,
+    database: DB_ID,
+    document: "stores/{storeId}/staffInvites/{inviteCode}",
+  },
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+    if (after.source !== "core-provision") return;
+    if (before.status === after.status || after.status !== "used") return;
+
+    const storeId = event.params.storeId;
+    const termSnap = await db
+      .collection("stores").doc(storeId)
+      .collection("settings").doc("terminal").get();
+    const term = termSnap.exists ? termSnap.data() || {} : {};
+    const coreTenantId = str(term.coreTenantId);
+    const coreSpaceId = str(term.coreSpaceId);
+    if (!coreTenantId || !coreSpaceId) return;
+
+    let adminEmail = null;
+    let adminName = null;
+    const usedBy = str(after.usedBy);
+    if (usedBy) {
+      const userSnap = await db.collection("users").doc(usedBy).get();
+      if (userSnap.exists) {
+        adminEmail = str(userSnap.data()?.email) || null;
+        adminName = str(userSnap.data()?.name) || null;
+      }
+    }
+
+    const secret = str(process.env.CORE_SALES_SECRET);
+    if (!secret) {
+      console.warn("[onProvisionInviteUsed] CORE_SALES_SECRET 未設定");
+      return;
+    }
+
+    try {
+      const res = await fetch(CORE_PROVISION_UPDATE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify({ tenantId: coreTenantId, spaceId: coreSpaceId, adminEmail, adminName }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.ok) {
+        console.warn("[onProvisionInviteUsed] Core応答NG:", res.status, payload?.error || "");
+        return;
+      }
+      console.log(`[onProvisionInviteUsed] ${coreTenantId}/${coreSpaceId} admin=${adminEmail}`);
+    } catch (e) {
+      console.warn("[onProvisionInviteUsed] Core接続失敗:", e?.message || e);
     }
   }
 );

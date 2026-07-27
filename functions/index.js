@@ -8517,7 +8517,7 @@ export { syncSalesToCore, runSalesSyncNow } from "./salesSync.js";
 export { refreshEntitlements } from "./entitlements.js";
 
 // --- 店舗自動プロビジョニング (Core拠点のorder/pos有効化で店舗を自動作成) ---
-export { provisionStoreForSpace } from "./provisioning.js";
+export { provisionStoreForSpace, onProvisionInviteUsed } from "./provisioning.js";
 
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
