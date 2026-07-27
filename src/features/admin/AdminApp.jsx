@@ -234,6 +234,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
   // 設定/日計/分析 はすべてサブ画面タブ。入っている間はレジ切替トグルを「戻る」ピルに差し替える。
   const showRegisterModeToggle = activeAdminTab === 'pos' && !entOrderOnly && !entPosOnly;
+  // 片方のみ契約の拠点では切替はできないが、現在のレジモードは見せる(固定バッジ)。
+  const showRegisterModeBadge = activeAdminTab === 'pos' && (entOrderOnly || entPosOnly);
   const showSelectedRegisterReturnButton = activeAdminTab === 'dailyClosing'
     || activeAdminTab === 'analytics'
     || activeAdminTab === 'settings';
@@ -527,6 +529,24 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                       className="ml-1 opacity-70 transition-transform duration-200 group-hover:rotate-180"
                     />
                   </button>
+                )}
+
+                {showRegisterModeBadge && (
+                  <div
+                    className={`flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black text-white shadow-sm ${
+                      registerMode === 'pos'
+                        ? 'bg-blue-600 shadow-blue-500/25'
+                        : 'bg-orange-500 shadow-orange-500/20'
+                    }`}
+                    title="ご契約プランではこのレジのみ利用できます"
+                  >
+                    {registerMode === 'pos' ? (
+                      <CreditCard size={16} strokeWidth={2.7} />
+                    ) : (
+                      <ShoppingBag size={16} strokeWidth={2.7} />
+                    )}
+                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
+                  </div>
                 )}
 
                 {showSelectedRegisterReturnButton && (
