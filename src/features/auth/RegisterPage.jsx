@@ -98,12 +98,14 @@ const RegisterPage = () => {
 
         <form onSubmit={handleRegister} className="space-y-5">
           <div>
-            <label className="mb-2 block text-xs font-black text-gray-500">名前</label>
+            <label className="mb-2 block text-xs font-black text-gray-500">
+              {isAdminInvite ? '管理者名' : '名前'}
+            </label>
             <input
               type="text"
               required
               className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
-              placeholder="氏名を入力"
+              placeholder={isAdminInvite ? '例）山田 太郎（店長・オーナー名でも可）' : '氏名を入力'}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
