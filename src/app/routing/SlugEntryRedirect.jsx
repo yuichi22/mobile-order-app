@@ -8,16 +8,26 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import AppLoading from '../../shared/components/feedback/AppLoading';
+import { app } from '../../shared/api/firebase/client';
 
 // Core(suomin) dev の公開設定。WebのAPIキーはクライアント配布前提の公開値。
+// ⚠dev専用: prod Core が未整備のため、dev プロジェクトのビルドでのみ有効化する。
+// prod展開時は環境別のCore設定に差し替えること。
 const CORE_PROJECT_ID = 'suomin-9ff5a';
 const CORE_API_KEY = 'AIzaSyCrYp46BW49b6WzebW7Se6GXh__rkFvBcQ';
+const SLUG_ENABLED = app?.options?.projectId === 'mobile-order-dev-5f7fd';
 
 const SlugEntryRedirect = ({ slug }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
+
+    // prod ではスラッグ解決を行わずトップへ（dev Core を誤参照しないため）
+    if (!SLUG_ENABLED) {
+      navigate({ pathname: '/', search: '' }, { replace: true });
+      return undefined;
+    }
 
     (async () => {
       let target = { pathname: '/', search: '' };
