@@ -2223,6 +2223,13 @@ const ProductMasterTable = ({
     const matchedCategory = productCategories.find((category) => category.id === draft.categoryId);
     const matchedGroup = productCategoryGroups.find((group) => group.id === (draft.categoryGroupId || matchedCategory?.groupId));
     const matchedSupplier = suppliers.find((supplier) => supplier.id === (draft.supplierId || matchedBrand?.supplierId));
+    // 売り場は「名前を正」としてIDを引き直す。分類モーダルの売場選択が salesAreaName のみ更新し
+    // salesAreaId を更新しないため、放置すると名前=新売場/ID=旧売場 の不整合が生まれ、日計(ID優先集計)が
+    // 誤った売り場に計上される。ここで名前一致のマスターIDに常に揃えて不整合を防ぐ。
+    const draftSalesAreaName = String(draft.salesAreaName || '').trim();
+    const matchedSalesArea = (productSalesAreas || []).find(
+      (area) => String(area?.name || '').trim() === draftSalesAreaName
+    );
     const resolvedTax = resolveInheritedTaxForDraft({ ...draft, categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId });
     // 分類の性別設定から確定 gender を再解決(固定は強制/選択は明示値・空欄は上層継承/なしは空)。
     const resolvedGender = resolveEffectiveGender(draft, {
@@ -2239,7 +2246,8 @@ const ProductMasterTable = ({
       brandName: matchedBrand?.name || draft.brandName || '',
       categoryName: matchedCategory?.name || draft.categoryName || '',
       subCategoryName: draft.subCategoryName || '',
-      salesAreaName: draft.salesAreaName || '',
+      salesAreaName: matchedSalesArea?.name || draft.salesAreaName || '',
+      salesAreaId: matchedSalesArea?.id || (draftSalesAreaName ? '' : draft.salesAreaId || ''),
       categoryGroupId: matchedCategory?.groupId || draft.categoryGroupId || '',
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
