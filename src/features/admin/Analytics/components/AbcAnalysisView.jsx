@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const formatCurrency = (value) => `¥${(Number(value) || 0).toLocaleString()}`;
+
+// 長期間で商品が大量になってもDOMが膨らまないよう、段階表示する初期件数。
+const PAGE_STEP = 100;
 
 const RANK_META = {
   A: {
@@ -41,6 +44,23 @@ const AbcAnalysisView = ({
   const items = abcAnalysis?.items || [];
   const summary = abcAnalysis?.summary || {};
   const abcTotalSales = abcAnalysis?.totalSales || 0;
+
+  // ランク絞り込み＋段階表示。全件見られるが、大量時はDOMを抑えて必要な分だけ描画する。
+  const [rankFilter, setRankFilter] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(PAGE_STEP);
+  // 期間変更(件数変化)や絞り込み変更で先頭に戻す。
+  useEffect(() => { setVisibleCount(PAGE_STEP); }, [rankFilter, items.length]);
+
+  const filteredItems = rankFilter === 'all' ? items : items.filter((item) => item.rank === rankFilter);
+  const shownItems = filteredItems.slice(0, visibleCount);
+  const hasMore = filteredItems.length > shownItems.length;
+
+  const rankTabs = [
+    { key: 'all', label: 'すべて', count: items.length },
+    { key: 'A', label: 'A', count: summary.A?.items?.length || 0 },
+    { key: 'B', label: 'B', count: summary.B?.items?.length || 0 },
+    { key: 'C', label: 'C', count: summary.C?.items?.length || 0 }
+  ];
 
   const settingCards = [
     {
@@ -191,7 +211,28 @@ const AbcAnalysisView = ({
         })}
       </div>
 
-      <div className="max-h-[500px] overflow-y-auto rounded-xl border bg-white">
+      {/* ランク絞り込み＋表示件数 */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {rankTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setRankFilter(tab.key)}
+            className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+              rankFilter === tab.key
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {tab.label} {tab.count}
+          </button>
+        ))}
+        <span className="ml-auto text-xs font-bold text-gray-400">
+          全{filteredItems.length.toLocaleString()}件中 {shownItems.length.toLocaleString()}件表示
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border bg-white print:overflow-visible">
         <table className="relative w-full text-left">
           <thead className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-600 uppercase shadow-sm">
             <tr>
@@ -205,7 +246,7 @@ const AbcAnalysisView = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.length === 0 && (
+            {filteredItems.length === 0 && (
               <tr>
                 <td colSpan="7" className="p-4 text-center text-gray-400">
                   対象データがありません
@@ -213,7 +254,7 @@ const AbcAnalysisView = ({
               </tr>
             )}
 
-            {items.map((item, idx) => {
+            {shownItems.map((item, idx) => {
               const meta = RANK_META[item.rank] || RANK_META.C;
               const rankColor =
                 item.rank === 'A'
@@ -230,7 +271,7 @@ const AbcAnalysisView = ({
                   </td>
                   <td className="p-3 text-sm font-bold text-gray-800">
                     {item.name}
-                    {idx < 3 && (
+                    {rankFilter === 'all' && idx < 3 && (
                       <span className="ml-2 text-[10px] font-normal text-amber-500">
                         上位 {idx + 1}
                       </span>
@@ -261,6 +302,25 @@ const AbcAnalysisView = ({
           </tbody>
         </table>
       </div>
+
+      {hasMore && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((current) => current + PAGE_STEP)}
+            className="rounded-full bg-gray-100 px-4 py-2 text-xs font-black text-gray-700 transition-colors hover:bg-gray-200"
+          >
+            さらに{PAGE_STEP}件表示
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisibleCount(filteredItems.length)}
+            className="rounded-full bg-gray-900 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800"
+          >
+            全{filteredItems.length.toLocaleString()}件表示
+          </button>
+        </div>
+      )}
 
       <div className="mt-2 text-right text-xs text-gray-400">
         Aランクは {abcThresholds.a}% まで、Bランクは {abcThresholds.b}% までの累計売上構成比で判定しています。
