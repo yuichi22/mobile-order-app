@@ -394,6 +394,9 @@ export const buildAnalyticsSummary = ({
   let totalSales = 0;
   let totalSalesTaxExcluded = 0;
   let totalTaxAmount = 0;
+  // 反対仕訳(締め後の取消・返品)の別掲用。売上系集計には混ぜない(D5)が、
+  // タイルで「取消・返品 −X / 純売上」を併記できるよう合計だけ拾う。
+  let cancelReturnTotal = 0;
   const analyticsPeriods = normalizeAnalyticsPeriods(periods);
   const normalizedSelectedPeriodId = String(selectedPeriodId || 'all');
   const shouldFilterByPeriod = normalizedSelectedPeriodId !== 'all';
@@ -535,7 +538,13 @@ export const buildAnalyticsSummary = ({
     // 反対仕訳(締め後の取消/返品/支払訂正を当日にマイナス計上した伝票)は、売上/客数/件数の
     // 集計に混ぜない(件数・客数の水増しや不意のネット化を防ぐ)。取消・返品の別掲は締め集計側で行う。
     // 正準定義は features/pos/corrections/correctionModel.js と同義。
-    if (record?.isReversal === true || Boolean(record?.reversalOf) || record?.isMethodAdjustment === true) return;
+    if (record?.isReversal === true || Boolean(record?.reversalOf) || record?.isMethodAdjustment === true) {
+      // 取消・返品(支払訂正は売上0なので対象外)は別掲合計にだけ反映する
+      if (record?.isMethodAdjustment !== true) {
+        cancelReturnTotal += getTransactionAmount(record) + (Number(record?.settlementAdjustmentTotal) || 0);
+      }
+      return;
+    }
 
     const recordDate = getRecordDate(record);
     const guestCount = getRecordGuestCount(record);
@@ -906,6 +915,7 @@ export const buildAnalyticsSummary = ({
     totalSales,
     totalSalesTaxExcluded: Math.round(totalSalesTaxExcluded),
     totalTaxAmount: Math.round(totalTaxAmount),
+    cancelReturnTotal,
     totalOrders,
     customerCount,
     averageSpendPerCustomer,

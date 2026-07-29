@@ -14,7 +14,7 @@ const getInitialTaxMode = () => {
 };
 
 // 売上合計カード（税込/税抜トグル付き）。カード全体でグラフ指標をsalesに切替、トグルは税表示のみ。
-const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, taxMode, onTaxModeChange, onClick }) => {
+const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, cancelReturn = 0, taxMode, onTaxModeChange, onClick }) => {
   const isExcl = taxMode === 'tax_excluded';
   const label = isExcl ? '税抜' : '税込';
   const main = isExcl ? salesExcl : salesIncl;
@@ -55,6 +55,13 @@ const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, taxMode, onT
         <span className="mx-1 opacity-50">/</span>
         内税 {formatCurrency(totalTax)}
       </div>
+      {cancelReturn < 0 && (
+        <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/80' : 'text-gray-500'}`}>
+          取消・返品 {formatCurrency(cancelReturn)}
+          <span className="mx-1 opacity-50">/</span>
+          純売上(税込) {formatCurrency(salesIncl + cancelReturn)}
+        </div>
+      )}
     </div>
   );
 };
@@ -143,6 +150,7 @@ const AnalyticsSummaryCards = ({
   totalSales = 0,
   totalSalesTaxExcluded = 0,
   totalTaxAmount = 0,
+  cancelReturnTotal = 0,
   totalOrders = 0,
   customerCount = 0,
   averageSpendPerCustomer = 0,
@@ -168,6 +176,7 @@ const AnalyticsSummaryCards = ({
       salesIncl={totalSales}
       salesExcl={totalSalesTaxExcluded}
       totalTax={totalTaxAmount}
+      cancelReturn={cancelReturnTotal}
       taxMode={taxMode}
       onTaxModeChange={updateTaxMode}
       onClick={() => onMetricChange?.('sales')}

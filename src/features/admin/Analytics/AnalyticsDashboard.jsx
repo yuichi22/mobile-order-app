@@ -425,6 +425,7 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
             totalSales={analytics.totalSales}
             totalSalesTaxExcluded={analytics.totalSalesTaxExcluded}
             totalTaxAmount={analytics.totalTaxAmount}
+            cancelReturnTotal={analytics.cancelReturnTotal}
             totalOrders={analytics.totalOrders}
             customerCount={analytics.customerCount}
             averageSpendPerCustomer={analytics.averageSpendPerCustomer}
