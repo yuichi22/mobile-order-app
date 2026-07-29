@@ -33,6 +33,11 @@ const jstDate = (date) =>
 function normalizeTx(storeId, link, txId, tx) {
   const paidAt = tx.paidAt?.toDate ? tx.paidAt.toDate() : null;
   if (!paidAt) return null;
+  // 売上に寄与しない0円伝票は送らない（件数ノイズ防止）:
+  // - 締め前取消(isPaid:false・金額0) / 支払方法の付替え(isMethodAdjustment・金額0)
+  // 反対仕訳(isReversal=締め後取消・返品のマイナス伝票)は純売上の構成要素なので送る。
+  if (tx.isPaid === false) return null;
+  if (tx.isMethodAdjustment === true) return null;
   const items = Array.isArray(tx.items) ? tx.items : [];
   const lines = items.map((it) => ({
     item: str(it?.name) || "(名称なし)",
