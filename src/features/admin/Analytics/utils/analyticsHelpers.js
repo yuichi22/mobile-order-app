@@ -539,9 +539,13 @@ export const buildAnalyticsSummary = ({
     // 集計に混ぜない(件数・客数の水増しや不意のネット化を防ぐ)。取消・返品の別掲は締め集計側で行う。
     // 正準定義は features/pos/corrections/correctionModel.js と同義。
     if (record?.isReversal === true || Boolean(record?.reversalOf) || record?.isMethodAdjustment === true) {
-      // 取消・返品(支払訂正は売上0なので対象外)は別掲合計にだけ反映する
+      // 取消・返品(支払訂正は売上0なので対象外)は別掲合計にだけ反映する。
+      // 基準は totalAmount のみ(売上タイル・ポータルと同じ受取ベース)。
+      // settlementAdjustmentTotal(金券・販促充当の払戻)は含めない — 含めると
+      // 売上タイル(受取ベース)から引けない額が混ざり純売上の意味が壊れるため。
+      // 金券充当を含む全額方式の売上表示は別課題(P2)として扱う。
       if (record?.isMethodAdjustment !== true) {
-        cancelReturnTotal += getTransactionAmount(record) + (Number(record?.settlementAdjustmentTotal) || 0);
+        cancelReturnTotal += getTransactionAmount(record);
       }
       return;
     }
