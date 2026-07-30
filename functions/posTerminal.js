@@ -17,10 +17,8 @@ const DB_ID = "main";
 if (!getApps().length) initializeApp();
 const db = getFirestore(DB_ID);
 
-// Core(Stripe Terminal決済) の base URL。dev 既定。環境変数で上書き可(prod切替用)。
-const CORE_BASE =
-  process.env.CORE_TERMINAL_BASE ||
-  "https://asia-northeast1-suomin-9ff5a.cloudfunctions.net";
+// Core(Stripe Terminal決済) の base URL。環境ごとの値は functions/.env.<projectId> で設定する。
+const CORE_BASE = (process.env.CORE_TERMINAL_BASE || "").trim();
 
 const googleAuth = new GoogleAuth();
 
@@ -44,6 +42,10 @@ async function getUserRoleForStore(uid, storeId) {
 
 // Core の非公開 onRequest を OIDC で叩く。audience=関数URL。
 async function callCore(fnName, body) {
+  if (!CORE_BASE) {
+    console.error("[posTerminal] CORE_TERMINAL_BASE 未設定（functions/.env.<projectId> を確認）");
+    throw new HttpsError("failed-precondition", "サーバー設定が不足しています。運営にお問い合わせください。");
+  }
   const url = `${CORE_BASE}/${fnName}`;
   const client = await googleAuth.getIdTokenClient(url);
   try {

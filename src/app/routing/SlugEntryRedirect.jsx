@@ -8,14 +8,13 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import AppLoading from '../../shared/components/feedback/AppLoading';
-import { app } from '../../shared/api/firebase/client';
 
-// Core(suomin) dev の公開設定。WebのAPIキーはクライアント配布前提の公開値。
-// ⚠dev専用: prod Core が未整備のため、dev プロジェクトのビルドでのみ有効化する。
-// prod展開時は環境別のCore設定に差し替えること。
-const CORE_PROJECT_ID = 'suomin-9ff5a';
-const CORE_API_KEY = 'AIzaSyCrYp46BW49b6WzebW7Se6GXh__rkFvBcQ';
-const SLUG_ENABLED = app?.options?.projectId === 'mobile-order-dev-5f7fd';
+// Core(Akuto) の公開設定。WebのAPIキーはクライアント配布前提の公開値。
+// 環境別に .env.development / .env.production の VITE_CORE_* で設定する。
+// 未設定の環境ではスラッグ解決を行わずトップへフォールバック。
+const CORE_PROJECT_ID = import.meta.env.VITE_CORE_PROJECT_ID || '';
+const CORE_API_KEY = import.meta.env.VITE_CORE_API_KEY || '';
+const SLUG_ENABLED = Boolean(CORE_PROJECT_ID && CORE_API_KEY);
 
 const SlugEntryRedirect = ({ slug }) => {
   const navigate = useNavigate();
@@ -23,7 +22,7 @@ const SlugEntryRedirect = ({ slug }) => {
   useEffect(() => {
     let cancelled = false;
 
-    // prod ではスラッグ解決を行わずトップへ（dev Core を誤参照しないため）
+    // Core 設定が無い環境ではスラッグ解決を行わずトップへ
     if (!SLUG_ENABLED) {
       navigate({ pathname: '/', search: '' }, { replace: true });
       return undefined;

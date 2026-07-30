@@ -127,9 +127,8 @@ export const provisionStoreForSpace = onRequest(
   }
 );
 
-// Core側の拠点プロビジョニング更新受け口(dev)。prod展開時は差し替える。
-const CORE_PROVISION_UPDATE_URL =
-  "https://asia-northeast1-suomin-9ff5a.cloudfunctions.net/updateSpaceProvision";
+// Core側の拠点プロビジョニング更新受け口。環境ごとの値は functions/.env.<projectId> で設定する。
+const CORE_PROVISION_UPDATE_URL = str(process.env.CORE_PROVISION_UPDATE_URL);
 
 // プロビジョニング招待(owner)が使用されたら、登録された管理者のメール/氏名を
 // Core の space.provision.mobileOrder に書き戻す(ポータルに「管理者登録 <メール>」を出す用)。
@@ -168,6 +167,10 @@ export const onProvisionInviteUsed = onDocumentUpdated(
     const secret = str(process.env.CORE_SALES_SECRET);
     if (!secret) {
       console.warn("[onProvisionInviteUsed] CORE_SALES_SECRET 未設定");
+      return;
+    }
+    if (!CORE_PROVISION_UPDATE_URL) {
+      console.warn("[onProvisionInviteUsed] CORE_PROVISION_UPDATE_URL 未設定（functions/.env.<projectId> を確認）");
       return;
     }
 
