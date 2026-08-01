@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from './posReceiptBrowserPrint';
 import { printReceiptViaBridge } from '../api/printBridge';
 import { getReceiptModeSettings, normalizeReceiptMode } from './receiptSettings';
 import { StarPrinter } from '../plugins/starPrinter';
-import { getDeviceStarPrinter } from './deviceStarPrinter';
+import { getDeviceStarPrinter, getDevicePaperColumns } from './deviceStarPrinter';
 
 // 取引データ or 明示modeから、レシート設定のモード(pos/order)を判定する。
 export const resolveReceiptMode = (input, fallback = 'pos') => {
@@ -73,7 +73,8 @@ export const printPayloadByMode = async ({ payload, settings, mode }) => {
   if (Capacitor.isNativePlatform()) {
     const { identifier: starIdentifier, interface: starInterface } = resolveStarConnection(settings, resolvedMode);
     await StarPrinter.printReceipt({
-      receipt: payload,
+      // 用紙幅は端末に繋がっているプリンタの物理特性なので、店舗設定ではなく端末設定から渡す。
+      receipt: { ...payload, paperColumns: getDevicePaperColumns() },
       identifier: starIdentifier,
       interface: starInterface
     });

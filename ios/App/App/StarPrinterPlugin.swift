@@ -176,7 +176,11 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - レシート組み立て（StarXpand コマンド）
 
     private func buildCommands(_ r: [String: Any], bannerImage: UIImage?) -> String {
-        let width = 48 // 80mm / Font A 目安
+        // 用紙幅(Font A の桁数)。80mm=48桁 / 58mm=32桁。
+        // JS の payload から渡すので、機種が増えても再ビルドせず対応できる。
+        let width = max(24, min((r["paperColumns"] as? NSNumber)?.intValue ?? 48, 96))
+        // 印字可能ドット数。80mm=576dot/48桁、58mm=384dot/32桁 でどちらも 1桁=12dot。
+        let paperDots = width * 12
         let printerBuilder = StarXpandCommand.PrinterBuilder()
 
         func text(_ s: String) { _ = printerBuilder.actionPrintText(s + "\n") }
@@ -219,9 +223,10 @@ public class StarPrinterPlugin: CAPPlugin, CAPBridgedPlugin {
 
         // 2. バナー画像（任意・中央）。取得できた時のみ印字。
         if let banner = bannerImage {
-            // バナー幅(dot)。payloadで指定可・既定192(80mm=576dotの約1/3)。30〜576にクランプ。
-            let rawBannerWidth = (r["bannerWidth"] as? NSNumber)?.intValue ?? 192
-            let bannerWidth = max(30, min(rawBannerWidth, 576))
+            // バナー幅(dot)。payloadで指定可・既定は用紙幅の約1/3(80mmなら192)。
+            // 上限は用紙の印字可能ドット数。58mm紙に80mm用の幅を渡しても はみ出さない。
+            let rawBannerWidth = (r["bannerWidth"] as? NSNumber)?.intValue ?? (paperDots / 3)
+            let bannerWidth = max(30, min(rawBannerWidth, paperDots))
             // ロゴ/線画はディザリングするとにじむため、既定はディザOFF＋しきい値2値化でくっきり印字。
             // diffusion=trueは写真向けの誤差拡散。threshold(0-255)が大きいほど黒が増える。いずれもpayloadで調整可。
             let bannerDiffusion = (r["bannerDiffusion"] as? NSNumber)?.boolValue ?? false

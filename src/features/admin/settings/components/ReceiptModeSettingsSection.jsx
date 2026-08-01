@@ -9,7 +9,11 @@ import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/a
 import {
   getDeviceStarPrinter,
   setDeviceStarPrinter,
-  clearDeviceStarPrinter
+  clearDeviceStarPrinter,
+  getDevicePaperWidth,
+  setDevicePaperWidth,
+  paperColumnsFor,
+  PAPER_WIDTHS
 } from '../../../../shared/utils/deviceStarPrinter';
 
 const MODE_TABS = [
@@ -70,6 +74,8 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
   // プリンタ選択はこの端末だけの設定(localStorage)。店舗設定(Firestore)には保存しない。
   // 複数iPad構成で各台が自分のプリンタへ印刷できるようにするため（保存ボタンとは無関係に即時反映）。
   const [devicePrinter, setDevicePrinter] = useState(() => getDeviceStarPrinter());
+  // 用紙幅もプリンタ本体の物理特性なので端末ごとに保持する。
+  const [paperWidth, setPaperWidth] = useState(() => getDevicePaperWidth());
 
   // 印刷ブリッジ
   const [bridgeChecking, setBridgeChecking] = useState(false);
@@ -116,6 +122,12 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
   const unselectDevicePrinter = () => {
     clearDeviceStarPrinter();
     setDevicePrinter(null);
+    setStarStatus(null);
+  };
+
+  const selectPaperWidth = (id) => {
+    setDevicePaperWidth(id);
+    setPaperWidth(getDevicePaperWidth());
     setStarStatus(null);
   };
 
@@ -184,7 +196,10 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
     setStarStatus(null);
     try {
       await StarPrinter.printReceipt({
-        receipt: buildStarTestReceipt(activeMode === 'pos' ? 'POSレジ' : 'ORDERレジ', current, settings),
+        receipt: {
+          ...buildStarTestReceipt(activeMode === 'pos' ? 'POSレジ' : 'ORDERレジ', current, settings),
+          paperColumns: paperColumnsFor(paperWidth)
+        },
         identifier: effectivePrinter?.identifier || '',
         interface: effectivePrinter?.interface || 'bluetooth'
       });
@@ -277,6 +292,32 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                   これは旧来の店舗共通設定の値です。この端末に別のプリンタを繋いでいる場合は、下から検索して選び直してください。
                 </span>
               )}
+            </div>
+
+            {/* 用紙幅。80mm=48桁 / 58mm=32桁 で明細の折返しとバナー幅が変わる。 */}
+            <div className="mb-3">
+              <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">用紙幅</label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PAPER_WIDTHS.map((entry) => {
+                  const active = paperWidth === entry.id;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => selectPaperWidth(entry.id)}
+                      className={`rounded-xl border-2 px-3 py-2 text-left transition-all ${
+                        active ? 'border-slate-900 bg-white' : 'border-gray-100 bg-white hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="text-xs font-black text-gray-900">{entry.label}</div>
+                      <div className="mt-0.5 text-[10px] font-bold text-gray-400">{entry.columns}桁</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-gray-400">
+                プリンタに入れているロール紙の幅を選んでください。間違えるとレシートの明細がずれます。
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">

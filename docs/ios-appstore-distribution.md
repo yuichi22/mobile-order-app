@@ -227,19 +227,26 @@ iPhone 用は不要（iPad 限定にしているため）。
 `StarPrinterPlugin.swift` は StarXpand SDK (StarIO10 2.12.1) の汎用APIを使っており、
 **機種決め打ちではない**。探索は `[.bluetooth, .bluetoothLE, .lan, .usb]` の4方式。
 
-したがって **StarXpand 対応かつ 80mm 幅の機種は基本的に動くはず**:
-TSP100IV / TSP650II（実機確認済み）/ TSP700II / TSP800II / mC-Print3 など。
+したがって **StarXpand 対応機は基本的に動くはず**:
+TSP100IV / TSP650II（実機確認済み）/ TSP700II / TSP800II / mC-Print3（80mm）、
+mPOP / SM-L200（58mm）など。用紙幅は下記のとおり設定で切り替えられる。
 
-### ⚠ 80mm 決め打ちの制約
+### 用紙幅は端末ごとに選べる（2026-08-01 対応）
 
-`StarPrinterPlugin.swift:179` で桁数を固定している:
+以前は `StarPrinterPlugin.swift` で `let width = 48`（80mm 決め打ち）だったため、
+58mm 機ではレイアウトが崩れた。現在は **設定 > 基本設定 > レシート設定 で
+80mm / 58mm を選択**でき、JS の payload（`paperColumns`）でネイティブへ渡している。
 
-```swift
-let width = 48 // 80mm / Font A 目安
-```
+- 80mm = 48桁 / 576dot、58mm = 32桁 / 384dot（どちらも 1桁 = 12dot）
+- バナー画像の幅の上限も用紙幅から導出するので、58mm 紙にはみ出さない
+- 保存先はプリンタ選択と同じく **端末ごと（localStorage）**。
+  用紙幅はプリンタ本体の物理特性であり、店舗共通に持つと複数台構成で破綻するため
+- キーはプリンタ選択とは別（`akuto.pos.starPaperWidth.v1`）。
+  プリンタを明示選択せず自動探索に任せている端末でも用紙幅を効かせたいため
 
-このため **58mm 機（mPOP、SM-L200 等）はレイアウトが崩れる**。
-58mm を売る必要が出たら、`width` を設定値（32桁）で切り替えられるようにする改修が要る。
+**初回提出前にこの改修を入れた理由**: Swift の変更は App Store の再審査が要る。
+58mm のテナントが現れてから足すと、対応までに審査サイクルが丸ごと1回増える。
+今なら実質コストゼロで、以降の調整は JS だけ（deploy のみ・再ビルド不要）で済む。
 
 ### 実機確認の状況
 
