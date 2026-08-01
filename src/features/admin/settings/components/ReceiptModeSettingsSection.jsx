@@ -6,6 +6,11 @@ import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinne
 import { RECEIPT_PRINT_METHODS, buildReceiptModeDraft } from '../../../../shared/utils/receiptSettings';
 import { StarPrinter } from '../../../../shared/plugins/starPrinter';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
+import {
+  getDeviceStarPrinter,
+  setDeviceStarPrinter,
+  clearDeviceStarPrinter
+} from '../../../../shared/utils/deviceStarPrinter';
 
 const MODE_TABS = [
   { id: 'pos', label: 'POSレジ' },
@@ -62,6 +67,9 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
   const [discovered, setDiscovered] = useState([]);
   const [testing, setTesting] = useState(false);
   const [starStatus, setStarStatus] = useState(null); // {type:'success'|'error', message}
+  // プリンタ選択はこの端末だけの設定(localStorage)。店舗設定(Firestore)には保存しない。
+  // 複数iPad構成で各台が自分のプリンタへ印刷できるようにするため（保存ボタンとは無関係に即時反映）。
+  const [devicePrinter, setDevicePrinter] = useState(() => getDeviceStarPrinter());
 
   // 印刷ブリッジ
   const [bridgeChecking, setBridgeChecking] = useState(false);
@@ -87,6 +95,29 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
   // 印刷方式（star/bridge）。star を既定とする。
   const isBridge = current.printMethod === 'bridge';
+
+  // この端末が未選択のときに使われる、旧仕様の店舗共通設定（後方互換フォールバック）。
+  // receiptPrinting.js の resolveStarConnection と同じ優先順位で表示する。
+  const otherMode = activeMode === 'pos' ? 'order' : 'pos';
+  const storeFallback = current.starIdentifier
+    ? { identifier: current.starIdentifier, interface: current.starInterface || 'bluetooth' }
+    : (draft[otherMode]?.starIdentifier
+      ? { identifier: draft[otherMode].starIdentifier, interface: draft[otherMode].starInterface || 'bluetooth' }
+      : null);
+  // 実際に印刷で使われる接続先（端末選択 > 店舗設定 > 自動探索）。
+  const effectivePrinter = devicePrinter || storeFallback;
+
+  const selectDevicePrinter = (printer) => {
+    setDeviceStarPrinter({ identifier: printer.identifier, interface: printer.interface || 'bluetooth' });
+    setDevicePrinter(getDeviceStarPrinter());
+    setStarStatus({ type: 'success', message: 'この端末のプリンタを設定しました（保存ボタンは不要です）。テスト印刷で紙が出るか確認してください。' });
+  };
+
+  const unselectDevicePrinter = () => {
+    clearDeviceStarPrinter();
+    setDevicePrinter(null);
+    setStarStatus(null);
+  };
 
   // 現在タブのブリッジ設定で接続確認/テスト印刷する。
   const buildBridgeSettings = () => ({
@@ -154,8 +185,8 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
     try {
       await StarPrinter.printReceipt({
         receipt: buildStarTestReceipt(activeMode === 'pos' ? 'POSレジ' : 'ORDERレジ', current, settings),
-        identifier: current.starIdentifier || '',
-        interface: current.starInterface || 'bluetooth'
+        identifier: effectivePrinter?.identifier || '',
+        interface: effectivePrinter?.interface || 'bluetooth'
       });
       setStarStatus({ type: 'success', message: 'テスト印刷を送信しました。プリンタから紙が出たか確認してください。' });
     } catch (error) {
@@ -231,16 +262,21 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
           <div className="rounded-2xl border-2 border-blue-100 bg-blue-50/50 p-4">
             <div className="mb-3 flex items-center gap-2">
               <Bluetooth size={18} className="text-blue-600" />
-              <span className="text-sm font-black text-gray-900">Star プリンタ（Bluetooth / LAN）</span>
+              <span className="text-sm font-black text-gray-900">Star プリンタ（この端末）</span>
             </div>
             <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-500">
-              iPadアプリではこのプリンタへ直接印刷します。先にiPadの「設定 &gt; Bluetooth」でTSP650IIをペアリングしてから、下で検索・選択・テストしてください。
+              プリンタの選択は<strong className="text-gray-700">この iPad だけの設定</strong>です（他の端末には影響しません）。先にiPadの「設定 &gt; Bluetooth」でプリンタをペアリングしてから、下で検索・選択・テストしてください。
             </p>
 
             <div className="mb-3 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-bold text-gray-600">
-              使用中プリンタ：{current.starIdentifier
-                ? <span className="font-mono text-gray-900">{current.starIdentifier}（{current.starInterface || 'bluetooth'}）</span>
+              使用中プリンタ：{effectivePrinter
+                ? <span className="font-mono text-gray-900">{effectivePrinter.identifier}（{effectivePrinter.interface}）</span>
                 : <span className="text-gray-400">未選択（印刷時に自動探索）</span>}
+              {!devicePrinter && storeFallback && (
+                <span className="mt-1 block font-sans text-[10px] font-bold text-amber-600">
+                  これは旧来の店舗共通設定の値です。この端末に別のプリンタを繋いでいる場合は、下から検索して選び直してください。
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -262,10 +298,10 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                 {testing ? <LoadingSpinner size={14} /> : <Printer size={14} />}
                 テスト印刷
               </button>
-              {current.starIdentifier && (
+              {devicePrinter && (
                 <button
                   type="button"
-                  onClick={() => updateCurrent({ starIdentifier: '', starInterface: 'bluetooth' })}
+                  onClick={unselectDevicePrinter}
                   className="flex h-10 items-center rounded-xl border-2 border-gray-200 bg-white px-4 text-xs font-black text-gray-500 transition hover:bg-gray-50"
                 >
                   選択解除（自動探索）
@@ -275,13 +311,19 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
             {discovered.length > 0 && (
               <div className="mt-3 space-y-2">
+                {/* Star機のBluetooth既定名は全機「Star Micronics」で同一のため、
+                    見分けは下の識別子(BDアドレス相当)で行う。迷ったら選んでテスト印刷し、
+                    自分の端末の隣のプリンタから紙が出た方を採用する。 */}
+                <p className="text-[10px] font-bold leading-relaxed text-gray-500">
+                  複数台見つかった場合、名前はどれも同じことがあります。識別子で選び、テスト印刷で紙が出た方を採用してください。
+                </p>
                 {discovered.map((printer) => {
-                  const selected = current.starIdentifier === printer.identifier;
+                  const selected = devicePrinter?.identifier === printer.identifier;
                   return (
                     <button
                       key={`${printer.identifier}-${printer.interface}`}
                       type="button"
-                      onClick={() => updateCurrent({ starIdentifier: printer.identifier, starInterface: printer.interface || 'bluetooth' })}
+                      onClick={() => selectDevicePrinter(printer)}
                       className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2 text-left transition ${
                         selected ? 'border-slate-900 bg-slate-50' : 'border-gray-100 bg-white hover:border-gray-200'
                       }`}
@@ -306,7 +348,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
             )}
 
             <p className="mt-3 text-[11px] font-bold leading-relaxed text-amber-600">
-              ※ プリンタを選択したら、画面右上の「保存」を押してください。未選択でも自動探索で印刷を試みます。
+              ※ プリンタの選択はこの端末に即時保存されます（右上の「保存」は不要）。POSレジ/ORDERレジ共通で、未選択でも自動探索で印刷を試みます。
             </p>
           </div>
         )}

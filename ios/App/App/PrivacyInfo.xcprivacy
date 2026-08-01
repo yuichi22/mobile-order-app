@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  プライバシーマニフェスト（App Store 提出に必要）。
+
+  NSPrivacyAccessedAPITypes を空にしている根拠（2026-08-01 時点で実際に確認）:
+    - 自前の Swift（StarPrinterPlugin / MainViewController）は Required Reason API を使っていない
+    - Capacitor 8.4.1 は UserDefaults ではなくファイルベースの KeyValueStore を使う
+      （node_modules/@capacitor/ios/Capacitor/Capacitor/KeyValueStore.swift）
+    - Capacitor / CapacitorCordova / StarIO10 の各 PrivacyInfo.xcprivacy も
+      NSPrivacyAccessedAPITypes は空
+  もしアップロード時に ITMS-91053 (Missing API declaration) が返った場合は、
+  警告が名指しした API カテゴリと理由コードをここへ追記すること。
+
+  NSPrivacyCollectedDataTypes は「このアプリが集めるもの」を宣言する。
+  レジ担当者のログイン用メールアドレスのみ。広告・トラッキングは一切行わない。
+  ※ StarIO10 は自身のマニフェストで診断データ/利用データ(いずれも非連結・非トラッキング)を
+    宣言しているため、App Store Connect の App Privacy 側ではそれも併せて申告する。
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

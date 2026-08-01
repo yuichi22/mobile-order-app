@@ -4,6 +4,7 @@ import { openPosReceiptBrowserPrint } from './posReceiptBrowserPrint';
 import { printReceiptViaBridge } from '../api/printBridge';
 import { getReceiptModeSettings, normalizeReceiptMode } from './receiptSettings';
 import { StarPrinter } from '../plugins/starPrinter';
+import { getDeviceStarPrinter } from './deviceStarPrinter';
 
 // 取引データ or 明示modeから、レシート設定のモード(pos/order)を判定する。
 export const resolveReceiptMode = (input, fallback = 'pos') => {
@@ -29,9 +30,17 @@ const enrichPayload = (data, settings, cfg) => ({
 });
 
 // ネイティブ(iPad)の Star プリンタ接続先(識別子/インターフェース)を解決する。
-// 識別子が空だと毎回8秒の自動探索が走り会計後の動作が遅くなるため、
-// 同一プリンタを共用する想定で、当該モードが未設定ならもう一方のモードの値へフォールバックする。
+// 識別子が空だと毎回8秒の自動探索が走り会計後の動作が遅くなるため、必ず何か1つに解決したい。
+//
+// 優先順位:
+//   1. この端末で選択したプリンタ(localStorage) … 複数iPad構成で各台が自分のプリンタへ印刷する
+//   2. 店舗設定(Firestore)の値 … 端末未選択時のフォールバック。既存インストールを壊さないために残す
+//      （モード別に保存されているが実質1台前提のため、当該モードが空なら他方へフォールバック）
+//   3. 空 … ネイティブ側で自動探索
 const resolveStarConnection = (settings, resolvedMode) => {
+  const devicePrinter = getDeviceStarPrinter();
+  if (devicePrinter) return devicePrinter;
+
   const cfg = getReceiptModeSettings(settings, resolvedMode);
   const otherCfg = getReceiptModeSettings(settings, resolvedMode === 'pos' ? 'order' : 'pos');
   return {

@@ -1,9 +1,9 @@
 {
-  "appId": "com.akuto.mobileorder",
+  "appId": "com.akuto.pos",
   "appName": "AKUTO POS",
   "webDir": "dist",
   "server": {
-    "url": "https://mobile-order-prod.web.app",
+    "url": "https://store.akuto.app",
     "cleartext": false
   }
 }
