@@ -456,7 +456,8 @@ const buildReceiptRows = (items) => consolidateTicketItems(items).map((item) => 
     return {
       title: '会計明細',
       receiptScopeLabel: '会計明細',
-      storeName: settings?.name || 'Akuto Order System',
+      // 未設定でも自社サービス名は印字しない（他社テナントの領収書に出るため）。
+      storeName: settings?.name || '',
       address: settings?.address || '',
       tel: settings?.tel || '',
       tableName,

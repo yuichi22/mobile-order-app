@@ -190,7 +190,9 @@ export const buildPosReceiptPrintPayload = (data = {}, settings = {}) => {
     title: data.title || '領収書',
     receiptType: data.receiptType || '',
     receiptScopeLabel: data.receiptScopeLabel || '',
-    storeName: settings?.name || 'Akuto Order System',
+    // 店舗名が未設定でも自社サービス名は印字しない。他社テナントの領収書に
+    // AKUTO の名前が出る事故を防ぐため、未設定なら空欄のままにする。
+    storeName: settings?.name || '',
     address: settings?.address || '',
     tel: settings?.tel || '',
     invoiceNumber: formatInvoiceNumber(settings?.invoiceNumber),

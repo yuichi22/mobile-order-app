@@ -53,7 +53,8 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
   const rows = buildItemRows(payload.items || []);
   const title = escapeReceiptHtml(payload.title || '領収書');
   const receiptScopeLabel = escapeReceiptHtml(payload.receiptScopeLabel || '');
-  const storeName = escapeReceiptHtml(payload.storeName || 'Akuto Order System');
+  // 未設定でも自社サービス名は印字しない（他社テナントの領収書に出るため）。
+  const storeName = escapeReceiptHtml(payload.storeName || '');
   const issuedAtText = escapeReceiptHtml(payload.issuedAtText || new Date().toLocaleString('ja-JP'));
   const tableName = escapeReceiptHtml(payload.tableName || payload.tableDisplayName || '');
   const registerName = escapeReceiptHtml(payload.registerName || '');
@@ -201,7 +202,7 @@ export const openPosReceiptBrowserPrint = (payload = {}, options = {}) => {
             ${payload.bannerImage ? `<img src="${escapeReceiptHtml(payload.bannerImage)}" alt="" style="max-width:100%;max-height:120px;margin:0 auto 6px;display:block;" />` : ''}
             <div class="receipt-title">${title}</div>
             ${payload.headerTitle ? `<div>${escapeReceiptHtml(payload.headerTitle)}</div>` : ''}
-            <div class="store-name">${storeName}</div>
+            ${storeName ? `<div class="store-name">${storeName}</div>` : ''}
             ${payload.address ? `<div>${escapeReceiptHtml(payload.address)}</div>` : ''}
             ${payload.tel ? `<div>TEL: ${escapeReceiptHtml(payload.tel)}</div>` : ''}
             ${payload.invoiceNumber ? `<div>登録番号: ${escapeReceiptHtml(payload.invoiceNumber)}</div>` : ''}
