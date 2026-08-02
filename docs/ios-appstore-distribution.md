@@ -26,25 +26,40 @@ Apple 側の申請・登録ページのURLは巻末「10. リンク集」にま�
 
 技術作業と並行で走らせること。ここが終わらないと配布は一切できない。
 
-| # | 作業 | 所要 | 申請先 |
+| # | 作業 | 状況 | 申請先 |
 |---|---|---|---|
-| 1 | **D-U-N-S番号の取得**（デコレ株式会社名義・無料） | 数営業日 | https://developer.apple.com/enroll/duns-lookup/ |
-| 2 | **Apple Developer Program に Organization で登録**（年間メンバーシップ 99ドル） | 数日〜2週間 | https://developer.apple.com/jp/programs/enroll/ |
-| 3 | Account Holder の Apple ID を開発環境と共有 | — | Bundle ID 登録・証明書発行に必要 |
+| 1 | **D-U-N-S番号の取得**（デコレ株式会社名義・無料） | ✅ **2026-08-02 完了** | https://developer.apple.com/enroll/duns-lookup/ |
+| 2 | **Apple Developer Program に Organization で登録**（年間メンバーシップ 99ドル） | ⬜ 次はここ（数日〜2週間） | https://developer.apple.com/jp/programs/enroll/ |
+| 3 | Account Holder の Apple ID を開発環境と共有 | ⬜ | Bundle ID 登録・証明書発行に必要 |
+
+### 法人情報（Apple 登録に使う確定値）
+
+| 項目 | 値 |
+|---|---|
+| **D-U-N-S 番号** | **690928588** |
+| 有効な法人名（Legal Entity Name） | `DECOLLE K.K.` |
+| 現地でのビジネス名 | デコレ（株） |
+| 本社所在地 | 1185-2, OBACHO / MATSUE, JP 690-0033（島根県松江市大庭町1185-2） |
+
+> D-U-N-S は既に Dun & Bradstreet が採番済みで、新規申請は不要だった（日本の法人は
+> 帝国データバンク経由で登録済みのことが多い）。
+> 上記は Apple 側のレコードなので、**登録フォームでは一字一句この表記に合わせる**こと。
+> 特に法人名は `DECOLLE K.K.`（日本語表記や「Co., Ltd.」ではない）。
 
 **手順の詳細**:
 
-1. **D-U-N-S 番号**
-   - まず上記の Apple の lookup フォームで、デコレ株式会社の D-U-N-S が既に存在するか検索する。
-     日本の法人は帝国データバンク経由で既に採番済みのことが多く、その場合は申請不要で即座に判明する
-   - 見つからなければ同じフォームから新規申請（無料・数営業日）
-   - 登録する法人名・住所は**登記と完全一致**させること。ここがずれると2の法人確認で必ず差し戻される
+1. **D-U-N-S 番号** — ✅ 完了（690928588）
 
-2. **Apple Developer Program（Organization）**
+2. **Apple Developer Program（Organization）** — ⬜ 次はここ
    - 登録の入口: https://developer.apple.com/jp/programs/enroll/
-   - 必要なもの: D-U-N-S 番号 / 法人の登記情報 / 法人代表として署名できる権限 / 法人の電話番号
-     （Apple から確認の電話が来ることがあるため、繋がる番号にすること）
-   - 費用の最新情報: https://developer.apple.com/jp/support/enrollment/
+   - Apple ID は**会社として恒久的に使うもの**にする（個人の私用 Apple ID は避ける）。
+     二要素認証が有効になっている必要がある
+   - 入力に使う値は上の「法人情報」表のとおり。法人名は `DECOLLE K.K.`
+   - 「法人を拘束する契約に署名する権限があるか」を問われる。代表者本人か、
+     委任を受けている必要がある
+   - 法人の電話番号は**繋がる番号**にすること。Apple から本人確認の電話が来ることがあり、
+     取り損ねると審査が止まる
+   - 支払い（年間 99 ドル）は法人確認が通ってから。最新の費用: https://developer.apple.com/jp/support/enrollment/
    - ⚠ **Individual 登録なら D-U-N-S 不要だが、App Store の販売者名が個人名で公開される。**
      B2B SaaS としては Organization 一択
 
