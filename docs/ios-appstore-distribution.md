@@ -65,7 +65,40 @@ Apple 側の申請・登録ページのURLは巻末「10. リンク集」にま�
 
 3. **登録完了後の権限設計**
    - チームの役割（Account Holder / Admin / App Manager 等）: https://developer.apple.com/jp/support/roles/
-   - Account Holder は法人につき1名で、証明書・契約に関わる操作を握る
+   - Account Holder は法人につき1名で、契約の締結・年会費の更新・Admin の追加・
+     銀行情報の承認を握る
+
+### ⚠ Individual で加入済みの場合の Organization への移行
+
+**2026-08-02 の実際の経緯**: 現場の iPad 4台へ Xcode からインストールするために、
+先に**個人の Apple ID で Individual メンバーシップの年会費を支払った**。
+その後、同じ Apple ID で法人（Organization）の確認手続きに入った。
+
+- **Individual → Organization の移行は Apple が正式にサポートしている。**
+  専用の申請フォームから依頼する:
+  https://developer.apple.com/contact/request/migrate-individual-account
+  - 条件: 申請者が法人の founder / cofounder であること
+  - 必要情報: **D-U-N-S 番号（690928588）**、場合により法人の証明書類
+  - 出典: https://developer.apple.com/help/account/membership/updating-your-account-information/
+- ⚠ **支払い済みの年会費がどう扱われるか（引き継ぎ／返金／再請求）は Apple の
+  ドキュメントに明記が無い。** 移行申請の際に必ず Apple へ直接確認すること。
+  **確認前に2回目の 99 ドルを払わないこと。**
+- ⚠ 別の Apple ID で新規に Organization 登録をやり直すと、**確実に二重払いになり、
+  かつ元の Individual メンバーシップが自動更新で課金され続ける**。避けること。
+- 法人審査は法務レビューに回るため、通常の登録より時間がかかることがある。
+
+### Apple ID を後から会社のものへ移す道は残っている
+
+将来 Account Holder を会社用 Apple ID へ移したくなった場合、**Account Holder ロールの
+譲渡が可能**（Individual / Organization どちらのプログラムでも）。
+手順: https://developer.apple.com/help/account/access/transfer-the-account-holder-role/
+
+- **譲渡先は「先にチームメンバーになっている」必要がある。** チーム外の Apple ID へ
+  いきなり移すことはできない
+- 譲渡先の要件: 法人を拘束する契約に署名する権限 / 二要素認証が有効 /
+  Apple Developer App での本人確認（対象地域の場合）
+- つまり「今は個人の Apple ID で進め、後で会社用へ移す」は塞がっていない。
+  **今やり直す必要はない**
 
 料金・審査期間は Apple の規定変更があり得るため、申請時に上記ページで最新値を確認すること。
 
