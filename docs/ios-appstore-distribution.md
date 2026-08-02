@@ -4,7 +4,9 @@
 **方式: App Store 一般公開（本命） + TestFlight（審査通過までの繋ぎ）**
 
 対象ブランチ: `feat/ios-appstore-distribution`
-最終更新: 2026-08-01
+最終更新: 2026-08-02
+
+Apple 側の申請・登録ページのURLは巻末「10. リンク集」にまとめてある（全て到達確認済み）。
 
 ---
 
@@ -24,33 +26,57 @@
 
 技術作業と並行で走らせること。ここが終わらないと配布は一切できない。
 
-| # | 作業 | 所要 | 備考 |
+| # | 作業 | 所要 | 申請先 |
 |---|---|---|---|
-| 1 | **D-U-N-S番号の取得**（デコレ株式会社名義・無料） | 数営業日 | Apple の D-U-N-S lookup フォームから申請 |
-| 2 | **Apple Developer Program に Organization で登録**（年額・$99相当） | 数日〜2週間 | 法人名・所在地・電話番号が登記と一致必須 |
+| 1 | **D-U-N-S番号の取得**（デコレ株式会社名義・無料） | 数営業日 | https://developer.apple.com/enroll/duns-lookup/ |
+| 2 | **Apple Developer Program に Organization で登録**（年間メンバーシップ 99ドル） | 数日〜2週間 | https://developer.apple.com/jp/programs/enroll/ |
 | 3 | Account Holder の Apple ID を開発環境と共有 | — | Bundle ID 登録・証明書発行に必要 |
 
-> Individual 登録なら D-U-N-S 不要だが、**App Store の販売者名が個人名で公開される**。
-> B2B SaaS としては Organization 一択。
+**手順の詳細**:
 
-料金・審査期間は Apple の規定変更があり得るため、申請時に公式ページで最新値を確認すること。
+1. **D-U-N-S 番号**
+   - まず上記の Apple の lookup フォームで、デコレ株式会社の D-U-N-S が既に存在するか検索する。
+     日本の法人は帝国データバンク経由で既に採番済みのことが多く、その場合は申請不要で即座に判明する
+   - 見つからなければ同じフォームから新規申請（無料・数営業日）
+   - 登録する法人名・住所は**登記と完全一致**させること。ここがずれると2の法人確認で必ず差し戻される
 
-### ⚠ ローカル環境のブロッカー（2026-08-01 時点で未解消）
+2. **Apple Developer Program（Organization）**
+   - 登録の入口: https://developer.apple.com/jp/programs/enroll/
+   - 必要なもの: D-U-N-S 番号 / 法人の登記情報 / 法人代表として署名できる権限 / 法人の電話番号
+     （Apple から確認の電話が来ることがあるため、繋がる番号にすること）
+   - 費用の最新情報: https://developer.apple.com/jp/support/enrollment/
+   - ⚠ **Individual 登録なら D-U-N-S 不要だが、App Store の販売者名が個人名で公開される。**
+     B2B SaaS としては Organization 一択
 
-Xcode 26.6 は入っているが、**iOS プラットフォーム（26.5）が未インストール**でビルドできない。
+3. **登録完了後の権限設計**
+   - チームの役割（Account Holder / Admin / App Manager 等）: https://developer.apple.com/jp/support/roles/
+   - Account Holder は法人につき1名で、証明書・契約に関わる操作を握る
+
+料金・審査期間は Apple の規定変更があり得るため、申請時に上記ページで最新値を確認すること。
+
+### ローカルのビルド環境（2026-08-02 解決済み）
+
+Xcode 26.6 + iOS 26.5 プラットフォームで **Release ビルド成功を確認済み**。
 
 ```
-error: iOS 26.5 Platform Not Installed.
+** BUILD SUCCEEDED **   (-configuration Release -destination 'generic/platform=iOS')
 ```
 
-Xcode を起動し **Settings > Components** から iOS プラットフォームをダウンロードすること
-（数GB・要ユーザー操作）。CLI なら以下でも入る場合がある:
+成果物の検証結果: Bundle ID `com.akuto.pos` / 表示名 `AKUTO POS` / `UIDeviceFamily = [2]`（iPad のみ）/
+`UISupportedExternalAccessoryProtocols = [jp.star-m.starpro]` / PrivacyInfo.xcprivacy 同梱 /
+同梱 capacitor.config.json が `https://store.akuto.app` を指す / StarIO10.framework リンク済み。
+
+> かつて `error: iOS 26.5 Platform Not Installed.` で詰まった場合は、
+> Xcode > Settings > Components から **iOS のみ**をインストールする（watchOS/tvOS/visionOS は不要）。
+
+**署名なしのビルド確認コマンド**（Apple Developer Program 未登録でも実行できる）:
 
 ```bash
-xcodebuild -downloadPlatform iOS
+cd ~/mobile_order-app/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-これが解決するまで Release ビルド／Archive は実行できない。
+> ⚠ 成果物の Info.plist を確認するときに `plutil -extract` を `-o` 無しで使わないこと。
+> **対象ファイルを抽出結果で上書きしてしまう。** 確認は `plutil -p` か、コピーに対して行う。
 
 ---
 
@@ -80,6 +106,9 @@ iPhone 用スクリーンショットを別途用意すること（必須にな�
 
 ## 3. App Review 対策
 
+審査ガイドライン本文（日本語）: https://developer.apple.com/jp/app-store/review/guidelines/
+（英語の原文: https://developer.apple.com/app-store/review/guidelines/ ）
+
 ### 3.1 最大のリスク: ガイドライン 4.2（最低限の機能）
 
 このアプリは `server.url` で全画面をリモートから読み込む薄いシェルであり、
@@ -106,6 +135,8 @@ AKUTO は SaaS サブスク（order ¥9,800 / pos ¥12,800 など）を持つが
 - **カメラ/位置情報**: 使用していない（Info.plist にも宣言なし）
 
 ### 3.4 審査ノート テンプレート（App Store Connect の「App Review に関する情報」へ）
+
+入力場所の解説: https://developer.apple.com/help/app-store-connect/manage-app-information/provide-app-review-information/
 
 ```
 本アプリは、サロン・小売店舗向けの業務用POSレジ端末アプリです（iPad専用）。
@@ -149,6 +180,8 @@ App Store Review Guideline 3.1.3(e) Enterprise Services に該当すると考え
 
 ### 4.1 App Privacy（プライバシー ラベル）
 
+申告項目の解説（日本語）: https://developer.apple.com/jp/app-store/app-privacy-details/
+
 | データ種別 | 収集 | ユーザーに紐付け | トラッキング | 目的 |
 |---|---|---|---|---|
 | 連絡先情報 > メールアドレス | あり | あり | なし | Appの機能 |
@@ -163,6 +196,10 @@ App Store Review Guideline 3.1.3(e) Enterprise Services に該当すると考え
 
 `ios/App/App/PrivacyInfo.xcprivacy` に配置済み（Resources ビルドフェーズに登録済み）。
 
+Apple の仕様:
+- プライバシーマニフェスト全般: https://developer.apple.com/documentation/bundleresources/privacy-manifest-files
+- Required Reason API と理由コード一覧: https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api
+
 `NSPrivacyAccessedAPITypes` は**空**。根拠は実際に確認済み:
 
 - 自前の Swift（`StarPrinterPlugin.swift` / `MainViewController.swift`）は Required Reason API 不使用
@@ -174,6 +211,9 @@ App Store Review Guideline 3.1.3(e) Enterprise Services に該当すると考え
 > 典型は `NSPrivacyAccessedAPICategoryUserDefaults` / 理由 `CA92.1`。
 
 ### 4.3 スクリーンショット
+
+必要サイズの最新仕様（Apple が随時変えるので提出前に必ず確認）:
+https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications/
 
 iPad のみなので **iPad 13インチ相当（2048×2732 または 2064×2752）が必須**。
 iPhone 用は不要（iPad 限定にしているため）。
@@ -212,11 +252,19 @@ iPhone 用は不要（iPad 限定にしているため）。
 - バックグラウンドから復帰したときに、再試行画面が出ていれば自動で読み直す
 - 一度表示に成功した後の通信エラーでは**出さない**（レジ操作中に全画面を覆うと危険なため）
 
-### 既知の軽微な指摘事項
+### 表記の統一（2026-08-02 対応済み・要 deploy）
 
-ログイン画面の見出しが「**Akuto Order System / 店舗管理コンソール**」のままで、
-アプリ名「AKUTO POS」と一致していない。審査の落選理由にはならないが、
-テナントに配る以上そろえておきたい（Web側の文言修正なので Hosting deploy のみで直る）。
+ログイン画面の見出しは「Akuto Order System」から **「AKUTO」** に変更済み
+（サブタイトル「店舗管理コンソール」はそのまま）。ランチャーとブラウザのタブタイトルも同様。
+
+`Akuto Order System` は order 専用だった頃の名残で、POS/ORDER をプランで分ける現構成に合わず、
+アプリ名「AKUTO POS」とも食い違っていた。ブランド名のみの「AKUTO」なら
+どちらのプランでも成立し、アプリ名とも衝突しない。
+
+あわせて**レシートの店舗名フォールバック4箇所を空文字に変更**した。従来は店舗名が未設定だと
+領収書に「Akuto Order System」と印字され、**他社テナントのお客様に渡るレシートに
+自社サービス名が出る**事故になっていた。Star 印刷の Swift 側は元から空判定済みのため、
+この修正は再ビルド不要（Hosting deploy のみで反映）。
 
 ---
 
@@ -322,9 +370,12 @@ localStorage への自動シードは**あえてやっていない**。シード
 
 1. Apple Developer Program 登録完了を確認
 2. Xcode > Settings > Accounts に Apple ID を追加
-3. developer.apple.com で **Bundle ID `com.akuto.pos`** を登録
+3. **Bundle ID `com.akuto.pos`** を登録
+   - https://developer.apple.com/account/resources/identifiers/list
    - Capability: **External Accessory** を有効にする（MFi プリンタ用）
 4. App Store Connect でアプリレコードを作成（名前 / SKU / Bundle ID）
+   - https://appstoreconnect.apple.com/
+   - 操作マニュアル（日本語）: https://developer.apple.com/jp/help/app-store-connect/
 
 ### 8.2 ビルド前チェック
 
@@ -347,6 +398,8 @@ npx cap sync ios
 > JS だけの変更は `npm run deploy:prod` で反映され、アプリの再ビルドは不要。
 
 ### 8.4 TestFlight（審査通過までの繋ぎ）
+
+概要（日本語）: https://developer.apple.com/jp/testflight/
 
 - アップロードしたビルドは TestFlight にすぐ出る
 - **内部テスター**（自社）は Beta App Review 不要で即配布可能
@@ -371,3 +424,54 @@ WIP を巻き込まないよう、必要なコミットだけの clean な状態
 | 会計後の印刷が毎回8秒待たされる | プリンタ未選択で自動探索が走っている。設定 > 基本設定 > レシート設定 でこの端末のプリンタを選ぶ |
 | 複数iPadで別のプリンタから紙が出る | 7章の端末別保存が入る前の挙動。該当端末で選び直す |
 | Archive できない / `iOS Platform Not Installed` | Xcode > Settings > Components から iOS プラットフォームを入れる |
+| アップロード時に `ITMS-91053` | PrivacyInfo.xcprivacy の申告漏れ。警告が名指しした API と理由コードを追記する（4.2章） |
+| Bluetooth でプリンタが見つからない | 先に iPad 本体の「設定 > Bluetooth」でペアリングが要る。アプリ内の検索だけでは繋がらない |
+
+---
+
+## 10. リンク集（Apple）
+
+2026-08-02 に全て到達確認済み。Apple はURL構成を変えることがあるので、切れていたら
+developer.apple.com のトップから辿り直すこと。
+
+### 登録・申請
+
+| 用途 | URL |
+|---|---|
+| D-U-N-S 番号の検索・申請 | https://developer.apple.com/enroll/duns-lookup/ |
+| Apple Developer Program 登録（日本語） | https://developer.apple.com/jp/programs/enroll/ |
+| 同（プログラム概要・費用） | https://developer.apple.com/jp/programs/ |
+| 登録に関するサポート・最新の費用 | https://developer.apple.com/jp/support/enrollment/ |
+| チームの役割と権限 | https://developer.apple.com/jp/support/roles/ |
+
+### 開発・提出
+
+| 用途 | URL |
+|---|---|
+| Certificates, Identifiers & Profiles（Bundle ID 登録） | https://developer.apple.com/account/resources/identifiers/list |
+| App Store Connect（アプリレコード・提出・TestFlight） | https://appstoreconnect.apple.com/ |
+| App Store Connect 操作マニュアル（日本語） | https://developer.apple.com/jp/help/app-store-connect/ |
+| App Store Connect のサポート | https://developer.apple.com/support/app-store-connect/ |
+
+### 審査・プライバシー
+
+| 用途 | URL |
+|---|---|
+| App Store 審査ガイドライン（日本語） | https://developer.apple.com/jp/app-store/review/guidelines/ |
+| 同（英語原文・条番号の確認用） | https://developer.apple.com/app-store/review/guidelines/ |
+| 審査情報（デモアカウント・審査ノート）の入力方法 | https://developer.apple.com/help/app-store-connect/manage-app-information/provide-app-review-information/ |
+| App Privacy（プライバシーラベル）の申告 | https://developer.apple.com/jp/app-store/app-privacy-details/ |
+| プライバシーマニフェストの仕様 | https://developer.apple.com/documentation/bundleresources/privacy-manifest-files |
+| Required Reason API と理由コード一覧 | https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api |
+| スクリーンショットの必要サイズ | https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications/ |
+
+### 参考（今回は使わない）
+
+| 用途 | URL |
+|---|---|
+| TestFlight 概要（日本語） | https://developer.apple.com/jp/testflight/ |
+| Apple Business Manager（B案・カスタムApp配布） | https://business.apple.com/ |
+| MFi Program（プリンタ等の外部アクセサリ） | https://mfi.apple.com/ |
+
+> **B案（ABM カスタムApp）は採用していない**が、大手チェーンが自社 ABM での一元管理を
+> 求めてきた場合に備えてリンクだけ残す。同じ Developer Program・同じバイナリで後から追加できる。
