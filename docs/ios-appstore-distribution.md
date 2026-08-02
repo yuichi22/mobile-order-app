@@ -29,7 +29,7 @@ Apple 側の申請・登録ページのURLは巻末「10. リンク集」にま�
 | # | 作業 | 状況 | 申請先 |
 |---|---|---|---|
 | 1 | **D-U-N-S番号の取得**（デコレ株式会社名義・無料） | ✅ **2026-08-02 完了** | https://developer.apple.com/enroll/duns-lookup/ |
-| 2 | **Apple Developer Program に Organization で登録**（年間メンバーシップ 99ドル） | ⬜ 次はここ（数日〜2週間） | https://developer.apple.com/jp/programs/enroll/ |
+| 2 | **Organization への移行を申請**（既に Individual で加入済のため新規登録ではない） | 🕐 **2026-08-02 申請済・回答待ち** | https://developer.apple.com/contact/request/migrate-individual-account |
 | 3 | Account Holder の Apple ID を開発環境と共有 | ⬜ | Bundle ID 登録・証明書発行に必要 |
 
 ### 法人情報（Apple 登録に使う確定値）
@@ -50,7 +50,7 @@ Apple 側の申請・登録ページのURLは巻末「10. リンク集」にま�
 
 1. **D-U-N-S 番号** — ✅ 完了（690928588）
 
-2. **Apple Developer Program（Organization）** — ⬜ 次はここ
+2. **Apple Developer Program（Organization）** — 🕐 移行申請済み（下記「Individual → Organization 移行」参照）
    - 登録の入口: https://developer.apple.com/jp/programs/enroll/
    - Apple ID は**会社として恒久的に使うもの**にする（個人の私用 Apple ID は避ける）。
      二要素認証が有効になっている必要がある
@@ -68,24 +68,65 @@ Apple 側の申請・登録ページのURLは巻末「10. リンク集」にま�
    - Account Holder は法人につき1名で、契約の締結・年会費の更新・Admin の追加・
      銀行情報の承認を握る
 
-### ⚠ Individual で加入済みの場合の Organization への移行
+### Individual → Organization 移行（2026-08-02 申請済み・回答待ち）
 
-**2026-08-02 の実際の経緯**: 現場の iPad 4台へ Xcode からインストールするために、
-先に**個人の Apple ID で Individual メンバーシップの年会費を支払った**。
-その後、同じ Apple ID で法人（Organization）の確認手続きに入った。
+**経緯**: 現場の iPad へ Xcode からインストールするために、先に**個人の Apple ID で
+Individual メンバーシップの年会費を支払っていた**（2026-06-26 購入 / 2027-06-26 まで有効）。
+その後 D-U-N-S を取得し、同じ Apple ID から Organization への移行を申請した。
 
-- **Individual → Organization の移行は Apple が正式にサポートしている。**
-  専用の申請フォームから依頼する:
-  https://developer.apple.com/contact/request/migrate-individual-account
-  - 条件: 申請者が法人の founder / cofounder であること
-  - 必要情報: **D-U-N-S 番号（690928588）**、場合により法人の証明書類
-  - 出典: https://developer.apple.com/help/account/membership/updating-your-account-information/
+**現在の Individual アカウント（移行前）**
+
+| 項目 | 値 |
+|---|---|
+| Team ID | `FS8GXLHG62` |
+| Team Name | `ishihara yuichiro`（個人名 = Individual の証拠） |
+| メンバーシップ | 2026-06-26 購入 / 2027-06-26 まで |
+| 登録メール | `ishihara22@i.softbank.jp` |
+
+> Individual か Organization かは、手元のプロビジョニングプロファイルでも判別できる:
+> ```bash
+> security cms -D -i ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/*.mobileprovision | plutil -p - | grep -E "TeamName|ExpirationDate"
+> ```
+> TeamName が個人名なら Individual、`DECOLLE K.K.` なら Organization。
+> 有効期限が1年なら有料、7日なら無料の Personal Team。
+
+**申請内容（2026-08-02 提出）**
+
+| フォーム項目 | 提出値 |
+|---|---|
+| Organization Name | `DECOLLE K.K.` |
+| Organization Website | https://company.decolle.jp |
+| D-U-N-S Number | `690928588` |
+| DBA / 商号の使用 | No（App Store の販売者名は `DECOLLE K.K.` になる） |
+| 法人名義の既存メンバーシップ | 無し |
+| Additional information | 支払い済み年会費の扱い（引き継ぎ／再請求）を質問 |
+
+Apple の回答目安は **1営業日**。⚠ 返信は `ishihara22@i.softbank.jp` に届く。
+**キャリアメールは海外送信元を弾きやすいので、迷惑メールフォルダと受信拒否設定を確認すること。**
+
+> **販売者名について**: DBA を No にしたので、App Store 上の販売者表示は `DECOLLE K.K.` になる。
+> アプリ名は `AKUTO POS` で別管理なので実害は無い。販売者名を「AKUTO」にしたい場合は
+> DBA の申請が必要で、名称使用の法的権利を示す書類（商標登録等）が要る。
+
+**注意点**
+
+- 移行は Apple が正式にサポートしている手続き。条件は申請者が法人の founder / cofounder であること。
+  出典: https://developer.apple.com/help/account/membership/updating-your-account-information/
 - ⚠ **支払い済みの年会費がどう扱われるか（引き継ぎ／返金／再請求）は Apple の
-  ドキュメントに明記が無い。** 移行申請の際に必ず Apple へ直接確認すること。
-  **確認前に2回目の 99 ドルを払わないこと。**
-- ⚠ 別の Apple ID で新規に Organization 登録をやり直すと、**確実に二重払いになり、
-  かつ元の Individual メンバーシップが自動更新で課金され続ける**。避けること。
-- 法人審査は法務レビューに回るため、通常の登録より時間がかかることがある。
+  ドキュメントに明記が無い。** そのため申請の Additional information で明示的に質問した。
+  **回答が来るまで2回目の 99 ドルを払わないこと。**
+- ⚠ 別の Apple ID で新規に Organization 登録をやり直してはいけない。**確実に二重払いになり、
+  かつ元の Individual メンバーシップが自動更新で課金され続ける。**
+- 法人審査は法務レビューに回るため、初回返信（1営業日目安）の後さらに時間がかかることがある。
+
+**移行完了を待たなくてよい作業**（Individual のまま進められる）:
+
+| 作業 | Individual で可能か |
+|---|---|
+| 現場の iPad へ Xcode からインストール | ✅ |
+| TestFlight の内部テスター配布 | ✅ |
+| Bundle ID の登録・証明書の発行 | ✅ |
+| **App Store 一般公開** | ❌ ここだけ Organization が要る（販売者名が個人名になるため） |
 
 ### Apple ID を後から会社のものへ移す道は残っている
 
