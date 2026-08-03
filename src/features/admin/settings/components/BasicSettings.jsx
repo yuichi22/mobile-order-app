@@ -11,7 +11,6 @@ import {
   CreditCard,
   DollarSign,
   Edit2,
-  Percent,
   Plus,
   ScanQrCode,
   Receipt,
@@ -28,7 +27,6 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import ReceiptModeSettingsSection from './ReceiptModeSettingsSection';
 import LabelPrinterSettingsSection from './LabelPrinterSettingsSection';
-import { TAX_ROUNDING_OPTIONS, normalizeTaxRounding } from '../../../../shared/utils/tax';
 import { httpsCallable } from 'firebase/functions';
 import { functionsApi } from '../../../../shared/api/firebase/client';
 import CardTerminalModal from './CardTerminalModal';
@@ -381,10 +379,6 @@ const BasicSettings = ({
   const [receiptModeDraft, setReceiptModeDraft] = useState(null);
   // ラベルプリンタ設定の下書き。子から通知を受け、保存時にまとめて送る。
   const [labelPrinterDraft, setLabelPrinterDraft] = useState(null);
-  const [taxRounding, setTaxRounding] = useState('floor');
-  const [menuPriceTaxMode, setMenuPriceTaxMode] = useState('tax_included');
-  const [defaultCostTaxMode, setDefaultCostTaxMode] = useState('tax_included');
-  const [defaultCostTaxRateType, setDefaultCostTaxRateType] = useState('standard');
   const [enabledPaymentMethods, setEnabledPaymentMethods] = useState(['cash', 'card', 'qr']);
   const [allowTakeout, setAllowTakeout] = useState(true);
   const [newKitchenName, setNewKitchenName] = useState('');
@@ -456,18 +450,11 @@ const BasicSettings = ({
     form.name.value = settings.name || '';
     form.address.value = settings.address || '';
     form.tel.value = settings.tel || '';
-    form.invoiceNumber.value = settings.invoiceNumber || '';
-    form.taxRate.value = settings.taxRate ?? 10;
-    form.taxRateReduced.value = settings.taxRateReduced ?? 8;
     form.receiptBannerImage.value = settings.receiptBannerImage || '';
     form.customerLogoUrl.value = settings.customerLogoUrl || '';
 
     setCustomerLogoPreview(null);
     setCustomerThemeColor(settings.customerThemeColor || '#0f172a');
-    setTaxRounding(normalizeTaxRounding(settings.taxRounding));
-    setMenuPriceTaxMode(['tax_included', 'tax_excluded'].includes(settings.menuPriceTaxMode) ? settings.menuPriceTaxMode : 'tax_included');
-    setDefaultCostTaxMode(['tax_included', 'tax_excluded'].includes(settings.defaultCostTaxMode) ? settings.defaultCostTaxMode : 'tax_included');
-    setDefaultCostTaxRateType(['standard', 'reduced', 'exempt'].includes(settings.defaultCostTaxRateType) ? settings.defaultCostTaxRateType : 'standard');
     setEnabledPaymentMethods(
       Array.isArray(settings.acceptedPaymentMethods) && settings.acceptedPaymentMethods.length > 0
         ? settings.acceptedPaymentMethods
@@ -623,13 +610,8 @@ const confirmDeleteCookingCategory = () => {
         name: formData.get('name'),
         address: formData.get('address'),
         tel: formData.get('tel'),
-        invoiceNumber: formData.get('invoiceNumber'),
-        taxRate: Number(formData.get('taxRate')),
-        taxRateReduced: Number(formData.get('taxRateReduced')),
-        taxRounding,
-        menuPriceTaxMode,
-        defaultCostTaxMode,
-        defaultCostTaxRateType,
+        // 税率・インボイス・原価の既定は「税・価格設定」で管理する。
+        // ここで送ると既存値を上書きしてしまうため含めない。
         acceptedPaymentMethods: enabledPaymentMethods,
         allowTakeout,
         noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
@@ -1596,192 +1578,9 @@ const confirmDeleteCookingCategory = () => {
         )}
 
 
-        {showOrderOnlySettings && (
-        <SettingSection
-          title="売値・原価の入力方式"
-          desc="登録画面で金額を税込・税抜どちらで入力するかの既定です。会計で使う税の基準や税率は「税・価格設定」で管理します。"
-          icon={Percent}
-        >
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-700">
-                会計の税基準は「税・価格設定」が優先されます
-              </p>
-              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
-                レジ・レシート・日計は、管理メニューの「税・価格設定」で決めたPOS／ORDER別の基準
-                （税込 or 税抜）と税率・端数処理で計算されます。ここでの設定は登録画面の入力方式のみに使われます。
-              </p>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="space-y-3">
-                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-                  売値の入力方式
-                  <span className="ml-1 normal-case tracking-normal text-gray-400">
-                    （ORDERメニューの既定）
-                  </span>
-                </label>
-                <div className="grid gap-2">
-                  {[
-                    { value: 'tax_included', label: '税込で入力', note: 'ORDERメニュー登録時の既定' },
-                    { value: 'tax_excluded', label: '税抜で入力', note: '会計の基準は税・価格設定が優先' }
-                  ].map((option) => {
-                    const isActive = menuPriceTaxMode === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setMenuPriceTaxMode(option.value)}
-                        className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                          isActive
-                            ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-orange-200 hover:text-orange-600'
-                        }`}
-                      >
-                        <div className="text-sm font-black">{option.label}</div>
-                        <div className="mt-1 text-xs font-bold opacity-70">{option.note}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-                  原価の入力方式
-                  <span className="ml-1 normal-case tracking-normal text-gray-400">
-                    （ORDERメニューの原価入力の既定）
-                  </span>
-                </label>
-                <div className="grid gap-2">
-                  {[
-                    { value: 'tax_included', label: '税込で入力' },
-                    { value: 'tax_excluded', label: '税抜で入力' }
-                  ].map((option) => {
-                    const isActive = defaultCostTaxMode === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setDefaultCostTaxMode(option.value)}
-                        className={`rounded-2xl border-2 p-4 text-left text-sm font-black transition-all ${
-                          isActive
-                            ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-                  原価の標準税区分
-                </label>
-                <div className="grid gap-2">
-                  {[
-                    { value: 'standard', label: '標準税率' },
-                    { value: 'reduced', label: '軽減税率' },
-                    { value: 'exempt', label: '非課税/対象外' }
-                  ].map((option) => {
-                    const isActive = defaultCostTaxRateType === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setDefaultCostTaxRateType(option.value)}
-                        className={`rounded-2xl border-2 p-4 text-left text-sm font-black transition-all ${
-                          isActive
-                            ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </SettingSection>
-        )}
 
 
-        <SettingSection
-          title="税率・インボイス"
-          desc="会計時に適用される税率とインボイス登録番号を設定します。"
-          icon={Percent}
-        >
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">インボイス登録番号</label>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 select-none font-bold text-gray-400">T</span>
-                <input
-                  name="invoiceNumber"
-                  className="h-12 w-full rounded-lg border border-gray-300 bg-white pl-8 pr-4 text-base font-bold tracking-wider outline-none transition-all focus:border-orange-500"
-                  placeholder="1234567890123"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6 pt-2">
-              <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">標準税率</label>
-                <div className="relative">
-                  <input
-                    name="taxRate"
-                    type="number"
-                    className="h-12 w-full rounded-lg border border-gray-300 bg-white pl-4 pr-10 text-right font-mono text-base font-bold outline-none focus:border-orange-500"
-                  />
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">軽減税率</label>
-                <div className="relative">
-                  <input
-                    name="taxRateReduced"
-                    type="number"
-                    className="h-12 w-full rounded-lg border border-gray-300 bg-white pl-4 pr-10 text-right font-mono text-base font-bold outline-none focus:border-orange-500"
-                  />
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">税の端数処理</label>
-              <div className="grid grid-cols-3 gap-3">
-                {TAX_ROUNDING_OPTIONS.map((option) => {
-                  const isActive = taxRounding === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setTaxRounding(option.value)}
-                      className={`h-12 rounded-xl border text-sm font-bold transition-all ${
-                        isActive
-                          ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm'
-                          : 'border-gray-200 bg-white text-gray-500 hover:border-orange-200 hover:text-orange-600'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </SettingSection>
+        {/* 税率・インボイス・原価の既定は「税・価格設定」に集約した */}
 
 
         <SettingSection
