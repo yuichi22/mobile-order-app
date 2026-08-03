@@ -198,9 +198,17 @@ def build_writes(data):
                 "name": f"projects/{PROJECT}/databases/{DB}/documents/stores/{DST}/{collection}/{doc_id(d)}",
                 "fields": d["fields"]}})
     for name, d in data["settings"].items():
+        fields = dict(d["fields"])
+        if name == "basic":
+            # 店名だけは移行先の店舗ドキュメントの値に合わせる（レシートに出るため）。
+            # 住所・電話はHAUSの値が入るので、移行後に画面で正しい値へ更新すること。
+            store = get_doc(f"stores/{DST}")
+            dst_name = (store or {}).get("fields", {}).get("name", {}).get("stringValue", "")
+            if dst_name:
+                fields["name"] = {"stringValue": dst_name}
         writes.append({"update": {
             "name": f"projects/{PROJECT}/databases/{DB}/documents/stores/{DST}/settings/{name}",
-            "fields": d["fields"]}})
+            "fields": fields}})
     return writes
 
 
