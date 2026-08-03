@@ -164,8 +164,15 @@ const BasicSettings = ({
   const [cardHasLocation, setCardHasLocation] = useState(true);
   const [showTerminalModal, setShowTerminalModal] = useState(false);
 
+  // カード決済を受け付けない店舗では端末を照会しない（無駄な呼び出しとエラーを避ける）
+  const acceptsCardPayment = Array.isArray(settings?.acceptedPaymentMethods)
+    && settings.acceptedPaymentMethods.includes('card');
+
   const loadCardReaders = useCallback(async () => {
-    if (!storeId) return;
+    if (!storeId || !acceptsCardPayment) {
+      setCardReadersState('unlinked');
+      return;
+    }
     setCardReadersState('loading');
     try {
       const res = await httpsCallable(functionsApi, 'listCardReaders')({ storeId });
@@ -173,9 +180,16 @@ const BasicSettings = ({
       setCardHasLocation(res.data?.hasLocation !== false);
       setCardReadersState('ready');
     } catch (error) {
-      setCardReadersState(error?.code === 'functions/failed-precondition' ? 'unlinked' : 'error');
+      // 未連携(failed-precondition)と、Core側の実行権限が未付与(permission-denied)は
+      // どちらも「まだ使える状態ではない」なので同じ扱いにする
+      const code = error?.code || '';
+      setCardReadersState(
+        code === 'functions/failed-precondition' || code === 'functions/permission-denied'
+          ? 'unlinked'
+          : 'error'
+      );
     }
-  }, [storeId]);
+  }, [storeId, acceptsCardPayment]);
 
   useEffect(() => {
     loadCardReaders();
@@ -447,11 +461,17 @@ const BasicSettings = ({
     if (!formRef.current || !settings) return;
 
     const form = formRef.current;
-    form.name.value = settings.name || '';
-    form.address.value = settings.address || '';
-    form.tel.value = settings.tel || '';
-    form.receiptBannerImage.value = settings.receiptBannerImage || '';
-    form.customerLogoUrl.value = settings.customerLogoUrl || '';
+    // 契約によって出さない項目があるため、存在する入力だけに反映する
+    // （無い欄に代入すると undefined へのアクセスで画面が落ちる）
+    const setFieldValue = (fieldName, value) => {
+      const field = form.elements.namedItem(fieldName);
+      if (field) field.value = value || '';
+    };
+    setFieldValue('name', settings.name);
+    setFieldValue('address', settings.address);
+    setFieldValue('tel', settings.tel);
+    setFieldValue('receiptBannerImage', settings.receiptBannerImage);
+    setFieldValue('customerLogoUrl', settings.customerLogoUrl);
 
     setCustomerLogoPreview(null);
     setCustomerThemeColor(settings.customerThemeColor || '#0f172a');
@@ -616,8 +636,9 @@ const confirmDeleteCookingCategory = () => {
         allowTakeout,
         noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
         customerThemeColor,
-        receiptBannerImage: formData.get('receiptBannerImage'),
-        customerLogoUrl: formData.get('customerLogoUrl'),
+        // 非表示の項目は formData に含まれない。null で既存値を消さないよう保持する
+        receiptBannerImage: formData.get('receiptBannerImage') ?? settings.receiptBannerImage ?? '',
+        customerLogoUrl: formData.get('customerLogoUrl') ?? settings.customerLogoUrl ?? '',
         // レシート設定(レジモード別)。子の下書きをそのまま保存。未編集(null)なら既存値を保持。
         receiptModeSettings: receiptModeDraft || settings.receiptModeSettings,
         // ラベルプリンタ設定。未編集(null)なら既存値を保持。
