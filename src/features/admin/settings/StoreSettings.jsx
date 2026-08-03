@@ -1058,13 +1058,15 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
           // 税率は「使用する税率」が唯一の入力元。会計が読む posTax/orderTax と
           // 粗利計算が読む旧項目の両方へ同じ値を流し、二重管理にならないようにする。
           posTax: {
-            priceBase: modeTax.pos.priceBase,
+            // POSは商品マスタの税込価格を単価に使うため常に税込
+            priceBase: 'taxIncluded',
             standardRate: standardRateValue,
             reducedRate: reducedRateValue,
             rounding: storeTax.rounding
           },
           orderTax: {
-            priceBase: modeTax.order.priceBase,
+            // 顧客画面・伝票会計とも税込前提の実装のため税込固定
+            priceBase: 'taxIncluded',
             standardRate: standardRateValue,
             reducedRate: reducedRateValue,
             rounding: storeTax.rounding
@@ -1184,56 +1186,25 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
 
       <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax Calculation</p>
-        <h3 className="mt-2 text-xl font-black text-slate-900">税の計算ルール</h3>
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Rounding</p>
+        <h3 className="mt-2 text-xl font-black text-slate-900">消費税の端数処理</h3>
         <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
-          上の税率をどう当てはめるかの設定です。会計・レシート・日計はこのルールで計算します。
+          1円未満の消費税の扱いです。会計・レシート・日計はこのルールで計算します。
+          商品・メニューの登録価格は税込として扱います（表示は総額表示に合わせています）。
         </p>
 
         <div className="mt-5 max-w-xs">
-          <span className="mb-1 block text-xs font-black text-slate-500">消費税の端数処理</span>
           <select
             value={storeTax.rounding}
             onChange={(event) => updateStoreTax({ rounding: event.target.value })}
             className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
           >
-            <option value="floor">切り捨て</option>
+            <option value="floor">切り捨て（一般的）</option>
             <option value="round">四捨五入</option>
             <option value="ceil">切り上げ</option>
           </select>
-          <p className="mt-2 text-xs font-bold text-slate-400">1円未満の消費税の扱いです。</p>
         </div>
 
-        <h4 className="mt-6 text-sm font-black text-slate-900">
-          {bothModes ? '価格の基準（レジ種別ごと）' : '価格の基準'}
-        </h4>
-        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
-          {bothModes
-            ? 'POS（物販）と ORDER（飲食）で、価格を税込・税抜どちらで扱うかを分けられます。'
-            : '商品の価格を税込・税抜どちらで扱うかを設定します。'}
-        </p>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {[
-            ...(showPos ? [{ key: 'pos', label: bothModes ? 'POS（物販）' : 'レジ' }] : []),
-            ...(showOrder ? [{ key: 'order', label: bothModes ? 'ORDER（飲食）' : 'レジ' }] : [])
-          ].map(({ key, label }) => (
-            <div key={key} className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-              <h4 className="text-lg font-black text-slate-900">{label}</h4>
-              <div>
-                <span className="mb-1 block text-xs font-black text-slate-500">価格の入力</span>
-                <select
-                  value={modeTax[key].priceBase}
-                  onChange={(event) => updateModeTax(key, { priceBase: event.target.value })}
-                  className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
-                >
-                  <option value="taxIncluded">税込で入力</option>
-                  <option value="taxExcluded">税抜で入力</option>
-                </select>
-              </div>
-
-            </div>
-          ))}
-        </div>
       </div>
 
 
@@ -2295,11 +2266,6 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             </p>
           </div>
 
-          {!['csvImportExport', 'purchaseManagement'].includes(item?.id) && (
-            <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
-              ダミー
-            </span>
-          )}
         </div>
       </div>
 
@@ -2337,7 +2303,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
               {activeTab?.description}
             </p>
             <p className="mt-5 text-xs font-bold text-slate-400">
-              ここは次フェーズで実データに接続します。現時点ではタブ切り替え確認用のダミー画面です。
+              この機能は準備中です。
             </p>
           </div>
         )}

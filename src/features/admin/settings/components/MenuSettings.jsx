@@ -244,6 +244,14 @@ const MenuSettings = ({
     allergens: []
   });
 
+  // 原価入力欄に添えるヒント。品目側の指定があればそれ、無ければ店舗の既定に従う。
+  const resolvedCostTaxModeHint = (() => {
+    const mode = editingItem?.costTaxMode && editingItem.costTaxMode !== 'inherit'
+      ? editingItem.costTaxMode
+      : basicSettings?.defaultCostTaxMode;
+    return mode === 'tax_excluded' ? '税抜価格' : '税込価格';
+  })();
+
   const resolvedDefaultCostTaxModeLabel = basicSettings?.defaultCostTaxMode === 'tax_excluded'
     ? '税抜で入力'
     : '税込で入力';
@@ -983,7 +991,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                           value={editingItem.price}
                           onChange={(event) => setEditingItem({ ...editingItem, price: Number(event.target.value) })}
                           required
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500"
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
                       </div>
@@ -1002,8 +1011,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             takeoutPrice: event.target.value
                           })}
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500"
-                          placeholder="680"
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
                       </div>
@@ -1084,8 +1093,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             costPrice: event.target.value
                           })}
-                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-blue-500"
-                          placeholder="未設定"
+                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-blue-500 placeholder:text-base placeholder:font-bold placeholder:text-gray-300"
+                          placeholder={resolvedCostTaxModeHint}
                         />
                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
                           ¥
