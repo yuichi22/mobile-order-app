@@ -12,6 +12,7 @@ import {
   DollarSign,
   Edit2,
   Plus,
+  Trash2,
   ScanQrCode,
   Receipt,
   Printer,
@@ -20,7 +21,6 @@ import {
   Star,
   Store,
   Palette,
-  Trash2,
   Layers
 } from 'lucide-react';
 
@@ -43,6 +43,7 @@ import {
   setActiveRegisterContext
 } from '../../../pos/utils/registerContext';
 import useCoreEntitlements from '../../../../shared/hooks/useCoreEntitlements';
+import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 
 const SettingSection = ({ title, desc, icon, children }) => {
   const SectionIcon = icon;
@@ -323,6 +324,67 @@ const BasicSettings = ({
       setShowAddRegisterModal(true); // 4台目以降は確認
     } else {
       addRegisterNow();
+    }
+  };
+
+  // 部門の削除。最後の1件と、レジが紐づいている部門は消せない。
+  const removeDepartmentDraft = async (department) => {
+    const current = getAvailableDepartments(departmentDrafts);
+    if (current.length <= 1) {
+      window.alert('部門は1つ以上必要です。');
+      return;
+    }
+    const attached = getAvailableRegisters(registerDrafts, departmentDrafts)
+      .filter((register) => register.departmentId === department.id);
+    if (attached.length > 0) {
+      window.alert(
+        `「${department.name}」には ${attached.map((r) => r.name).join('、')} が紐づいています。\n`
+        + '先にレジの紐付け部門を変更するか、レジを削除してください。'
+      );
+      return;
+    }
+    const ok = await appConfirm(
+      `部門「${department.name}」を削除します。よろしいですか？`,
+      { title: '部門の削除', okLabel: '削除する', tone: 'danger' }
+    );
+    if (!ok) return;
+
+    const next = current.filter((item) => item.id !== department.id);
+    setDepartmentDrafts(next);
+    await saveRegisterDrafts(registerDrafts, next);
+  };
+
+  // レジの削除。最後の1台は消せない。含み台数まで減るときは減額を案内する。
+  const removeRegisterDraft = async (register) => {
+    const current = getAvailableRegisters(registerDrafts, departmentDrafts);
+    if (current.length <= 1) {
+      window.alert('レジは1台以上必要です。');
+      return;
+    }
+    const billableNow = countBillablePosRegisters(current, departmentDrafts);
+    const rest = current.filter((item) => item.id !== register.id);
+    const billableAfter = countBillablePosRegisters(rest, departmentDrafts);
+    const overageNow = Math.max(0, billableNow - FREE_REGISTER_LIMIT);
+    const overageAfter = Math.max(0, billableAfter - FREE_REGISTER_LIMIT);
+    const reduced = overageNow - overageAfter;
+
+    const message = `レジ「${register.name}」を削除します。よろしいですか？`
+      + (reduced > 0
+        ? `\n\n削除するとPOSレジは${billableAfter}台になり、`
+          + `月額${(reduced * ADDITIONAL_REGISTER_MONTHLY_FEE).toLocaleString()}円（税別）の追加分がなくなります。`
+          + (billableAfter <= FREE_REGISTER_LIMIT
+            ? `\n（${FREE_REGISTER_LIMIT}台までは追加料金なしでご利用いただけます）`
+            : '')
+        : '');
+    const ok = await appConfirm(message, { title: 'レジの削除', okLabel: '削除する', tone: 'danger' });
+    if (!ok) return;
+
+    setRegisterDrafts(rest);
+    await saveRegisterDrafts(rest, departmentDrafts);
+    // この端末で使用中のレジを消した場合は先頭のレジへ切り替える
+    if (activeRegisterContext?.id === register.id) {
+      const fallback = getAvailableRegisters(rest, departmentDrafts)[0];
+      if (fallback) setActiveRegisterContextState(setActiveRegisterContext(storeId, fallback));
     }
   };
 
@@ -776,9 +838,21 @@ const confirmDeleteCookingCategory = () => {
                   <label className="block text-[11px] font-black uppercase text-gray-400">
                     {department.id}
                   </label>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">
-                    {department.registerMode === 'order' ? 'ORDERレジ' : 'POSレジ'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">
+                      {department.registerMode === 'order' ? 'ORDERレジ' : 'POSレジ'}
+                    </span>
+                    {departmentDrafts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeDepartmentDraft(department)}
+                        aria-label={`部門 ${department.name} を削除`}
+                        className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={15} strokeWidth={2.4} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <input
@@ -835,11 +909,23 @@ const confirmDeleteCookingCategory = () => {
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-xs font-black text-gray-400">{register.id}</span>
-                  {active && (
-                    <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
-                      この端末
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {active && (
+                      <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
+                        この端末
+                      </span>
+                    )}
+                    {registerDrafts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeRegisterDraft(register)}
+                        aria-label={`レジ ${register.name} を削除`}
+                        className="rounded-lg p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={15} strokeWidth={2.4} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
