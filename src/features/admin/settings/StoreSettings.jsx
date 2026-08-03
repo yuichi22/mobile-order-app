@@ -1304,8 +1304,8 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
               onChange={(event) => updateStoreTax({ defaultCostTaxMode: event.target.value })}
               className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
             >
+              <option value="tax_excluded">税抜で入力（一般的）</option>
               <option value="tax_included">税込で入力</option>
-              <option value="tax_excluded">税抜で入力</option>
             </select>
           </div>
           <div>
