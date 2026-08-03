@@ -1292,7 +1292,9 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
           メニューに原価を登録するときの既定です。粗利の計算に使われ、メニュー品目ごとに上書きできます。
           仕入は税抜・軽減税率になることが多く、売値と異なるのが普通です。
-          {bothModes ? '（POSの商品マスタは商品ごとに税抜・税込の両方を持つため、この設定は使いません）' : ''}
+          {bothModes
+            ? '（POSの商品は税抜・税込の両方が登録されるため、この設定は使いません）'
+            : ''}
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
           <div>
