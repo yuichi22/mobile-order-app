@@ -119,6 +119,9 @@ const BasicSettings = ({
   );
   // 契約が1種類なら部門のレジタイプは固定（選択肢は残すがグレーアウト）
   const registerModeLocked = allowedRegisterModes.length === 1;
+  // ORDER専用の項目（テイクアウト切替・顧客画面・キッチン・調理分類・自動退席）は
+  // POSのみの契約では表示しない。契約情報が取れないときは従来どおり表示する。
+  const showOrderOnlySettings = allowedRegisterModes.includes('order');
 
   const departmentOptions = useMemo(
     () => (
@@ -1045,6 +1048,7 @@ const confirmDeleteCookingCategory = () => {
               </p>
             </div>
 
+            {showOrderOnlySettings && (
             <div className="space-y-3 border-t border-gray-100 pt-6">
               <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">会計ルール</label>
               <div className="grid grid-cols-1 gap-3">
@@ -1068,9 +1072,11 @@ const confirmDeleteCookingCategory = () => {
                 レジでのテイクアウト切替の可否を設定できます。
               </p>
             </div>
+            )}
           </div>
         </SettingSection>
 
+{showOrderOnlySettings && (
 <SettingSection
   title="顧客画面設定"
   desc="QRから開くお客様用メニュー画面のロゴとアクセントカラーを設定します。"
@@ -1189,8 +1195,10 @@ const confirmDeleteCookingCategory = () => {
     </div>
   </div>
 </SettingSection>
+)}
 
 
+        {showOrderOnlySettings && (
         <SettingSection
           title="キッチン設定"
           desc="注文の振り分け先になるキッチンを設定します。メインキッチンは標準の振り分け先として使われます。"
@@ -1435,7 +1443,9 @@ const confirmDeleteCookingCategory = () => {
 
           </div>
         </SettingSection>
+        )}
 
+        {showOrderOnlySettings && (
         <SettingSection
           title="調理分類設定"
           desc="キッチン画面の集計に使う分類を設定します。パスタ、揚げ物、ご飯プレートなど、調理単位でまとめられます。"
@@ -1583,20 +1593,22 @@ const confirmDeleteCookingCategory = () => {
             </div>
           </div>
         </SettingSection>
+        )}
 
 
         <SettingSection
-          title="売値・原価の税設定"
-          desc="メニュー価格と原価の入力方式を設定します。"
+          title="売値・原価の入力方式"
+          desc="登録画面で金額を税込・税抜どちらで入力するかの既定です。会計で使う税の基準や税率は「税・価格設定」で管理します。"
           icon={Percent}
         >
           <div className="space-y-6">
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
-              <p className="text-sm font-black text-orange-700">
-                既存メニューは税込価格として扱います
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-black text-slate-700">
+                会計の税基準は「税・価格設定」が優先されます
               </p>
-              <p className="mt-1 text-xs font-bold leading-relaxed text-orange-600/80">
-                税抜入力への切り替えは、注文作成と日計集計の対応後に使う想定です。現時点では税込入力のまま運用するのが安全です。
+              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+                レジ・レシート・日計は、管理メニューの「税・価格設定」で決めたPOS／ORDER別の基準
+                （税込 or 税抜）と税率・端数処理で計算されます。ここでの設定は登録画面の入力方式のみに使われます。
               </p>
             </div>
 
@@ -1604,11 +1616,14 @@ const confirmDeleteCookingCategory = () => {
               <div className="space-y-3">
                 <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
                   売値の入力方式
+                  <span className="ml-1 normal-case tracking-normal text-gray-400">
+                    （ORDERメニューの既定）
+                  </span>
                 </label>
                 <div className="grid gap-2">
                   {[
-                    { value: 'tax_included', label: '税込で入力', note: '現在の既存仕様です' },
-                    { value: 'tax_excluded', label: '税抜で入力', note: '今後の拡張用です' }
+                    { value: 'tax_included', label: '税込で入力', note: 'ORDERメニュー登録時の既定' },
+                    { value: 'tax_excluded', label: '税抜で入力', note: '会計の基準は税・価格設定が優先' }
                   ].map((option) => {
                     const isActive = menuPriceTaxMode === option.value;
 
@@ -1634,6 +1649,9 @@ const confirmDeleteCookingCategory = () => {
               <div className="space-y-3">
                 <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
                   原価の入力方式
+                  <span className="ml-1 normal-case tracking-normal text-gray-400">
+                    （ORDERメニューの原価入力の既定）
+                  </span>
                 </label>
                 <div className="grid gap-2">
                   {[
@@ -1823,6 +1841,7 @@ const confirmDeleteCookingCategory = () => {
           </div>
         </div>
       
+        {showOrderOnlySettings && (
         <SettingSection
           title="未注文テーブルの自動退席"
           desc="QRを読み込んだまま席を移動した場合など、注文がない利用中テーブルを一定時間後に自動で空席へ戻します。"
@@ -1856,6 +1875,7 @@ const confirmDeleteCookingCategory = () => {
             </div>
           </div>
         </SettingSection>
+        )}
 
 </form>
 
