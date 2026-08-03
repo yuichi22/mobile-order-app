@@ -1596,6 +1596,7 @@ const confirmDeleteCookingCategory = () => {
         )}
 
 
+        {showOrderOnlySettings && (
         <SettingSection
           title="売値・原価の入力方式"
           desc="登録画面で金額を税込・税抜どちらで入力するかの既定です。会計で使う税の基準や税率は「税・価格設定」で管理します。"
@@ -1710,6 +1711,7 @@ const confirmDeleteCookingCategory = () => {
             </div>
           </div>
         </SettingSection>
+        )}
 
 
         <SettingSection
