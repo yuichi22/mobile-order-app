@@ -251,3 +251,52 @@ export const syncActiveRegisterName = (storeId, registers, departments = DEFAULT
 
   return setActiveRegisterContext(storeId, latestRegister);
 };
+
+// ---------------------------------------------------------------------------
+// 契約(エンタイトルメント)に応じた初期構成
+// 新しい拠点では部門・レジを1つずつだけ用意し、必要な分だけ追加してもらう。
+// DEFAULT_DEPARTMENTS/DEFAULT_REGISTERS は既存店舗の後方互換用に残す。
+// ---------------------------------------------------------------------------
+
+/** 契約で選べるレジタイプ。両方契約していなければ1つに固定される。 */
+export const getAllowedRegisterModes = (entitlements) => {
+  const pos = entitlements?.pos !== false;
+  const order = entitlements?.order !== false;
+  const modes = [];
+  if (pos) modes.push('pos');
+  if (order) modes.push('order');
+  // 契約情報が取れない場合は従来どおり両方選べる（フェイルオープン）
+  return modes.length > 0 ? modes : ['pos', 'order'];
+};
+
+/** 契約に合った1部門だけの初期構成 */
+export const buildInitialDepartments = (entitlements) => {
+  const modes = getAllowedRegisterModes(entitlements);
+  const mode = modes[0];
+  const base = mode === 'order'
+    ? { id: 'restaurant', name: '飲食', label: '飲食' }
+    : { id: 'retail', name: '物販', label: '物販' };
+
+  return [{ ...base, registerMode: mode, isActive: true, sortOrder: 10 }];
+};
+
+/** レジ1台だけの初期構成 */
+export const buildInitialRegisters = (departments) => {
+  const department = getAvailableDepartments(departments)[0];
+  return [{
+    id: 'register_1',
+    name: 'レジ1',
+    label: 'レジ1',
+    departmentId: department.id,
+    departmentName: department.name,
+    registerMode: normalizeRegisterMode(department.registerMode)
+  }];
+};
+
+/** 課金対象になるレジ（POS契約のPOSレジ）の台数。ORDERレジはKDS課金のため数えない。 */
+export const countBillablePosRegisters = (registers, departments) => {
+  const normalizedDepartments = getAvailableDepartments(departments);
+  return getAvailableRegisters(registers, normalizedDepartments)
+    .filter((register) => normalizeRegisterMode(register.registerMode) === 'pos')
+    .length;
+};

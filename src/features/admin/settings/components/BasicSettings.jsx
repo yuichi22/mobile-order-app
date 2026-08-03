@@ -34,12 +34,17 @@ import { functionsApi } from '../../../../shared/api/firebase/client';
 import CardTerminalModal from './CardTerminalModal';
 import {
   REGISTER_MODE_OPTIONS,
+  buildInitialDepartments,
+  buildInitialRegisters,
+  countBillablePosRegisters,
   getActiveRegisterContext,
+  getAllowedRegisterModes,
   getAvailableDepartments,
   getAvailableRegisters,
   getDepartmentById,
   setActiveRegisterContext
 } from '../../../pos/utils/registerContext';
+import useCoreEntitlements from '../../../../shared/hooks/useCoreEntitlements';
 
 const SettingSection = ({ title, desc, icon, children }) => {
   const SectionIcon = icon;
@@ -107,13 +112,29 @@ const BasicSettings = ({
     setActiveRegisterContextState(getActiveRegisterContext(storeId, settings?.registers, settings?.departments));
   }, [storeId, settings?.registers, settings?.departments]);
 
+  const entitlements = useCoreEntitlements(storeId);
+  const allowedRegisterModes = useMemo(
+    () => getAllowedRegisterModes(entitlements),
+    [entitlements]
+  );
+  // 契約が1種類なら部門のレジタイプは固定（選択肢は残すがグレーアウト）
+  const registerModeLocked = allowedRegisterModes.length === 1;
+
   const departmentOptions = useMemo(
-    () => getAvailableDepartments(settings?.departments),
-    [settings?.departments]
+    () => (
+      Array.isArray(settings?.departments) && settings.departments.length > 0
+        ? getAvailableDepartments(settings.departments)
+        : buildInitialDepartments(entitlements)
+    ),
+    [settings?.departments, entitlements]
   );
 
   const registerOptions = useMemo(
-    () => getAvailableRegisters(settings?.registers, departmentOptions).map((register) => {
+    () => (
+      Array.isArray(settings?.registers) && settings.registers.length > 0
+        ? getAvailableRegisters(settings.registers, departmentOptions)
+        : buildInitialRegisters(departmentOptions)
+    ).map((register) => {
       const department = getDepartmentById(register.departmentId, departmentOptions);
       return {
         ...register,
@@ -231,7 +252,7 @@ const BasicSettings = ({
           id: nextId,
           name: `部門${nextNumber}`,
           label: `部門${nextNumber}`,
-          registerMode: 'pos',
+          registerMode: allowedRegisterModes[0],
           isActive: true,
           sortOrder: nextNumber * 10
         }
@@ -243,9 +264,10 @@ const BasicSettings = ({
     await saveRegisterDrafts(registerDrafts, departmentDrafts);
   };
 
-  // レジ追加: 3台までは無料、4台目以降は月額追加(仮の確認モーダルを挟む)。
+  // レジ追加: POSレジは3台まで契約に含まれ、4台目以降は1台ごとに月額が加算される。
+  // 台数と金額はポータルのカタログ(platform/billing appOptions.pos.terminal)と一致させること。
   const FREE_REGISTER_LIMIT = 3;
-  const ADDITIONAL_REGISTER_MONTHLY_FEE = 3000;
+  const ADDITIONAL_REGISTER_MONTHLY_FEE = 1500;
   const [showAddRegisterModal, setShowAddRegisterModal] = useState(false);
   const [addingRegister, setAddingRegister] = useState(false);
 
@@ -279,8 +301,10 @@ const BasicSettings = ({
   };
 
   const handleAddRegister = () => {
-    const currentCount = getAvailableRegisters(registerDrafts, departmentDrafts).length;
-    if (currentCount >= FREE_REGISTER_LIMIT) {
+    const currentCount = countBillablePosRegisters(registerDrafts, departmentDrafts);
+    // ORDERレジ（KDS課金）を追加する場合は台数課金の確認は出さない
+    const nextIsPos = (getAvailableDepartments(departmentDrafts)[0]?.registerMode || 'pos') !== 'order';
+    if (nextIsPos && currentCount >= FREE_REGISTER_LIMIT) {
       setShowAddRegisterModal(true); // 4台目以降は確認
     } else {
       addRegisterNow();
@@ -732,8 +756,9 @@ const confirmDeleteCookingCategory = () => {
             <button
               type="button"
               onClick={addDepartmentDraft}
-              className="h-11 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white transition active:scale-95"
+              className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-700 active:scale-95"
             >
+              <Plus size={16} strokeWidth={2.6} />
               部門を追加
             </button>
           </div>
@@ -762,17 +787,28 @@ const confirmDeleteCookingCategory = () => {
                   レジタイプ
                 </label>
                 <select
-                  value={department.registerMode || 'pos'}
+                  value={department.registerMode || allowedRegisterModes[0]}
                   onChange={(event) => updateDepartmentRegisterModeDraft(department.id, event.target.value)}
                   onBlur={commitDepartmentDrafts}
-                  className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  disabled={registerModeLocked}
+                  className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   {REGISTER_MODE_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
+                    <option
+                      key={option.id}
+                      value={option.id}
+                      disabled={!allowedRegisterModes.includes(option.id)}
+                    >
                       {option.name}
+                      {allowedRegisterModes.includes(option.id) ? '' : '（未契約）'}
                     </option>
                   ))}
                 </select>
+                {registerModeLocked && (
+                  <p className="mt-2 text-[11px] font-bold leading-relaxed text-slate-400">
+                    ご契約中のプランのレジタイプに固定されています。
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -878,7 +914,7 @@ const confirmDeleteCookingCategory = () => {
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-bold leading-relaxed text-gray-400">
-            レジは{FREE_REGISTER_LIMIT}台まで無料です。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税込）が追加されます。
+            POSレジは{FREE_REGISTER_LIMIT}台までご契約に含まれます。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税別）が追加されます。
           </p>
           <button
             type="button"
@@ -902,12 +938,13 @@ const confirmDeleteCookingCategory = () => {
               <h3 className="text-xl font-black text-slate-900">レジを追加しますか？</h3>
             </div>
             <p className="mt-4 text-sm font-bold leading-relaxed text-slate-600">
-              レジは{FREE_REGISTER_LIMIT}台まで無料です。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき
-              <span className="font-black text-slate-900">月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税込）</span>
+              POSレジは{FREE_REGISTER_LIMIT}台までご契約に含まれます。{FREE_REGISTER_LIMIT + 1}台目以降は1台につき
+              <span className="font-black text-slate-900">月額{ADDITIONAL_REGISTER_MONTHLY_FEE.toLocaleString()}円（税別）</span>
               が追加で発生します。よろしいですか？
             </p>
-            <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-700">
-              ※現在は仮の確認画面です。実際の課金処理（スーパーアドミン連携）は今後接続します。
+            <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs font-bold leading-relaxed text-slate-500">
+              追加すると、その場でご契約の台数に反映されます（日割りで計算されます）。
+              台数はポータルの「ご利用状況」でも確認できます。
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button

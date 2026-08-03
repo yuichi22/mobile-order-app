@@ -8522,6 +8522,9 @@ export { provisionStoreForSpace, onProvisionInviteUsed } from "./provisioning.js
 // --- 会計依頼伝票 (groom「作業完了・お会計」→POSレジへの伝票受け口) ---
 export { receiveCheckoutRequest } from "./checkoutRequests.js";
 
+// 拠点で使用中のレジ台数を Core(課金)へ通知する
+export { onBasicSettingsWriteSyncAppOptions } from "./appOptions.js";
+
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
 //       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、
