@@ -338,6 +338,7 @@ useEffect(() => {
     isCategoryAllowed,
     handleCartItemAdded,
     skipCurrentCrossSellStep,
+    goToPreviousCrossSellStep,
     cancelCrossSellFlow
   } = useCrossSellFlow({
     crossSellSettings,
@@ -1093,6 +1094,20 @@ const handleConfirmedCartAdd = (item, quantity = 1, selectedOptions = [], extraP
 const handleSkipCrossSellStep = () => {
   clearCrossSellAddedMessage();
   skipCurrentCrossSellStep();
+};
+
+// スキップ禁止ステップの「戻る」。前のステップへ、最初のステップなら
+// フローを中断して元のカテゴリー画面に戻す(きっかけ商品はカートに残す)。
+const handleBackCrossSellStep = () => {
+  clearCrossSellAddedMessage();
+
+  const movedToPreviousStep = goToPreviousCrossSellStep();
+
+  if (!movedToPreviousStep) {
+    setCrossSellCartCount(0);
+    cancelCrossSellFlow?.();
+    restoreCategoryBeforeCrossSell();
+  }
 };
 
 const hasSelectableOptionGroups = (item) => (
@@ -2805,11 +2820,17 @@ if (shouldWaitForSessionBeforeWelcome) {
           {isCrossSellActive ? (
             <button
               type="button"
-              onClick={handleSkipCrossSellStep}
+              onClick={
+                activeCrossSellPrompt?.skipMode === 'backOnly'
+                  ? handleBackCrossSellStep
+                  : handleSkipCrossSellStep
+              }
               className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-800 px-6 font-bold text-white shadow-lg transition-transform active:scale-95"
             >
               <span className="text-base font-black">
-                おすすめを閉じる
+                {activeCrossSellPrompt?.skipMode === 'backOnly'
+                  ? (activeCrossSellPrompt?.backLabel || '戻る')
+                  : (activeCrossSellPrompt?.skipLabel || 'おすすめを閉じる')}
               </span>
 
               {Number(crossSellCartCount || 0) > 0 && (

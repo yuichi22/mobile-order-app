@@ -68,7 +68,9 @@ const createBlankStep = () => ({
   groupId: '',
   title: '',
   description: '',
-  skipLabel: 'おすすめを閉じる'
+  skipLabel: 'おすすめを閉じる',
+  skipMode: 'skip',
+  backLabel: ''
 });
 
 const createBlankFlow = () => ({
@@ -101,7 +103,9 @@ const normalizeFlowForForm = (flow) => {
           groupId: step?.groupId || '',
           title: step?.title || '',
           description: step?.description || '',
-          skipLabel: step?.skipLabel || 'おすすめを閉じる'
+          skipLabel: step?.skipLabel || 'おすすめを閉じる',
+          skipMode: step?.skipMode === 'backOnly' ? 'backOnly' : 'skip',
+          backLabel: step?.backLabel || ''
         }))
       : [createBlankStep()]
   };
@@ -117,7 +121,9 @@ const prepareFlowForSave = (flow) => {
         : { categoryId: step.categoryId || '' }),
       ...(step.title ? { title: step.title } : {}),
       ...(step.description ? { description: step.description } : {}),
-      skipLabel: step.skipLabel || 'おすすめを閉じる'
+      skipLabel: step.skipLabel || 'おすすめを閉じる',
+      skipMode: step.skipMode === 'backOnly' ? 'backOnly' : 'skip',
+      ...(step.backLabel ? { backLabel: step.backLabel } : {})
     }))
     .filter((step) => (
       step.type === 'group'
@@ -505,22 +511,86 @@ const FlowStepEditor = ({
               />
             </label>
 
-            <label>
+            <div>
               <span className="mb-1 block text-xs font-black text-gray-500">
-                スキップボタン
+                進み方
               </span>
-              <input
-                value={step.skipLabel || ''}
-                onChange={(event) => {
-                  updateStep(step.id, (current) => ({
-                    ...current,
-                    skipLabel: event.target.value
-                  }));
-                }}
-                placeholder="おすすめを閉じる"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
-              />
-            </label>
+              <div className="flex items-center rounded-2xl border border-gray-200 bg-gray-50 p-1 text-xs font-black">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateStep(step.id, (current) => ({
+                      ...current,
+                      skipMode: 'skip'
+                    }));
+                  }}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-colors ${
+                    step.skipMode !== 'backOnly'
+                      ? 'bg-white text-gray-800 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  スキップ可
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateStep(step.id, (current) => ({
+                      ...current,
+                      skipMode: 'backOnly'
+                    }));
+                  }}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-colors ${
+                    step.skipMode === 'backOnly'
+                      ? 'bg-white text-gray-800 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  スキップ禁止（戻る）
+                </button>
+              </div>
+            </div>
+
+            {step.skipMode === 'backOnly' ? (
+              <div>
+                <label>
+                  <span className="mb-1 block text-xs font-black text-gray-500">
+                    戻るボタンの文言
+                  </span>
+                  <input
+                    value={step.backLabel || ''}
+                    onChange={(event) => {
+                      updateStep(step.id, (current) => ({
+                        ...current,
+                        backLabel: event.target.value
+                      }));
+                    }}
+                    placeholder="戻る"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                  />
+                </label>
+                <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-relaxed text-amber-700">
+                  お客様は商品を選ぶまで先へ進めません。ボタンは「戻る」になり、1つ前のステップ（最初のステップでは元のメニュー）に戻ります。
+                </p>
+              </div>
+            ) : (
+              <label>
+                <span className="mb-1 block text-xs font-black text-gray-500">
+                  スキップボタンの文言
+                </span>
+                <input
+                  value={step.skipLabel || ''}
+                  onChange={(event) => {
+                    updateStep(step.id, (current) => ({
+                      ...current,
+                      skipLabel: event.target.value
+                    }));
+                  }}
+                  placeholder="おすすめを閉じる"
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                />
+              </label>
+            )}
           </div>
         </div>
       ))}

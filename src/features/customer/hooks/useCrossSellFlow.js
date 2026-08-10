@@ -219,6 +219,8 @@ export const useCrossSellFlow = ({
     step: activeStep
   }),
       skipLabel: activeStep.skipLabel || 'おすすめを閉じる',
+      skipMode: activeStep.skipMode === 'backOnly' ? 'backOnly' : 'skip',
+      backLabel: activeStep.backLabel || '戻る',
       stepType: activeStep.type,
       serviceTimingEnabled: activeFlow?.serviceTimingEnabled === true
     };
@@ -288,6 +290,15 @@ export const useCrossSellFlow = ({
   const skipCurrentStep = useCallback(() => {
     goToNextStep();
   }, [goToNextStep]);
+
+  // スキップ禁止(backOnly)ステップの「戻る」。前のステップがあれば戻って true。
+  // 最初のステップでは false を返し、呼び出し側でフロー中断＋カテゴリー復元を行う。
+  const goToPreviousStep = useCallback(() => {
+    if (!activeFlow || activeStepIndex <= 0) return false;
+
+    goToStep(activeFlow, activeStepIndex - 1);
+    return true;
+  }, [activeFlow, activeStepIndex, goToStep]);
 
   const startFlowForItem = useCallback((item) => {
     if (!isEnabled || !item) return false;
@@ -368,6 +379,7 @@ export const useCrossSellFlow = ({
     isCategoryAllowed,
     handleCartItemAdded,
     skipCurrentCrossSellStep: skipCurrentStep,
+    goToPreviousCrossSellStep: goToPreviousStep,
     finishCrossSellFlow: finishFlow,
     cancelCrossSellFlow: cancelFlow
   };
