@@ -8525,6 +8525,10 @@ export { receiveCheckoutRequest } from "./checkoutRequests.js";
 // 拠点で使用中のレジ台数を Core(課金)へ通知する
 export { onBasicSettingsWriteSyncAppOptions } from "./appOptions.js";
 
+// 拠点の公式サイト向け読み取り専用API（メニュー・取扱ブランド）。
+// ⚠ 原価・在庫・仕入先・内部IDは返さない。詳細は publicSite.js の冒頭を参照。
+export { publicMenu, publicBrands, rebuildPublicSiteCache, runPublicSiteCacheNow } from "./publicSite.js";
+
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
 //       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、
