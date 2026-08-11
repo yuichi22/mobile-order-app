@@ -101,8 +101,38 @@ Individual メンバーシップの年会費を支払っていた**（2026-06-26
 | 法人名義の既存メンバーシップ | 無し |
 | Additional information | 支払い済み年会費の扱い（引き継ぎ／再請求）を質問 |
 
-Apple の回答目安は **1営業日**。⚠ 返信は `ishihara22@i.softbank.jp` に届く。
+**Apple からの回答（2026-08-03 / ケース番号 20000126132685）**
+
+移行開始の条件として提示された事項:
+
+1. Apple Account で**二要素認証**が有効であること
+2. **公開された Web サイト**があり、ドメインが企業に関連付けられていること → `company.decolle.jp` で充足
+3. 🔴 **移行の処理中は「Certificates, Identifiers & Profiles」ポータルが利用できない**
+   （App Store Connect を含む他のリソースは利用可）
+4. 移行完了後、組織名が App Store で配布する全アプリに適用される
+5. 移行完了後、個人メンバーシップの「売上とトレンド」レポートは利用不可になる
+6. 有償アプリ/アプリ内課金の収益は、移行開始時点で有効な銀行口座に振り込まれる
+   → 本アプリは無料・IAP無しのため該当しない
+
+**「移行を開始する準備が整ったら返信」という運用**。返信するまで移行は始まらない。
+
+### 🔴 移行を開始するタイミングの注意
+
+上記3により、**移行中は新しい iPad の端末登録もプロビジョニングプロファイルの生成もできない。**
+Xcode から実機へインストールする作業が全て止まる（期間は Apple も明示していない）。
+
+**したがって、移行開始を返信する前に、以下を必ず済ませておくこと:**
+
+- [ ] 配布予定・予備を含む**全 iPad の端末登録**を完了させる（後から追加できなくなる）
+- [ ] 各 iPad へのインストールと動作確認を完了させる
+- [ ] Bundle ID `com.akuto.pos` の登録（Xcode の自動署名で登録済み）
+
+逆に、App Store Connect は使えるので、**アプリレコードの作成・スクリーンショット・審査ノートの準備は移行中でも進められる**。
+
+⚠ 返信は `ishihara22@i.softbank.jp` に届く。
 **キャリアメールは海外送信元を弾きやすいので、迷惑メールフォルダと受信拒否設定を確認すること。**
+
+⚠ **年会費の扱いについての質問には回答が無かった**（2026-08-03 時点）。移行開始の返信時に再度確認すること。
 
 > **販売者名について**: DBA を No にしたので、App Store 上の販売者表示は `DECOLLE K.K.` になる。
 > アプリ名は `AKUTO POS` で別管理なので実害は無い。販売者名を「AKUTO」にしたい場合は
@@ -460,9 +490,12 @@ localStorage への自動シードは**あえてやっていない**。シード
 
 1. Apple Developer Program 登録完了を確認
 2. Xcode > Settings > Accounts に Apple ID を追加
-3. **Bundle ID `com.akuto.pos`** を登録
-   - https://developer.apple.com/account/resources/identifiers/list
-   - Capability: **External Accessory** を有効にする（MFi プリンタ用）
+3. **Bundle ID `com.akuto.pos`** — Xcode の自動署名が Run 時に自動登録済み
+   - 確認先: https://developer.apple.com/account/resources/identifiers/list
+   - ⚠ 以前この手順書に「Capability: External Accessory を有効にする」と書いていたが**誤り**。
+     Apple Developer ポータルの App ID Capability に External Accessory は存在しない。
+     MFi の外部アクセサリ通信は **Info.plist の `UISupportedExternalAccessoryProtocols`
+     （`jp.star-m.starpro`）だけで成立する**。実機で印刷・ドロワー開放が動作していることが実証。
 4. App Store Connect でアプリレコードを作成（名前 / SKU / Bundle ID）
    - https://appstoreconnect.apple.com/
    - 操作マニュアル（日本語）: https://developer.apple.com/jp/help/app-store-connect/
