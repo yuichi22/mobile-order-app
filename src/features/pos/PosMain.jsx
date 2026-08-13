@@ -1682,6 +1682,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       }
 
       const retailQuantityByProductId = new Map();
+      const retailMetaByProductId = new Map();
       takeoutCart.forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
         if (item.inventoryUnmanaged) return; // 在庫管理をしない商品は減算しない(固定)
@@ -1691,6 +1692,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           item.productId,
           (retailQuantityByProductId.get(item.productId) || 0) + quantity
         );
+        if (!retailMetaByProductId.has(item.productId)) {
+          retailMetaByProductId.set(item.productId, {
+            name: item.name || item.productName || '',
+            productGroupId: item.productGroupId || item.groupId || ''
+          });
+        }
       });
 
       retailQuantityByProductId.forEach((quantity, productId) => {
@@ -1699,6 +1706,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           inventoryQuantity: increment(-quantity),
           quantity: increment(-quantity),
           lastPosSoldAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        // 販売による在庫減も監査ログ(stockMovements)に残す。減算は increment のため
+        // 正確な before/after は持てず、delta(quantity=負)と伝票/レジで追跡できるようにする。
+        const meta = retailMetaByProductId.get(productId) || {};
+        batch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
+          productId,
+          productGroupId: meta.productGroupId || '',
+          type: 'sale',
+          quantity: -quantity,
+          transactionId: transactionRef.id,
+          registerId: registerContext.id,
+          note: meta.name ? `POS販売(${meta.name})` : 'POS販売',
+          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
       });
