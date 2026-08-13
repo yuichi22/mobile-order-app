@@ -200,6 +200,12 @@ export const publicMenu = onRequest(
       for (const doc of itemsSnap.docs) {
         const v = doc.data();
         if (!publicCatIds.has(v.category)) continue;
+        // ⚠ 品目ごとの「お客様に見せない」設定。カテゴリ単位の
+        //   customerTabVisibility とは別にあるので、両方見ないと漏れる。
+        //   実測(2026-08-12)で28品が hidden だった（「1000プレート」「弁当1000円」
+        //   「ワークショップ800」等の店内運用用の品や、季節外れの品）。
+        //   ⚠ これを返していたためサイトに出てしまっていた。
+        if (str(v.customerVisibility) === "hidden") continue;
         const name = str(v.name);
         if (!name) continue;
 
