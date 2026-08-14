@@ -239,6 +239,9 @@ const historySheetDragControls = useDragControls();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [hasRenderedCustomerSurface, setHasRenderedCustomerSurface] = useState(false);
   const [partySize, setPartySize] = useState(null);
+  // 7人以上の手入力欄の下書き。partySize から表示を導出すると「1」を打った瞬間に
+  // 7未満として空欄へ強制リセットされ、11などの二桁が入力できない。
+  const [manualPartySizeInput, setManualPartySizeInput] = useState('');
   const [cartBubbleMessage, setCartBubbleMessage] = useState('');
   const [shouldPersistPartySize, setShouldPersistPartySize] = useState(false);
   const [allowDefaultWelcomeAfterDelay, setAllowDefaultWelcomeAfterDelay] = useState(false);
@@ -2488,7 +2491,10 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     key={count}
                     type="button"
-                    onClick={() => setPartySize(count)}
+                    onClick={() => {
+                      setPartySize(count);
+                      setManualPartySizeInput('');
+                    }}
                     className={`h-14 rounded-2xl border-2 text-base font-black transition-all active:scale-[0.98] ${
                       isSelected
                         ? 'text-white shadow-lg'
@@ -2522,10 +2528,14 @@ if (shouldWaitForSessionBeforeWelcome) {
                 inputMode="numeric"
                 min="1"
                 max="20"
-                value={Number(partySize) >= 7 ? partySize : ''}
+                value={manualPartySizeInput}
                 onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setPartySize(value >= 1 ? Math.min(20, value) : null);
+                  const digits = String(event.target.value).replace(/\D/g, '').slice(0, 2);
+                  const parsed = Number(digits);
+                  const clamped = digits === '' ? '' : String(Math.min(20, parsed));
+
+                  setManualPartySizeInput(clamped);
+                  setPartySize(parsed >= 1 ? Math.min(20, parsed) : null);
                 }}
                 className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-center text-base font-black text-gray-800 outline-none transition-all focus:border-gray-400"
                 placeholder="人数を入力"
