@@ -30,7 +30,7 @@ import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode, toHalfWidthCode } from '../../../shared/utils/halfWidth';
 import { createScannerBufferedState, createScannerBufferedKeyDown } from '../../../shared/hooks/useScannerBufferedInput';
 import { getAuth } from 'firebase/auth';
-import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductStockInHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands, buildBrandPairKey, getBrandMergeExclusions, addBrandMergeExclusions, clearBrandMergeExclusions } from '../../store/services/storeDataService';
+import { adjustProductInventory, getProductInventoryAdjustmentHistory, getProductInOutHistory, pushInventoryToShopify, issueInstoreBarcode, mergeProductBrands, buildBrandPairKey, getBrandMergeExclusions, addBrandMergeExclusions, clearBrandMergeExclusions } from '../../store/services/storeDataService';
 import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDataService';
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
@@ -373,6 +373,25 @@ const formatProductMasterDateTimeText = (value) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+// 入出庫履歴(stockMovements)の種別表示。quantity は符号つきdelta(入庫=+ / 販売=-)。
+// 販売は increment 減算のため beforeQuantity/afterQuantity を持たない(伝票・レジで追跡する)。
+const STOCK_MOVEMENT_TYPE_META = {
+  stock_in: { label: '入庫', badgeClass: 'bg-blue-100 text-blue-700', amountClass: 'text-blue-700' },
+  sale: { label: '販売', badgeClass: 'bg-rose-100 text-rose-700', amountClass: 'text-rose-600' },
+  adjustment: { label: '在庫調整', badgeClass: 'bg-amber-100 text-amber-700', amountClass: 'text-amber-700' },
+  shopify_reconcile: { label: 'Shopify補正', badgeClass: 'bg-slate-200 text-slate-600', amountClass: 'text-slate-600' }
+};
+
+const getStockMovementTypeMeta = (type) => (
+  STOCK_MOVEMENT_TYPE_META[String(type || '')]
+  || { label: String(type || 'その他'), badgeClass: 'bg-slate-100 text-slate-500', amountClass: 'text-slate-600' }
+);
+
+const formatSignedQuantityText = (value) => {
+  const quantity = Number(value || 0);
+  return `${quantity > 0 ? '+' : ''}${quantity.toLocaleString()}`;
 };
 
 const getProductMasterTimestampMs = (value) => {
@@ -3002,11 +3021,12 @@ const ProductMasterTable = ({
     setStockInHistoryLoading(true);
 
     try {
-      const records = await getProductStockInHistory(storeId, product.id);
+      // 入庫だけでなく販売・在庫調整・Shopify補正も含めた入出庫履歴を表示する。
+      const records = await getProductInOutHistory(storeId, product.id);
       setStockInHistoryRecords(records);
     } catch (error) {
-      console.error('failed to load stock-in history', error);
-      setStockInHistoryError('入庫履歴の取得に失敗しました');
+      console.error('failed to load in/out history', error);
+      setStockInHistoryError('入出庫履歴の取得に失敗しました');
     } finally {
       setStockInHistoryLoading(false);
     }
@@ -3576,19 +3596,19 @@ const ProductMasterTable = ({
           </div>
 
           <div>
-            <FieldLabel>入庫履歴</FieldLabel>
+            <FieldLabel>入出庫履歴</FieldLabel>
             <button
               type="button"
               onClick={() => openStockInHistoryModal(row)}
               disabled={isNew}
               className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-              title="入庫履歴を表示"
+              title="入出庫履歴を表示"
             >
               {Number(row.lastStockInQuantity || 0) > 0
                 ? `入庫: ${Number(row.lastStockInQuantity).toLocaleString()} (${formatDateText(row.lastStockInAt)})`
                 : '入庫: 未登録'}
             </button>
-            <FieldHint>入庫履歴</FieldHint>
+            <FieldHint>入出庫履歴</FieldHint>
           </div>
 
           <div>
@@ -3770,10 +3790,10 @@ const ProductMasterTable = ({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
-                    Stock In History
+                    Stock Movements
                   </p>
                   <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
-                    入庫履歴
+                    入出庫履歴
                   </h3>
                   <p className="mt-1 text-xs font-bold text-slate-500">
                     {stockInHistoryModalRow.name || stockInHistoryModalRow.productGroupName || stockInHistoryModalRow.sku || stockInHistoryModalRow.id}
@@ -3798,25 +3818,39 @@ const ProductMasterTable = ({
               ) : stockInHistoryError ? (
                 <p className="py-10 text-center text-sm font-bold text-rose-500">{stockInHistoryError}</p>
               ) : stockInHistoryRecords.length === 0 ? (
-                <p className="py-10 text-center text-sm font-bold text-slate-400">入庫履歴はありません</p>
+                <p className="py-10 text-center text-sm font-bold text-slate-400">入出庫履歴はありません</p>
               ) : (
                 <div className="space-y-2">
-                  {stockInHistoryRecords.map((record) => (
-                    <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-slate-900">
-                          {formatProductMasterDateTimeText(record.createdAt)}
-                        </span>
-                        <span className="text-sm font-black text-blue-700">
-                          +{Number(record.quantity || 0).toLocaleString()}
-                        </span>
+                  {stockInHistoryRecords.map((record) => {
+                    const typeMeta = getStockMovementTypeMeta(record.type);
+                    // 販売は before/after を持たない(increment減算)ため、ある時だけ在庫遷移を出す。
+                    const hasBeforeAfter = record.beforeQuantity !== undefined && record.beforeQuantity !== null
+                      && record.afterQuantity !== undefined && record.afterQuantity !== null;
+
+                    return (
+                      <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-black ${typeMeta.badgeClass}`}>
+                              {typeMeta.label}
+                            </span>
+                            <span className="truncate text-sm font-black text-slate-900">
+                              {formatProductMasterDateTimeText(record.createdAt)}
+                            </span>
+                          </div>
+                          <span className={`shrink-0 text-sm font-black ${typeMeta.amountClass}`}>
+                            {formatSignedQuantityText(record.quantity)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs font-bold text-slate-500">
+                          {hasBeforeAfter
+                            ? `在庫: ${Number(record.beforeQuantity).toLocaleString()} → ${Number(record.afterQuantity).toLocaleString()}`
+                            : (record.registerId ? `レジ: ${record.registerId}` : '')}
+                          {record.note ? `${hasBeforeAfter || record.registerId ? ' / ' : ''}${record.note}` : ''}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs font-bold text-slate-500">
-                        在庫: {Number(record.beforeQuantity || 0).toLocaleString()} → {Number(record.afterQuantity || 0).toLocaleString()}
-                        {record.note ? ` / ${record.note}` : ''}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

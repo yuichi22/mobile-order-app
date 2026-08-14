@@ -646,6 +646,29 @@ export const getProductInventoryAdjustmentHistory = async (storeId, productId, {
   return records.slice(0, limitCount);
 };
 
+// 入出庫履歴: stockMovements(その商品分)を種別を問わず新しい順に返す。
+// type = stock_in(入庫) / sale(販売) / adjustment(在庫調整) / shopify_reconcile(Shopify補正)。
+// 販売は increment 減算のため before/after を持たない(quantity=負のdeltaで表す)。
+export const getProductInOutHistory = async (storeId, productId, { limitCount = 100 } = {}) => {
+  if (!isValidStoreId(storeId) || !productId) return [];
+
+  const historyQuery = query(
+    storeCollectionRef(storeId, 'stockMovements'),
+    where('productId', '==', productId)
+  );
+
+  const snapshot = await getDocs(historyQuery);
+  const records = mapCollectionSnapshot(snapshot);
+
+  records.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bTime - aTime;
+  });
+
+  return records.slice(0, limitCount);
+};
+
 
 
 export const subscribeToProductCategories = (storeId, onData, onError) => (
