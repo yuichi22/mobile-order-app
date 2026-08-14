@@ -308,7 +308,10 @@ service cloud.firestore {
 
       match /stockMovements/{movementId} {
         allow read: if isPlatformAdmin() || isStoreStaff(storeId);
-        allow create: if isPlatformAdmin() || isStoreManager(storeId);
+        // staff は POSレジの販売記録(type=sale)だけ作成できる。入庫/調整の作成は従来どおり manager 以上。
+        allow create: if isPlatformAdmin()
+          || isStoreManager(storeId)
+          || (isStoreStaff(storeId) && request.resource.data.type == 'sale');
         allow update, delete: if false;
       }
       match /stocktakes/{stocktakeId} {

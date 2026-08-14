@@ -1682,6 +1682,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       }
 
       const retailQuantityByProductId = new Map();
+      const retailMetaByProductId = new Map();
       takeoutCart.forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
         if (item.inventoryUnmanaged) return; // 在庫管理をしない商品は減算しない(固定)
@@ -1691,6 +1692,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           item.productId,
           (retailQuantityByProductId.get(item.productId) || 0) + quantity
         );
+        if (!retailMetaByProductId.has(item.productId)) {
+          retailMetaByProductId.set(item.productId, {
+            name: item.name || item.productName || '',
+            productGroupId: item.productGroupId || item.groupId || ''
+          });
+        }
       });
 
       retailQuantityByProductId.forEach((quantity, productId) => {
@@ -1731,6 +1738,33 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             }
           } catch (shopifyError) {
             console.error('Shopify在庫反映エラー:', shopifyError);
+          }
+        })();
+
+        // 販売による在庫減の監査ログ(stockMovements type=sale)。会計バッチには同梱しない:
+        // ルール拒否や通信断で会計まで失敗した事故(2026-08-14)の再発防止で、commit成立後の
+        // fire-and-forget とする(記録欠落は許容し、会計を人質にしない)。
+        // 減算は increment のため before/after は持てず、負のdeltaと伝票/レジで追跡する。
+        void (async () => {
+          try {
+            const movementBatch = writeBatch(db);
+            retailQuantityByProductId.forEach((quantity, productId) => {
+              const meta = retailMetaByProductId.get(productId) || {};
+              movementBatch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
+                productId,
+                productGroupId: meta.productGroupId || '',
+                type: 'sale',
+                quantity: -quantity,
+                transactionId: transactionRef.id,
+                registerId: registerContext.id,
+                note: meta.name ? `POS販売(${meta.name})` : 'POS販売',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
+            });
+            await movementBatch.commit();
+          } catch (movementError) {
+            console.warn('販売履歴(stockMovements)の記録に失敗:', movementError);
           }
         })();
       }

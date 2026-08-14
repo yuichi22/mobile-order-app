@@ -1989,6 +1989,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       });
 
       const orderRetailQuantityByProductId = new Map();
+      const orderRetailMetaByProductId = new Map();
       orderRetailCart.forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
         const quantity = Math.max(Number(item.quantity || 0), 0);
@@ -1997,6 +1998,12 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           item.productId,
           (orderRetailQuantityByProductId.get(item.productId) || 0) + quantity
         );
+        if (!orderRetailMetaByProductId.has(item.productId)) {
+          orderRetailMetaByProductId.set(item.productId, {
+            name: item.name || item.productName || '',
+            productGroupId: item.productGroupId || item.groupId || ''
+          });
+        }
       });
 
       orderRetailQuantityByProductId.forEach((quantity, productId) => {
@@ -2067,6 +2074,32 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
             }
           } catch (shopifyError) {
             console.error('Shopify在庫反映エラー:', shopifyError);
+          }
+        })();
+
+        // 販売による在庫減の監査ログ(stockMovements type=sale)。会計バッチには同梱しない:
+        // ルール拒否や通信断で会計まで失敗した事故(2026-08-14)の再発防止で、commit成立後の
+        // fire-and-forget とする(記録欠落は許容し、会計を人質にしない)。
+        void (async () => {
+          try {
+            const movementBatch = writeBatch(db);
+            orderRetailQuantityByProductId.forEach((quantity, productId) => {
+              const meta = orderRetailMetaByProductId.get(productId) || {};
+              movementBatch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
+                productId,
+                productGroupId: meta.productGroupId || '',
+                type: 'sale',
+                quantity: -quantity,
+                transactionId: transactionRef.id,
+                registerId: registerContext.id,
+                note: meta.name ? `ORDER販売(${meta.name})` : 'ORDER販売',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
+            });
+            await movementBatch.commit();
+          } catch (movementError) {
+            console.warn('販売履歴(stockMovements)の記録に失敗:', movementError);
           }
         })();
       }
