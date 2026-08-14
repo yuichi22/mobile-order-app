@@ -211,6 +211,13 @@
         }
       },
       {
+        "source": "/api/leaveNoOrderSession",
+        "function": {
+          "functionId": "leaveNoOrderSession",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

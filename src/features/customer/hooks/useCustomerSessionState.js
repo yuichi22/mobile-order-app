@@ -21,6 +21,9 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
   // false になり(派生値)、前セッションの「ご利用ありがとうございました」画面が
   // 新セッションに残って挟まる/固まる問題を、remount 無し(＝通常入場の速度を保ったまま)で防げる。
   const [endedSessionId, setEndedSessionId] = useState(null);
+  // 未注文自動退席の警告表示に使う。作成時刻＋「注文を続ける」による延長時刻。
+  const [sessionCreatedAtMs, setSessionCreatedAtMs] = useState(0);
+  const [sessionKeepAliveAtMs, setSessionKeepAliveAtMs] = useState(0);
   const [sessionError, setSessionError] = useState('');
   const [shouldSubscribeSession, setShouldSubscribeSession] = useState(() => hasSessionContext);
   const [participantTokenHash, setParticipantTokenHash] = useState('');
@@ -198,6 +201,8 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
         setSessionError('');
         setEndedSessionId(data.status !== 'active' ? sessionId : null);
         setSessionHostId(data.hostUserId);
+        setSessionCreatedAtMs(data.createdAt?.toDate?.()?.getTime?.() || 0);
+        setSessionKeepAliveAtMs(data.noOrderKeepAliveAt?.toDate?.()?.getTime?.() || 0);
 
         if (data.tableId) {
           setTableNumber(data.tableId);
@@ -235,6 +240,8 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
     sessionHostId,
     isSessionEnded,
     sessionError,
+    sessionCreatedAtMs: hasSessionContext ? sessionCreatedAtMs : 0,
+    sessionKeepAliveAtMs: hasSessionContext ? sessionKeepAliveAtMs : 0,
     isCurrentUserSessionMember: hasSessionContext ? isCurrentUserSessionMember : false
   };
 };

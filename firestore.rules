@@ -432,6 +432,16 @@ service cloud.firestore {
             && request.resource.data.partySize >= 1
             && request.resource.data.partySize <= 20
             && request.resource.data.partySizeConfirmedAt == request.time
+          )
+          || (
+            // 未注文自動退席の警告モーダル「注文を続ける」による期限延長。
+            // サーバーの現在時刻のみ書けるため、不正な未来日時での延長はできない。
+            signedIn()
+            && isSessionMember(storeId, sessionId)
+            && resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).changedKeys()
+              .hasOnly(['noOrderKeepAliveAt'])
+            && request.resource.data.noOrderKeepAliveAt == request.time
           );
 
         allow delete: if isStoreOwner(storeId);

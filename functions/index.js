@@ -6884,7 +6884,12 @@ export const autoVacateNoOrderSessions = onSchedule(
         const createdAtDate = sessionData.createdAt?.toDate?.() || null;
         const createdAtMs = createdAtDate?.getTime?.() || 0;
 
-        if (!createdAtMs || createdAtMs > cutoffMs) {
+        // 顧客が警告モーダルで「注文を続ける」を押すと noOrderKeepAliveAt が
+        // 更新されるため、その時刻を起点に数え直す。
+        const keepAliveDate = sessionData.noOrderKeepAliveAt?.toDate?.() || null;
+        const baseMs = Math.max(createdAtMs, keepAliveDate?.getTime?.() || 0);
+
+        if (!baseMs || baseMs > cutoffMs) {
           continue;
         }
 
@@ -6956,6 +6961,116 @@ export const autoVacateNoOrderSessions = onSchedule(
     console.log('[autoVacateNoOrderSessions] skipped sessions with orders:', skippedWithOrdersCount);
     console.log('[autoVacateNoOrderSessions] patched hasOrders sessions:', patchedHasOrdersCount);
     console.log('[autoVacateNoOrderSessions] archived sessions:', archivedCount);
+  }
+);
+
+// 未注文自動退席の警告モーダルから「退席する」を押した顧客向け。
+// autoVacateNoOrderSessions(cron) と同じ安全判定(注文ゼロを実データで確認)を
+// トランザクション内で行ったうえで、即時に退席処理する。
+export const leaveNoOrderSession = onRequest(
+  { region: REGION, cors: true },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      return sendAppError(response, 405, 'app/method-not-allowed');
+    }
+
+    try {
+      const authUser = await verifyRequestUser(request);
+      const { storeId, sessionId } = parseJsonBody(request);
+
+      const normalizedStoreId = String(storeId || '').trim();
+      const normalizedSessionId = String(sessionId || '').trim();
+
+      if (!normalizedStoreId || !normalizedSessionId) {
+        return sendAppError(response, 400, 'app/session-invalid', 'セッション情報を確認してください。');
+      }
+
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+
+      await db.runTransaction(async (transaction) => {
+        const sessionRef = storeRef.collection('sessions').doc(normalizedSessionId);
+        const sessionSnapshot = await transaction.get(sessionRef);
+
+        if (!sessionSnapshot.exists) {
+          throw new Error('app/session-not-found');
+        }
+
+        const sessionData = sessionSnapshot.data() || {};
+
+        if (sessionData.status !== 'active') {
+          throw new Error('app/session-not-active');
+        }
+
+        const members = Array.isArray(sessionData.members) ? sessionData.members : [];
+
+        if (!members.includes(authUser.uid)) {
+          throw new Error('app/permission-denied');
+        }
+
+        const ordersSnapshot = await transaction.get(
+          storeRef.collection('orders')
+            .where('sessionId', '==', normalizedSessionId)
+            .limit(1)
+        );
+
+        if (!ordersSnapshot.empty) {
+          throw new Error('app/session-has-orders');
+        }
+
+        transaction.set(sessionRef, {
+          status: 'archived',
+          autoVacated: true,
+          autoVacatedReason: 'customer_leave',
+          autoVacatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        const tableId = String(sessionData.tableId || '').trim();
+
+        if (tableId) {
+          transaction.set(storeRef.collection('tables').doc(tableId), {
+            status: 'vacant',
+            sessionId: null,
+            lastClosedSessionId: normalizedSessionId,
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          transaction.set(storeRef.collection('tableSessions').doc(tableId), {
+            tableId,
+            sessionId: null,
+            status: 'vacant',
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          transaction.delete(storeRef.collection('tableEntryGuards').doc(tableId));
+        }
+      });
+
+      return sendJson(response, 200, { ok: true });
+    } catch (error) {
+      const code = error.message || 'app/session-leave-failed';
+
+      const statusByCode = {
+        'app/session-not-found': 404,
+        'app/session-not-active': 409,
+        'app/permission-denied': 403,
+        'app/session-has-orders': 409
+      };
+
+      const messageByCode = {
+        'app/session-not-found': 'セッションが見つかりませんでした。',
+        'app/session-not-active': 'このセッションはすでに終了しています。',
+        'app/permission-denied': '退席処理の権限がありません。',
+        'app/session-has-orders': 'ご注文があるため退席処理できません。お会計はスタッフにお声がけください。'
+      };
+
+      if (statusByCode[code]) {
+        return sendAppError(response, statusByCode[code], code, messageByCode[code]);
+      }
+
+      console.error('[leaveNoOrderSession] failed', error);
+      return sendAppError(response, 500, 'app/session-leave-failed', '退席処理に失敗しました。');
+    }
   }
 );
 

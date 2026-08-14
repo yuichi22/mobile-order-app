@@ -7,7 +7,8 @@ import {
   serverTimestamp,
   doc,
   getDoc,
-  onSnapshot
+  onSnapshot,
+  setDoc
 } from 'firebase/firestore';
 
 import { buildJoinUrl } from '../../../app/routing/appRouteState';
@@ -182,6 +183,8 @@ export const useCustomerLogic = (
     sessionHostId,
     isSessionEnded,
     sessionError,
+    sessionCreatedAtMs,
+    sessionKeepAliveAtMs,
     isCurrentUserSessionMember
   } = useCustomerSessionState({ sessionId, storeId });
 
@@ -961,6 +964,50 @@ const {
     }
   };
 
+  // 未注文自動退席の「注文を続ける」。延長時刻をセッションに記録し、
+  // サーバーの autoVacate cron はこの時刻を起点に数え直す。
+  const keepNoOrderSessionAlive = async () => {
+    if (!storeId || !sessionId) return;
+
+    try {
+      await setDoc(
+        doc(db, 'stores', storeId, 'sessions', sessionId),
+        { noOrderKeepAliveAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (error) {
+      console.warn('[keepNoOrderSessionAlive] failed', error);
+    }
+  };
+
+  // 未注文自動退席の「退席する」。サーバー側で注文ゼロを確認のうえ即時退席。
+  const leaveNoOrderSession = async () => {
+    if (!storeId || !sessionId) {
+      throw new Error('セッション情報を確認できませんでした。');
+    }
+
+    const idToken = await auth.currentUser?.getIdToken();
+
+    if (!idToken) {
+      throw new Error('ログイン状態を確認できませんでした。');
+    }
+
+    const response = await fetch('/api/leaveNoOrderSession', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ storeId, sessionId })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error?.message || '退席処理に失敗しました。');
+    }
+  };
+
   const handleCallStaff = async (type) => {
     if (!sessionId) {
       showToast('セッション準備中のため、少し待ってからお試しください。', 'error');
@@ -1053,6 +1100,11 @@ const {
     removeCartItem,
     normalizeCartItems,
     placeOrder,
-    handleCallStaff
+    handleCallStaff,
+    orderHistory,
+    sessionCreatedAtMs,
+    sessionKeepAliveAtMs,
+    keepNoOrderSessionAlive,
+    leaveNoOrderSession
   };
 };

@@ -4,6 +4,7 @@ import { auth, db } from '../../shared/api/firebase/client';
 import {
   Barcode,
   CheckCircle,
+  Clock,
   Lock,
   Minus,
   Plus,
@@ -134,7 +135,12 @@ const CustomerApp = ({
     removeCartItem,
     normalizeCartItems,
     placeOrder,
-    handleCallStaff
+    handleCallStaff,
+    orderHistory,
+    sessionCreatedAtMs,
+    sessionKeepAliveAtMs,
+    keepNoOrderSessionAlive,
+    leaveNoOrderSession
   } = useCustomerLogic(
     sessionId,
     storeId,
@@ -261,6 +267,9 @@ const historySheetDragControls = useDragControls();
   const [cancellingOrderId, setCancellingOrderId] = useState('');
   const [cancelDialog, setCancelDialog] = useState(null);
   const [hasInteractedWithCrossSellTab, setHasInteractedWithCrossSellTab] = useState(false);
+  // 未注文自動退席の事前警告モーダル(remainingMs は自動退席までの残り時間)
+  const [noOrderVacateWarning, setNoOrderVacateWarning] = useState({ open: false, remainingMs: 0 });
+  const [isLeavingNoOrderSession, setIsLeavingNoOrderSession] = useState(false);
   const returnCategoryIdAfterCrossSellRef = useRef('');
   const crossSellAddedMessageTimerRef = useRef(null);
   
@@ -438,6 +447,73 @@ const handleCloseCart = () => {
     requestAnimationFrame(() => {
       restoreCategoryBeforeCrossSell();
     });
+  }
+};
+
+// 未注文自動退席(サーバーcron)の事前警告。
+// 期限(作成 or 延長時刻 + 設定分)の手前で警告モーダルを出し、応答がなければ
+// 従来どおりサーバー側が自動退席させる。「注文を続ける」で期限を延長する。
+const noOrderAutoVacateMinutes = Number(basicSettings?.noOrderAutoVacateMinutes || 0);
+const sessionHasAnyOrder = Array.isArray(orderHistory) && orderHistory.length > 0;
+
+useEffect(() => {
+  if (
+    !noOrderAutoVacateMinutes
+    || noOrderAutoVacateMinutes <= 0
+    || !sessionId
+    || !sessionCreatedAtMs
+    || sessionHasAnyOrder
+    || isSessionEnded
+  ) {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNoOrderVacateWarning((current) => (current.open ? { open: false, remainingMs: 0 } : current));
+    return undefined;
+  }
+
+  const baseMs = Math.max(sessionCreatedAtMs, sessionKeepAliveAtMs || 0);
+  const deadlineMs = baseMs + noOrderAutoVacateMinutes * 60 * 1000;
+  const warnLeadMs = Math.min(3 * 60 * 1000, Math.floor((noOrderAutoVacateMinutes * 60 * 1000) / 2));
+
+  const tick = () => {
+    const remainingMs = deadlineMs - Date.now();
+
+    setNoOrderVacateWarning({
+      open: remainingMs <= warnLeadMs,
+      remainingMs: Math.max(0, remainingMs)
+    });
+  };
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  tick();
+  const timer = window.setInterval(tick, 10000);
+
+  return () => window.clearInterval(timer);
+}, [
+  noOrderAutoVacateMinutes,
+  sessionId,
+  sessionCreatedAtMs,
+  sessionKeepAliveAtMs,
+  sessionHasAnyOrder,
+  isSessionEnded
+]);
+
+const handleKeepNoOrderSession = () => {
+  setNoOrderVacateWarning({ open: false, remainingMs: 0 });
+  keepNoOrderSessionAlive?.();
+};
+
+const handleLeaveNoOrderSession = async () => {
+  if (isLeavingNoOrderSession) return;
+
+  setIsLeavingNoOrderSession(true);
+
+  try {
+    // 成功すればセッション購読が archived を受け取り、終了画面へ自動遷移する。
+    await leaveNoOrderSession();
+  } catch (error) {
+    setToast({ message: error.message || '退席処理に失敗しました。', type: 'error' });
+  } finally {
+    setIsLeavingNoOrderSession(false);
   }
 };
 
@@ -2559,6 +2635,48 @@ if (shouldWaitForSessionBeforeWelcome) {
         </div>
       )}
 
+      {noOrderVacateWarning.open && !isSessionEnded && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+              <Clock size={30} strokeWidth={2.6} />
+            </div>
+
+            <h3 className="mb-2 text-xl font-bold leading-relaxed text-gray-900">
+              ご注文はお決まりですか？
+            </h3>
+
+            <p className="mb-6 text-sm font-bold leading-relaxed text-gray-500">
+              ご注文がないまま時間が経過したため、
+              {noOrderVacateWarning.remainingMs <= 60 * 1000
+                ? 'まもなく自動で退席となります。'
+                : `あと約${Math.ceil(noOrderVacateWarning.remainingMs / 60000)}分で自動的に退席となります。`}
+              <br />
+              引き続きご注文の場合は「注文を続ける」を押してください。
+            </p>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={handleKeepNoOrderSession}
+                className="h-14 w-full rounded-[1.6rem] font-black text-white shadow-lg transition-transform active:scale-95"
+                style={{ backgroundColor: customerThemeColor }}
+              >
+                注文を続ける
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveNoOrderSession}
+                disabled={isLeavingNoOrderSession}
+                className="h-12 w-full rounded-[1.4rem] border border-gray-200 bg-white text-sm font-bold text-gray-500 transition-transform active:scale-95 disabled:opacity-50"
+              >
+                {isLeavingNoOrderSession ? '退席処理中...' : '退席する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!shouldHideCustomerSurface && (
         <CustomerHeader
           tableNumber={tableNumber}
@@ -2761,7 +2879,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 className="flex h-14 w-full items-center justify-center rounded-[1.6rem] font-black text-white shadow-lg"
                 style={{ backgroundColor: customerThemeColor }}
               >
-                {isCrossSellActive ? '確定する' : 'カートに追加'}
+                カートに追加
               </button>
             </div>
           </div>
@@ -2937,10 +3055,11 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     type="button"
                     onClick={handleCloseCart}
-                    className="-mt-[16px] translate-x-[2px] flex h-10 w-10 items-center justify-center self-start rounded-full text-2xl font-semibold leading-none text-gray-400 transition-colors hover:bg-gray-50"
-                    aria-label="カートを閉じる"
+                    className="-mt-[6px] flex h-10 shrink-0 items-center gap-1 self-start rounded-full border border-gray-200 bg-white px-4 text-sm font-black text-gray-600 shadow-sm transition-colors hover:bg-gray-50 active:scale-95"
+                    aria-label="カートを閉じてメニューに戻る"
                   >
-                    ×
+                    <Plus size={15} strokeWidth={3} />
+                    続けて追加
                   </button>
                 </div>
               </div>
