@@ -1989,7 +1989,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       });
 
       const orderRetailQuantityByProductId = new Map();
-      const orderRetailMetaByProductId = new Map();
       orderRetailCart.forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
         const quantity = Math.max(Number(item.quantity || 0), 0);
@@ -1998,12 +1997,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           item.productId,
           (orderRetailQuantityByProductId.get(item.productId) || 0) + quantity
         );
-        if (!orderRetailMetaByProductId.has(item.productId)) {
-          orderRetailMetaByProductId.set(item.productId, {
-            name: item.name || item.productName || '',
-            productGroupId: item.productGroupId || item.groupId || ''
-          });
-        }
       });
 
       orderRetailQuantityByProductId.forEach((quantity, productId) => {
@@ -2012,19 +2005,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           inventoryQuantity: increment(-quantity),
           quantity: increment(-quantity),
           lastOrderRegisterSoldAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        // 販売による在庫減も監査ログ(stockMovements)に残す(delta=負／伝票・レジで追跡)。
-        const meta = orderRetailMetaByProductId.get(productId) || {};
-        batch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
-          productId,
-          productGroupId: meta.productGroupId || '',
-          type: 'sale',
-          quantity: -quantity,
-          transactionId: transactionRef.id,
-          registerId: registerContext.id,
-          note: meta.name ? `ORDER販売(${meta.name})` : 'ORDER販売',
-          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
       });
