@@ -1711,7 +1711,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           ...(!groomRequestForPayment?.personId && crmMember?.personId
             ? { personId: crmMember.personId, crmSource: 'member_code' }
             : {}),
-          ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable } : {})
+          ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable, crmPointsRedeemedYen: crmPointsRedeemable * Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1) } : {})
         });
 
       if (groomRequestForPayment) {

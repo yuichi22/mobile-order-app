@@ -115,6 +115,9 @@ export const buildReversalTransaction = ({
     registerMode: original.registerMode || 'order',
     salesChannel: original.salesChannel || '',
     salesChannelLabel: original.salesChannelLabel || '',
+    // CRM会員。これが無いと Core の付与トリガーが反対仕訳を拾えず、
+    // 取消しても「貯まったポイント」が戻らない(金額は負なので付与も自動的に負になる)。
+    ...(original.personId ? { personId: original.personId, crmSource: original.crmSource || null } : {}),
     // 反対仕訳マーカー
     isReversal: true,
     reversalOf: original.id || original.transactionId || '',

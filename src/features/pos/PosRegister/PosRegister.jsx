@@ -2069,7 +2069,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
         // 会員(ポイント)。personId が乗った伝票だけ Core の付与トリガーが拾う。
         ...(crmMember?.personId ? { personId: crmMember.personId, crmSource: 'member_code' } : {}),
-        ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable } : {}),
+        ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable, crmPointsRedeemedYen: crmPointsRedeemable * Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1) } : {}),
 
         isPaid: true
       });
