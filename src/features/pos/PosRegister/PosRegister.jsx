@@ -144,7 +144,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     codeInput: crmCodeInput,
     setCodeInput: setCrmCodeInput,
     lookupByCode: lookupCrmMemberByCode,
-    clearMember: clearCrmMember
+    clearMember: clearCrmMember,
+    pointsToUse: crmPointsToUse,
+    setPointsToUse: setCrmPointsToUse,
+    maxUsablePoints: crmMaxUsablePoints,
+    redeemPoints: crmRedeemPoints
   } = useCrmMember(storeId);
 
   // 会員バーコード(Code128 "MB"+番号)のスキャナ取り込み。
@@ -872,6 +876,22 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       taxRateStandard: standardRate
     };
   }, [activeTakeoutItemKeys, allowTakeout, consolidatedItems, discountType, discountValue, selectedDiscount, settings]);
+
+  // ポイント利用の確定数。⚠会員を読み込んだ後にカートを減らすと「使う予定のpt」が
+  //   実際に充当できる額を上回りうる。会計計算は超過分を切り捨てる(支払額は0止まり)ので、
+  //   そのままだと充当されていない分まで顧客のポイントを引いてしまう。
+  //   実際に値引きとして載った額まで丸めてから Core に送る。
+  const crmPointsRedeemable = useMemo(() => {
+    if (!crmMember?.personId || Number(crmPointsToUse) <= 0) return 0;
+    const items = Array.isArray(selectedDiscount?.items) ? selectedDiscount.items : [];
+    const pointYen = Number(items.find((item) => item?.id === 'crm_points')?.amount || 0);
+    const otherYen = items
+      .filter((item) => item?.id !== 'crm_points')
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const creditedYen = Math.max(0, Math.min(pointYen, Math.max(0, Number(rawTotalAmount) || 0) - otherYen));
+    const yenPerPoint = Math.max(Number(crmMember.redeem?.yenPerPoint) || 1, 1);
+    return Math.max(0, Math.min(Math.floor(creditedYen / yenPerPoint), Math.floor(Number(crmPointsToUse) || 0)));
+  }, [crmMember, crmPointsToUse, selectedDiscount, rawTotalAmount]);
 
   const changeAmount = useMemo(() => {
     const paid = Number(paymentAmount) || 0;
@@ -2049,6 +2069,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
         // 会員(ポイント)。personId が乗った伝票だけ Core の付与トリガーが拾う。
         ...(crmMember?.personId ? { personId: crmMember.personId, crmSource: 'member_code' } : {}),
+        ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable } : {}),
 
         isPaid: true
       });
@@ -2105,6 +2126,23 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           console.error('会計後片付け処理エラー:', cleanupError);
         }
       };
+
+      // ポイント利用の確定。⚠必ず batch.commit() の直前(カード決済と同じスロット)。
+      // ここで失敗したら会計を中断する。売上だけ確定してポイントが引かれない状態を作らない。
+      if (crmMember?.personId && crmPointsRedeemable > 0) {
+        try {
+          await crmRedeemPoints({
+            personId: crmMember.personId,
+            points: crmPointsRedeemable,
+            txId: transactionRef.id
+          });
+        } catch (redeemError) {
+          // 残高不足・単位違反などは理由が分からないと直せないのでそのまま出す。
+          console.error('ポイント利用エラー:', redeemError);
+          alert(`ポイントを利用できませんでした。\n${redeemError?.message || ''}`);
+          return; // 会計は確定しない(伝票は未commitなので売上は立たない)
+        }
+      }
 
       await batch.commit();
 
@@ -2533,6 +2571,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         onConfirmAbort={executeAbortSession}
         tableId={tableId}
         tableDisplayName={tableDisplayName}
+        selectedDiscount={selectedDiscount}
+        crmMember={crmMember}
+        crmPointsToUse={crmPointsToUse}
+        setCrmPointsToUse={setCrmPointsToUse}
+        crmMaxUsablePoints={crmMaxUsablePoints}
       />
 
       <PosRegisterLeft

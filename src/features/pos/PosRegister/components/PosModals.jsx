@@ -33,11 +33,18 @@ export const PosModals = ({
   onAbortSession,
   onConfirmAbort,
   tableId,
-  tableDisplayName
+  tableDisplayName,
+  selectedDiscount,
+  crmMember,
+  crmPointsToUse = 0,
+  setCrmPointsToUse,
+  crmMaxUsablePoints
 }) => {
   // 手入力タイプの割引を選んだ時のテンキー入力対象と入力値。
   const [manualTarget, setManualTarget] = useState(null);
   const [manualValue, setManualValue] = useState('');
+  // ポイント利用の入力(pt)。空文字は「上限まで使う」ではなく未入力を表す。
+  const [pointInput, setPointInput] = useState('');
 
   const splitResult = useMemo(() => {
     const count = Number(splitCount) || 1;
@@ -72,6 +79,7 @@ export const PosModals = ({
     setDiscountValue(0);
     setSelectedDiscount?.(null);
     setDiscountQuantities?.({});
+    setCrmPointsToUse?.(0);
   };
 
   // 数量指定された金額クーポンを items 配列に変換する(手入力との併用でも再利用)。
@@ -131,11 +139,69 @@ export const PosModals = ({
     setShowDiscountModal(false);
   };
 
+  // ── ポイント利用 ──
+  // ⚠税額は「金券(voucher_payment)は課税ベースを減らさない」全額方式で決まる。
+  //   ポイントも金券と同じ性格なので accountingCategory:'voucher_payment' の明細として
+  //   割引の三つ組(type/value/items)に流し込む。支払額だけ独自に引くと税額が壊れる。
+  //   お釣りは出さないので allowsChange:false。
+  const crmYenPerPoint = Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1);
+  const crmPointUnit = Math.max(Math.floor(Number(crmMember?.redeem?.unit) || 1), 1);
+  // 併用中の金額クーポンを引いた残額がポイントの上限(会計額を超えて使わせない)。
+  const pendingAmountDiscounts = buildSelectedAmountDiscounts();
+  const pendingAmountTotal = pendingAmountDiscounts.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const crmPointPayableBase = Math.max(0, (Number(rawTotalAmount) || 0) - pendingAmountTotal);
+  const crmPointMax = crmMaxUsablePoints ? Number(crmMaxUsablePoints(crmPointPayableBase) || 0) : 0;
+  // %割引は金額明細と併用できない(既存の仕様: percent が amount より優先される)。
+  // 黙ってポイントが消えると事故になるので、%選択中はポイント利用を止める。
+  const crmPointBlockedByPercent = !!selectedRegisteredPercent;
+
+  const buildCrmPointItem = (points) => {
+    const usePoints = Math.floor(Number(points) || 0);
+    if (usePoints <= 0) return null;
+    const amount = usePoints * crmYenPerPoint;
+    return {
+      id: 'crm_points',
+      name: 'ポイント利用',
+      type: 'amount',
+      value: amount,
+      accountingCategory: 'voucher_payment',
+      allowsChange: false, // ポイントはお釣りを出さない
+      count: 1,
+      quantity: 1,
+      amount,
+      points: usePoints
+    };
+  };
+
+  const applyCrmPoints = (points) => {
+    const usePoints = Math.min(Math.floor(Number(points) || 0), crmPointMax);
+    if (usePoints <= 0) return;
+    const item = buildCrmPointItem(usePoints);
+    setCrmPointsToUse?.(usePoints);
+    setPointInput('');
+    commitCombinedAmountDiscounts([...pendingAmountDiscounts, item]);
+  };
+
+  const clearCrmPoints = () => {
+    setCrmPointsToUse?.(0);
+    setPointInput('');
+    // 適用済みの他の明細(クーポン等)は残す。ポイントだけを外す。
+    const appliedOthers = (Array.isArray(selectedDiscount?.items) ? selectedDiscount.items : [])
+      .filter((item) => item?.id !== 'crm_points');
+    const keyOf = (item) => `${item?.id || ''}|${item?.name || ''}`;
+    const pendingKeys = new Set(pendingAmountDiscounts.map(keyOf));
+    commitCombinedAmountDiscounts([
+      ...pendingAmountDiscounts,
+      ...appliedOthers.filter((item) => !pendingKeys.has(keyOf(item)))
+    ]);
+  };
+
   // 全額売掛を適用。amount経路 + voucher_payment区分で、値引き前の支払全額を売掛として計上する。
   // 即会計はしない。適用後は会計画面の「会計を確定」ボタンで確定する(誤タップ防止で確定を1箇所に統一)。
   const fullCreditAmount = Math.max(0, Math.floor(Number(rawTotalAmount) || 0));
   const applyFullCredit = () => {
     if (fullCreditAmount <= 0) return;
+    setCrmPointsToUse?.(0); // 全額売掛は単独明細。ポイントは併用しない。
     setDiscountType('amount');
     setDiscountValue(fullCreditAmount);
     setSelectedDiscount?.({
@@ -156,6 +222,8 @@ export const PosModals = ({
   const applyDiscountSelection = () => {
     if (selectedRegisteredPercent) {
       const unitValue = Number(selectedRegisteredPercent.value) || 0;
+      // %割引は items を持てないのでポイント明細を保持できない。取りこぼしを防ぐため明示的に外す。
+      setCrmPointsToUse?.(0);
       setDiscountType('percent');
       setDiscountValue(unitValue);
       setSelectedDiscount?.({
@@ -171,7 +239,9 @@ export const PosModals = ({
       return;
     }
 
-    commitCombinedAmountDiscounts(buildSelectedAmountDiscounts());
+    // 適用中のポイントは金額クーポンと併用できるので明細に残す。
+    const pointItem = buildCrmPointItem(Math.min(Number(crmPointsToUse) || 0, crmPointMax));
+    commitCombinedAmountDiscounts([...buildSelectedAmountDiscounts(), pointItem].filter(Boolean));
   };
 
   const isAllItemsCancelledAbort = abortReason === 'all_items_cancelled';
@@ -353,6 +423,70 @@ export const PosModals = ({
                     : '全額を売掛にする'}
                 </button>
               </div>
+
+              {/* ポイント利用: 金券と同じ扱い(課税ベースは減らさない/お釣り無し)。 */}
+              {crmMember && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1 text-[11px] font-black text-emerald-700">
+                      <HandCoins size={13} />
+                      ポイント利用
+                    </div>
+                    <div className="text-[11px] font-black text-emerald-600">
+                      残高 {Number(crmMember.pointBalance || 0).toLocaleString()}pt
+                      {crmPointUnit > 1 && <span className="ml-1 text-emerald-500">/ {crmPointUnit}pt単位</span>}
+                    </div>
+                  </div>
+
+                  {Number(crmPointsToUse) > 0 ? (
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
+                      <span className="text-sm font-black text-emerald-800">
+                        {Number(crmPointsToUse).toLocaleString()}pt（¥{(Number(crmPointsToUse) * crmYenPerPoint).toLocaleString()}）を利用中
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearCrmPoints}
+                        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
+                      >
+                        取り消す
+                      </button>
+                    </div>
+                  ) : crmPointBlockedByPercent ? (
+                    <div className="rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-gray-500">
+                      %割引とポイントは併用できません。%割引の選択を外すと使えます。
+                    </div>
+                  ) : crmPointMax <= 0 ? (
+                    <div className="rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-gray-500">
+                      この会計で使えるポイントがありません。
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={pointInput}
+                        onChange={(event) => setPointInput(event.target.value.replace(/\D/g, ''))}
+                        inputMode="numeric"
+                        placeholder={`最大 ${crmPointMax.toLocaleString()}pt`}
+                        className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-2 text-sm font-bold outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => applyCrmPoints(pointInput)}
+                        disabled={!pointInput || Number(pointInput) <= 0}
+                        className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                      >
+                        利用
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyCrmPoints(crmPointMax)}
+                        className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                      >
+                        全部使う
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-400">

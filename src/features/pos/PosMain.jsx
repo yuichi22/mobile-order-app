@@ -380,7 +380,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     codeInput: crmCodeInput,
     setCodeInput: setCrmCodeInput,
     lookupByCode: lookupCrmMemberByCode,
-    clearMember: clearCrmMember
+    clearMember: clearCrmMember,
+    pointsToUse: crmPointsToUse,
+    setPointsToUse: setCrmPointsToUse,
+    maxUsablePoints: crmMaxUsablePoints,
+    redeemPoints: crmRedeemPoints
   } = useCrmMember(storeId, { onMessage: setPosMessage });
 
   const clearTakeoutDiscount = () => {
@@ -731,6 +735,22 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     return 0;
   }, [takeoutSubtotalAfterLine, takeoutDiscountType, takeoutDiscountValue]);
+
+  // ポイント利用の確定数。⚠会員を読み込んだ後にカートを減らすと「使う予定のpt」が
+  //   実際に充当できる額を上回りうる。会計計算は超過分を切り捨てる(支払額は0止まり)ので、
+  //   そのままだと充当されていない分まで顧客のポイントを引いてしまう。
+  //   実際に値引きとして載った額まで丸めてから Core に送る。
+  const crmPointsRedeemable = useMemo(() => {
+    if (!crmMember?.personId || Number(crmPointsToUse) <= 0) return 0;
+    const items = Array.isArray(takeoutSelectedDiscount?.items) ? takeoutSelectedDiscount.items : [];
+    const pointYen = Number(items.find((item) => item?.id === 'crm_points')?.amount || 0);
+    const otherYen = items
+      .filter((item) => item?.id !== 'crm_points')
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const creditedYen = Math.max(0, Math.min(pointYen, Math.max(0, Number(takeoutSubtotalAfterLine) || 0) - otherYen));
+    const yenPerPoint = Math.max(Number(crmMember.redeem?.yenPerPoint) || 1, 1);
+    return Math.max(0, Math.min(Math.floor(creditedYen / yenPerPoint), Math.floor(Number(crmPointsToUse) || 0)));
+  }, [crmMember, crmPointsToUse, takeoutSelectedDiscount, takeoutSubtotalAfterLine]);
 
   // お釣りON金券(voucher_payment×定型金額×allowsChange)の額面が支払残額を超えた分を現金お釣りで返す。
   // お釣りはON金券の額面合計が上限(OFF金券・クーポン由来の超過は従来どおり切り捨て)。
@@ -1690,7 +1710,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           // レジで読み込んだ会員(会員コード)。groom会計依頼が person を運んでいる場合はそちらを優先する。
           ...(!groomRequestForPayment?.personId && crmMember?.personId
             ? { personId: crmMember.personId, crmSource: 'member_code' }
-            : {})
+            : {}),
+          ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable } : {})
         });
 
       if (groomRequestForPayment) {
@@ -1730,6 +1751,23 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           updatedAt: serverTimestamp()
         });
       });
+
+      // ポイント利用の確定。⚠必ず batch.commit() の直前(カード決済と同じスロット)。
+      // ここで失敗したら会計を中断する。売上だけ確定してポイントが引かれない状態を作らない。
+      if (crmMember?.personId && crmPointsRedeemable > 0) {
+        try {
+          await crmRedeemPoints({
+            personId: crmMember.personId,
+            points: crmPointsRedeemable,
+            txId: transactionRef.id
+          });
+        } catch (redeemError) {
+          // 残高不足・単位違反などは理由が分からないと直せないのでそのまま出す。
+          console.error('ポイント利用エラー:', redeemError);
+          setPosMessage(`ポイントを利用できませんでした。${redeemError?.message || ''}`, 'error');
+          return; // 会計は確定しない(伝票は未commitなので売上は立たない)
+        }
+      }
 
       await batch.commit();
 
@@ -3109,6 +3147,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       onConfirmAbort={() => {}}
       tableId="takeout"
       tableDisplayName="テイクアウト"
+      selectedDiscount={takeoutSelectedDiscount}
+      crmMember={crmMember}
+      crmPointsToUse={crmPointsToUse}
+      setCrmPointsToUse={setCrmPointsToUse}
+      crmMaxUsablePoints={crmMaxUsablePoints}
     />
 
     {lineDiscountTarget && (() => {

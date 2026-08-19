@@ -21,6 +21,8 @@ export const useCrmMember = (storeId, { onMessage } = {}) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [codeInput, setCodeInput] = useState('');
+  // この会計で使うポイント数(pt)。会計の割引明細(voucher_payment)として流し込む。
+  const [pointsToUse, setPointsToUse] = useState(0);
 
   // onMessage は呼び出し側で毎レンダー作り直される想定なので ref 経由で参照する
   // (useCallback の依存に入れて lookupByCode の同一性が壊れるのを避ける)。
@@ -30,6 +32,7 @@ export const useCrmMember = (storeId, { onMessage } = {}) => {
   const clearMember = useCallback(({ notify = false } = {}) => {
     setMember(null);
     setMessage('');
+    setPointsToUse(0);
     if (notify) onMessageRef.current?.('会員を解除しました。', 'info');
   }, []);
 
@@ -66,6 +69,31 @@ export const useCrmMember = (storeId, { onMessage } = {}) => {
     }
   }, [storeId]);
 
+  /**
+   * ポイント利用を Core に確定させる。
+   * ⚠必ず会計の batch.commit() の直前に呼ぶこと(カード決済と同じスロット)。
+   *   失敗したら会計を中断する。売上を確定させてからポイントだけ失敗すると辻褄が合わなくなる。
+   * 冪等キーは会計ID(txId)。取消/返品は同じ txId に refund:true で戻す。
+   */
+  const redeemPoints = useCallback(async ({ personId, points, txId, refund = false }) => {
+    const usePoints = Math.floor(Number(points) || 0);
+    if (!personId || usePoints <= 0 || !txId) return { ok: false, skipped: true };
+    const res = await httpsCallable(functionsApi, 'crmRedeemPoints')({
+      storeId, personId, points: usePoints, txId, refund
+    });
+    return { ok: true, ...(res.data || {}) };
+  }, [storeId]);
+
+  // 会計で実際に使える上限(pt)。残高・支払残額・利用単位の3つで決まる。
+  const maxUsablePoints = useCallback((payableYen) => {
+    if (!member) return 0;
+    const yenPerPoint = Math.max(Number(member.redeem?.yenPerPoint) || 1, 1);
+    const unit = Math.max(Math.floor(Number(member.redeem?.unit) || 1), 1);
+    const byPayable = Math.floor(Math.max(0, Number(payableYen) || 0) / yenPerPoint);
+    const capped = Math.min(Math.floor(Number(member.pointBalance) || 0), byPayable);
+    return Math.max(0, Math.floor(capped / unit) * unit);
+  }, [member]);
+
   return {
     member,
     setMember,
@@ -74,6 +102,10 @@ export const useCrmMember = (storeId, { onMessage } = {}) => {
     setMessage,
     codeInput,
     setCodeInput,
+    pointsToUse,
+    setPointsToUse,
+    maxUsablePoints,
+    redeemPoints,
     lookupByCode,
     clearMember
   };
