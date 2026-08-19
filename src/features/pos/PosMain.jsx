@@ -2000,11 +2000,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 会員コード(12桁数字)を Core に照会して会員を特定する。
   // ⚠商品バーコード(JAN13/UPC-A 12桁)との誤認を避けるため、スキャナからは "MB" 接頭辞付きのみ受ける。
   // レジ画面の会員入力欄からは数字12桁をそのまま渡す。
-  const lookupCrmMemberByCode = async (rawCode) => {
+  // silent=true は「商品として見つからなかった値の“ついで照会”」用。
+  // 失敗しても既存の会員選択やエラー表示を壊さない(商品未ヒットのメッセージを残す)。
+  const lookupCrmMemberByCode = async (rawCode, { silent = false } = {}) => {
     const code = String(rawCode || '').replace(/^MB/i, '').replace(/\D/g, '');
-    if (!code) return;
+    if (!code) return false;
     setCrmMemberBusy(true);
-    setCrmMemberMsg('');
+    if (!silent) setCrmMemberMsg('');
     try {
       const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code });
       const m = res.data || {};
@@ -2014,9 +2016,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         pointBalance: Number(m.pointBalance || 0),
         redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
       });
+      setCrmMemberMsg('');
+      setPosMessage(`会員を読み込みました（利用可能 ${Number(m.pointBalance || 0).toLocaleString()}pt）`, 'success');
+      return true;
     } catch (e) {
-      setCrmMember(null);
-      setCrmMemberMsg(e?.message || '会員を照会できませんでした。');
+      if (!silent) {
+        setCrmMember(null);
+        setCrmMemberMsg(e?.message || '会員を照会できませんでした。');
+      }
+      return false;
     } finally {
       setCrmMemberBusy(false);
     }
@@ -2035,7 +2043,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     // POSレジ、またはテイクアウト会計中はバーコードを会計リストへ直接追加する。
     if (registerMode === 'pos' || isTakeoutMode) {
-      addPosProductByCode(normalizedInput);
+      // 商品として解決できなかった12桁数字は会員番号として照会する(商品が見つかる限り従来どおり)。
+      addPosProductByCode(normalizedInput).then((added) => {
+        if (!added && /^\d{12}$/.test(normalizedInput)) {
+          lookupCrmMemberByCode(normalizedInput, { silent: true });
+        }
+      });
       return;
     }
     onScanSession(normalizedInput);
