@@ -128,7 +128,7 @@ export const PosRegisterLeft = ({
             </div>
             <button
               type="button"
-              onClick={() => onClearCrmMember?.({ notify: true })}
+              onClick={() => onClearCrmMember?.()}
               className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
             >
               解除

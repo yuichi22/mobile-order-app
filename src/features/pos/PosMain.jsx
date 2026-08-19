@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
@@ -163,7 +163,7 @@ const computeCartLineFigures = (item, modeTax, registerMode) => {
   };
 };
 
-export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, onCheckoutAmountEntered, registerMode = 'order', isActive = true }) => {
+export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeId, onBack, onPaymentResult, onCheckoutAmountEntered, registerMode = 'order', isActive = true, crm }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
 
   // この端末の登録レジ(基本設定)＝自レジ。履歴は既定でこのレジ。全レジ一覧は「その他のレジ」選択用。
@@ -371,21 +371,35 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPosProductMessage({ message, type, key: Date.now() });
   };
 
-  // CRM会員(ポイント)。会員コードをスキャン/手入力すると Core に照会して保持する。
-  // イートインの会計(PosRegister)と同じフックを共有する(実装の二重化を避ける)。
+  // CRM会員(ポイント)。⚠AdminApp が1つだけ持ち、会計画面(PosRegister)と共有する。
+  // ここで作ると卓を開いた時にアンマウントされて会員が消えるため。
+  const fallbackCrm = useCrmMember(storeId); // AdminApp 以外から使われた時の保険
   const {
     member: crmMember,
     busy: crmMemberBusy,
     message: crmMemberMsg,
     codeInput: crmCodeInput,
     setCodeInput: setCrmCodeInput,
-    lookupByCode: lookupCrmMemberByCode,
-    clearMember: clearCrmMember,
+    lookupByCode: lookupCrmMember,
+    clearMember: clearCrmMemberState,
     pointsToUse: crmPointsToUse,
     setPointsToUse: setCrmPointsToUse,
     maxUsablePoints: crmMaxUsablePoints,
     redeemPoints: crmRedeemPoints
-  } = useCrmMember(storeId, { onMessage: setPosMessage });
+  } = crm || fallbackCrm;
+
+  // 照会・解除はレジのトーストで知らせる(バーは常時表示、トーストは操作の確認用)。
+  const lookupCrmMemberByCode = async (rawCode, options) => {
+    const found = await lookupCrmMember(rawCode, options);
+    if (found) {
+      setPosMessage(`会員を読み込みました（利用可能 ${Number(found.pointBalance || 0).toLocaleString()}pt）`, 'success');
+    }
+    return found;
+  };
+  const clearCrmMember = ({ notify = false } = {}) => {
+    clearCrmMemberState();
+    if (notify) setPosMessage('会員を解除しました。', 'info');
+  };
 
   const clearTakeoutDiscount = () => {
     setTakeoutDiscountType('none');
@@ -525,6 +539,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   // コードが複数SKUに該当したとき、検索リストに出す候補SKU群(空=非表示)。
   const [scanCandidates, setScanCandidates] = useState([]);
+  // 卓・会員のどちらにも当たらなかったスキャン/入力。モーダルで知らせて画面は遷移させない。
+  const [scanNotFound, setScanNotFound] = useState('');
 
   // 候補を見やすい順(サイズ→価格→名前)に整列する。
   const sortVariantCandidates = (candidates) => [...candidates].sort((a, b) => (
@@ -2062,15 +2078,53 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     // POSレジ、またはテイクアウト会計中はバーコードを会計リストへ直接追加する。
     if (registerMode === 'pos' || isTakeoutMode) {
-      // 商品として解決できなかった12桁数字は会員番号として照会する(商品が見つかる限り従来どおり)。
+      // 商品として解決できなかった12桁数字は会員番号として照会する(商品が見つかる限り従来動作は不変)。
       addPosProductByCode(normalizedInput).then((added) => {
         if (!added && /^\d{12}$/.test(normalizedInput)) {
-          lookupCrmMemberByCode(normalizedInput, { silent: true });
+          lookupCrmMemberByCode(normalizedInput, { silent: true }).then((hit) => {
+            if (!hit) setScanNotFound(normalizedInput);
+          });
         }
       });
       return;
     }
-    onScanSession(normalizedInput);
+    void resolveOrderScan(normalizedInput);
+  };
+
+  // ORDER(イートイン): 卓として存在を確かめてから会計画面へ遷移する。
+  // ⚠以前は入力値をそのまま sessionId として渡していたため、会員番号や打ち間違いでも
+  //   「どこの卓でもない空の会計伝票」が開いてしまっていた。当たらなければ遷移しない。
+  const resolveOrderScan = async (value) => {
+    const matched = displaySessions.find((session) => (
+      String(session.id) === value
+      || String(session.tableId || '').trim() === value
+      || String(session.tableNumber || '').trim() === value
+    ));
+    if (matched) {
+      onScanSession(matched.id);
+      return;
+    }
+
+    // 購読が追いついていない直後のセッションもあるので、実データも一度だけ確認する。
+    if (storeId && value && !value.includes('/')) {
+      try {
+        const snapshot = await getDoc(doc(db, 'stores', storeId, 'sessions', value));
+        if (snapshot.exists() && snapshot.data()?.status === 'active') {
+          onScanSession(value);
+          return;
+        }
+      } catch (error) {
+        // ID形式エラー等は「見つからない」として扱う(遷移はしない)。
+      }
+    }
+
+    // 卓として当たらない数字は会員番号として照会する。
+    if (/^\d{10,13}$/.test(value)) {
+      const hit = await lookupCrmMemberByCode(value, { silent: true });
+      if (hit) return;
+    }
+
+    setScanNotFound(value);
   };
 
   const handleScanSubmit = (event) => {
@@ -3120,6 +3174,28 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         )}
       </div>
     </div>
+
+    {/* 卓にも会員にも当たらなかったとき。以前は空の会計伝票へ遷移してしまっていた。 */}
+    {scanNotFound && (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-2xl">
+          <h3 className="text-lg font-black text-gray-900">見つかりませんでした</h3>
+          <p className="mt-3 break-all text-sm font-bold text-gray-500">
+            「{scanNotFound}」に一致する卓・会員がありません。
+          </p>
+          <p className="mt-2 text-xs font-bold text-gray-400">
+            卓番号と会員番号をご確認ください。
+          </p>
+          <button
+            type="button"
+            onClick={() => { setScanNotFound(''); inputRef.current?.focus(); }}
+            className="mt-5 h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition hover:bg-black active:scale-95"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    )}
 
     <PosModals
       showSuccessModal={false}

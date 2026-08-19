@@ -93,7 +93,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
     .map((entry) => entry.value);
 };
 
-export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId }) => {
+export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId, crm }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const [tableDisplayName, setTableDisplayName] = useState('');
   const [guestCount, setGuestCount] = useState(0);
 
-  // CRM会員(ポイント)。POS/テイクアウト(PosMain)と同じ共有フックを使う。
+  // CRM会員(ポイント)。⚠AdminApp が1つだけ持つインスタンスを共有する。
+  // 卓検索(PosMain)で読み込んだ会員をこの画面へ引き継ぐため。
+  const fallbackCrm = useCrmMember(storeId); // AdminApp 以外から使われた時の保険
   const {
     member: crmMember,
     busy: crmMemberBusy,
@@ -149,7 +151,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     setPointsToUse: setCrmPointsToUse,
     maxUsablePoints: crmMaxUsablePoints,
     redeemPoints: crmRedeemPoints
-  } = useCrmMember(storeId);
+  } = crm || fallbackCrm;
 
   // 会員バーコード(Code128 "MB"+番号)のスキャナ取り込み。
   // イートインの会計画面には商品スキャン欄が無いため、キーボードウェッジの打鍵を直接拾う。

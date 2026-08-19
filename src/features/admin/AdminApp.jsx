@@ -39,6 +39,8 @@ import {
 const loadAnalyticsPage = () => import('./Analytics/pages/AnalyticsPage');
 const loadStoreSettingsPage = () => import('./settings/pages/StoreSettingsPage');
 const loadPosHomePage = () => import('../pos/pages/PosHomePage');
+import { useCrmMember } from '../pos/hooks/useCrmMember';
+
 const loadPosRegisterPage = () => import('../pos/pages/PosRegisterPage');
 const loadPosReceiptPage = () => import('../pos/pages/PosReceiptPage');
 
@@ -92,6 +94,9 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     initialParams.get('return_to') === 'kitchen' ? 'kitchen' : 'pos'
   );
   const [activeSessions, setActiveSessions] = useState([]);
+  // CRM会員(ポイント)。⚠卓検索(PosMain)と会計画面(PosRegister)は別コンポーネントで
+  // 行き来のたびにアンマウントされるため、会員はここで1つだけ持って両方に渡す。
+  const crm = useCrmMember(storeId);
   const [toast, setToast] = useState(null);
   const [posView, setPosView] = useState('scan');
   const getStoredRegisterMode = () => {
@@ -731,6 +736,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onBack={!showAdminHeader ? onBack : undefined}
                   onPaymentResult={handlePaymentResultToast}
                   onCheckoutAmountEntered={handleCheckoutAmountEntered}
+                  crm={crm}
                 />
               )}
 
@@ -742,6 +748,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onPaymentResult={handlePaymentResultToast}
                   onCheckoutAmountEntered={handleCheckoutAmountEntered}
                   storeId={storeId}
+                  crm={crm}
                 />
               )}
 

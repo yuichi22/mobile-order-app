@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 
 import { functionsApi } from '../../../shared/api/firebase/client';
@@ -16,7 +16,7 @@ export const isCrmMemberScanCode = (value) => CRM_MEMBER_SCAN_PATTERN.test(Strin
  * ⚠会員は「会計ごと」に解除する。読み込んだまま放置して次のお客様に紐づく事故を防ぐため、
  *   会計完了・保留・破棄の各経路で clearMember() を必ず呼ぶこと。
  */
-export const useCrmMember = (storeId, { onMessage } = {}) => {
+export const useCrmMember = (storeId) => {
   const [member, setMember] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -24,46 +24,41 @@ export const useCrmMember = (storeId, { onMessage } = {}) => {
   // この会計で使うポイント数(pt)。会計の割引明細(voucher_payment)として流し込む。
   const [pointsToUse, setPointsToUse] = useState(0);
 
-  // onMessage は呼び出し側で毎レンダー作り直される想定なので ref 経由で参照する
-  // (useCallback の依存に入れて lookupByCode の同一性が壊れるのを避ける)。
-  const onMessageRef = useRef(onMessage);
-  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
-
-  const clearMember = useCallback(({ notify = false } = {}) => {
+  const clearMember = useCallback(() => {
     setMember(null);
     setMessage('');
     setPointsToUse(0);
-    if (notify) onMessageRef.current?.('会員を解除しました。', 'info');
   }, []);
 
   /**
    * 会員コードを Core に照会して会員を特定する。
-   * silent=true は「商品として見つからなかった値の“ついで照会”」用で、
+   * 成功したら会員オブジェクト、失敗したら null を返す(呼び出し側でトーストを出せるように)。
+   * silent=true は「商品/卓として見つからなかった値の“ついで照会”」用で、
    * 失敗しても既存の会員選択やエラー表示を壊さない。
    */
   const lookupByCode = useCallback(async (rawCode, { silent = false } = {}) => {
     const code = String(rawCode || '').replace(/^MB/i, '').replace(/\D/g, '');
-    if (!code) return false;
+    if (!code) return null;
     setBusy(true);
     if (!silent) setMessage('');
     try {
       const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code });
       const m = res.data || {};
-      setMember({
+      const next = {
         personId: m.personId,
         displayName: m.displayName || null,
         pointBalance: Number(m.pointBalance || 0),
         redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
-      });
+      };
+      setMember(next);
       setMessage('');
-      onMessageRef.current?.(`会員を読み込みました（利用可能 ${Number(m.pointBalance || 0).toLocaleString()}pt）`, 'success');
-      return true;
+      return next;
     } catch (e) {
       if (!silent) {
         setMember(null);
         setMessage(e?.message || '会員を照会できませんでした。');
       }
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
