@@ -8643,6 +8643,9 @@ export { onBasicSettingsWriteSyncAppOptions } from "./appOptions.js";
 // 会計確定を Core の CRM へ通知してポイント付与（会員特定は当面 groom 由来の personId のみ）
 export { onTransactionCreatedSyncCrmPoints } from "./crmPoints.js";
 
+// レジからの会員照会・ポイント利用（共有シークレットはサーバ側だけが持つ）
+export { crmLookupMember, crmRedeemPoints } from "./crmMember.js";
+
 // 拠点の公式サイト向け読み取り専用API（メニュー・取扱ブランド）。
 // ⚠ 原価・在庫・仕入先・内部IDは返さない。詳細は publicSite.js の冒頭を参照。
 export { publicMenu, publicBrands, rebuildPublicSiteCache, runPublicSiteCacheNow } from "./publicSite.js";

@@ -4,7 +4,8 @@ import { collection, doc, getDocs, increment, limit, onSnapshot, query, runTrans
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
-import { db } from '../../shared/api/firebase/client';
+import { db, functionsApi } from '../../shared/api/firebase/client';
+import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
@@ -289,6 +290,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [checkoutRequests, setCheckoutRequests] = useState([]);
   // 呼出中(カートに展開済み)の会計依頼。会計確定時に paid 化と取引docへの紐付けに使う。
   const [activeCheckoutRequest, setActiveCheckoutRequest] = useState(null);
+
+  // CRM会員(ポイント)。会員コードをスキャン/手入力すると Core に照会して保持する。
+  // {personId, displayName, pointBalance, redeem:{yenPerPoint,unit}}
+  const [crmMember, setCrmMember] = useState(null);
+  const [crmMemberBusy, setCrmMemberBusy] = useState(false);
+  const [crmMemberMsg, setCrmMemberMsg] = useState('');
+  const [crmCodeInput, setCrmCodeInput] = useState('');
   useEffect(() => {
     if (registerMode !== 'pos' || !storeId) return undefined;
     const requestsQuery = query(
@@ -1989,10 +1997,41 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   };
 
 
+  // 会員コード(12桁数字)を Core に照会して会員を特定する。
+  // ⚠商品バーコード(JAN13/UPC-A 12桁)との誤認を避けるため、スキャナからは "MB" 接頭辞付きのみ受ける。
+  // レジ画面の会員入力欄からは数字12桁をそのまま渡す。
+  const lookupCrmMemberByCode = async (rawCode) => {
+    const code = String(rawCode || '').replace(/^MB/i, '').replace(/\D/g, '');
+    if (!code) return;
+    setCrmMemberBusy(true);
+    setCrmMemberMsg('');
+    try {
+      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code });
+      const m = res.data || {};
+      setCrmMember({
+        personId: m.personId,
+        displayName: m.displayName || null,
+        pointBalance: Number(m.pointBalance || 0),
+        redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
+      });
+    } catch (e) {
+      setCrmMember(null);
+      setCrmMemberMsg(e?.message || '会員を照会できませんでした。');
+    } finally {
+      setCrmMemberBusy(false);
+    }
+  };
+
   // バーコード/卓番号の確定処理(手入力Enter・グローバルスキャナ共通)。
   const processScannedValue = (raw) => {
     const normalizedInput = normalizeScannedCode(raw).trim();
     if (!normalizedInput) return;
+
+    // 会員バーコード(MB+12桁)は商品ではなく会員照会へ回す。
+    if (/^MB\d{10,13}$/i.test(normalizedInput)) {
+      lookupCrmMemberByCode(normalizedInput);
+      return;
+    }
 
     // POSレジ、またはテイクアウト会計中はバーコードを会計リストへ直接追加する。
     if (registerMode === 'pos' || isTakeoutMode) {
@@ -2743,6 +2782,52 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     ¥{takeoutCartTotal.toLocaleString()}
                   </span>
                 </div>
+              </div>
+
+              {/* 会員(ポイント)。会員バーコード(MB+番号)のスキャン、または番号入力で照会する。 */}
+              <div className="mb-1.5 shrink-0 rounded-2xl border border-emerald-200 bg-emerald-50/50 px-3 py-2">
+                {crmMember ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-emerald-800">
+                        {crmMember.displayName || '会員さま'}
+                      </div>
+                      <div className="text-[11px] font-bold text-emerald-600">
+                        利用可能 {crmMember.pointBalance.toLocaleString()}pt
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setCrmMember(null); setCrmMemberMsg(''); }}
+                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
+                    >
+                      解除
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); lookupCrmMemberByCode(crmCodeInput); setCrmCodeInput(''); }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      value={crmCodeInput}
+                      onChange={(e) => setCrmCodeInput(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="会員番号（スキャンも可）"
+                      className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={crmMemberBusy || !crmCodeInput.trim()}
+                      className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
+                    >
+                      {crmMemberBusy ? '照会中…' : '照会'}
+                    </button>
+                  </form>
+                )}
+                {crmMemberMsg && (
+                  <div className="mt-1 text-[11px] font-bold text-red-600">{crmMemberMsg}</div>
+                )}
               </div>
 
               {!takeoutZeroPayable && (
