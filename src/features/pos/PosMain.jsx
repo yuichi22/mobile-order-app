@@ -930,6 +930,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     ].slice(0, 20);
 
     savePosHolds(nextHolds);
+    setCrmMember(null); // 保留にしたら会員も解除(呼び戻し時に読み直す)
     setTakeoutCart([]);
     setTakeoutPaymentAmount('');
     setTakeoutPaymentMethod('');
@@ -1779,6 +1780,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
       clearActivePosHoldAfterPayment();
       setActiveCheckoutRequest(null);
+      setCrmMember(null); // 会員は会計ごとに解除(次のお客様に持ち越さない)
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
       setTakeoutPaymentMethod('');
@@ -2190,6 +2192,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={() => {
+                setCrmMember(null); // 会計を破棄したら会員も解除
                 setTakeoutCart([]);
                 setTakeoutPaymentAmount('');
                 setTakeoutPaymentMethod('');
@@ -2376,6 +2379,27 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       <div style={{ width: `${splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pr-1">
             {/* スキャン枠の上ラインを右ペインの白カード枠の上ラインに合わせる(両方とも各ペインのp-4=16px)。
                 右はカード端=下のカート枠端で一直線。カード p-4 にして中の開くの右が下のクリアの右と揃う。 */}
+        {/* 会員バー: 読み込み中は左ペイン最上部に常時表示する。
+            ⚠会計せず放置すると次のお客様の会計に紐づく事故になるため、目立たせ・解除しやすくする。 */}
+        {crmMember && (
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-emerald-600 px-4 py-2.5 text-white shadow-md">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="truncate text-sm font-black">
+                会員: {crmMember.displayName || '会員さま'}
+              </span>
+              <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-black">
+                利用可能 {crmMember.pointBalance.toLocaleString()}pt
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setCrmMember(null); setCrmMemberMsg(''); setPosMessage('会員を解除しました。', 'info'); }}
+              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
+            >
+              解除
+            </button>
+          </div>
+        )}
         <div className="mb-4 flex shrink-0 items-center gap-3">
           {onBack && (
             <button
