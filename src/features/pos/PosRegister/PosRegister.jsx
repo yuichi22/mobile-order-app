@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, doc, getDocs, increment, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
 import { getActiveRegisterContext } from '../utils/registerContext';
@@ -25,6 +25,7 @@ import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 import { computePaymentSplit, getSplitMethodLabel } from '../utils/paymentSplit';
 import { useTerminalCardPayment } from '../terminal/useTerminalCardPayment';
+import { useCrmMember, CRM_MEMBER_SCAN_PATTERN } from '../hooks/useCrmMember';
 import TerminalPaymentModal from '../terminal/TerminalPaymentModal';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../store/services/storeDataService';
@@ -134,6 +135,66 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const [tableId, setTableId] = useState(null);
   const [tableDisplayName, setTableDisplayName] = useState('');
   const [guestCount, setGuestCount] = useState(0);
+
+  // CRM会員(ポイント)。POS/テイクアウト(PosMain)と同じ共有フックを使う。
+  const {
+    member: crmMember,
+    busy: crmMemberBusy,
+    message: crmMemberMsg,
+    codeInput: crmCodeInput,
+    setCodeInput: setCrmCodeInput,
+    lookupByCode: lookupCrmMemberByCode,
+    clearMember: clearCrmMember
+  } = useCrmMember(storeId);
+
+  // 会員バーコード(Code128 "MB"+番号)のスキャナ取り込み。
+  // イートインの会計画面には商品スキャン欄が無いため、キーボードウェッジの打鍵を直接拾う。
+  // ⚠人の手入力を壊さないため (1)"MB"+数字の並びのみ (2)打鍵間隔が速い(=スキャナ)場合のみ を条件にする。
+  //   先頭の "M" だけは判定材料が無いので素通しする(フォーカス中の入力欄に1文字残ることがある)。
+  const crmScanRef = useRef({ buffer: '', lastAt: 0 });
+  useEffect(() => {
+    const SCAN_GAP_MS = 80;
+
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const state = crmScanRef.current;
+      const now = event.timeStamp || 0;
+      const isFast = state.buffer.length > 0 && (now - state.lastAt) <= SCAN_GAP_MS;
+
+      if (event.key === 'Enter') {
+        const buffer = state.buffer;
+        state.buffer = '';
+        if (isFast && CRM_MEMBER_SCAN_PATTERN.test(buffer)) {
+          event.preventDefault();
+          event.stopPropagation();
+          lookupCrmMemberByCode(buffer);
+        }
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+
+      const candidate = (isFast ? state.buffer : '') + event.key;
+      // "M" / "MB" / "MB123..." だけを会員コードの途中とみなす。
+      if (!/^M$|^MB$|^MB\d{1,13}$/i.test(candidate)) {
+        state.buffer = /^m$/i.test(event.key) ? event.key : '';
+        state.lastAt = now;
+        return;
+      }
+
+      state.buffer = candidate;
+      state.lastAt = now;
+      // 先頭の "M" 以外(=スキャナ確定後)は入力欄に流さない。
+      if (candidate.length >= 2) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [lookupCrmMemberByCode]);
 
   const {
     products: productMasterProducts = [],
@@ -1483,6 +1544,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
       setShowAbortModal(false);
       setAbortReason('manual_abort');
+      clearCrmMember(); // 退店(破棄)でも会員を持ち越さない
 
       // 退店処理は会計処理ではないので、会計完了モーダルへ流さない。
       onBack?.();
@@ -1985,6 +2047,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         paidAt: serverTimestamp(),
         businessDate: getJstBusinessDate(),
 
+        // 会員(ポイント)。personId が乗った伝票だけ Core の付与トリガーが拾う。
+        ...(crmMember?.personId ? { personId: crmMember.personId, crmSource: 'member_code' } : {}),
+
         isPaid: true
       });
 
@@ -2132,6 +2197,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       setDiscountValue(0);
       setDiscountQuantities({});
       setSelectedDiscount(null);
+      clearCrmMember(); // 会員は会計ごとに解除(次のお客様に持ち越さない)
       if (isFullCredit) setPaymentMethod('');
       setIsPaymentFlowLocked(false);
 
@@ -2497,6 +2563,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         updateOrderRetailCartQuantity={updateOrderRetailCartQuantity}
         removeOrderRetailCartItem={removeOrderRetailCartItem}
         getOrderRetailCartQuantity={getOrderRetailCartQuantity}
+        crmMember={crmMember}
+        crmMemberBusy={crmMemberBusy}
+        crmMemberMsg={crmMemberMsg}
+        crmCodeInput={crmCodeInput}
+        setCrmCodeInput={setCrmCodeInput}
+        onLookupCrmMember={lookupCrmMemberByCode}
+        onClearCrmMember={clearCrmMember}
       />
       <PosRegisterRight
         orders={orders}

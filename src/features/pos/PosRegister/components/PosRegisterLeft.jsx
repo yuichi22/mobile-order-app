@@ -62,7 +62,14 @@ export const PosRegisterLeft = ({
   clearCustomSelection,
   onRequestCancelTarget,
   setShowSplitModal,
-  toggleItemTakeout
+  toggleItemTakeout,
+  crmMember,
+  crmMemberBusy,
+  crmMemberMsg,
+  crmCodeInput,
+  setCrmCodeInput,
+  onLookupCrmMember,
+  onClearCrmMember
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
   const isCustomMode = checkoutSelectionMode === 'custom';
@@ -101,8 +108,65 @@ export const PosRegisterLeft = ({
   ));
   const allSelected = isCustomMode && allVisibleItemKeys.length > 0 && allVisibleItemKeys.every((key) => selectedItemKeys.has(key));
 
+  const canUseCrm = typeof onLookupCrmMember === 'function';
+
   return (
     <div className="z-10 flex h-full min-h-0 w-7/12 flex-col overflow-hidden border-r border-gray-200 bg-white shadow-xl">
+      {/* 会員バー: 会員を読み込んだら常時表示する。
+          ⚠会計せず放置すると次のお客様に紐づく事故になるため、目立たせ・解除しやすくする。
+          未読込のときは会員番号の入力欄(スキャナは MB+番号 を自動で拾う)。 */}
+      {canUseCrm && (
+        crmMember ? (
+          <div className="flex shrink-0 items-center justify-between gap-3 bg-emerald-600 px-4 py-2.5 text-white shadow-md">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="truncate text-sm font-black">
+                会員: {crmMember.displayName || '会員さま'}
+              </span>
+              <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-black">
+                利用可能 {Number(crmMember.pointBalance || 0).toLocaleString()}pt
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onClearCrmMember?.({ notify: true })}
+              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
+            >
+              解除
+            </button>
+          </div>
+        ) : (
+          <div className="shrink-0 border-b border-emerald-100 bg-emerald-50/60 px-4 py-2">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                onLookupCrmMember(crmCodeInput);
+                setCrmCodeInput?.('');
+              }}
+              className="flex items-center gap-2"
+            >
+              <span className="shrink-0 text-[11px] font-black text-emerald-700">会員</span>
+              <input
+                value={crmCodeInput || ''}
+                onChange={(event) => setCrmCodeInput?.(event.target.value)}
+                inputMode="numeric"
+                placeholder="会員番号（スキャンも可）"
+                className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={crmMemberBusy || !String(crmCodeInput || '').trim()}
+                className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
+              >
+                {crmMemberBusy ? '照会中…' : '照会'}
+              </button>
+            </form>
+            {crmMemberMsg && (
+              <div className="mt-1 text-[11px] font-bold text-red-600">{crmMemberMsg}</div>
+            )}
+          </div>
+        )
+      )}
+
       <div className="flex items-center justify-between border-b bg-gray-50 p-4">
         {/* 戻る(黒)→会計伝票テーブル名 の順(右ペインのヘッダ廃止に伴い移設)。 */}
         <div className="flex min-w-0 items-center gap-3">

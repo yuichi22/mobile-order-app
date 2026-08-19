@@ -7,6 +7,7 @@ import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartment
 import { db, functionsApi } from '../../shared/api/firebase/client';
 import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
+import { useCrmMember } from './hooks/useCrmMember';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 
@@ -291,12 +292,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 呼出中(カートに展開済み)の会計依頼。会計確定時に paid 化と取引docへの紐付けに使う。
   const [activeCheckoutRequest, setActiveCheckoutRequest] = useState(null);
 
-  // CRM会員(ポイント)。会員コードをスキャン/手入力すると Core に照会して保持する。
-  // {personId, displayName, pointBalance, redeem:{yenPerPoint,unit}}
-  const [crmMember, setCrmMember] = useState(null);
-  const [crmMemberBusy, setCrmMemberBusy] = useState(false);
-  const [crmMemberMsg, setCrmMemberMsg] = useState('');
-  const [crmCodeInput, setCrmCodeInput] = useState('');
   useEffect(() => {
     if (registerMode !== 'pos' || !storeId) return undefined;
     const requestsQuery = query(
@@ -375,6 +370,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const setPosMessage = (message, type = 'info') => {
     setPosProductMessage({ message, type, key: Date.now() });
   };
+
+  // CRM会員(ポイント)。会員コードをスキャン/手入力すると Core に照会して保持する。
+  // イートインの会計(PosRegister)と同じフックを共有する(実装の二重化を避ける)。
+  const {
+    member: crmMember,
+    busy: crmMemberBusy,
+    message: crmMemberMsg,
+    codeInput: crmCodeInput,
+    setCodeInput: setCrmCodeInput,
+    lookupByCode: lookupCrmMemberByCode,
+    clearMember: clearCrmMember
+  } = useCrmMember(storeId, { onMessage: setPosMessage });
 
   const clearTakeoutDiscount = () => {
     setTakeoutDiscountType('none');
@@ -930,7 +937,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     ].slice(0, 20);
 
     savePosHolds(nextHolds);
-    setCrmMember(null); // 保留にしたら会員も解除(呼び戻し時に読み直す)
+    clearCrmMember(); // 保留にしたら会員も解除(呼び戻し時に読み直す)
     setTakeoutCart([]);
     setTakeoutPaymentAmount('');
     setTakeoutPaymentMethod('');
@@ -1678,7 +1685,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             groomTenantId: groomRequestForPayment.groomTenantId || null,
             personId: groomRequestForPayment.personId || null,
             crmLineUserId: groomRequestForPayment.lineUserId || null
-          } : {})
+          } : {}),
+
+          // レジで読み込んだ会員(会員コード)。groom会計依頼が person を運んでいる場合はそちらを優先する。
+          ...(!groomRequestForPayment?.personId && crmMember?.personId
+            ? { personId: crmMember.personId, crmSource: 'member_code' }
+            : {})
         });
 
       if (groomRequestForPayment) {
@@ -1780,7 +1792,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
       clearActivePosHoldAfterPayment();
       setActiveCheckoutRequest(null);
-      setCrmMember(null); // 会員は会計ごとに解除(次のお客様に持ち越さない)
+      clearCrmMember(); // 会員は会計ごとに解除(次のお客様に持ち越さない)
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
       setTakeoutPaymentMethod('');
@@ -1999,39 +2011,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   };
 
 
-  // 会員コード(12桁数字)を Core に照会して会員を特定する。
-  // ⚠商品バーコード(JAN13/UPC-A 12桁)との誤認を避けるため、スキャナからは "MB" 接頭辞付きのみ受ける。
-  // レジ画面の会員入力欄からは数字12桁をそのまま渡す。
-  // silent=true は「商品として見つからなかった値の“ついで照会”」用。
-  // 失敗しても既存の会員選択やエラー表示を壊さない(商品未ヒットのメッセージを残す)。
-  const lookupCrmMemberByCode = async (rawCode, { silent = false } = {}) => {
-    const code = String(rawCode || '').replace(/^MB/i, '').replace(/\D/g, '');
-    if (!code) return false;
-    setCrmMemberBusy(true);
-    if (!silent) setCrmMemberMsg('');
-    try {
-      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code });
-      const m = res.data || {};
-      setCrmMember({
-        personId: m.personId,
-        displayName: m.displayName || null,
-        pointBalance: Number(m.pointBalance || 0),
-        redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
-      });
-      setCrmMemberMsg('');
-      setPosMessage(`会員を読み込みました（利用可能 ${Number(m.pointBalance || 0).toLocaleString()}pt）`, 'success');
-      return true;
-    } catch (e) {
-      if (!silent) {
-        setCrmMember(null);
-        setCrmMemberMsg(e?.message || '会員を照会できませんでした。');
-      }
-      return false;
-    } finally {
-      setCrmMemberBusy(false);
-    }
-  };
-
   // バーコード/卓番号の確定処理(手入力Enter・グローバルスキャナ共通)。
   const processScannedValue = (raw) => {
     const normalizedInput = normalizeScannedCode(raw).trim();
@@ -2192,7 +2171,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={() => {
-                setCrmMember(null); // 会計を破棄したら会員も解除
+                clearCrmMember(); // 会計を破棄したら会員も解除
                 setTakeoutCart([]);
                 setTakeoutPaymentAmount('');
                 setTakeoutPaymentMethod('');
@@ -2393,7 +2372,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             </div>
             <button
               type="button"
-              onClick={() => { setCrmMember(null); setCrmMemberMsg(''); setPosMessage('会員を解除しました。', 'info'); }}
+              onClick={() => clearCrmMember({ notify: true })}
               className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
             >
               解除
@@ -2835,7 +2814,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setCrmMember(null); setCrmMemberMsg(''); }}
+                      onClick={() => clearCrmMember()}
                       className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
                     >
                       解除
