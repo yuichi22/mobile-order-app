@@ -238,6 +238,11 @@ const AnalyticsToolbar = ({
               {channel.label}
             </button>
           ))}
+          {/* ECサイトは店舗ではなく販売チャネル。同じECを複数店舗で共有している場合、
+              店舗ごとの数字を足すと二重計上になるため明示する。 */}
+          <span className="ml-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-600">
+            ECは全店共通（店舗別に合算しない）
+          </span>
         </div>
       )}
 

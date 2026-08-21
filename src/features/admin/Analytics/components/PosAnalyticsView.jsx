@@ -444,6 +444,16 @@ const PosAnalyticsView = ({
             この期間のEC売上はありません
           </span>
         )}
+        {/* ECは拠点ではなく販売チャネル。複数店舗で同じECサイトを共有している場合、
+            店舗ごとのEC売上を足すと二重計上になる。 */}
+        {(viewMode === 'ec' || viewMode === 'all') && hasEc && (
+          <span
+            className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600"
+            title="ECサイトの売上は店舗ではなく販売チャネルの売上です。同じECサイトを複数店舗で共有している場合、店舗ごとの数字を合算すると二重計上になります。"
+          >
+            ECは全店共通（店舗別に合算しない）
+          </span>
+        )}
       </div>
 
       {/* 売上合計カードは選択に依らず物販の期間合計で固定（グラフのみ選択を反映）。 */}
