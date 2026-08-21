@@ -79,6 +79,9 @@ function normalizeTx(storeId, link, txId, tx) {
 // 0円イベントとして送り、Core 側の古い金額を上書きして消し込む。
 function normalizeEcOrder(storeId, link, orderId, o, options = {}) {
   const allowVoid = options.allowVoid === true;
+  // ECは拠点(space)ではなく「販売チャネル」に属する。同一ECサイトを複数拠点で
+  // 共有していても、Core側でテナント内1回だけ計上できるようキーを添える。
+  const channelKey = str(options.shopDomain);
   const paidAt = o.paidAt?.toDate ? o.paidAt.toDate() : null;
   if (!paidAt) return null;
   const voided = o.isCancelled === true || o.isPaid !== true;
@@ -98,6 +101,7 @@ function normalizeEcOrder(storeId, link, orderId, o, options = {}) {
     txId: `ec_${str(orderId)}`,
     storeId: str(storeId),
     app: "ec",
+    channelKey: channelKey || null,
     date: jstDate(paidAt),
     paidAt: paidAt.toISOString(),
     totalInclTax: voided ? 0 : num(o.totalAmount) - num(o.totalRefunded),
@@ -128,6 +132,9 @@ async function syncStore(storeDoc) {
   const linkSnap = await db.doc(`stores/${storeId}/settings/terminal`).get();
   const link = linkSnap.exists ? linkSnap.data() : null;
   if (!str(link?.coreTenantId) || !str(link?.coreSpaceId)) return { storeId, skipped: "unlinked" };
+
+  const shopSnap = await db.doc(`stores/${storeId}/settings/shopify`).get();
+  const shopDomain = str(shopSnap.exists ? shopSnap.data()?.shopDomain : "");
 
   const stateRef = db.doc(`stores/${storeId}/settings/coreSales`);
   const stateSnap = await stateRef.get();
@@ -166,7 +173,7 @@ async function syncStore(storeDoc) {
   let maxEcPaidAtMs = lastEcPaidAtMs;
   const sentEcIds = new Set();
   for (const d of ecSnap.docs) {
-    const ev = normalizeEcOrder(storeId, link, d.id, d.data());
+    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { shopDomain });
     if (ev) {
       events.push(ev);
       sentEcIds.add(d.id);
@@ -190,7 +197,7 @@ async function syncStore(storeDoc) {
     const ms = d.data().orderUpdatedAt?.toMillis?.() ?? 0;
     if (ms > maxEcUpdatedAtMs) maxEcUpdatedAtMs = ms;
     if (sentEcIds.has(d.id)) continue; // 新規側で送信済み
-    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { allowVoid: true });
+    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { allowVoid: true, shopDomain });
     if (ev) events.push(ev);
   }
 
