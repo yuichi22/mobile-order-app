@@ -111,7 +111,15 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
   };
 });
 
-/** ポイント利用（refund=true で会計取消時の戻し）。冪等キーは会計ID。 */
+/**
+ * ポイント利用（refund=true で会計取消時の戻し）。
+ * ⚠冪等キーは `redeem-{txId}`。会計IDそのままにすると、同じ会計の「付与」
+ *   （onTransactionCreatedSyncCrmPoints が Idempotency-Key: txId で送る）と衝突し、
+ *   Core が duplicate と判定して**ポイントを使うと付与されない**という事故になる
+ *   （dev の実会計で発生: duplicate:true で付与ゼロ）。groom 側も同じ理由で redeem- を付けている。
+ */
+const redeemKey = (txId) => `redeem-${txId}`;
+
 export const crmRedeemPoints = onCall({ region: REGION }, async (request) => {
   const d = request.data || {};
   const storeId = str(d.storeId);
@@ -134,11 +142,11 @@ export const crmRedeemPoints = onCall({ region: REGION }, async (request) => {
       coreSpaceId: link.coreSpaceId,
       personId,
       points,
-      idempotencyKey: txId,
+      idempotencyKey: redeemKey(txId),
       provider: "pos",
       refund,
     },
-    txId
+    redeemKey(txId)
   );
   return { ok: true, ...data };
 });
