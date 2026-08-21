@@ -140,10 +140,10 @@ export const PosModals = ({
   };
 
   // ── ポイント利用 ──
-  // ⚠税額は「金券(voucher_payment)は課税ベースを減らさない」全額方式で決まる。
-  //   ポイントも金券と同じ性格なので accountingCategory:'voucher_payment' の明細として
-  //   割引の三つ組(type/value/items)に流し込む。支払額だけ独自に引くと税額が壊れる。
-  //   お釣りは出さないので allowsChange:false。
+  // ⚠会計区分は「売上値引(sales_discount)」。自社発行ポイントの利用は対価の値引きで、
+  //   課税ベースを減らす（商品券のように別途対価を受け取って発行したものではない）。
+  //   金券(voucher_payment)にすると課税ベースが減らず消費税を過大に納めることになる。
+  //   支払額だけ独自に引くと税額が壊れるので、必ず割引の三つ組(type/value/items)に流す。
   const crmYenPerPoint = Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1);
   const crmPointUnit = Math.max(Math.floor(Number(crmMember?.redeem?.unit) || 1), 1);
   // 併用中の金額クーポンを引いた残額がポイントの上限(会計額を超えて使わせない)。
@@ -164,7 +164,7 @@ export const PosModals = ({
       name: 'ポイント利用',
       type: 'amount',
       value: amount,
-      accountingCategory: 'voucher_payment',
+      accountingCategory: 'sales_discount',
       allowsChange: false, // ポイントはお釣りを出さない
       count: 1,
       quantity: 1,

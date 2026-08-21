@@ -1325,9 +1325,6 @@ export const PosTransactionHistory = ({
       // 対象伝票の営業日がロック済み(締め後/過去日)か。ロック時は元伝票を触らず反対仕訳。
       const locked = isDayLocked(transaction.businessDate, { closings: closingsByDate, today });
 
-      let effectiveCancelledTotal = cancelledTotal;
-      let reversalNetRatio = netRatio;
-      let crmPointsRefundedYen = 0; // 今回戻すポイントの円換算(累計の記録に使う)
       const remaining = {
         totalAmount: txnNet - cancelledTotal,
         subTotal: num(transaction.subTotal) - refundSubTotal,
@@ -1338,68 +1335,28 @@ export const PosTransactionHistory = ({
         voucherAmount: Math.round(num(transaction.voucherAmount) * remainingRatio)
       };
 
-      // ── ポイント利用のある伝票の返金内訳: 現金から先に返す ──
-      // ポイントは「取消後の残額に収まらなくなった分」だけ戻す(全額取消なら結果的に全部戻る)。
-      // ⚠ポイント以外の金券/売掛は従来どおり按分のまま。既存店の取消の会計挙動を変えないため。
-      // 税(refundSubTotal/refundTax*)は取消グロスの割合だけで決まるのでここでは触らない
-      // (全額方式ではポイントは課税ベースを減らさない)。
-      const crmPointYen = num(transaction.crmPointsRedeemedYen);
+      // ── ポイント利用のある伝票の返却 ──
+      // ポイントは売上値引き(sales_discount)なので、取消では値引きも按分で戻る
+      // (remaining.discountAmount / netRatio が既にそれを見ている)。
+      // よって返すポイントも同じ割合にする。⚠金券のような「現金優先」は不要
+      //   （金券は課税ベースを減らさないため別扱いが要ったが、値引きは一緒に戻る）。
+      // 締め後(反対仕訳)は元伝票を減らさないので、返却済み累計を差し引いて二重返却を防ぐ。
+      const crmPointsTotal = Math.floor(num(transaction.crmPointsRedeemed));
       let crmPointsRefund = 0;
-      if (crmPointYen > 0) {
-        // まだこの伝票に「使ったまま」残っているポイント額。
-        // 締め後(反対仕訳)は元伝票を減らさないので、返却済み累計を自分で差し引く。
-        const heldPointYen = Math.max(0, crmPointYen - num(transaction.crmPointsRefundedYen));
-        // ポイント以外の金券/売掛。締め後(反対仕訳)は元伝票を減らさないので原値ベース、
-        // 当日(その場減額)は伝票が減っているので現在値ベースで切り分ける。
-        const otherVoucherYen = locked
-          ? Math.max(0, num(transaction.voucherAmount) - crmPointYen)
-          : Math.max(0, num(transaction.voucherAmount) - heldPointYen);
-        // 値引き後・充当前の残額。totalAmount + 販促費 + 金券 で常に現在値になる。
-        const settleBase = txnNet + num(transaction.promoExpenseAmount) + num(transaction.voucherAmount);
-        // 反対仕訳は元伝票を減らさないため、これまでに取消済みのグロスを自分で除く。
+      if (crmPointsTotal > 0) {
+        const alreadyRefunded = Math.floor(num(transaction.crmPointsRefunded));
+        const remainingPoints = Math.max(0, crmPointsTotal - alreadyRefunded);
+        // 反対仕訳は元伝票を減らさないため、これまでに取消済みのグロスも含めて割合を出す。
         const alreadyReversedGross = items.reduce((sum, item, index) => {
           const qty = num(item.quantity) || 1;
           const already = reversedQtyOf(index);
           return already > 0 ? sum + Math.round((num(item.totalPrice) * already) / qty) : sum;
         }, 0);
-        const cumulativeRemainingRatio = grossTotal > 0
-          ? Math.max(0, 1 - ((alreadyReversedGross + grossCancelled) / grossTotal))
-          : 0;
-        // 取消後に残る部分で、ポイントをまだ充当できる枠
-        const room = Math.max(0,
-          Math.round(settleBase * cumulativeRemainingRatio)
-          - Math.round(num(transaction.promoExpenseAmount) * cumulativeRemainingRatio)
-          - Math.round(otherVoucherYen * cumulativeRemainingRatio));
-        const keptPointYen = Math.min(heldPointYen, room);
-        const refundYen = Math.max(0, heldPointYen - keptPointYen);
-        const yenPerPoint = num(transaction.crmPointsRedeemed) > 0
-          ? Math.max(crmPointYen / num(transaction.crmPointsRedeemed), 1)
+        const cumulativeRatio = grossTotal > 0
+          ? Math.min(1, (alreadyReversedGross + grossCancelled) / grossTotal)
           : 1;
-        crmPointsRefund = Math.round(refundYen / yenPerPoint);
-
-        // 今回ぶんの返金内訳: 現金は「取消した商品の値引き後価値」から
-        // 販促費・ポイント以外の金券・返すポイントを引いた残り。
-        const thisTimeNetValue = Math.round(settleBase * ratioCancelled);
-        const promoThisTime = Math.round(num(transaction.promoExpenseAmount) * ratioCancelled);
-        const otherVoucherThisTime = Math.round(otherVoucherYen * ratioCancelled);
-        effectiveCancelledTotal = Math.max(0, thisTimeNetValue - promoThisTime - otherVoucherThisTime - refundYen);
-        remaining.totalAmount = Math.max(0, txnNet - effectiveCancelledTotal);
-        remaining.voucherAmount = Math.max(0, num(transaction.voucherAmount) - otherVoucherThisTime - refundYen);
-        crmPointsRefundedYen = refundYen;
-        reversalNetRatio = grossCancelled > 0 ? effectiveCancelledTotal / grossCancelled : netRatio;
-
-        // 明細ごとの返金額も新しい配分(現金優先)に合わせて按分し直す。
-        if (grossCancelled > 0 && cancelledEntries.length > 0) {
-          let allocated = 0;
-          cancelledEntries.forEach((entry, index) => {
-            const isLast = index === cancelledEntries.length - 1;
-            const share = isLast
-              ? effectiveCancelledTotal - allocated
-              : Math.round((effectiveCancelledTotal * num(entry.grossAmount)) / grossCancelled);
-            entry.amount = share;
-            allocated += share;
-          });
-        }
+        const shouldHaveRefunded = Math.round(crmPointsTotal * cumulativeRatio);
+        crmPointsRefund = Math.max(0, Math.min(remainingPoints, shouldHaveRefunded - alreadyRefunded));
       }
 
       perTransaction.push({
@@ -1408,10 +1365,9 @@ export const PosTransactionHistory = ({
         updatedItems,
         cancelledEntries,
         reversalSourceEntries,
-        netRatio: reversalNetRatio,
-        cancelledTotal: effectiveCancelledTotal, // 割引後の返金額(現金等)
+        netRatio,
+        cancelledTotal, // 割引後の返金額
         crmPointsRefund,
-        crmPointsRefundedYen,
         refundSubTotal,
         refundTaxStandard,
         refundTaxReduced,
@@ -1446,7 +1402,7 @@ export const PosTransactionHistory = ({
       const crmPointRefunds = [];
       perTransaction.forEach(({
         transaction, locked, updatedItems, cancelledEntries, reversalSourceEntries,
-        netRatio, cancelledTotal, crmPointsRefund, crmPointsRefundedYen, refundSubTotal, refundTaxStandard, refundTaxReduced, remaining, fullyCancelled
+        netRatio, cancelledTotal, crmPointsRefund, refundSubTotal, refundTaxStandard, refundTaxReduced, remaining, fullyCancelled
       }) => {
         if (locked) {
           // 締め後/過去日: 元伝票は数値を触らず、操作日付のマイナス伝票(反対仕訳)を新規作成する。
@@ -1517,10 +1473,9 @@ export const PosTransactionHistory = ({
           batch.update(doc(db, 'stores', storeId, 'transactions', transaction.id), {
             // 返却済みポイントの累計。元伝票を減らさないので、次の一部取消で
             // 「もう戻した分」を二重に戻さないためのキー。
-            ...(crmPointsRefundedYen > 0 ? {
-              crmPointsRefundedYen: (Number(transaction.crmPointsRefundedYen) || 0) + crmPointsRefundedYen,
-              crmPointsRefunded: (Number(transaction.crmPointsRefunded) || 0) + crmPointsRefund
-            } : {}),
+            ...(crmPointsRefund > 0
+              ? { crmPointsRefunded: (Number(transaction.crmPointsRefunded) || 0) + crmPointsRefund }
+              : {}),
             reversedAt: serverTimestamp(),
             hasReversal: true,
             reversalStatus: fullyReversed ? 'fully_reversed' : 'partially_reversed',
@@ -1594,10 +1549,9 @@ export const PosTransactionHistory = ({
           promoExpenseAmount: remaining.promoExpenseAmount,
           voucherAmount: remaining.voucherAmount
         };
-        const crmRefundFields = crmPointsRefundedYen > 0 ? {
-          crmPointsRefundedYen: (Number(transaction.crmPointsRefundedYen) || 0) + crmPointsRefundedYen,
-          crmPointsRefunded: (Number(transaction.crmPointsRefunded) || 0) + crmPointsRefund
-        } : {};
+        const crmRefundFields = crmPointsRefund > 0
+          ? { crmPointsRefunded: (Number(transaction.crmPointsRefunded) || 0) + crmPointsRefund }
+          : {};
         const updatePayload = {
           items: updatedItems,
           ...remainingFields,
