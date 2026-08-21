@@ -75,11 +75,14 @@ function normalizeTx(storeId, link, txId, tx) {
 // EC注文(stores/{id}/ecOrders・Shopify毎時pull) → Core 送信イベントへ正規化。
 // 金額は totalAmount(税込・値引後)−totalRefunded を正とする。
 // 明細は商品マッチ率が低くても総額は正確（既知の特性）
-function normalizeEcOrder(storeId, link, orderId, o) {
+// options.allowVoid=true（更新分の再送）では、取消/未払いになった注文も
+// 0円イベントとして送り、Core 側の古い金額を上書きして消し込む。
+function normalizeEcOrder(storeId, link, orderId, o, options = {}) {
+  const allowVoid = options.allowVoid === true;
   const paidAt = o.paidAt?.toDate ? o.paidAt.toDate() : null;
   if (!paidAt) return null;
-  if (o.isCancelled === true) return null;
-  if (o.isPaid !== true) return null;
+  const voided = o.isCancelled === true || o.isPaid !== true;
+  if (voided && !allowVoid) return null;
 
   const items = Array.isArray(o.items) ? o.items : [];
   const lines = items.map((it) => ({
@@ -97,9 +100,9 @@ function normalizeEcOrder(storeId, link, orderId, o) {
     app: "ec",
     date: jstDate(paidAt),
     paidAt: paidAt.toISOString(),
-    totalInclTax: num(o.totalAmount) - num(o.totalRefunded),
+    totalInclTax: voided ? 0 : num(o.totalAmount) - num(o.totalRefunded),
     payment: "EC(Shopify)",
-    lines,
+    lines: voided ? [] : lines,
   };
 }
 
@@ -131,6 +134,8 @@ async function syncStore(storeDoc) {
   const state = stateSnap.exists ? stateSnap.data() : {};
   const lastPaidAtMs = num(state?.lastPaidAtMs);
   const lastEcPaidAtMs = num(state?.lastEcPaidAtMs);
+  // 返金・訂正の後追い用（paidAt は変わらないので orderUpdatedAt で追随する）
+  const lastEcUpdatedAtMs = num(state?.lastEcUpdatedAtMs);
 
   const events = [];
 
@@ -159,18 +164,44 @@ async function syncStore(storeDoc) {
     .get();
 
   let maxEcPaidAtMs = lastEcPaidAtMs;
+  const sentEcIds = new Set();
   for (const d of ecSnap.docs) {
     const ev = normalizeEcOrder(storeId, link, d.id, d.data());
-    if (ev) events.push(ev);
+    if (ev) {
+      events.push(ev);
+      sentEcIds.add(d.id);
+    }
     const ms = d.data().paidAt?.toMillis?.() ?? 0;
     if (ms > maxEcPaidAtMs) maxEcPaidAtMs = ms;
   }
 
-  const cursorMoved = maxPaidAtMs !== lastPaidAtMs || maxEcPaidAtMs !== lastEcPaidAtMs;
+  // EC注文の「更新分」。返金・訂正は paidAt が変わらず上の差分では拾えないため、
+  // Shopify の orderUpdatedAt を独立カーソルで追う。txId=ec_{orderId} なので
+  // Core 側は同じドキュメントに上書き（重複しない）。
+  const ecUpdatedSnap = await db
+    .collection(`stores/${storeId}/ecOrders`)
+    .where("orderUpdatedAt", ">", Timestamp.fromMillis(lastEcUpdatedAtMs))
+    .orderBy("orderUpdatedAt", "asc")
+    .limit(PAGE_LIMIT)
+    .get();
+
+  let maxEcUpdatedAtMs = lastEcUpdatedAtMs;
+  for (const d of ecUpdatedSnap.docs) {
+    const ms = d.data().orderUpdatedAt?.toMillis?.() ?? 0;
+    if (ms > maxEcUpdatedAtMs) maxEcUpdatedAtMs = ms;
+    if (sentEcIds.has(d.id)) continue; // 新規側で送信済み
+    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { allowVoid: true });
+    if (ev) events.push(ev);
+  }
+
+  const cursorMoved =
+    maxPaidAtMs !== lastPaidAtMs ||
+    maxEcPaidAtMs !== lastEcPaidAtMs ||
+    maxEcUpdatedAtMs !== lastEcUpdatedAtMs;
   if (events.length === 0) {
     if (cursorMoved) {
       await stateRef.set(
-        { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: 0 },
+        { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastEcUpdatedAtMs: maxEcUpdatedAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: 0 },
         { merge: true }
       );
     }
@@ -182,10 +213,10 @@ async function syncStore(storeDoc) {
   }
 
   await stateRef.set(
-    { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: events.length },
+    { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastEcUpdatedAtMs: maxEcUpdatedAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: events.length },
     { merge: true }
   );
-  return { storeId, sent: events.length, hasMore: txSnap.size === PAGE_LIMIT || ecSnap.size === PAGE_LIMIT };
+  return { storeId, sent: events.length, hasMore: txSnap.size === PAGE_LIMIT || ecSnap.size === PAGE_LIMIT || ecUpdatedSnap.size === PAGE_LIMIT };
 }
 
 async function runSalesSync() {
