@@ -88,15 +88,19 @@ async function callCore(path, body, idempotencyKey) {
 export const crmLookupMember = onCall({ region: REGION }, async (request) => {
   const storeId = str(request.data?.storeId);
   const memberCode = str(request.data?.memberCode);
+  // groom の会計依頼は会員コードでなく personId を運んでくるので、そちらでも引けるようにする。
+  const personId = str(request.data?.personId);
   if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
-  if (!memberCode) throw new HttpsError("invalid-argument", "memberCode required.");
+  if (!memberCode && !personId) {
+    throw new HttpsError("invalid-argument", "memberCode or personId required.");
+  }
   await assertStoreStaff(request, storeId);
   const link = await resolveCoreLink(storeId);
 
   const data = await callCore("lookupCrmMember", {
     coreTenantId: link.coreTenantId,
     coreSpaceId: link.coreSpaceId,
-    memberCode,
+    ...(memberCode ? { memberCode } : { personId }),
   });
   return {
     ok: true,

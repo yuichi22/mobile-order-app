@@ -381,6 +381,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     codeInput: crmCodeInput,
     setCodeInput: setCrmCodeInput,
     lookupByCode: lookupCrmMember,
+    lookupByPersonId: lookupCrmMemberByPersonId,
     clearMember: clearCrmMemberState,
     pointsToUse: crmPointsToUse,
     setPointsToUse: setCrmPointsToUse,
@@ -1089,6 +1090,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     clearTakeoutDiscount();
     setIsTakeoutMode(true);
     setPosMessage(`${request.customerName || '予約会計'} を呼び出しました。`, 'success');
+    // 予約会計が会員(personId)を運んでいたら会員バーに載せる。
+    // ⚠これが無いとレジに会員が出ず、ポイント利用もできない（付与だけ裏で走る）。
+    if (request.personId) {
+      lookupCrmMemberByPersonId(request.personId).then((found) => {
+        if (found) {
+          setPosMessage(`会員を読み込みました（利用可能 ${Number(found.pointBalance || 0).toLocaleString()}pt）`, 'success');
+        }
+      });
+    }
   };
 
   // 呼出を解除して一覧(pending)へ戻す。カートに展開済みならカートも空にする。

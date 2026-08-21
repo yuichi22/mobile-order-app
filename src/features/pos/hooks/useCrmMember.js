@@ -65,6 +65,35 @@ export const useCrmMember = (storeId) => {
   }, [storeId]);
 
   /**
+   * personId で会員を読み込む（groom の会計依頼を呼び出したとき用）。
+   * ⚠会計依頼は会員コードを持たないので、これが無いとレジに会員が出ず
+   *   ポイント利用もできない（付与だけ裏で走る状態になる）。
+   */
+  const lookupByPersonId = useCallback(async (personId) => {
+    const id = String(personId || '').trim();
+    if (!id) return null;
+    setBusy(true);
+    try {
+      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, personId: id });
+      const m = res.data || {};
+      const next = {
+        personId: m.personId || id,
+        displayName: m.displayName || null,
+        pointBalance: Number(m.pointBalance || 0),
+        redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
+      };
+      setMember(next);
+      setMessage('');
+      return next;
+    } catch (e) {
+      // 会員が引けなくても会計は続行できる（付与は伝票の personId で走る）。
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, [storeId]);
+
+  /**
    * ポイント利用を Core に確定させる。
    * ⚠必ず会計の batch.commit() の直前に呼ぶこと(カード決済と同じスロット)。
    *   失敗したら会計を中断する。売上を確定させてからポイントだけ失敗すると辻褄が合わなくなる。
@@ -102,6 +131,7 @@ export const useCrmMember = (storeId) => {
     maxUsablePoints,
     redeemPoints,
     lookupByCode,
+    lookupByPersonId,
     clearMember
   };
 };

@@ -45,9 +45,12 @@ export const onTransactionCreatedSyncCrmPoints = onDocumentCreated(
     if (tx.isPaid === false) return;              // 締め前取消
     if (tx.isMethodAdjustment === true) return;   // 支払方法の付替え（売上ではない）
 
-    // 会員が特定できない会計は対象外（レジでの会員コード読取は次段で対応）
+    // 会員の特定。personId が最優先だが、⚠groom会計依頼は「初回来店の顧客」だと
+    // personId=null で届く（中央の person は予約完了イベントが非同期で作るため間に合わない）。
+    // その場合でも伝票は lineUserId を持っているので、Core 側に名寄せさせる。
     const personId = str(tx.personId);
-    if (!personId) return;
+    const lineUserId = str(tx.crmLineUserId);
+    if (!personId && !lineUserId) return; // どちらも無ければ会員不明＝対象外
 
     const amount = pickTotal(tx);
     if (amount === 0) return;
@@ -72,7 +75,9 @@ export const onTransactionCreatedSyncCrmPoints = onDocumentCreated(
       coreTenantId,
       coreSpaceId: coreSpaceId || null,
       sourceKey: storeId,
-      personId,
+      // 空文字は送らない（Core 側で「指定あり」と誤認させないため）
+      ...(personId ? { personId } : {}),
+      ...(!personId && lineUserId ? { lineUserId } : {}),
       amount: num(amount),
       type: tx.isReversal === true ? "pos_reversal" : "pos",
       provider: "pos",
@@ -97,7 +102,11 @@ export const onTransactionCreatedSyncCrmPoints = onDocumentCreated(
         return;
       }
       const json = await res.json().catch(() => ({}));
-      console.log("[crmPoints] 付与", { storeId, txId, personId, points: json?.points, duplicate: json?.duplicate });
+      console.log("[crmPoints] 付与", {
+        storeId, txId,
+        person: personId || `(line経由)${json?.personId ?? ""}`,
+        points: json?.points, duplicate: json?.duplicate, awarded: json?.awarded,
+      });
     } catch (e) {
       // Core 側の一時障害でレジ運用を止めない（売上は Firestore に確定済み）
       console.error("[crmPoints] 送信失敗", e?.message, { storeId, txId });
