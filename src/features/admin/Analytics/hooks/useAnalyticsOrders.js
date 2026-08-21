@@ -275,9 +275,14 @@ export const useAnalyticsOrders = ({
             .map((ecDoc) => {
               const data = ecDoc.data();
               const paidAt = data.paidAt?.toDate ? data.paidAt.toDate() : toDate(data.paidAt);
+              // EC売上は返金差引後(ネット)を正とする。ポータル(Core)へ送る
+              // salesSync の normalizeEcOrder と同じ基準に揃え、分析とポータルの
+              // EC売上が一致するようにする。
+              const ecNetTotal = Number(data.totalAmount || 0) - Number(data.totalRefunded || 0);
               return {
                 id: ecDoc.id,
                 ...data,
+                totalAmount: ecNetTotal,
                 salesChannel: 'shopify',
                 timestamp: paidAt || new Date(),
                 paidAt,
