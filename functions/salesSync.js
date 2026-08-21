@@ -52,11 +52,13 @@ function normalizeTx(storeId, link, txId, tx) {
   if (tx.isPaid === false) return null;
   if (tx.isMethodAdjustment === true) return null;
   const items = Array.isArray(tx.items) ? tx.items : [];
+  // 売り場(salesArea)は明細レベル(物販のみ。飲食は持たない=空)、部門は取引レベル。
   const lines = items.map((it) => ({
     item: str(it?.name) || "(名称なし)",
     qty: num(it?.quantity) || 1,
     unitPrice: num(it?.unitPrice ?? it?.price),
     taxRate: it?.taxRate != null ? num(it.taxRate) : null,
+    salesArea: str(it?.salesAreaName) || "",
   }));
   return {
     tenantId: str(link.coreTenantId),
@@ -64,6 +66,7 @@ function normalizeTx(storeId, link, txId, tx) {
     txId: str(txId),
     storeId: str(storeId),
     app: txChannel(tx),
+    department: str(tx.departmentName) || "",
     date: jstDate(paidAt),
     paidAt: paidAt.toISOString(),
     totalInclTax: num(tx.totalAmount ?? tx.totalPrice ?? tx.amount),
