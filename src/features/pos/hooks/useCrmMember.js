@@ -69,7 +69,7 @@ export const useCrmMember = (storeId) => {
    * ⚠会計依頼は会員コードを持たないので、これが無いとレジに会員が出ず
    *   ポイント利用もできない（付与だけ裏で走る状態になる）。
    */
-  const lookupByPersonId = useCallback(async (personId) => {
+  const lookupByPersonId = useCallback(async (personId, { fallbackName = null } = {}) => {
     const id = String(personId || '').trim();
     if (!id) return null;
     setBusy(true);
@@ -78,7 +78,8 @@ export const useCrmMember = (storeId) => {
       const m = res.data || {};
       const next = {
         personId: m.personId || id,
-        displayName: m.displayName || null,
+        // Core に名前が無ければ呼び出し元の名前（会計依頼の顧客名）を使う
+        displayName: m.displayName || fallbackName || null,
         pointBalance: Number(m.pointBalance || 0),
         redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
       };

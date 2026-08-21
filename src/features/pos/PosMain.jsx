@@ -1093,11 +1093,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     // 予約会計が会員(personId)を運んでいたら会員バーに載せる。
     // ⚠これが無いとレジに会員が出ず、ポイント利用もできない（付与だけ裏で走る）。
     if (request.personId) {
-      lookupCrmMemberByPersonId(request.personId).then((found) => {
-        if (found) {
-          setPosMessage(`会員を読み込みました（利用可能 ${Number(found.pointBalance || 0).toLocaleString()}pt）`, 'success');
-        }
-      });
+      // ⚠中央CRM側に名前が無い顧客は displayName が空で「会員さま」になる。
+      //   会計依頼は顧客名を持っているので、無い場合はそちらを表示に使う。
+      lookupCrmMemberByPersonId(request.personId, { fallbackName: request.customerName || null })
+        .then((found) => {
+          if (found) {
+            setPosMessage(`会員を読み込みました（利用可能 ${Number(found.pointBalance || 0).toLocaleString()}pt）`, 'success');
+          }
+        });
     }
   };
 
