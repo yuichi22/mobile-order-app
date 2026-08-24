@@ -48,6 +48,7 @@ export const useCrmMember = (storeId) => {
         personId: m.personId,
         displayName: m.displayName || null,
         pointBalance: Number(m.pointBalance || 0),
+        pointsEnabled: m.pointsEnabled !== false,
         redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
       };
       setMember(next);
@@ -81,6 +82,7 @@ export const useCrmMember = (storeId) => {
         // Core に名前が無ければ呼び出し元の名前（会計依頼の顧客名）を使う
         displayName: m.displayName || fallbackName || null,
         pointBalance: Number(m.pointBalance || 0),
+        pointsEnabled: m.pointsEnabled !== false,
         redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
       };
       setMember(next);

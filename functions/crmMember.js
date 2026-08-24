@@ -107,6 +107,8 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
     personId: data.personId,
     displayName: data.displayName || null,
     pointBalance: Number(data.pointBalance || 0),
+    // テナントのポイント設定。OFFでも残高>0なら使い切りまで利用可（旧Coreは未定義=true扱い）
+    pointsEnabled: data.pointsEnabled !== false,
     redeem: data.redeem || { yenPerPoint: 1, unit: 1 },
   };
 });

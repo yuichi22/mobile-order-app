@@ -424,8 +424,10 @@ export const PosModals = ({
                 </button>
               </div>
 
-              {/* ポイント利用: 金券と同じ扱い(課税ベースは減らさない/お釣り無し)。 */}
-              {crmMember && (
+              {/* ポイント利用: 売上値引き(課税ベースを減らす/お釣り無し)。
+                  ポイントOFFのテナントでは出さない。ただし残高が残るお客様は
+                  使い切りまで利用できる(2026-08-25 決定)ので、残高>0なら出す。 */}
+              {crmMember && (crmMember.pointsEnabled !== false || Number(crmMember.pointBalance || 0) > 0) && (
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2">
                   <div className="mb-1 flex items-center justify-between gap-2 px-1">
                     <div className="flex items-center gap-1 text-[11px] font-black text-emerald-700">
