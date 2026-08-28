@@ -7,7 +7,9 @@ import { getAuth } from 'firebase/auth';
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
+  computeStocktakeValuation,
   finalizeStocktake,
+  getCompletedStocktakes,
   startStocktake,
   subscribeToActiveStocktake,
   subscribeToStocktakeItems,
@@ -62,6 +64,19 @@ const downloadCsv = (content, filename) => {
   URL.revokeObjectURL(url);
 };
 
+const yen = (value) => `¥${Math.round(Number(value) || 0).toLocaleString()}`;
+
+const buildValuationCsv = (valuation, taxLabel) => {
+  const header = ['売り場', '点数', `上代合計(${taxLabel})`, `原価合計(${taxLabel})`, '原価不明件数'];
+  const lines = [header.map(csvEscape).join(',')];
+  valuation.areas.forEach((a) => {
+    lines.push([a.name, a.qty, Math.round(a.retail), Math.round(a.cost), a.noCostItems].map(csvEscape).join(','));
+  });
+  const t = valuation.total;
+  lines.push(['合計', t.qty, Math.round(t.retail), Math.round(t.cost), t.noCostItems].map(csvEscape).join(','));
+  return lines.join('\r\n');
+};
+
 const StockTakingPanel = ({ storeId }) => {
   const [activeStocktake, setActiveStocktake] = useState(undefined);
   const [items, setItems] = useState([]);
@@ -72,6 +87,11 @@ const StockTakingPanel = ({ storeId }) => {
   const [finalizeError, setFinalizeError] = useState('');
   const [fixingNegatives, setFixingNegatives] = useState(false);
   const [negativeMessage, setNegativeMessage] = useState('');
+  const [completedStocktakes, setCompletedStocktakes] = useState([]);
+  const [valuationStocktakeId, setValuationStocktakeId] = useState('');
+  const [valuation, setValuation] = useState(null);
+  const [valuationLoading, setValuationLoading] = useState(false);
+  const [valuationError, setValuationError] = useState('');
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -87,7 +107,37 @@ const StockTakingPanel = ({ storeId }) => {
     return subscribeToStocktakeItems(storeId, activeStocktake.id, setItems, () => setItems([]));
   }, [storeId, activeStocktake?.id]);
 
+  // 完了棚卸しの一覧を読み込む(在高レポート用)。棚卸し終了直後にも更新する。
+  useEffect(() => {
+    if (!storeId) return undefined;
+    let cancelled = false;
+    getCompletedStocktakes(storeId)
+      .then((list) => {
+        if (cancelled) return;
+        setCompletedStocktakes(list);
+        setValuationStocktakeId((prev) => prev || list[0]?.id || '');
+      })
+      .catch((error) => { if (!cancelled) console.error('failed to load completed stocktakes', error); });
+    return () => { cancelled = true; };
+  }, [storeId, activeStocktake?.id, finalizeResults]);
+
   const displayItems = activeStocktake?.id ? items : [];
+
+  const handleShowValuation = async () => {
+    if (!storeId || !valuationStocktakeId) return;
+    setValuationLoading(true);
+    setValuationError('');
+    setValuation(null);
+    try {
+      const result = await computeStocktakeValuation(storeId, valuationStocktakeId, { taxMode: 'excluded' });
+      setValuation(result);
+    } catch (error) {
+      console.error('failed to compute stocktake valuation', error);
+      setValuationError(`集計に失敗しました: ${error?.message || error}`);
+    } finally {
+      setValuationLoading(false);
+    }
+  };
 
   const handleStart = async () => {
     if (!storeId) return;
@@ -295,6 +345,95 @@ const StockTakingPanel = ({ storeId }) => {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-6">
+        <p className="text-sm font-black text-slate-900">棚卸し 在高レポート（売り場別・税抜）</p>
+        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+          過去の棚卸しを選ぶと、完了日時点の在庫で売り場別の上代合計・原価合計を集計します。
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={valuationStocktakeId}
+            onChange={(event) => { setValuationStocktakeId(event.target.value); setValuation(null); }}
+            className="h-11 flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-blue-400"
+          >
+            {completedStocktakes.length === 0 ? (
+              <option value="">完了した棚卸しがありません</option>
+            ) : (
+              completedStocktakes.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {formatDateTimeText(st.completedAt)} 完了
+                </option>
+              ))
+            )}
+          </select>
+          <button
+            type="button"
+            onClick={handleShowValuation}
+            disabled={valuationLoading || !valuationStocktakeId}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {valuationLoading ? <LoadingSpinner size={16} /> : null}
+            集計する
+          </button>
+        </div>
+
+        {valuationError ? <p className="mt-3 text-xs font-bold text-rose-500">{valuationError}</p> : null}
+
+        {valuation ? (
+          <div className="mt-4">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b-2 border-slate-100 text-xs font-black text-slate-400">
+                    <th className="py-2 text-left">売り場</th>
+                    <th className="py-2 text-right">点数</th>
+                    <th className="py-2 text-right">上代合計</th>
+                    <th className="py-2 text-right">原価合計</th>
+                    <th className="py-2 text-right">原価不明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {valuation.areas.map((a) => (
+                    <tr key={a.areaId} className="border-b border-slate-50 font-bold text-slate-700">
+                      <td className="py-2 text-left">{a.name}</td>
+                      <td className="py-2 text-right tabular-nums">{a.qty.toLocaleString()}</td>
+                      <td className="py-2 text-right tabular-nums">{yen(a.retail)}</td>
+                      <td className="py-2 text-right tabular-nums">{yen(a.cost)}</td>
+                      <td className="py-2 text-right tabular-nums text-orange-500">{a.noCostItems ? `${a.noCostItems}件` : '-'}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-slate-200 font-black text-slate-900">
+                    <td className="py-2 text-left">合計</td>
+                    <td className="py-2 text-right tabular-nums">{valuation.total.qty.toLocaleString()}</td>
+                    <td className="py-2 text-right tabular-nums">{yen(valuation.total.retail)}</td>
+                    <td className="py-2 text-right tabular-nums">{yen(valuation.total.cost)}</td>
+                    <td className="py-2 text-right tabular-nums text-orange-500">{valuation.total.noCostItems ? `${valuation.total.noCostItems}件` : '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {valuation.total.noCostItems > 0 ? (
+              <p className="mt-2 text-[11px] font-bold leading-relaxed text-orange-500">
+                ※ 原価（掛け率）が未設定の商品が {valuation.total.noCostItems.toLocaleString()} 件あり、その分の原価は0で集計しています。掛け率を入力すると原価合計が正確になります。
+              </p>
+            ) : null}
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => downloadCsv(
+                  buildValuationCsv(valuation, '税抜'),
+                  `stocktake_valuation_${storeId}_${valuationStocktakeId}.csv`
+                )}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-700"
+              >
+                CSVを保存
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6">
