@@ -154,6 +154,15 @@ const SalesRow = ({ entry, active, onSelect, onDrill }) => (
           <span className="mx-1 text-gray-300">/</span>
           {Number(entry.transactionCount || 0).toLocaleString()}会計
         </div>
+        {entry.costRate != null && (
+          <div className="mt-0.5 text-[11px] font-bold text-emerald-600">
+            粗利 {yen(entry.grossProfitTaxExcluded)}
+            <span className="mx-1 text-emerald-300">/</span>
+            原価率 {Number(entry.costRate || 0).toFixed(1)}%
+            <span className="mx-1 text-gray-300">/</span>
+            <span className="text-gray-400">原価 {yen(entry.costTaxExcluded)}</span>
+          </div>
+        )}
       </div>
       <span className="shrink-0 text-sm font-black text-gray-900">{yen(entry.total)}</span>
     </button>

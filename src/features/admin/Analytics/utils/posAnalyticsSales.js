@@ -119,11 +119,35 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
       const key = keyOf(cls);
       const id = String(key.id);
       if (!map.has(id)) {
-        map.set(id, { id, name: key.name, total: 0, quantity: 0, transactionCount: 0 });
+        map.set(id, {
+          id,
+          name: key.name,
+          total: 0,
+          quantity: 0,
+          transactionCount: 0,
+          // 原価・粗利は「原価が登録済みの明細」だけを対象に日計と同じスナップショットで合算する。
+          costTaxExcluded: 0,
+          grossProfitTaxExcluded: 0,
+          trackedSalesExcl: 0
+        });
       }
       const entry = map.get(id);
       entry.total += getItemLineTotal(item);
       entry.quantity += Math.max(num(item.quantity), 0);
+
+      // 原価スナップショット(costPrice)がある明細のみ原価/粗利を積む(日計 addGrossProfitSummary と同基準)。
+      const hasCost = item.costPrice !== null
+        && item.costPrice !== undefined
+        && item.costPrice !== ''
+        && Number.isFinite(Number(item.costPrice));
+      if (hasCost) {
+        const salesExcl = num(item.salesTaxExcludedAmount ?? item.totalPrice ?? item.taxIncludedAmount);
+        const costExcl = num(item.costTaxExcludedAmount ?? item.costTaxIncludedAmount);
+        const grossExcl = num(item.grossProfitTaxExcluded ?? (salesExcl - costExcl));
+        entry.costTaxExcluded += costExcl;
+        entry.grossProfitTaxExcluded += grossExcl;
+        entry.trackedSalesExcl += salesExcl;
+      }
       seen.add(id);
     });
     seen.forEach((id) => {
@@ -131,7 +155,13 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
     });
   });
 
-  return Array.from(map.values()).sort((left, right) => right.total - left.total);
+  return Array.from(map.values())
+    .map((entry) => ({
+      ...entry,
+      // 原価率=原価(税抜)/原価登録済み売上(税抜)。未登録明細は分母から除くため実勢率になる。
+      costRate: entry.trackedSalesExcl > 0 ? (entry.costTaxExcluded / entry.trackedSalesExcl) * 100 : null
+    }))
+    .sort((left, right) => right.total - left.total);
 };
 
 const inArea = (areaKey) => (cls) => areaKeyOf(cls) === String(areaKey);
