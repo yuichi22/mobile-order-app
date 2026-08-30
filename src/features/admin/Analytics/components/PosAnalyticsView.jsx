@@ -128,9 +128,9 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
           <div className="mt-1 text-[11px] font-bold text-gray-400">税込 {yen(financial?.grossProfitTaxIncluded)}</div>
         </div>
         <div className="rounded-xl bg-gray-50 p-4">
-          <div className="text-[11px] font-black text-gray-400">粗利率</div>
+          <div className="text-[11px] font-black text-gray-400">原価率</div>
           <div className="mt-1 text-xl font-black text-gray-900">
-            {financial?.grossProfitRate == null ? '-' : `${Number(financial.grossProfitRate || 0).toFixed(1)}%`}
+            {financial?.grossProfitRate == null ? '-' : `${(100 - Number(financial.grossProfitRate || 0)).toFixed(1)}%`}
           </div>
         </div>
         <div className="rounded-xl bg-gray-50 p-4">
