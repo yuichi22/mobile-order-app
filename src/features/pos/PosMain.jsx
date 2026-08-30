@@ -155,6 +155,7 @@ const computeCartLineFigures = (item, modeTax, registerMode) => {
     itemRate,
     isReducedItem: itemRate <= modeTax.reducedRate,
     includedRaw: rawBreakdown.includedAmount,
+    baseRaw: rawBreakdown.baseAmount, // 割引前税抜(=定価×数量)。原価は定価ベースで固定する。
     includedNet: netBreakdown.includedAmount,
     baseNet: netBreakdown.baseAmount,
     taxNet: netBreakdown.taxAmount,
@@ -1246,8 +1247,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         } else if (costInfo.rate !== null) {
           costRateValue = costInfo.rate;
           const costFraction = Math.max(0, Math.min(100, Number(costInfo.rate))) / 100;
-          costTaxIncludedAmount = Math.round(figures.includedNet * costFraction);
-          costTaxExcludedAmount = Math.round(figures.baseNet * costFraction);
+          // 原価は「定価(割引前)×掛け率」で固定する。割引後(net)に掛けると値引き分だけ原価が
+          // 過小＝粗利過大になり、セールでも原価率が変わらない不具合になるため baseRaw を使う。
+          costTaxIncludedAmount = Math.round(figures.includedRaw * costFraction);
+          costTaxExcludedAmount = Math.round(figures.baseRaw * costFraction);
           unitCostSnapshot = Math.round(Number(item.takeoutPrice || 0) * costFraction);
         }
         const grossProfitTaxIncluded = hasCost ? (figures.includedNet - costTaxIncludedAmount) : null;

@@ -83,6 +83,10 @@ const isRetail = (it) => Boolean(String(it.salesAreaId || '').trim() || String(i
     const includedNet = num(item.salesTaxIncludedAmount ?? item.totalPrice ?? item.taxIncludedAmount);
     const baseNet = num(item.salesTaxExcludedAmount ?? includedNet);
     const unitPrice = num(item.unitPrice ?? item.takeoutPrice);
+    // 原価は「定価(割引前)×掛け率」で固定。値引きが記録されていれば originalLineTotal(税込)を定価とみなす。
+    // ※値引きをレジ打鍵せず売価を直接手打ちした明細は定価が残らずここでは救済不可(現状維持)。
+    const includedRaw = Math.max(num(item.originalLineTotal), includedNet);
+    const baseRaw = includedNet > 0 ? Math.round(baseNet * (includedRaw / includedNet)) : baseNet;
     let costTaxIncludedAmount; let costTaxExcludedAmount; let costPrice; let costRate = null;
     if (info.source === 'product_cost') {
       costTaxIncludedAmount = Math.round(info.unitIncl * qty);
@@ -91,8 +95,8 @@ const isRetail = (it) => Boolean(String(it.salesAreaId || '').trim() || String(i
     } else {
       costRate = info.rate;
       const f = Math.max(0, Math.min(100, Number(info.rate))) / 100;
-      costTaxIncludedAmount = Math.round(includedNet * f);
-      costTaxExcludedAmount = Math.round(baseNet * f);
+      costTaxIncludedAmount = Math.round(includedRaw * f);
+      costTaxExcludedAmount = Math.round(baseRaw * f);
       costPrice = Math.round(unitPrice * f);
     }
     return {
