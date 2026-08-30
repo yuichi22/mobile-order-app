@@ -394,6 +394,10 @@ export const buildAnalyticsSummary = ({
   let totalSales = 0;
   let totalSalesTaxExcluded = 0;
   let totalTaxAmount = 0;
+  // 原価・粗利(原価スナップがある明細のみ)。日計 addGrossProfitSummary と同基準。
+  let costTaxExcludedTotal = 0;
+  let grossProfitTaxExcluded = 0;
+  let grossProfitTrackedSalesExcl = 0;
   // 反対仕訳(締め後の取消・返品)の別掲用。売上系集計には混ぜない(D5)が、
   // タイルで「取消・返品 −X / 純売上」を併記できるよう合計だけ拾う。
   let cancelReturnTotal = 0;
@@ -628,6 +632,18 @@ export const buildAnalyticsSummary = ({
           itemStats[name].count += quantity;
           itemStats[name].sales += itemTotal;
 
+          // 原価スナップ(costPrice)がある明細のみ原価/粗利を積む(日計と同基準)。原価率=100−粗利率。
+          const itemHasCost = item?.costPrice !== null && item?.costPrice !== undefined
+            && item?.costPrice !== '' && Number.isFinite(Number(item.costPrice));
+          if (itemHasCost) {
+            const sExcl = Number(item.salesTaxExcludedAmount ?? item.totalPrice ?? itemTotal) || 0;
+            const cExcl = Number(item.costTaxExcludedAmount ?? item.costTaxIncludedAmount ?? 0) || 0;
+            const gExcl = Number(item.grossProfitTaxExcluded ?? (sExcl - cExcl)) || 0;
+            costTaxExcludedTotal += cExcl;
+            grossProfitTaxExcluded += gExcl;
+            grossProfitTrackedSalesExcl += sExcl;
+          }
+
           const categoryId = resolveCategoryId(item, itemCategoryMap);
 
           if (timeSlots[orderKey]) {
@@ -677,6 +693,12 @@ export const buildAnalyticsSummary = ({
   const averagePartySize = totalOrders > 0
     ? Number((customerCount / totalOrders).toFixed(1))
     : 0;
+
+  // 粗利率 = 粗利(税抜)/原価登録済み売上(税抜)。原価率 = 100 − 粗利率。未登録のみは null。
+  const grossProfitRate = grossProfitTrackedSalesExcl > 0
+    ? Math.round((grossProfitTaxExcluded / grossProfitTrackedSalesExcl) * 1000) / 10
+    : null;
+  const costRate = grossProfitRate === null ? null : Math.round((100 - grossProfitRate) * 10) / 10;
 
   const itemRanking = Object.entries(itemStats)
     .map(([name, data]) => ({
@@ -919,6 +941,10 @@ export const buildAnalyticsSummary = ({
     totalSales,
     totalSalesTaxExcluded: Math.round(totalSalesTaxExcluded),
     totalTaxAmount: Math.round(totalTaxAmount),
+    costTaxExcludedTotal: Math.round(costTaxExcludedTotal),
+    grossProfitTaxExcluded: Math.round(grossProfitTaxExcluded),
+    grossProfitRate,
+    costRate,
     cancelReturnTotal,
     totalOrders,
     customerCount,

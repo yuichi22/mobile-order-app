@@ -438,6 +438,28 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
             onSelectedPeriodChange={setSelectedPeriodId}
           />
 
+          {/* 粗利・原価（原価登録済み明細ベース。日計と同基準） */}
+          <div className="mb-8 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl bg-emerald-50 p-4">
+              <div className="text-xs font-black text-emerald-600">粗利（税抜）</div>
+              <div className="mt-2 text-2xl font-black text-gray-900">
+                ¥{Number(analytics.grossProfitTaxExcluded || 0).toLocaleString()}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-gray-50 p-4">
+              <div className="text-xs font-black text-gray-400">原価率</div>
+              <div className="mt-2 text-2xl font-black text-gray-900">
+                {analytics.costRate == null ? '-' : `${Number(analytics.costRate).toFixed(1)}%`}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-gray-50 p-4">
+              <div className="text-xs font-black text-gray-400">原価（税抜）</div>
+              <div className="mt-2 text-2xl font-black text-gray-900">
+                ¥{Number(analytics.costTaxExcludedTotal || 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
           {period === 'weekly' && (
             <WeeklyComparisonCard comparison={analytics.weeklyComparison} />
           )}
