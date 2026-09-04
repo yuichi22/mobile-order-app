@@ -543,6 +543,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [scanCandidates, setScanCandidates] = useState([]);
   // 卓・会員のどちらにも当たらなかったスキャン/入力。モーダルで知らせて画面は遷移させない。
   const [scanNotFound, setScanNotFound] = useState('');
+  // ⚠スキャン結果のメモリキャッシュは意図的に持たない。
+  //   POSは商品を購読しないため毎回 Firestore を引くが、これは「常に最新の価格で売る」
+  //   ことの裏返しでもある。キャッシュすると価格改定が最大TTL分だけ売価に反映されない。
+  //   速度改善は接続のウォームアップ(下の useEffect)と、将来の軽量バーコード索引で行う。
 
   // 候補を見やすい順(サイズ→価格→名前)に整列する。
   const sortVariantCandidates = (candidates) => [...candidates].sort((a, b) => (
@@ -555,7 +559,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const addPosProductByCode = async (codeText) => {
     const rawCode = String(codeText || '').trim();
     const normalizedCode = rawCode.toLowerCase();
-    if (!normalizedCode) return false;
+    if (!normalizedCode) return 'invalid';
 
     const eq = (product, field) => (
       String(product?.[field] || '').trim().toLowerCase() === normalizedCode
@@ -583,7 +587,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         console.error('[pos barcode lookup]', error);
       }
     }
-    if (barcodeMatch) return addPosProductToCart(barcodeMatch);
+    if (barcodeMatch) return addPosProductToCart(barcodeMatch) ? 'added' : 'blocked';
 
     // 2) barcode で引けない場合(品番/ブランドの Code128 等)は sku/productCode 一致の候補を集める。
     //    メモリは直近200件しか無いため、Firestore(searchKeywords)からも引いて「全バリアント」を集め、
@@ -617,21 +621,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
     if (candidates.length === 0) {
       setPosMessage('商品マスターに一致するバーコード / 品番 / SKU がありません。', 'error');
-      return false;
+      return 'notfound';
     }
     if (candidates.length === 1) {
-      return addPosProductToCart(candidates[0]);
+      return addPosProductToCart(candidates[0]) ? 'added' : 'blocked';
     }
 
     // 複数該当 → 先頭を無言採用せず、検索リストに候補SKU(サイズ/カラー/価格)を出して選ばせる。
     setScanCandidates(sortVariantCandidates(candidates));
-    return false;
+    return 'candidates';
   };
 
   useEffect(() => {
     // モード切替時は待機状態（履歴表示）へ戻す。
     setIsTakeoutMode(false);
   }, [registerMode]);
+
+  // POSレジは商品を購読しないため products への接続がコールドで、
+  // 「その日の最初のスキャン」だけ数秒待たされていた(現場は お気に入りを一度入れて
+  // 接続を温める回避策を編み出していた)。開いた時点で軽いクエリを1回投げて温めておく。
+  useEffect(() => {
+    if (!storeId || !(registerMode === 'pos' || isTakeoutMode)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await getDocs(query(collection(db, 'stores', storeId, 'products'), limit(1)));
+      } catch (error) {
+        if (!cancelled) console.warn('[pos warmup]', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [storeId, registerMode, isTakeoutMode]);
 
   const openStaffOrderTerminal = () => {
     if (!storeId || typeof window === 'undefined') return;
@@ -2095,10 +2115,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     // POSレジ、またはテイクアウト会計中はバーコードを会計リストへ直接追加する。
     if (registerMode === 'pos' || isTakeoutMode) {
       // 商品として解決できなかった12桁数字は会員番号として照会する(商品が見つかる限り従来動作は不変)。
-      addPosProductByCode(normalizedInput).then((added) => {
-        if (!added && /^\d{12}$/.test(normalizedInput)) {
+      addPosProductByCode(normalizedInput).then((result) => {
+        // 追加済み / 候補選択中 / 在庫でブロック は案内不要。
+        if (result !== 'notfound') return;
+        // ⚠桁数に関わらず必ず案内を出す(以前は12桁のときしか出ず、13桁=商品の98%は
+        //   読めなくても無反応に近かった)。会員照会は裏で走らせ、当たれば案内を消す。
+        setScanNotFound(normalizedInput);
+        if (/^\d{12}$/.test(normalizedInput)) {
           lookupCrmMemberByCode(normalizedInput, { silent: true }).then((hit) => {
-            if (!hit) setScanNotFound(normalizedInput);
+            if (hit) setScanNotFound('');
           });
         }
       });
