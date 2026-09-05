@@ -10,6 +10,7 @@ import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useCrmMember } from './hooks/useCrmMember';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
+import { subscribeScanIndex } from '../../shared/api/firebase/scanIndex';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -573,6 +574,28 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     // 新しいスキャン/入力のたびに前回の候補リストを消す。
     setScanCandidates([]);
 
+    // 0) 軽量索引によるメモリ照合(最速・チャネル非依存)。
+    //    既存の優先順位を踏襲: barcode完全一致は一意として即確定、それ以外は
+    //    1件なら確定・複数なら候補モーダル。未ヒットは従来経路へ(新商品の救済)。
+    const scanIndex = scanIndexRef.current;
+    if (scanIndex) {
+      const indexHits = scanIndex.get(normalizedCode) || [];
+      if (indexHits.length > 0) {
+        const resolvedHits = indexHits.map((hit) => buildResolvedPosProduct(hit));
+        const barcodeHits = resolvedHits.filter((product) => eq(product, 'barcode'));
+        // barcodeはユニーク制約があるので一致1件なら即確定。sku/品番のみの一致は
+        // 1件なら確定、複数なら候補モーダル(既存のFirestore経路と同じ判定)。
+        if (barcodeHits.length === 1) {
+          return addPosProductToCart(barcodeHits[0]) ? 'added' : 'blocked';
+        }
+        if (resolvedHits.length === 1) {
+          return addPosProductToCart(resolvedHits[0]) ? 'added' : 'blocked';
+        }
+        setScanCandidates(sortVariantCandidates(resolvedHits));
+        return 'candidates';
+      }
+    }
+
     // 1) バーコード(JAN)完全一致は「一意」なので最優先で確定する。メモリ→Firestore。
     //    barcode 直接クエリは trigger 非依存で確実(保存時の重複チェックと同じ単一フィールドクエリ)。
     let barcodeMatch = activePosProducts.find((product) => eq(product, 'barcode'));
@@ -657,6 +680,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     // モード切替時は待機状態（履歴表示）へ戻す。
     setIsTakeoutMode(false);
   }, [registerMode]);
+
+  // 軽量バーコード索引: レジ表示中は scanIndex(48バケット)を購読し、
+  // スキャンをメモリ照合(0ms・WebChannel非依存)にする。未ロード/未ヒットは従来経路へ。
+  const scanIndexRef = useRef(null);
+  useEffect(() => {
+    if (!storeId || !(registerMode === 'pos' || isTakeoutMode)) {
+      scanIndexRef.current = null;
+      return undefined;
+    }
+    const unsubscribe = subscribeScanIndex(storeId, (byCode) => {
+      scanIndexRef.current = byCode;
+    });
+    return () => { unsubscribe(); scanIndexRef.current = null; };
+  }, [storeId, registerMode, isTakeoutMode]);
 
   // POSレジは商品を購読しないため products への接続がコールドで、
   // 「その日の最初のスキャン」だけ数秒待たされていた(現場は お気に入りを一度入れて

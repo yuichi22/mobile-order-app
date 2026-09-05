@@ -20,6 +20,7 @@ import {
 import { getAuth } from 'firebase/auth';
 
 import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
+import { upsertScanIndexForProduct } from '../../../shared/api/firebase/scanIndex';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { TAX_ROUNDING_MODES, normalizeTaxRounding } from '../../../shared/utils/tax';
 import { getActiveStocktake, recordStocktakeStockIn } from '../../inventory/services/stocktakeDataService';
@@ -470,6 +471,12 @@ export const saveProductMasterItem = async (storeId, itemData) => {
   };
 
   const savedProductId = await saveStoreCollectionDoc(storeId, 'products', productPayload);
+
+  // POSスキャン用の軽量索引を差分更新する(価格改定を約1秒でレジへ届ける)。
+  // 索引の失敗で商品保存を巻き戻さない(ズレは再構築スクリプトで治癒する)。
+  upsertScanIndexForProduct(storeId, savedProductId).catch((error) => {
+    console.warn('[scanIndex] 差分更新に失敗(再構築で治癒します):', error);
+  });
 
   // inventory も同様に、在庫が動く保存(入庫/新規)の時だけ数量を書く。
   await setDoc(
