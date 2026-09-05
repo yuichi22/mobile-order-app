@@ -29,6 +29,19 @@ const num = (v) => {
 const jstDate = (date) =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 
+// 取引のチャネル判定（POSレジ会計 / ORDERレジ会計）。
+// salesChannel はレジ会計時に付与される。無い旧データは registerMode で代替し、
+// どちらも無ければ従来挙動どおり pos 扱いにする
+function txChannel(tx) {
+  const sc = str(tx.salesChannel);
+  if (sc === "pos_register") return "pos";
+  if (sc === "order_register") return "order";
+  const rm = str(tx.registerMode);
+  if (rm === "pos") return "pos";
+  if (rm === "order") return "order";
+  return "pos";
+}
+
 // 取引 → Core 送信イベントへ正規化（フィールド欠落に寛容）
 function normalizeTx(storeId, link, txId, tx) {
   const paidAt = tx.paidAt?.toDate ? tx.paidAt.toDate() : null;
@@ -39,23 +52,64 @@ function normalizeTx(storeId, link, txId, tx) {
   if (tx.isPaid === false) return null;
   if (tx.isMethodAdjustment === true) return null;
   const items = Array.isArray(tx.items) ? tx.items : [];
+  // 売り場(salesArea)は明細レベル(物販のみ。飲食は持たない=空)、部門は取引レベル。
   const lines = items.map((it) => ({
     item: str(it?.name) || "(名称なし)",
     qty: num(it?.quantity) || 1,
     unitPrice: num(it?.unitPrice ?? it?.price),
     taxRate: it?.taxRate != null ? num(it.taxRate) : null,
+    salesArea: str(it?.salesAreaName) || "",
   }));
   return {
     tenantId: str(link.coreTenantId),
     spaceId: str(link.coreSpaceId),
     txId: str(txId),
     storeId: str(storeId),
-    app: "pos",
+    app: txChannel(tx),
+    department: str(tx.departmentName) || "",
     date: jstDate(paidAt),
     paidAt: paidAt.toISOString(),
     totalInclTax: num(tx.totalAmount ?? tx.totalPrice ?? tx.amount),
     payment: str(tx.paymentMethodGroup || tx.paymentMethod) || "その他",
     lines,
+  };
+}
+
+// EC注文(stores/{id}/ecOrders・Shopify毎時pull) → Core 送信イベントへ正規化。
+// 金額は totalAmount(税込・値引後)−totalRefunded を正とする。
+// 明細は商品マッチ率が低くても総額は正確（既知の特性）
+// options.allowVoid=true（更新分の再送）では、取消/未払いになった注文も
+// 0円イベントとして送り、Core 側の古い金額を上書きして消し込む。
+function normalizeEcOrder(storeId, link, orderId, o, options = {}) {
+  const allowVoid = options.allowVoid === true;
+  // ECは拠点(space)ではなく「販売チャネル」に属する。同一ECサイトを複数拠点で
+  // 共有していても、Core側でテナント内1回だけ計上できるようキーを添える。
+  const channelKey = str(options.shopDomain);
+  const paidAt = o.paidAt?.toDate ? o.paidAt.toDate() : null;
+  if (!paidAt) return null;
+  const voided = o.isCancelled === true || o.isPaid !== true;
+  if (voided && !allowVoid) return null;
+
+  const items = Array.isArray(o.items) ? o.items : [];
+  const lines = items.map((it) => ({
+    item: str(it?.title) || "(名称なし)",
+    qty: num(it?.quantity) || 1,
+    unitPrice: num(it?.unitPrice),
+    taxRate: null,
+  }));
+
+  return {
+    tenantId: str(link.coreTenantId),
+    spaceId: str(link.coreSpaceId),
+    txId: `ec_${str(orderId)}`,
+    storeId: str(storeId),
+    app: "ec",
+    channelKey: channelKey || null,
+    date: jstDate(paidAt),
+    paidAt: paidAt.toISOString(),
+    totalInclTax: voided ? 0 : num(o.totalAmount) - num(o.totalRefunded),
+    payment: "EC(Shopify)",
+    lines: voided ? [] : lines,
   };
 }
 
@@ -82,10 +136,20 @@ async function syncStore(storeDoc) {
   const link = linkSnap.exists ? linkSnap.data() : null;
   if (!str(link?.coreTenantId) || !str(link?.coreSpaceId)) return { storeId, skipped: "unlinked" };
 
+  const shopSnap = await db.doc(`stores/${storeId}/settings/shopify`).get();
+  const shopDomain = str(shopSnap.exists ? shopSnap.data()?.shopDomain : "");
+
   const stateRef = db.doc(`stores/${storeId}/settings/coreSales`);
   const stateSnap = await stateRef.get();
-  const lastPaidAtMs = num(stateSnap.exists ? stateSnap.data()?.lastPaidAtMs : 0);
+  const state = stateSnap.exists ? stateSnap.data() : {};
+  const lastPaidAtMs = num(state?.lastPaidAtMs);
+  const lastEcPaidAtMs = num(state?.lastEcPaidAtMs);
+  // 返金・訂正の後追い用（paidAt は変わらないので orderUpdatedAt で追随する）
+  const lastEcUpdatedAtMs = num(state?.lastEcUpdatedAtMs);
 
+  const events = [];
+
+  // 店内取引(transactions)。0円スキップ分もカーソルは進める
   const txSnap = await db
     .collection(`stores/${storeId}/transactions`)
     .where("paidAt", ">", Timestamp.fromMillis(lastPaidAtMs))
@@ -93,16 +157,65 @@ async function syncStore(storeDoc) {
     .limit(PAGE_LIMIT)
     .get();
 
-  if (txSnap.empty) return { storeId, sent: 0 };
-
-  const events = [];
   let maxPaidAtMs = lastPaidAtMs;
   for (const d of txSnap.docs) {
     const ev = normalizeTx(storeId, link, d.id, d.data());
-    if (!ev) continue;
-    events.push(ev);
+    if (ev) events.push(ev);
     const ms = d.data().paidAt.toMillis();
     if (ms > maxPaidAtMs) maxPaidAtMs = ms;
+  }
+
+  // EC注文(ecOrders)。独立カーソル lastEcPaidAtMs で差分同期
+  const ecSnap = await db
+    .collection(`stores/${storeId}/ecOrders`)
+    .where("paidAt", ">", Timestamp.fromMillis(lastEcPaidAtMs))
+    .orderBy("paidAt", "asc")
+    .limit(PAGE_LIMIT)
+    .get();
+
+  let maxEcPaidAtMs = lastEcPaidAtMs;
+  const sentEcIds = new Set();
+  for (const d of ecSnap.docs) {
+    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { shopDomain });
+    if (ev) {
+      events.push(ev);
+      sentEcIds.add(d.id);
+    }
+    const ms = d.data().paidAt?.toMillis?.() ?? 0;
+    if (ms > maxEcPaidAtMs) maxEcPaidAtMs = ms;
+  }
+
+  // EC注文の「更新分」。返金・訂正は paidAt が変わらず上の差分では拾えないため、
+  // Shopify の orderUpdatedAt を独立カーソルで追う。txId=ec_{orderId} なので
+  // Core 側は同じドキュメントに上書き（重複しない）。
+  const ecUpdatedSnap = await db
+    .collection(`stores/${storeId}/ecOrders`)
+    .where("orderUpdatedAt", ">", Timestamp.fromMillis(lastEcUpdatedAtMs))
+    .orderBy("orderUpdatedAt", "asc")
+    .limit(PAGE_LIMIT)
+    .get();
+
+  let maxEcUpdatedAtMs = lastEcUpdatedAtMs;
+  for (const d of ecUpdatedSnap.docs) {
+    const ms = d.data().orderUpdatedAt?.toMillis?.() ?? 0;
+    if (ms > maxEcUpdatedAtMs) maxEcUpdatedAtMs = ms;
+    if (sentEcIds.has(d.id)) continue; // 新規側で送信済み
+    const ev = normalizeEcOrder(storeId, link, d.id, d.data(), { allowVoid: true, shopDomain });
+    if (ev) events.push(ev);
+  }
+
+  const cursorMoved =
+    maxPaidAtMs !== lastPaidAtMs ||
+    maxEcPaidAtMs !== lastEcPaidAtMs ||
+    maxEcUpdatedAtMs !== lastEcUpdatedAtMs;
+  if (events.length === 0) {
+    if (cursorMoved) {
+      await stateRef.set(
+        { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastEcUpdatedAtMs: maxEcUpdatedAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: 0 },
+        { merge: true }
+      );
+    }
+    return { storeId, sent: 0 };
   }
 
   for (let i = 0; i < events.length; i += POST_CHUNK) {
@@ -110,10 +223,10 @@ async function syncStore(storeDoc) {
   }
 
   await stateRef.set(
-    { lastPaidAtMs: maxPaidAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: events.length },
+    { lastPaidAtMs: maxPaidAtMs, lastEcPaidAtMs: maxEcPaidAtMs, lastEcUpdatedAtMs: maxEcUpdatedAtMs, lastSyncedAt: Timestamp.now(), lastSentCount: events.length },
     { merge: true }
   );
-  return { storeId, sent: events.length, hasMore: txSnap.size === PAGE_LIMIT };
+  return { storeId, sent: events.length, hasMore: txSnap.size === PAGE_LIMIT || ecSnap.size === PAGE_LIMIT || ecUpdatedSnap.size === PAGE_LIMIT };
 }
 
 async function runSalesSync() {
