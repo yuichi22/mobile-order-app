@@ -15,6 +15,17 @@
 - バックエンド（dev Firestore・functions・rules）は全チャネルで共有。データを壊すテストや functions/rules の変更を伴うテストは他セッションと干渉するので、時間をずらすかユーザーに一言確認する。
 - dev本体への `deploy:dev` は「mainに入った統合済みの状態」を置く場所として使う。
 
+## prodへの反映フロー（標準手順）
+
+ユーザーから「prodへ出して」と指示されたら、この順で行う（predeployガードもこの順を強制する）:
+
+1. 作業ブランチを **main へマージ**する（コンフリクトは解消。マージ後にビルド・lintが通ることを確認）
+2. `git pull` で origin/main と同期し、マージ結果を **push** する
+3. main 上で `npm run deploy:dev:verify` → dev本体で統合状態を最終確認
+4. main 上で `npm run deploy:prod:verify`
+
+ブランチのままprodへ出すことはできない（ガードが中止する）。scanIndex・Firestoreルール・functionsの変更を含む場合は、それぞれの節の手順（索引再構築・REST配信・--only functions:名前）もセットで行う。
+
 ## 作業の進め方
 
 - 機能・修正ごとに1コミット。他セッションのWIPファイル（例: functions/index.js が別作業で変更中のことがある）を `git add` で巻き込まない。
