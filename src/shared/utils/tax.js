@@ -55,9 +55,14 @@ export const resolveModeTaxSettings = (settings = {}, mode = 'pos') => {
   const fallbackPriceBase = mode === 'order'
     ? (settings?.menuPriceTaxMode === 'tax_excluded' ? 'taxExcluded' : 'taxIncluded')
     : 'taxIncluded';
-  const priceBase = cfg.priceBase === 'taxExcluded' || cfg.priceBase === 'taxIncluded'
-    ? cfg.priceBase
-    : fallbackPriceBase;
+  // POSの単価は商品マスタ保存時に税抜×税率で確定した priceTaxIncluded(税込)なので、
+  // 会計基準は常に税込。settings に taxExcluded が残っていても従わない
+  // (08-03の税設定集約の初版が誤って書き、税込価格に税を上乗せする事故が起きたため)。
+  const priceBase = mode === 'pos'
+    ? 'taxIncluded'
+    : (cfg.priceBase === 'taxExcluded' || cfg.priceBase === 'taxIncluded'
+        ? cfg.priceBase
+        : fallbackPriceBase);
   return {
     priceBase,
     standardRate: Number.isFinite(Number(cfg.standardRate)) ? Number(cfg.standardRate) : Number(settings?.taxRate ?? 10),
