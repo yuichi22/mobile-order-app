@@ -221,6 +221,9 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "predeploy": [
+      "node scripts/guard-prod-deploy.mjs"
     ]
   },
   "storage": {
