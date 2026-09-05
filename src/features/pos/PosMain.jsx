@@ -1823,20 +1823,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           lastPosSoldAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-        // 販売による在庫減も監査ログ(stockMovements)に残す。減算は increment のため
-        // 正確な before/after は持てず、delta(quantity=負)と伝票/レジで追跡できるようにする。
-        const meta = retailMetaByProductId.get(productId) || {};
-        batch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
-          productId,
-          productGroupId: meta.productGroupId || '',
-          type: 'sale',
-          quantity: -quantity,
-          transactionId: transactionRef.id,
-          registerId: registerContext.id,
-          note: meta.name ? `POS販売(${meta.name})` : 'POS販売',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+        // ※stockMovements(販売監査ログ)は会計バッチに同梱しない。commit成立後の
+        //   別バッチ(下部 movementBatch)で fire-and-forget に記録する(2026-08-14の会計失敗事故対策)。
       });
 
       // ポイント利用の確定。⚠必ず batch.commit() の直前(カード決済と同じスロット)。
