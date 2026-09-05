@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // ビルド時刻を entry に埋め込む。①デプロイごとに必ず entry ハッシュが変わり
+  // 新バージョン検知バナー(UpdateBanner)が確実に発火する ②端末のコンソールで
+  // window.__AKUTO_BUILD を見れば「どのビルドが動いているか」を特定できる。
+  define: {
+    __AKUTO_BUILD_TIME__: JSON.stringify(new Date().toISOString())
+  },
   plugins: [react()],
   server: {
     // デプロイ環境では firebase.json の rewrites が /api/** を Cloud Functions へ中継する。
