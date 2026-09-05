@@ -2102,6 +2102,19 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           lastOrderRegisterSoldAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+        // 販売による在庫減も監査ログ(stockMovements)に残す(delta=負／伝票・レジで追跡)。
+        const meta = orderRetailMetaByProductId.get(productId) || {};
+        batch.set(doc(collection(db, 'stores', storeId, 'stockMovements')), {
+          productId,
+          productGroupId: meta.productGroupId || '',
+          type: 'sale',
+          quantity: -quantity,
+          transactionId: transactionRef.id,
+          registerId: registerContext.id,
+          note: meta.name ? `ORDER販売(${meta.name})` : 'ORDER販売',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
       });
 
       if (isSessionComplete) {
