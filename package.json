@@ -17,6 +17,7 @@
     "check:dev": "node scripts/check-deploy.mjs dev",
     "check:prod": "node scripts/check-deploy.mjs prod",
     "deploy:dev:verify": "npm run deploy:dev && npm run check:dev",
+    "deploy:dev:preview": "npm run build:dev && firebase hosting:channel:deploy --project dev --expires 7d",
     "deploy:prod:verify": "npm run deploy:prod && npm run check:prod"
   },
   "dependencies": {

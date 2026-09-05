@@ -8,6 +8,13 @@
 - Firestore ルールは `firebase deploy --only firestore:rules` が**複数DB構成で no-op**。firebaserules REST API で `(default)` と `main` の両DBへリリースし、GETで実測確認すること。
 - Functions は `--only functions:<名前>` で単一関数のみ置換する（他セッションのWIP流出防止）。
 
+## 並行開発のテスト（プレビューチャネル）
+
+- dev本体（mobile-order-dev-5f7fd.web.app）は1本しかないため、複数ブランチが同時に `deploy:dev` すると潰し合いになる。**ブランチごとの動作確認は Hosting プレビューチャネルを使う**:
+  `npm run deploy:dev:preview -- <ブランチ名など>` → `https://mobile-order-dev-5f7fd--<名前>-xxxx.web.app` が発行される（7日で自動消滅・dev本体には影響しない）。
+- バックエンド（dev Firestore・functions・rules）は全チャネルで共有。データを壊すテストや functions/rules の変更を伴うテストは他セッションと干渉するので、時間をずらすかユーザーに一言確認する。
+- dev本体への `deploy:dev` は「mainに入った統合済みの状態」を置く場所として使う。
+
 ## 作業の進め方
 
 - 機能・修正ごとに1コミット。他セッションのWIPファイル（例: functions/index.js が別作業で変更中のことがある）を `git add` で巻き込まない。
