@@ -5,6 +5,7 @@ import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Tr
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db, functionsApi } from '../../shared/api/firebase/client';
+import { queryDocsWithRestFallback } from '../../shared/api/firebase/scanQuery';
 import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useCrmMember } from './hooks/useCrmMember';
@@ -577,9 +578,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     let barcodeMatch = activePosProducts.find((product) => eq(product, 'barcode'));
     if (!barcodeMatch && productsRef) {
       try {
-        const barcodeSnapshot = await getDocs(query(productsRef, where('barcode', '==', rawCode), limit(5)));
-        if (!barcodeSnapshot.empty) {
-          const docs = barcodeSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        // ⚠getDocs は常時接続チャネルが黙り込むと「次の通信まで返らない」ことがある
+        //   (現場症状: 2品目以降が出ず、次のスキャンで前の品と一緒に出る)。
+        //   タイムアウト時は REST(単発HTTPS)で引き直す。
+        const docs = await queryDocsWithRestFallback({
+          sdkPromise: getDocs(query(productsRef, where('barcode', '==', rawCode), limit(5))),
+          rest: {
+            parentPath: `stores/${storeId}`,
+            collectionId: 'products',
+            where: { fieldPath: 'barcode', op: 'EQUAL', value: rawCode },
+            limit: 5
+          },
+          label: 'pos barcode lookup'
+        });
+        if (docs.length > 0) {
           const resolved = docs.find((product) => String(product?.barcode || '').trim() === rawCode) || docs[0];
           barcodeMatch = buildResolvedPosProduct(resolved);
         }
@@ -599,9 +611,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     });
     if (productsRef) {
       try {
-        const snapshot = await getDocs(query(productsRef, where('searchKeywords', 'array-contains', normalizedCode), limit(50)));
-        snapshot.docs.forEach((docSnap) => {
-          const product = buildResolvedPosProduct({ id: docSnap.id, ...docSnap.data() });
+        const docs = await queryDocsWithRestFallback({
+          sdkPromise: getDocs(query(productsRef, where('searchKeywords', 'array-contains', normalizedCode), limit(50))),
+          rest: {
+            parentPath: `stores/${storeId}`,
+            collectionId: 'products',
+            where: { fieldPath: 'searchKeywords', op: 'ARRAY_CONTAINS', value: normalizedCode },
+            limit: 50
+          },
+          label: 'pos code lookup'
+        });
+        docs.forEach((raw) => {
+          const product = buildResolvedPosProduct(raw);
           searchHits.push(product);
           if (isExactCodeMatch(product) && !candidatesById.has(product.id)) {
             candidatesById.set(product.id, product);
