@@ -28,17 +28,22 @@ const main = async () => {
     process.exit(2);
   }
 
-  const res = await fetch(base + '/?_=' + Date.now(), { headers: { 'Cache-Control': 'no-cache' } });
-  const liveEntry = entryOf(await res.text());
-
+  // デプロイ直後はCDN反映に数秒かかることがあるため、最大5回(約15秒)リトライする。
+  // (ビルド時刻埋め込みで毎ビルドentry名が変わるようになり、ラグが見えるようになった)
   console.log(`env   : ${env} (${base})`);
   console.log(`local : ${localEntry}`);
-  console.log(`live  : ${liveEntry}`);
-
-  if (localEntry === liveEntry) {
-    console.log('OK: ローカルの build が配信されています。');
-    process.exit(0);
+  let liveEntry = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const res = await fetch(base + '/?_=' + Date.now(), { headers: { 'Cache-Control': 'no-cache' } });
+    liveEntry = entryOf(await res.text());
+    if (localEntry === liveEntry) {
+      console.log(`live  : ${liveEntry}`);
+      console.log(`OK: ローカルの build が配信されています。(確認${attempt}回目)`);
+      process.exit(0);
+    }
+    if (attempt < 5) await new Promise((r) => setTimeout(r, 3000));
   }
+  console.log(`live  : ${liveEntry}`);
   console.error('NG: 配信が一致しません（prodだけ取り残し等）。もう一度デプロイしてください。');
   process.exit(1);
 };
