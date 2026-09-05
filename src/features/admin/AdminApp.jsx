@@ -21,6 +21,7 @@ import { auth, db } from '../../shared/api/firebase/client';
 import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import NotificationToast from '../../shared/components/feedback/NotificationToast';
+import UpdateBanner from '../../shared/components/UpdateBanner';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
 import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
 import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
@@ -496,6 +497,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
   return (
     <div className={appShellClassName}>
+      <UpdateBanner />
       {toast && (
         <NotificationToast
           message={toast.message}
