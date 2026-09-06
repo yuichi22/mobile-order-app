@@ -110,3 +110,28 @@ export const subscribeScanIndex = (storeId, onUpdate) => {
   );
   return unsubscribe;
 };
+
+// ---- アプリ寿命の共有索引 ----
+// レジ画面(PosMain)は会計画面との行き来のたびにアンマウントされるため、
+// 画面ごとに購読すると毎回索引(HAUSで約12.5MB)を捨てて取り直すことになり、
+// 「戻った直後の最初のスキャンだけ間がある」が会計のたびに再発していた(2026-09-06 実機報告)。
+// 購読は storeId ごとに1本だけ張り、一度開始したらアプリを閉じるまで維持する。
+// 画面側は attachScanIndex で相乗りするだけ(デタッチしても購読は温存)。
+// 維持コストはリスナー1本のみ(スナップショットは商品保存時にしか飛ばない)。
+const sharedIndexes = new Map(); // storeId -> { byCode, listeners }
+
+export const attachScanIndex = (storeId, onUpdate) => {
+  let shared = sharedIndexes.get(storeId);
+  if (!shared) {
+    shared = { byCode: null, listeners: new Set() };
+    sharedIndexes.set(storeId, shared);
+    subscribeScanIndex(storeId, (byCode) => {
+      shared.byCode = byCode;
+      shared.listeners.forEach((listener) => listener(byCode));
+    });
+  }
+  shared.listeners.add(onUpdate);
+  // 既に索引を持っていれば即座に渡す(再マウント直後から一瞬スキャンにする要)。
+  if (shared.byCode) onUpdate(shared.byCode);
+  return () => { shared.listeners.delete(onUpdate); };
+};

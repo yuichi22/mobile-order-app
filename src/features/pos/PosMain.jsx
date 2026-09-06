@@ -10,7 +10,7 @@ import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useCrmMember } from './hooks/useCrmMember';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
-import { subscribeScanIndex } from '../../shared/api/firebase/scanIndex';
+import { attachScanIndex } from '../../shared/api/firebase/scanIndex';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
 
 import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
@@ -689,10 +689,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       scanIndexRef.current = null;
       return undefined;
     }
-    const unsubscribe = subscribeScanIndex(storeId, (byCode) => {
+    // 共有索引に相乗りする(購読はアプリ寿命で維持され、会計画面と行き来しても
+    // 捨てられない。索引取得済みなら即時に渡されるため再マウント直後から一瞬)。
+    const detach = attachScanIndex(storeId, (byCode) => {
       scanIndexRef.current = byCode;
     });
-    return () => { unsubscribe(); scanIndexRef.current = null; };
+    return () => { detach(); scanIndexRef.current = null; };
   }, [storeId, registerMode, isTakeoutMode]);
 
   // POSレジは商品を購読しないため products への接続がコールドで、
