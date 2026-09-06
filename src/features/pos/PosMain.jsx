@@ -412,11 +412,24 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutDiscountQuantities({});
   };
 
+  // 連続スキャン時に「どの行に入ったか」を見せる: 追加行をハイライトし、画面外なら自動スクロール。
+  // 同じ商品を連続で読んでも毎回発火するよう、idを毎回新しいオブジェクトに包んで持つ。
+  const [lastAddedCartItem, setLastAddedCartItem] = useState(null);
+  const cartRowRefs = useRef(new Map());
+  useEffect(() => {
+    if (!lastAddedCartItem) return undefined;
+    const row = cartRowRefs.current.get(lastAddedCartItem.id);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const timer = window.setTimeout(() => setLastAddedCartItem(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [lastAddedCartItem]);
+
   const addPosCartItem = (payload) => {
     if (!payload?.id) return;
 
     // POSでは商品がカートに入ったら右ペインを会計画面に切替える（待機=履歴 → 会計）。
     if (registerMode === 'pos') setIsTakeoutMode(true);
+    setLastAddedCartItem({ id: payload.id });
 
     setTakeoutCart((current) => {
       const existing = current.find((item) => item.id === payload.id);
@@ -2433,10 +2446,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 : (linePct > 0 ? Math.floor(lineAmount * (linePct / 100)) : 0);
               const lineNet = Math.max(0, lineAmount - lineDiscountInput);
               const hasLineDiscount = lineDiscountInput > 0;
+              const isJustAdded = lastAddedCartItem?.id === item.id;
               return (
               <div
                 key={item.id}
-                className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                ref={(el) => {
+                  if (el) cartRowRefs.current.set(item.id, el);
+                  else cartRowRefs.current.delete(item.id);
+                }}
+                className={`rounded-2xl border p-4 transition-colors duration-500 ${
+                  isJustAdded
+                    ? 'border-emerald-300 bg-emerald-50 ring-2 ring-emerald-200'
+                    : 'border-slate-100 bg-slate-50'
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
