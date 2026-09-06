@@ -1,0 +1,51 @@
+name: Prod Deploy (manual)
+
+# 本番デプロイの手動ボタン。GitHub の Actions タブ → Prod Deploy (manual) → Run workflow。
+# main ブランチを選んだときだけ動く(=「prodは必ずmainから」を機械的に強制)。
+# ローカルの guard-prod-deploy.mjs と同じ役割を CI の条件で果たすため、
+# ガード自体は AKUTO_FORCE_PROD_DEPLOY=1 で通す(CIは常にクリーンなmainのcheckoutなのでWIP混入はない)。
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # main 以外のブランチで Run workflow しても何もしない
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore .env.production from secret
+        run: printf '%s' "$ENV_PROD" > .env.production
+        env:
+          ENV_PROD: ${{ secrets.ENV_PROD }}
+
+      - name: Build (production mode)
+        run: npm run build:prod
+
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOBILE_ORDER_PROD }}
+          projectId: mobile-order-prod
+          target: app
+          channelId: live
+        env:
+          AKUTO_FORCE_PROD_DEPLOY: "1"
+
+      - name: Verify deployed build matches (check-deploy)
+        run: node scripts/check-deploy.mjs prod
