@@ -494,7 +494,8 @@ export const useCustomerLogic = (
     historyLoading,
     myTotal,
     grandTotal,
-    myOrderHistory
+    myOrderHistory,
+    registerOptimisticOrder
   } = useCustomerOrderHistory({
     sessionId,
     storeId,
@@ -889,8 +890,20 @@ const {
       const resolvedPartySize = Number(sessionPartySize || 0);
       const orderPartySize = resolvedPartySize > 0 ? resolvedPartySize : null;
 
+      const isPrepayFlow = businessSettings?.orderFlow === 'prepay';
+      // カートを空にする前に楽観反映用の内容を控える。
+      const optimisticItems = safeCart.map((item) => ({
+        ...item,
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+        status: 'pending',
+        kitchenStatus: 'pending'
+      }));
+      const optimisticTotal = Number(cartTotal || 0);
+      let placedOrderId = '';
 
-      if (businessSettings?.orderFlow === 'prepay') {
+
+      if (isPrepayFlow) {
         const idToken = await auth.currentUser?.getIdToken();
 
         if (!idToken) {
@@ -921,6 +934,8 @@ const {
         if (!response.ok || !payload?.ok) {
           throw new Error(payload?.error?.message || '事前決済注文に失敗しました。');
         }
+
+        placedOrderId = String(payload.orderId || '');
           } else {
             const idToken = await auth.currentUser?.getIdToken();
 
@@ -952,8 +967,31 @@ const {
             if (!response.ok || !payload?.ok) {
               throw new Error(payload?.error?.message || '注文の送信に失敗しました。');
             }
+
+            placedOrderId = String(payload.orderId || '');
           }
-          
+
+      // 成立した注文を即座に画面へ反映(会計金額・注文履歴・お会計ボタンの空白期間をなくす)。
+      // 実データが onSnapshot で届いたら同一 orderId で自動的に置き換わる。
+      if (placedOrderId) {
+        registerOptimisticOrder?.({
+          id: placedOrderId,
+          sessionId,
+          tableId: resolvedTableNumber,
+          tableNumber: resolvedTableNumber,
+          participantId: customerParticipantId,
+          customerId: customerParticipantId,
+          userId: user?.uid || customerParticipantId,
+          items: optimisticItems,
+          totalPrice: optimisticTotal,
+          status: 'pending',
+          paymentStatus: isPrepayFlow ? 'paid' : 'unpaid',
+          orderFlow: isPrepayFlow ? 'prepay' : 'postpay',
+          partySize: orderPartySize,
+          timestamp: new Date()
+        });
+      }
+
       setCart([]);
       setView('history');
       setToast(null);

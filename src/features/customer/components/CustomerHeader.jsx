@@ -17,13 +17,23 @@ const CustomerHeader = ({
   const activeTabRef = useRef(null);
 
   useEffect(() => {
-    if (!activeTabRef.current) return;
+    const tab = activeTabRef.current;
+    if (!tab) return;
 
-    activeTabRef.current.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'center',
-      block: 'nearest'
-    });
+    const container = tab.parentElement;
+    if (!container) return;
+
+    // 選択カテゴリタブを横スクロールバーの中央へ寄せる。
+    // ⚠ scrollIntoView は横だけでなく window/縦スクロールも含む全スクロール祖先を
+    // 動かすため、iOS(特にChrome)では position:fixed のレイアウトが上にずれる。
+    // ここでは横スクロールコンテナ自身の scrollBy だけを使い、window には触れない。
+    const containerRect = container.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const delta = (tabRect.left + tabRect.width / 2) - (containerRect.left + containerRect.width / 2);
+
+    if (Math.abs(delta) > 1) {
+      container.scrollBy({ left: delta, behavior: 'smooth' });
+    }
   }, [activeCategory]);
 
   return (

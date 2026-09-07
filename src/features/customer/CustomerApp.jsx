@@ -2094,6 +2094,39 @@ if (shouldWaitForSessionBeforeWelcome) {
     );
   }
 
+  // 営業時間外(定休日含む)は、メニューを描画せず専用画面を出す。
+  // - iOS Safari の sticky ヘッダー(+すりガラス)由来の「途中まで表示/ずれ」を根本回避。
+  //   ※この崩れは営業時間外にヘッダー内へ警告バナーが入り高さが変わる時に顕在化する。
+  // - contentLoading 中は businessStatus が既定で closed を返すため、必ずロード完了後に判定。
+  // - すでに注文/カートがある(閉店間際に着席中)場合は会計導線を残すため通常描画へ流す。
+  const isStoreClosedForBrowsing = Boolean(
+    !contentLoading
+      && (businessStatus?.status === 'closed' || businessStatus?.status === 'closed-day')
+      && safeCart.length === 0
+      && safeMyOrderHistory.length === 0
+  );
+
+  if (isStoreClosedForBrowsing) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
+          <Clock className="h-12 w-12" style={{ color: customerThemeColor }} />
+        </div>
+        <h2 className="mb-2 text-2xl font-bold text-gray-800">
+          {businessStatus?.message || '営業時間外です'}
+        </h2>
+        <p className="mx-auto max-w-sm leading-relaxed text-gray-600">
+          {businessStatus?.detail || 'ただいま営業時間外です。営業時間内にあらためてご利用ください。'}
+        </p>
+        <p className="mt-6 text-xs font-bold leading-relaxed text-gray-400">
+          営業時間になりましたら、
+          <br />
+          もう一度QRコードを読み取ってください。
+        </p>
+      </div>
+    );
+  }
+
   const statusNotice = businessStatus?.isTakingOrders
     ? null
     : (
@@ -2260,7 +2293,8 @@ if (shouldWaitForSessionBeforeWelcome) {
             {filteredOrderHistory.map((order) => {
               const orderItems = Array.isArray(order.items) ? order.items : [];
               const isCancelledOrder = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
-              const isCancelable = canCancelCustomerOrder(order);
+              // 楽観反映中(サーバ未確定)の注文は、実データが届くまでキャンセル操作を出さない。
+              const isCancelable = !order.__optimistic && canCancelCustomerOrder(order);
               const isCancelling = cancellingOrderId === order.id;
 
               const displayStatus = isCancelledOrder
@@ -2294,7 +2328,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                       isCancelledOrder ||
                       item?.status === 'cancelled' ||
                       item?.kitchenStatus === 'cancelled';
-                    const canCancelItem = canCancelCustomerOrderItem(order, item);
+                    const canCancelItem = !order.__optimistic && canCancelCustomerOrderItem(order, item);
                     const isCancellingItem = cancellingOrderId === `${order.id}:${index}`;
 
                     return (
