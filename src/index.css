@@ -8,6 +8,13 @@ body,
   overscroll-behavior: none;
 }
 
+/* 全画面の最低高さ。iOS Chromeでは実測(--app-height/dvh)を使うと初回レイアウトの
+   揺れやスクロール中の再計算でフリーズ/ちらつきが出たため、素の 100vh に固定して安定
+   優先とする(中央寄せがiOSでわずかに上寄りになるのは許容)。 */
+.min-h-screen-safe {
+  min-height: 100vh;
+}
+
 body {
   margin: 0;
   overflow-x: hidden;

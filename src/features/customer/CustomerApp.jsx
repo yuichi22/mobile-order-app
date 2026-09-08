@@ -315,7 +315,8 @@ useEffect(() => {
     setActiveCategory(categoryId);
 
     requestAnimationFrame(() => {
-      menuScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      // 通常スクロール構造ではページ(window)自体がスクロールする。
+      window.scrollTo({ top: 0, behavior: 'auto' });
     });
   };
 
@@ -648,9 +649,22 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
       && !allowDefaultWelcomeAfterDelay
   );
 
+
   useEffect(() => {
     setIsWelcomeOpen(canAskPartySize);
   }, [canAskPartySize]);
+
+  // 人数モーダル→メニュー等の全画面切替時、前のスクロール位置が残ると
+  // sticky ヘッダーが隠れるため、メニュー表示になったら先頭へ戻す。
+  // ※iOS Chrome には「初回描画でページ全体(fixed含む)がURLバー分上に貼られ、
+  //   実指スクロール/回転まで直らない」合成バグがあり、これはページ側では
+  //   検知も補正も不可(レイアウト/JS数値は正常時と完全同一)。Safariは正常。
+  //   初回スクロールでヘッダーが現れる挙動は許容する(2026-09-08 調査確定)。
+  useEffect(() => {
+    if (shouldHideCustomerSurface || contentLoading) return undefined;
+    window.scrollTo(0, 0);
+    return undefined;
+  }, [shouldHideCustomerSurface, contentLoading]);
 
   useEffect(() => {
     if (!canAskPartySize || !isWelcomeOpen || basicSettings) {
@@ -1931,7 +1945,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (sessionStartTimedOut && storeId && entryTableId && !sessionId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white p-6 text-center">
+      <div className="flex min-h-screen-safe items-center justify-center bg-white p-6 text-center">
         <div className="w-full max-w-sm rounded-[2rem] border border-gray-100 bg-white p-8 shadow-2xl">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-50">
             <ShieldAlert className="h-8 w-8 text-gray-500" />
@@ -1964,7 +1978,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 /*
   if (shouldWaitForWelcomeSettings) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen-safe items-center justify-center bg-white">
         <LoadingSpinner size={24} colorClass="text-gray-300" />
       </div>
     );
@@ -1980,7 +1994,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (sessionStatus === 'stopped') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-red-50 p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-red-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm">
           <Lock className="h-12 w-12 text-red-500" />
         </div>
@@ -1994,7 +2008,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (sessionStatus === 'disabled') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-red-50 p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-red-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm">
           <Lock className="h-12 w-12 text-red-500" />
         </div>
@@ -2008,7 +2022,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (sessionStatus === 'locked') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
           <Lock className="h-12 w-12 text-orange-500" />
         </div>
@@ -2027,7 +2041,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (sessionStatus === 'error') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-red-100 shadow-inner">
           <ShieldAlert className="h-12 w-12 text-red-500" />
         </div>
@@ -2039,7 +2053,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (isSessionEnded || sessionStatus === 'invalid') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 shadow-inner">
           <CheckCircle className="h-12 w-12 text-green-600" />
         </div>
@@ -2108,7 +2122,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   if (isStoreClosedForBrowsing) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
+      <div className="flex min-h-screen-safe flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
           <Clock className="h-12 w-12" style={{ color: customerThemeColor }} />
         </div>
@@ -2563,7 +2577,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   });
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-gray-50">
+    <div className="min-h-screen-safe relative bg-gray-50">
       {toast && (
         <NotificationToast
           message={toast.message}
@@ -2576,7 +2590,7 @@ if (shouldWaitForSessionBeforeWelcome) {
       )}
 
       {isWelcomeOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white p-6">
+        <div className="min-h-screen-safe relative z-[100] flex items-center justify-center bg-white p-6">
           <div className="w-full max-w-sm rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-2xl">
             {basicSettings?.customerLogoUrl && (
               <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center">
@@ -2924,12 +2938,7 @@ if (shouldWaitForSessionBeforeWelcome) {
       {!shouldHideCustomerSurface && (
         <div
           ref={menuScrollRef}
-          className="h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden pb-28"
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain',
-            touchAction: 'pan-y'
-          }}
+          className="overflow-x-hidden pb-28"
         >
           <div key={activeCategory}>
             {isCrossSellActive && activeCrossSellPrompt && (
