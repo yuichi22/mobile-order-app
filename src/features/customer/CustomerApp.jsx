@@ -2577,7 +2577,9 @@ if (shouldWaitForSessionBeforeWelcome) {
   });
 
   return (
-    <div className="min-h-screen-safe relative bg-gray-50">
+    <div className={`min-h-screen-safe relative transition-colors duration-300 ${
+      isCrossSellActive ? 'bg-orange-50' : 'bg-gray-50'
+    }`}>
       {toast && (
         <NotificationToast
           message={toast.message}
@@ -2960,6 +2962,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   priceModeResolver={(item) => (
     shouldUseCrossSellPriceForItem(item) ? 'crossSell' : 'normal'
   )}
+  customerThemeColor={customerThemeColor}
 />
           </div>
 
@@ -2996,7 +2999,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   ? handleBackCrossSellStep
                   : handleSkipCrossSellStep
               }
-              className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-800 px-6 font-bold text-white shadow-lg transition-transform active:scale-95"
+              className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-orange-500 px-6 font-bold text-white shadow-lg shadow-orange-200 transition-transform active:scale-95"
             >
               <span className="text-base font-black">
                 {activeCrossSellPrompt?.skipMode === 'backOnly'
@@ -3007,7 +3010,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               {Number(crossSellCartCount || 0) > 0 && (
                 <span className="absolute right-5 inline-flex items-center gap-2">
                   <ShoppingCart size={20} strokeWidth={3} />
-                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-white/20 px-2 py-0.5 text-xs font-black leading-none">
+                  <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-white/25 px-2 py-0.5 text-xs font-black leading-none">
                     +{Number(crossSellCartCount || 0)}
                   </span>
                 </span>
@@ -3016,8 +3019,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           ) : safeCart.length > 0 ? (
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] px-6 font-bold text-white shadow-lg"
-            style={{ backgroundColor: customerThemeColor }}
+            className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 px-6 font-bold text-white shadow-lg"
           >
             {cartBubbleMessage && (
               <div className="absolute bottom-full left-5 mb-2 whitespace-nowrap rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg ring-2 ring-white">
@@ -3040,7 +3042,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           ) : (
             <button
               onClick={() => handleChangeView('history')}
-              className="flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-800 px-6 font-bold text-white shadow-lg"
+              className="flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 px-6 font-bold text-white shadow-lg"
             >
               お会計画面を開く
             </button>
@@ -3095,10 +3097,12 @@ if (shouldWaitForSessionBeforeWelcome) {
                     </p>
                   </div>
 
+                  {/* 「追加する」系はテーマ色、「確定する」系は濃色で色の意味を統一 */}
                   <button
                     type="button"
                     onClick={handleCloseCart}
-                    className="-mt-[6px] flex h-10 shrink-0 items-center gap-1 self-start rounded-full border border-gray-200 bg-white px-4 text-sm font-black text-gray-600 shadow-sm transition-colors hover:bg-gray-50 active:scale-95"
+                    className="-mt-[6px] flex h-10 shrink-0 items-center gap-1 self-start rounded-full px-4 text-sm font-black text-white shadow-sm transition-transform active:scale-95"
+                    style={{ backgroundColor: customerThemeColor }}
                     aria-label="カートを閉じてメニューに戻る"
                   >
                     <Plus size={15} strokeWidth={3} />
@@ -3219,19 +3223,15 @@ if (shouldWaitForSessionBeforeWelcome) {
                   </span>
                 </div>
 
+                {/* 確定操作はテーマ色(追加系)と区別した濃色固定。押した記憶が残りやすくし、二重注文の誤認も抑える */}
                 <button
                   onClick={handlePlaceOrder}
                   disabled={isProcessing || !businessStatus?.isTakingOrders || safeCart.length === 0}
                   className={`flex h-14 w-full items-center justify-center gap-2 rounded-[1.6rem] font-bold shadow-lg transition-transform active:scale-95 ${
                     businessStatus?.isTakingOrders && safeCart.length > 0
-                      ? 'text-white'
+                      ? 'bg-gray-900 text-white'
                       : 'bg-gray-300 text-gray-500 shadow-none'
                   }`}
-                  style={
-                    businessStatus?.isTakingOrders && safeCart.length > 0
-                      ? { backgroundColor: customerThemeColor }
-                      : undefined
-                  }
                 >
                   {isProcessing ? <LoadingSpinner size={24} /> : <CheckCircle size={20} />}
                   {isProcessing

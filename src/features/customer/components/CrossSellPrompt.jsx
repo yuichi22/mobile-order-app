@@ -27,7 +27,7 @@ const CrossSellPrompt = ({
         scale: { duration: 0.8, ease: 'easeOut' },
         layout: { duration: 0.22, ease: 'easeOut' }
       }}
-      className="relative w-full overflow-hidden rounded-b-[1.6rem] border-b border-slate-100 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
+      className="relative w-full overflow-hidden rounded-b-[1.6rem] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-orange-200"
     >
       <motion.div
         className="pointer-events-none absolute inset-0 z-0"
@@ -92,7 +92,7 @@ const CrossSellPrompt = ({
             <button
               type="button"
               onClick={onSkip}
-              className="mt-3 flex h-11 w-full items-center justify-center rounded-[1.25rem] border border-gray-200 bg-white px-5 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+              className="mt-3 flex h-11 w-full items-center justify-center rounded-[1.25rem] border border-orange-200 bg-orange-50 px-5 text-sm font-black text-orange-600 shadow-sm transition-all hover:bg-orange-100 active:scale-[0.98]"
             >
               {skipLabel || 'おすすめを閉じる'}
             </button>

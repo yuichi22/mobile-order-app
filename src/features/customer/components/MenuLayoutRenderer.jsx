@@ -79,7 +79,7 @@ const AllergenChips = ({ allergens = [] }) => {
   );
 };
 
-const OrderButton = ({ onClick, disabled, size = 'md' }) => {
+const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
   const sizeClasses = {
     sm: 'h-11 w-11',
     md: 'h-12 w-12',
@@ -100,8 +100,11 @@ const OrderButton = ({ onClick, disabled, size = 'md' }) => {
       className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-lg ring-1 ring-black/10 transition-all active:scale-90 ${
         disabled
           ? 'bg-white/70 text-gray-300 shadow-none'
-          : 'bg-white text-gray-900 hover:bg-white'
+          : themeColor
+            ? 'text-white'
+            : 'bg-white text-gray-900 hover:bg-white'
       }`}
+      style={!disabled && themeColor ? { backgroundColor: themeColor } : undefined}
       aria-label="カートに追加"
       title="カートに追加"
     >
@@ -199,7 +202,7 @@ const resolveDisplayPrice = (item, priceMode = 'normal') => {
   };
 };
 
-const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver }) => (
+const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
     className={`flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
@@ -220,6 +223,7 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
         <OrderButton
           onClick={() => onAdd(item)}
           size="md"
+          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -251,7 +255,7 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
   </div>
 );
 
-const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver }) => (
+const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
     className={`flex items-center gap-4 rounded-[1.75rem] bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
@@ -291,6 +295,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
         <OrderButton
           onClick={() => onAdd(item)}
           size="md"
+          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -298,7 +303,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
   </div>
 );
 
-const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver }) => (
+const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
     className={`flex h-full flex-col overflow-hidden rounded-[1.6rem] bg-white shadow-[0_4px_16px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
@@ -319,6 +324,7 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
         <OrderButton
           onClick={() => onAdd(item)}
           size="sm"
+          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -351,7 +357,7 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver 
   </div>
 );
 
-const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver }) => (
+const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
     className={`overflow-hidden rounded-[2rem] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.08)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
@@ -372,6 +378,7 @@ const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolv
         <OrderButton
           onClick={() => onAdd(item)}
           size="lg"
+          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -411,7 +418,8 @@ const MenuLayoutRenderer = ({
   onAdd,
   orderingDisabled = false,
   priceMode = 'normal',
-  priceModeResolver = null
+  priceModeResolver = null,
+  customerThemeColor = ''
 }) => {
   if (!items || items.length === 0) {
     return <div className="py-10 text-center text-gray-400">メニューがありません。</div>;
@@ -436,6 +444,7 @@ const MenuLayoutRenderer = ({
   orderingDisabled={orderingDisabled}
   priceMode={priceMode}
   priceModeResolver={priceModeResolver}
+  customerThemeColor={customerThemeColor}
 />
       ))}
     </div>
