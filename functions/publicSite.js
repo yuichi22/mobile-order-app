@@ -103,6 +103,17 @@ function isMirroredUrl(url) {
 }
 
 /**
+ * 自分のStorageのミラー置き場を指すURLか。
+ * ⚠ isMirroredUrl より厳しく、バケット名とミラー用プレフィックスまで一致を見る。
+ *   publicMenu はこれが真のものだけ素通しするので、緩めると任意のGCSオブジェクトを
+ *   サイトに出せてしまう。
+ */
+function isOwnMirrorUrl(url) {
+  const prefix = `https://storage.googleapis.com/${getStorage().bucket().name}/${MIRROR_PREFIX}/`;
+  return url.startsWith(prefix);
+}
+
+/**
  * 画像をミラーし、公開URLを返す。ミラー済みなら何もしない。
  * 失敗しても例外にしない（1枚の失敗でメニュー全体を落とさない）。
  */
@@ -210,7 +221,15 @@ export const publicMenu = onRequest(
         if (!name) continue;
 
         const source = str(v.image);
-        const mirrored = source ? imageMap[imageKey(source)] || null : null;
+        // ⚠ image が既にミラー先URLの場合、対応表(imageMap)には載っていない。
+        //   buildImageMirror が「ミラー済み」とみなして登録しないため。
+        //   2026-09-10のDNS切替で注文アプリ側のWP直リンクを一括でミラー先URLへ
+        //   置き換えた結果、対応表を引けず画像が全部消えた。素通しで拾う。
+        const mirrored = source
+          ? isOwnMirrorUrl(source)
+            ? source
+            : imageMap[imageKey(source)] || null
+          : null;
 
         items.push({
           id: doc.id,
