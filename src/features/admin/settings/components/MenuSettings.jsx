@@ -587,6 +587,17 @@ const MenuSettings = ({
     setIsProcessing(true);
 
     try {
+      // 新規メニューは既存の最小 sortOrder より小さい値を振り、一覧の一番上に出す。
+      // (未設定だと999999扱いで必ず最下部に落ちる。既存のドラッグ並び替えとは両立し、
+      //  次回の手動並び替え保存で 1000,2000,… に振り直される)
+      const isNewItem = !editingItem.id;
+      const existingSortOrders = menuItems
+        .map((item) => Number(item.sortOrder))
+        .filter((value) => Number.isFinite(value));
+      const newItemSortOrder = existingSortOrders.length > 0
+        ? Math.min(...existingSortOrders) - 1000
+        : 1000;
+
       const normalizedLimit = Number(editingItem.orderLimitPerOrder);
       const normalizedLimitedQuantity = Number(editingItem.limitedQuantity);
       const hasLimitedQuantity = Number.isFinite(normalizedLimitedQuantity) && normalizedLimitedQuantity > 0;
@@ -600,6 +611,8 @@ const MenuSettings = ({
 
       await onSave({
         ...editingItem,
+
+        ...(isNewItem ? { sortOrder: newItemSortOrder } : {}),
 
         optionGroups: editingOptionGroups
           .map((group, groupIndex) => ({

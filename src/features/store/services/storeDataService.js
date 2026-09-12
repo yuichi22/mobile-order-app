@@ -68,12 +68,17 @@ export const subscribeToMenuItems = (storeId, onData, onError) => (
 );
 
 export const saveMenuItem = async (storeId, itemData) => {
+  const isNewItem = !itemData.id;
   const docRef = itemData.id
     ? doc(db, 'stores', storeId, 'menuItems', itemData.id)
     : doc(storeCollectionRef(storeId, 'menuItems'));
 
   const { id: _id, ...payload } = itemData;
-  await setDoc(docRef, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(docRef, {
+    ...payload,
+    ...(isNewItem ? { createdAt: serverTimestamp() } : {}),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
 };
 
 export const deleteMenuItem = async (storeId, itemId) => {
