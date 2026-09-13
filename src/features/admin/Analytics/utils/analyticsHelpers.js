@@ -362,6 +362,29 @@ const resolveCategoryId = (item, itemCategoryMap) => (
   'other'
 );
 
+// 時間帯グラフでテイクアウトを別枠表示するための擬似カテゴリID。
+export const TAKEOUT_STACK_ID = '__takeout__';
+
+// 時間帯プルダウンの「テイクアウト」選択値。
+// モーニング等の店内時間帯分析にテイクアウトが混ざってデータが汚れるのを防ぐため、
+// 特定時間帯の選択時はテイクアウトを除外し、この値の選択時はテイクアウトのみ集計する。
+export const TAKEOUT_PERIOD_ID = TAKEOUT_STACK_ID;
+
+// テイクアウト会計(ORDERレジのテイクアウト画面)の判定。取引レベルで判定する。
+// ⚠POSレジ直販も同じ書込パスを通り isTakeout/tableId:'takeout' 等を持つため、
+//   registerMode/salesChannel が pos のものは必ず除外する。
+//   (チャネル項目導入前の旧データは tableId/sessionId でのフォールバック判定)
+const isTakeoutAnalyticsRecord = (record = {}) => {
+  if (record.registerMode === 'pos' || record.salesChannel === 'pos_register') return false;
+
+  return record.isTakeout === true
+    || record.orderType === 'takeout'
+    || record.serviceType === 'takeout'
+    || record.salesSubChannel === 'order_takeout'
+    || record.tableId === 'takeout'
+    || String(record.sessionId || '').startsWith('takeout-');
+};
+
 const getOrderAnalyticsRecords = (record) => (
   Array.isArray(record?.orderAnalyticsRecords) && record.orderAnalyticsRecords.length > 0
     ? record.orderAnalyticsRecords
@@ -404,6 +427,7 @@ export const buildAnalyticsSummary = ({
   const analyticsPeriods = normalizeAnalyticsPeriods(periods);
   const normalizedSelectedPeriodId = String(selectedPeriodId || 'all');
   const shouldFilterByPeriod = normalizedSelectedPeriodId !== 'all';
+  const isTakeoutOnlyFilter = normalizedSelectedPeriodId === TAKEOUT_PERIOD_ID;
 
   const sessionGuestCounts = new Map();
   const weeklyCurrentSessionGuestCounts = new Map();
@@ -571,6 +595,8 @@ export const buildAnalyticsSummary = ({
       ? Math.max(recordTotalForTax - recordTaxAmount, 0) / recordTotalForTax
       : 1;
 
+    const recordIsTakeout = isTakeoutAnalyticsRecord(record);
+
     getOrderAnalyticsRecords(record).forEach((orderRecord) => {
       // 時間帯・時間軸の帰属は「注文時刻(orderedAt=提供時刻)」を優先する。会計(paidAt)基準だと
       // 遅い時間にまとめて会計した注文が支払時間帯に誤計上されるため(日計と同一の是正)。
@@ -578,8 +604,16 @@ export const buildAnalyticsSummary = ({
       const orderAmount = getTransactionAmount(orderRecord);
       const orderPeriodKey = resolvePeriodKey(orderRecordDate, analyticsPeriods);
 
-      if (shouldFilterByPeriod && orderPeriodKey !== normalizedSelectedPeriodId) {
-        return;
+      if (shouldFilterByPeriod) {
+        if (isTakeoutOnlyFilter) {
+          // 「テイクアウト」選択時はテイクアウト会計のみ集計する。
+          if (!recordIsTakeout) return;
+        } else {
+          // モーニング等の特定時間帯を選択している時は、テイクアウトを除外して
+          // 店内の時間帯分析を汚さない。
+          if (recordIsTakeout) return;
+          if (orderPeriodKey !== normalizedSelectedPeriodId) return;
+        }
       }
 
       includedRecordAmount += orderAmount;
@@ -610,6 +644,9 @@ export const buildAnalyticsSummary = ({
       // 売上合計・客単価は会計transactionベース、時間帯グラフは注文時刻ベースで配分する
       if (timeSlots[orderKey]) {
         timeSlots[orderKey].total += orderAmount;
+        if (recordIsTakeout) {
+          timeSlots[orderKey].takeout = (timeSlots[orderKey].takeout || 0) + orderAmount;
+        }
         upsertSessionGuestCount(timeSlots[orderKey].sessionGuestCounts, sessionKey, guestCount);
         timeSlots[orderKey].sessionKeys.add(sessionKey);
         timeSlots[orderKey].customers = sumSessionGuestCounts(timeSlots[orderKey].sessionGuestCounts);
@@ -644,7 +681,9 @@ export const buildAnalyticsSummary = ({
             grossProfitTrackedSalesExcl += sExcl;
           }
 
-          const categoryId = resolveCategoryId(item, itemCategoryMap);
+          // テイクアウト会計の明細は、時間帯バーの積み上げ上「テイクアウト」枠へ
+          // まとめて別掲する(通常カテゴリには積まない=二重計上しない)。
+          const categoryId = recordIsTakeout ? TAKEOUT_STACK_ID : resolveCategoryId(item, itemCategoryMap);
 
           if (timeSlots[orderKey]) {
             if (!timeSlots[orderKey].categories[categoryId]) {
@@ -802,13 +841,25 @@ export const buildAnalyticsSummary = ({
     const slot = timeSlots[key];
 
     const stacks = Object.entries(slot.categories)
-      .map(([categoryId, value]) => ({
-        color: categoryColorMap[categoryId] || '#9ca3af',
-        height: slot.total > 0 ? (value / slot.total) * 100 : 0,
-        value,
-        name: categories.find((category) => category.id === categoryId)?.name || '未分類'
-      }))
-      .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name, 'ja'));
+      .map(([categoryId, value]) => {
+        const isTakeoutStack = categoryId === TAKEOUT_STACK_ID;
+
+        return {
+          color: isTakeoutStack ? '#f97316' : (categoryColorMap[categoryId] || '#9ca3af'),
+          height: slot.total > 0 ? (value / slot.total) * 100 : 0,
+          value,
+          name: isTakeoutStack
+            ? 'テイクアウト'
+            : (categories.find((category) => category.id === categoryId)?.name || '未分類'),
+          isTakeout: isTakeoutStack
+        };
+      })
+      // テイクアウトは常にバーの最上段(配列末尾=flex-col-reverseで一番上)に別掲する。
+      .sort((left, right) => (
+        (Number(left.isTakeout) - Number(right.isTakeout))
+        || right.value - left.value
+        || left.name.localeCompare(right.name, 'ja')
+      ));
 
     let label = key;
     let shouldShowLabel = true;
@@ -889,6 +940,7 @@ export const buildAnalyticsSummary = ({
     stacks,
     metrics: {
       sales: slotSales,
+      takeoutSales: Number(slot.takeout || 0),
       customers: slotCustomers,
       customerUnitPrice,
       transactionUnitPrice,

@@ -8,6 +8,7 @@ import { useAuth } from '../../../app/providers/useAuth';
 import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData, useStoreSettings } from '../../store/hooks';
 import { getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
 import { buildItemDepartmentResolver, filterAnalyticsOrdersByDepartment, splitTransactionsByDepartment } from './utils/departmentAttribution';
+import { TAKEOUT_PERIOD_ID } from './utils/analyticsHelpers';
 
 import CustomRangePicker from './components/CustomRangePicker';
 import RankingView from './components/RankingView';
@@ -187,16 +188,20 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
     return map;
   }, [menuItems]);
 
-  const periodOptions = useMemo(() => (
-    Array.isArray(periods)
+  const periodOptions = useMemo(() => {
+    const basePeriods = Array.isArray(periods)
       ? periods
           .map((periodOption) => ({
             id: String(periodOption?.id || '').trim(),
             label: String(periodOption?.name || periodOption?.label || periodOption?.id || '').trim()
           }))
           .filter((periodOption) => periodOption.id && periodOption.label)
-      : []
-  ), [periods]);
+      : [];
+
+    // テイクアウトのみの分析用。モーニング等の特定時間帯を選んだ時は
+    // 集計側でテイクアウトを除外する(店内の時間帯分析を汚さない)。
+    return [...basePeriods, { id: TAKEOUT_PERIOD_ID, label: 'テイクアウト' }];
+  }, [periods]);
 
   const effectiveSelectedPeriodId = periodOptions.some((periodOption) => periodOption.id === selectedPeriodId)
     ? selectedPeriodId

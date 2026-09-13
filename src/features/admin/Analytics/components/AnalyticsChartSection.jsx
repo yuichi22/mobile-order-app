@@ -78,11 +78,22 @@ const AnalyticsChartSection = ({
   const chartMaxValue = yAxisTicks[0] || 100;
   const columnCount = Math.max(safeChartData.length, 1);
 
+  // テイクアウト別掲セグメントが存在する期間だけ凡例を出す
+  const hasTakeoutStack = config.useStacks && safeChartData.some((point) => (
+    (point.stacks || []).some((stack) => stack.isTakeout && Number(stack.value || 0) > 0)
+  ));
+
   return (
     <div className="print:break-inside-avoid mb-8">
       <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-800">
         <BarChart2 size={20} />
         {isDayOfWeekMode ? '曜日別' : config.title}
+        {hasTakeoutStack && (
+          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-600">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#f97316' }} />
+            テイクアウト（バー最上段に別掲）
+          </span>
+        )}
       </h3>
 
       <div className="flex h-80 rounded-2xl border border-gray-100 bg-gray-50 p-4">
