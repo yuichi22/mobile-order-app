@@ -129,6 +129,10 @@ const buildMenuMetaChips = (item) => {
     chips.push({ key: 'takeout', label: '店内のみ', tone: 'slate' });
   }
 
+  if (item.webOrderEnabled === true) {
+    chips.push({ key: 'weborder', label: 'Web注文', tone: 'emerald' });
+  }
+
   (item.allergens || []).forEach((allergenId) => {
     chips.push({ key: `allergen-${allergenId}`, label: getAllergenLabel(allergenId), tone: 'amber' });
   });
@@ -140,7 +144,8 @@ const toneClasses = {
   orange: 'bg-orange-50 text-orange-700',
   amber: 'bg-amber-50 text-amber-700',
   rose: 'bg-rose-50 text-rose-700',
-  slate: 'bg-slate-100 text-slate-600'
+  slate: 'bg-slate-100 text-slate-600',
+  emerald: 'bg-emerald-50 text-emerald-700'
 };
 
 const DEFAULT_PRESET_COLORS = [
@@ -200,6 +205,10 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   limitedQuantity: null,
   allowsTakeout: true,
   takeoutPrice: '',
+  // Web注文（サイト連携）。⚠ 既定はオフ。契約のある店舗だけUIに出す。
+  webOrderEnabled: false,
+  webOrderImage: '',
+  webOrderLeadMinutes: null,
   optionGroups: [],
   crossSellPrice: null,
   crossSellPriceLabelText: 'セット価格',
@@ -234,6 +243,27 @@ const MenuSettings = ({
   const [stockInputValue, setStockInputValue] = useState('');
   const [visibleLimit, setVisibleLimit] = useState(50);
   const [isSortMode, setIsSortMode] = useState(false);
+
+  // Web注文（サイト連携）の派生値。⚠ editingItem は null になりうるので全て任意連鎖で読む。
+  //   webOrderAvailable … テイクアウト価格が入っていて、かつテイクアウト可の品だけ有効。
+  //     価格0のままWebに出すと¥0で注文されるため、ここで入口を塞ぐ。
+  const webOrderAvailable =
+    Number(editingItem?.takeoutPrice || 0) > 0 && editingItem?.allowsTakeout !== false;
+  //   締め切りは分で保存する。⚠ 1440で割り切れるものだけ「日前」表示に寄せる
+  //     （3時間前=180 と 2日前=2880 を同じ欄で扱うため）。
+  const webOrderLeadMinutesRaw = Number(editingItem?.webOrderLeadMinutes || 0);
+  const webOrderLeadUnitMinutes =
+    webOrderLeadMinutesRaw > 0 && webOrderLeadMinutesRaw % 1440 === 0 ? 1440 : 60;
+  const webOrderLeadValue =
+    webOrderLeadMinutesRaw > 0 ? String(webOrderLeadMinutesRaw / webOrderLeadUnitMinutes) : '';
+  const webOrderLeadLabel = webOrderLeadMinutesRaw > 0
+    ? (webOrderLeadUnitMinutes === 1440
+      ? `${webOrderLeadMinutesRaw / 1440}日前まで`
+      : `${webOrderLeadMinutesRaw / 60}時間前まで`)
+    : '';
+  //   プレビュー画像。指定が無ければメニュー画像へ落とす（保存前の差し替えも拾う）。
+  const webOrderPreviewImage =
+    String(editingItem?.webOrderImage || '').trim() || imagePreview || editingItem?.image || '';
   const [sortDraftItems, setSortDraftItems] = useState([]);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [filters, setFilters] = useState({
@@ -410,6 +440,9 @@ const MenuSettings = ({
       photoLabelColor: item.photoLabelColor || '#F97316',
       priceLabelText: item.priceLabelText || '',
       takeoutPrice: item.takeoutPrice ?? '',
+      webOrderEnabled: item.webOrderEnabled === true,
+      webOrderImage: item.webOrderImage || '',
+      webOrderLeadMinutes: item.webOrderLeadMinutes ?? null,
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
       costPrice: item.costPrice ?? '',
@@ -608,6 +641,11 @@ const MenuSettings = ({
       const normalizedCrossSellPrice = Number(editingItem.crossSellPrice);
       const normalizedCostPrice = Number(editingItem.costPrice);
       const normalizedTakeoutPrice = Math.max(Number(editingItem.takeoutPrice) || 0, 0);
+      // ⚠ Web掲載はテイクアウト価格が入っていることが条件。価格0のままチェックだけ
+      //   残ると、サイトに¥0で並ぶ事故になる。テイクアウト不可にした場合も同時に落とす。
+      const canWebOrder = normalizedTakeoutPrice > 0 && editingItem.allowsTakeout !== false;
+      const normalizedWebOrderEnabled = canWebOrder && editingItem.webOrderEnabled === true;
+      const normalizedWebOrderLead = Number(editingItem.webOrderLeadMinutes);
 
       await onSave({
         ...editingItem,
@@ -656,6 +694,12 @@ const MenuSettings = ({
         photoLabelColor: editingItem.photoLabelColor || '#F97316',
         priceLabelText: String(editingItem.priceLabelText || '').trim(),
         takeoutPrice: normalizedTakeoutPrice,
+        webOrderEnabled: normalizedWebOrderEnabled,
+        webOrderImage: normalizedWebOrderEnabled ? String(editingItem.webOrderImage || '').trim() : '',
+        webOrderLeadMinutes:
+          normalizedWebOrderEnabled && Number.isFinite(normalizedWebOrderLead) && normalizedWebOrderLead > 0
+            ? Math.round(normalizedWebOrderLead)
+            : null,
         crossSellPrice:
           editingItem.crossSellPrice === '' ||
           editingItem.crossSellPrice === null ||
@@ -1033,6 +1077,141 @@ const handleClearLimitedQuantity = async (event, item) => {
                         税込価格で入力。テイクアウト注文では軽減税率を適用します。0または空欄の場合はテイクアウト対象外です。
                       </p>
                     </div>
+
+                    {/* Web注文（サイト連携）。
+                        ⚠ 契約のある店舗にだけ出す。basicSettings.webOrderEnabled が真のときのみ。
+                        ⚠ 将来 Core 側の契約項目へ移すときは settings/coreApps.addons へ置くこと。
+                          coreApps は refreshEntitlements が merge:false で丸ごと上書きするため、
+                          独自フラグを直接書くと次の同期で消える。 */}
+                    {basicSettings?.webOrderEnabled === true && (
+                      <div className="lg:col-span-2 rounded-3xl border-2 border-emerald-100 bg-emerald-50/40 p-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="text-base font-black text-gray-800">Web注文</div>
+                            <p className="mt-1 text-sm text-gray-500">
+                              チェックした品だけがサイトのテイクアウト注文に並びます。
+                            </p>
+                          </div>
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              type="checkbox"
+                              disabled={!webOrderAvailable}
+                              checked={webOrderAvailable && editingItem.webOrderEnabled === true}
+                              onChange={(event) => setEditingItem({
+                                ...editingItem,
+                                webOrderEnabled: event.target.checked
+                              })}
+                              className="peer sr-only"
+                            />
+                            <div className={`h-8 w-14 rounded-full ${webOrderAvailable ? 'bg-gray-200 peer-checked:bg-emerald-500' : 'bg-gray-100'}`} />
+                            <div className="absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform peer-checked:translate-x-6" />
+                          </label>
+                        </div>
+
+                        {!webOrderAvailable && (
+                          <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-700">
+                            {editingItem.allowsTakeout === false
+                              ? 'テイクアウト可否がオフのため、Webには載せられません。'
+                              : 'テイクアウト価格を入力すると有効にできます。価格が無いままサイトに出すと¥0で注文されてしまうため、入力を必須にしています。'}
+                          </p>
+                        )}
+
+                        {webOrderAvailable && editingItem.webOrderEnabled === true && (
+                          <div className="mt-5 grid gap-5 md:grid-cols-2">
+                            <div>
+                              <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                                テイクアウト用の画像URL（任意）
+                              </label>
+                              <input
+                                type="url"
+                                value={editingItem.webOrderImage || ''}
+                                onChange={(event) => setEditingItem({
+                                  ...editingItem,
+                                  webOrderImage: event.target.value
+                                })}
+                                className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-800 outline-none transition-all focus:border-emerald-500"
+                                placeholder="https://…"
+                              />
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                                未指定ならメニュー画像を使います。容器に入った状態の写真があるとよく伝わります。
+                              </p>
+
+                              <label className="mt-5 mb-2 block text-[11px] font-black uppercase text-gray-400">
+                                受付の締め切り
+                              </label>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={webOrderLeadValue}
+                                  onChange={(event) => setEditingItem({
+                                    ...editingItem,
+                                    webOrderLeadMinutes: event.target.value === ''
+                                      ? null
+                                      : Number(event.target.value) * webOrderLeadUnitMinutes
+                                  })}
+                                  className="h-12 w-28 rounded-2xl border-2 border-gray-100 px-4 text-lg font-black text-gray-800 outline-none transition-all focus:border-emerald-500"
+                                  placeholder="3"
+                                />
+                                <select
+                                  value={webOrderLeadUnitMinutes}
+                                  onChange={(event) => {
+                                    const unit = Number(event.target.value);
+                                    setEditingItem({
+                                      ...editingItem,
+                                      webOrderLeadMinutes: webOrderLeadValue === ''
+                                        ? null
+                                        : Number(webOrderLeadValue) * unit
+                                    });
+                                  }}
+                                  className="h-12 rounded-2xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none focus:border-emerald-500"
+                                >
+                                  <option value={60}>時間前まで</option>
+                                  <option value={1440}>日前まで</option>
+                                </select>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                                受取時刻から逆算します。⚠「2日前」は48時間前の意味です。空欄なら店舗の既定値を使います。
+                              </p>
+                            </div>
+
+                            <div>
+                              <div className="mb-2 text-[11px] font-black uppercase text-gray-400">プレビュー</div>
+                              <div className="overflow-hidden rounded-3xl border-2 border-gray-100 bg-white">
+                                <div className="aspect-[4/3] w-full bg-gray-50">
+                                  {webOrderPreviewImage ? (
+                                    <img
+                                      src={webOrderPreviewImage}
+                                      alt=""
+                                      className="h-full w-full object-cover"
+                                      onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-gray-300">
+                                      画像がありません
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="p-4">
+                                  <div className="text-sm font-black leading-snug text-gray-800">
+                                    {editingItem.name || '（商品名）'}
+                                  </div>
+                                  <div className="mt-1 text-lg font-black text-gray-900">
+                                    ¥{Number(editingItem.takeoutPrice || 0).toLocaleString()}
+                                  </div>
+                                  {webOrderLeadLabel && (
+                                    <div className="mt-1 text-xs font-bold text-emerald-700">{webOrderLeadLabel}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                                ⚠ 実際の並び方はサイト側で決まります。ここでは内容の確認だけできます。
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="relative lg:col-span-2">
                       <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">カテゴリ</label>
