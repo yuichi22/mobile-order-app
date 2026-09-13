@@ -92,6 +92,27 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** ミラーしてよい取得元（自社が管理しているサイト） */
 const MIRRORABLE_HOSTS = ["haus.ne.jp", "www.haus.ne.jp", "suomi.blue", "www.suomi.blue"];
 
+/**
+ * Web注文用の画像URL(webOrderImage)は店側が任意のURLを貼れる。
+ * メニュー画像の MIRRORABLE_HOSTS とは別扱いにし、httpsの公開ホストなら取り込む。
+ *
+ * ⚠ 任意のURLを関数から取りに行くので、内部アドレスを塞ぐこと。
+ *   クラウドのメタデータ(169.254.169.254)を読ませると認証情報が漏れる。
+ * ⚠ ホスト名で弾ける分だけの簡易版。DNSの解決結果までは追っていないので
+ *   完全ではない。URLを貼れるのは管理画面に入れる人だけ、という前提で許容する。
+ */
+function isFetchableExternalUrl(url) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (u.protocol !== "https:") return false;
+  const h = u.hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal")) return false;
+  if (h === "metadata.google.internal") return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return false; // IPv4リテラル
+  if (h.includes(":")) return false;                      // IPv6リテラル
+  return true;
+}
+
 const MIRROR_PREFIX = "public-site/menu-images";
 
 function imageKey(url) {
@@ -124,7 +145,9 @@ async function mirrorImage(sourceUrl) {
   } catch {
     return null;
   }
-  if (!MIRRORABLE_HOSTS.includes(host)) {
+  // メニュー画像は従来どおり許可ホストのみ。Web注文用の画像は店側が貼るので、
+  // httpsの公開ホストなら取り込む（内部アドレスは isFetchableExternalUrl が弾く）。
+  if (!MIRRORABLE_HOSTS.includes(host) && !isFetchableExternalUrl(sourceUrl)) {
     console.log(`[publicSite] ミラー対象外のホストなので画像を出しません: ${host}`);
     return null;
   }
@@ -186,12 +209,18 @@ export const publicMenu = onRequest(
     }
 
     try {
-      const [catsDoc, periodsDoc, itemsSnap, imageMap] = await Promise.all([
+      const [catsDoc, periodsDoc, itemsSnap, imageMap, basicDoc] = await Promise.all([
         db.doc(`stores/${storeId}/settings/categories`).get(),
         db.doc(`stores/${storeId}/settings/periods`).get(),
         db.collection(`stores/${storeId}/menuItems`).get(),
         loadImageMap(storeId),
+        db.doc(`stores/${storeId}/settings/basic`).get(),
       ]);
+
+      const basic = basicDoc.data() || {};
+      // Web注文（サイト連携）。⚠ 店舗の契約フラグが無ければ takeout は空で返す。
+      //   将来Core側の契約項目へ移すときは settings/coreApps.addons を見ること。
+      const webOrderOn = basic.webOrderEnabled === true && basic.allowTakeout !== false;
 
       const allCats = (catsDoc.data()?.list || []);
       // ⚠ 公開してよいのは customerTabVisibility === "always" のカテゴリだけ。
@@ -208,6 +237,7 @@ export const publicMenu = onRequest(
       }));
 
       const items = [];
+      const takeoutItems = [];
       for (const doc of itemsSnap.docs) {
         const v = doc.data();
         if (!publicCatIds.has(v.category)) continue;
@@ -230,6 +260,38 @@ export const publicMenu = onRequest(
             ? source
             : imageMap[imageKey(source)] || null
           : null;
+
+        // ⚠ Webに載せる条件は3つとも必要。設定画面でも同じ条件で保存しているが、
+        //   古いデータや直接の書き換えに備えて、ここでも必ず確かめる。
+        //   価格0のまま出すと¥0で注文されてしまう。
+        const takeoutPrice = num(v.takeoutPrice) ?? 0;
+        if (
+          webOrderOn &&
+          v.webOrderEnabled === true &&
+          v.allowsTakeout !== false &&
+          takeoutPrice > 0
+        ) {
+          const rawTakeoutImage = str(v.webOrderImage);
+          const takeoutImage = rawTakeoutImage
+            ? (isOwnMirrorUrl(rawTakeoutImage)
+              ? rawTakeoutImage
+              : imageMap[imageKey(rawTakeoutImage)] || mirrored)
+            : mirrored;
+          takeoutItems.push({
+            id: doc.id,
+            name,
+            description: str(v.description),
+            // ⚠ これは「テイクアウトの価格」。店内価格とは別物なので取り違えないこと。
+            price: takeoutPrice,
+            categoryId: str(v.category),
+            allergens: Array.isArray(v.allergens) ? v.allergens.map(str) : [],
+            soldOut: v.isSoldOut === true,
+            // 未指定・未ミラーのときはメニュー画像へ落とす
+            image: takeoutImage,
+            // 受取時刻の何分前までに注文が必要か。未設定は null（サイト側の既定値）
+            leadMinutes: num(v.webOrderLeadMinutes) || null,
+          });
+        }
 
         items.push({
           id: doc.id,
@@ -258,6 +320,11 @@ export const publicMenu = onRequest(
           sortOrder: num(c.sortOrder) ?? 0,
         })),
         items,
+        // ⚠ items とは別に返す。/cafe のメニュー表示に影響を出さないため。
+        takeout: {
+          enabled: webOrderOn,
+          items: takeoutItems.sort((a, b) => a.name.localeCompare(b.name, "ja")),
+        },
       });
     } catch (err) {
       console.error("[publicMenu] failed", err);
@@ -407,8 +474,13 @@ async function buildImageMirror(storeId) {
   const snap = await db.collection(`stores/${storeId}/menuItems`).get();
   const sources = new Set();
   snap.forEach((d) => {
-    const u = str(d.data().image);
+    const v = d.data() || {};
+    const u = str(v.image);
     if (u && !isMirroredUrl(u)) sources.add(u);
+    // Web注文用の差し替え画像。⚠ 反映は毎時のジョブなので最大1時間遅れる。
+    //   急ぐときは runPublicSiteCacheNow を叩く。
+    const w = str(v.webOrderImage);
+    if (w && !isMirroredUrl(w)) sources.add(w);
   });
 
   const existing = await loadImageMap(storeId);
