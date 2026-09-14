@@ -240,7 +240,13 @@ export const publicMenu = onRequest(
       const takeoutItems = [];
       for (const doc of itemsSnap.docs) {
         const v = doc.data();
-        if (!publicCatIds.has(v.category)) continue;
+        // ⚠⚠ カテゴリの公開可否は**カフェのメニュー表示のための設定**。
+        //   Web注文は品目ごとの webOrderEnabled が明示の入口なので、ここでは落とさない。
+        //   そうしないと「イベント」のような非公開カテゴリにあるホールケーキや
+        //   オードブルを、カフェのメニューを汚さずにWebで売ることができない。
+        //   ⚠ 品目ごとの customerVisibility === "hidden" は引き続き尊重する
+        //     （店内運用用の品が紛れ込むのを防ぐ）。
+        const categoryIsPublic = publicCatIds.has(v.category);
         // ⚠ 品目ごとの「お客様に見せない」設定。カテゴリ単位の
         //   customerTabVisibility とは別にあるので、両方見ないと漏れる。
         //   実測(2026-08-12)で28品が hidden だった（「1000プレート」「弁当1000円」
@@ -293,6 +299,8 @@ export const publicMenu = onRequest(
           });
         }
 
+        if (!categoryIsPublic) continue;
+
         items.push({
           id: doc.id,
           name,
@@ -324,6 +332,18 @@ export const publicMenu = onRequest(
         takeout: {
           enabled: webOrderOn,
           items: takeoutItems.sort((a, b) => a.name.localeCompare(b.name, "ja")),
+          // ⚠ カフェの categories とは別に返す。テイクアウトは非公開カテゴリの品も
+          //   扱うため（ホールケーキ・オードブル）、公開カテゴリだけでは名前が引けない。
+          //   ⚠ ここに出る名前はそのままサイトのタブ名になる。店内向けの呼び名
+          //     （「イベント」等）だとお客様に伝わらないので、カテゴリ名を見直すこと。
+          categories: allCats
+            .filter((c) => takeoutItems.some((i) => i.categoryId === str(c.id)))
+            .map((c) => ({
+              id: str(c.id),
+              name: str(c.name),
+              sortOrder: num(c.sortOrder) ?? 0,
+            }))
+            .sort((a, b) => a.sortOrder - b.sortOrder),
         },
       });
     } catch (err) {
