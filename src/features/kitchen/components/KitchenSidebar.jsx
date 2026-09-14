@@ -9,10 +9,32 @@ import {
   ClipboardList,
   ReceiptText,
   RotateCcw,
+  ShoppingBag,
   X
 } from 'lucide-react';
 
 const normalizeTableId = (item) => getTableDisplayName(item);
+
+/**
+ * 受け取り日時の表示。「本日 18:30」「9/17(水) 12:00」の形。
+ * ⚠ 日付をまたぐ注文があるので、時刻だけ出すと必ず取り違える。
+ * ⚠ Firestore の Timestamp と Date の両方が来うる（購読直後は Timestamp）。
+ */
+const formatPickupAt = (value) => {
+  const date = value?.toDate ? value.toDate() : (value instanceof Date ? value : null);
+  if (!date) return '日時未設定';
+  const jst = new Date(date.getTime() + 9 * 3600 * 1000);
+  const now = new Date(Date.now() + 9 * 3600 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const time = `${pad(jst.getUTCHours())}:${pad(jst.getUTCMinutes())}`;
+  const sameDay =
+    jst.getUTCFullYear() === now.getUTCFullYear() &&
+    jst.getUTCMonth() === now.getUTCMonth() &&
+    jst.getUTCDate() === now.getUTCDate();
+  if (sameDay) return `本日 ${time}`;
+  const wd = ['日', '月', '火', '水', '木', '金', '土'][jst.getUTCDay()];
+  return `${jst.getUTCMonth() + 1}/${jst.getUTCDate()}(${wd}) ${time}`;
+};
 
 const CompactRequestSection = ({
   title,
@@ -176,6 +198,8 @@ const expandIconClassName = tone === 'default'
 const KitchenSidebar = ({
   calls = [],
   checks = [],
+  takeoutOrders = [],
+  onTakeoutStatusChange,
   soldOutItems = [],
   pendingItemSummary = [],
   summaryMode = 'all',
@@ -248,6 +272,94 @@ const KitchenSidebar = ({
             )}
           </div>
         )}
+
+        {/* WebからのテイクアウトのWeb注文。
+            ⚠ 通常の注文ボードには出さない。2日後の受け取り分まで「いま作るもの」
+              として並んでしまうため、ここに別枠で出す。
+            ⚠ 受け取りが近い順。日付をまたぐので「いつ渡すか」を必ず添える。 */}
+        {takeoutOrders.length > 0 && (
+          <div className="shrink-0 border-b border-slate-700 bg-slate-950/80 p-3">
+            <button
+              type="button"
+              onClick={() => setExpandedRequestType((c) => (c === 'takeout' ? null : 'takeout'))}
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-amber-300/60 bg-amber-500 px-3 py-2 text-white shadow-lg shadow-amber-950/30"
+            >
+              <span className="flex items-center gap-2">
+                <ShoppingBag size={17} />
+                <span className="text-sm font-black">テイクアウト</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-black">
+                  {takeoutOrders.length}件
+                </span>
+                {expandedRequestType === 'takeout' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </span>
+            </button>
+
+            {expandedRequestType === 'takeout' && (
+              <div className="mt-2 max-h-[46vh] space-y-2 overflow-y-auto">
+                {takeoutOrders.map((order) => (
+                  <div key={order.id} className="rounded-xl bg-slate-900/80 p-3 text-slate-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-black text-amber-300">
+                          {formatPickupAt(order.pickupAt)}
+                        </div>
+                        <div className="mt-0.5 truncate text-xs font-bold text-slate-300">
+                          {order.customerName} 様 / {order.customerTel}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-black">
+                          ¥{Number(order.totalAmount || 0).toLocaleString()}
+                        </div>
+                        {/* ⚠ 店頭払い。レジで受け取ることを必ず書く */}
+                        <div className="text-[10px] font-bold text-slate-400">店頭払い</div>
+                      </div>
+                    </div>
+
+                    <ul className="mt-2 space-y-1 border-t border-slate-700 pt-2">
+                      {(order.items || []).map((i, idx) => (
+                        <li key={idx} className="flex items-start justify-between gap-2 text-xs">
+                          <span className="flex-1 font-bold text-slate-200">
+                            {String(i.name || '').replace(/\s*\n\s*/g, ' ')}
+                          </span>
+                          <span className="shrink-0 font-black text-amber-300">×{i.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {order.note && (
+                      <p className="mt-2 rounded-lg bg-slate-800 px-2 py-1.5 text-[11px] font-bold leading-relaxed text-slate-300">
+                        {order.note}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex gap-2">
+                      {order.status !== 'ready' && (
+                        <button
+                          type="button"
+                          onClick={() => onTakeoutStatusChange?.(order.id, 'ready')}
+                          className="flex-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-black text-white"
+                        >
+                          準備できた
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onTakeoutStatusChange?.(order.id, 'handed')}
+                        className="flex-1 rounded-lg bg-slate-700 px-2 py-1.5 text-xs font-black text-slate-100"
+                      >
+                        渡した
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-900/70">
           <div className="shrink-0 border-b border-slate-700 p-4">

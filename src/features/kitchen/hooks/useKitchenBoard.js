@@ -6,6 +6,8 @@ import {
   subscribeKitchenMenu,
   subscribeKitchenOrders,
   subscribeKitchenRequests,
+  subscribeTakeoutOrders,
+  updateTakeoutOrderStatus,
   updateKitchenOrderItems,
   subscribeKitchenSettings,
   updateKitchenOrderStatus,
@@ -22,6 +24,8 @@ export const useKitchenBoard = (storeId) => {
   const [soldOutItems, setSoldOutItems] = useState([]);
   const [calls, setCalls] = useState([]);
   const [checks, setChecks] = useState([]);
+  // WebからのテイクアウトのWeb注文。⚠ 通常の注文とは別コレクション。
+  const [takeoutOrders, setTakeoutOrders] = useState([]);
   const [loading, setLoading] = useState(() => hasStoreId);
 
   useEffect(() => {
@@ -40,6 +44,10 @@ export const useKitchenBoard = (storeId) => {
       setCompletedOrders(nextCompleted);
       setLoading(false);
     });
+    const unsubTakeout = subscribeTakeoutOrders(storeId, ({ takeoutOrders: next }) => {
+      setTakeoutOrders(next);
+    });
+
     const unsubRequests = subscribeKitchenRequests(storeId, ({ calls: nextCalls, checks: nextChecks }) => {
       setCalls(nextCalls);
       setChecks(nextChecks);
@@ -50,6 +58,7 @@ export const useKitchenBoard = (storeId) => {
       unsubMenu();
       unsubOrders();
       unsubRequests();
+      unsubTakeout();
     };
   }, [hasStoreId, storeId]);
 
@@ -107,7 +116,9 @@ export const useKitchenBoard = (storeId) => {
     soldOutItems,
     calls,
     checks,
+    takeoutOrders,
     loading: hasStoreId ? loading : false,
+    updateTakeoutStatus: (orderId, status) => updateTakeoutOrderStatus(storeId, orderId, status),
     updateOrderStatus: updateStatus,
     updateOrderItems,
     updateOrderMeta,

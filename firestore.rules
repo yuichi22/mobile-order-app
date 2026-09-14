@@ -570,6 +570,15 @@ service cloud.firestore {
         allow read, update: if isStoreStaff(storeId);
         allow create, delete: if false;
       }
+      // WebサイトからのテイクアウトのWeb注文。
+      // ⚠ 作成は createTakeoutOrder (Admin SDK) のみ。クライアントからは作らせない。
+      //   サイトは未ログインの一般客が使うので、書込を許すと金額を細工した注文を
+      //   直接投げ込まれる。金額・注文可否・締め切りの検証は全てFunctions側にある。
+      // ⚠ 削除も不可。状態(handed/cancelled)で消し込む。履歴を残すため。
+      match /takeoutOrders/{orderId} {
+        allow read, update: if isStoreStaff(storeId);
+        allow create, delete: if false;
+      }
       // Shopify EC売上(分析専用)。取り込みはFunctions(Admin SDK)のみ＝クライアント書込不可。
       match /ecOrders/{ecOrderId} {
         allow read: if isStoreManager(storeId);

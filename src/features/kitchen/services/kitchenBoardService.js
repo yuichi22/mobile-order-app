@@ -88,6 +88,36 @@ export const subscribeKitchenOrders = (storeId, onChange) => {
   });
 };
 
+/**
+ * WebからのテイクアウトのWeb注文を購読する。
+ *
+ * ⚠ 通常の orders とは別コレクション。orders に混ぜると、2日後の受け取り分まで
+ *   「いま作るもの」として注文ボードに並んでしまう。
+ * ⚠ 受け取り日時の早い順。過ぎたものや引き渡し済みは出さない。
+ */
+export const subscribeTakeoutOrders = (storeId, onChange) => {
+  return onSnapshot(
+    query(collection(db, 'stores', storeId, 'takeoutOrders'), orderBy('pickupAt', 'asc')),
+    (snapshot) => {
+      const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // 引き渡し済み・取消は落とす。⚠ 受け取り前日までは残す（仕込みの予定表になる）
+      const active = all.filter((o) => o.status !== 'handed' && o.status !== 'cancelled');
+      onChange({ takeoutOrders: active });
+    },
+    (error) => {
+      console.error('[kitchen] takeoutOrders subscribe failed', error);
+      onChange({ takeoutOrders: [] });
+    }
+  );
+};
+
+export const updateTakeoutOrderStatus = (storeId, orderId, status) => {
+  return updateDoc(doc(db, 'stores', storeId, 'takeoutOrders', orderId), {
+    status,
+    updatedAt: new Date()
+  });
+};
+
 export const subscribeKitchenRequests = (storeId, onChange) => {
   return onSnapshot(query(collection(db, 'stores', storeId, 'serviceRequests'), orderBy('createdAt', 'desc')), (snapshot) => {
     const calls = [];

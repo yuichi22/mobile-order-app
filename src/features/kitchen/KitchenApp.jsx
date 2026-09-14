@@ -812,6 +812,8 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
         <KitchenSidebar
           calls={kdsData.calls}
           checks={kdsData.checks}
+          takeoutOrders={kdsData.takeoutOrders}
+          onTakeoutStatusChange={kdsData.updateTakeoutStatus}
           soldOutItems={kdsData.soldOutItems}
           pendingItemSummary={pendingItemSummary}
           summaryMode={effectiveSummaryMode}
