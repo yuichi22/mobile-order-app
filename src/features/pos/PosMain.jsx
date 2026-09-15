@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
@@ -320,6 +320,31 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     });
     return unsubscribe;
   }, [registerMode, storeId]);
+
+  // ── Webからのテイクアウト予約注文（準備できたもの）─────────────
+  // ⚠ キッチンで「準備できた」にした分だけをレジに出す。pending を出すと、
+  //   まだ作っていない注文を会計してしまう。
+  const [readyTakeoutOrders, setReadyTakeoutOrders] = useState([]);
+  const [isTakeoutOrderPickerOpen, setIsTakeoutOrderPickerOpen] = useState(false);
+  // 会計中の予約注文。⚠ 会計が成立したら handed にするためここで覚えておく。
+  const [activeTakeoutOrder, setActiveTakeoutOrder] = useState(null);
+
+  useEffect(() => {
+    if (!storeId) return undefined;
+    const takeoutQuery = query(
+      collection(db, 'stores', storeId, 'takeoutOrders'),
+      where('status', '==', 'ready')
+    );
+    const unsubscribe = onSnapshot(takeoutQuery, (snapshot) => {
+      const rows = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // 受け取りが早い順。⚠ 日付をまたぐので必ず並べ替える
+      rows.sort((a, b) => (a.pickupAt?.toMillis?.() || 0) - (b.pickupAt?.toMillis?.() || 0));
+      setReadyTakeoutOrders(rows);
+    }, (error) => {
+      console.error('[PosMain] takeoutOrders subscribe failed', error);
+    });
+    return unsubscribe;
+  }, [storeId]);
 
   const savePosHolds = (nextHolds) => {
     setPosHolds(nextHolds);
@@ -1228,7 +1253,28 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setPosMessage('予約会計を一覧に戻しました。', 'success');
   };
 
+  /**
+   * 予約注文をレジのカートへ展開する。
+   * ⚠ 単価は**注文時に保存した unitPrice** を使う。いまのメニュー価格ではない。
+   *   注文後に値段を変えても、お客様に提示した額で会計するため。
+   */
+  const loadTakeoutOrderIntoCart = (order) => {
+    const lines = Array.isArray(order.items) ? order.items : [];
+    setTakeoutCart(lines.map((i) => ({
+      id: String(i.menuItemId || ''),
+      name: String(i.name || '商品'),
+      categoryId: String(i.categoryId || ''),
+      categoryName: categoryNameMap[i.categoryId] || 'カテゴリー未設定',
+      takeoutPrice: Math.max(Number(i.unitPrice || 0), 0),
+      quantity: Math.max(Number(i.quantity || 0), 0)
+    })).filter((i) => i.id && i.quantity > 0));
+    setActiveTakeoutOrder(order);
+    setIsTakeoutOrderPickerOpen(false);
+  };
+
   const closeTakeoutMode = () => {
+    // ⚠ 予約注文の紐付けも外す。残すと、次の会計で無関係な注文が handed になる。
+    setActiveTakeoutOrder(null);
     setIsTakeoutMode(false);
   };
 
@@ -1957,6 +2003,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
       clearActivePosHoldAfterPayment();
       setActiveCheckoutRequest(null);
+      // ⚠ Web予約の会計が成立したら受け渡し済みにする。ここで例外にしない。
+      //   投げると、会計は通っているのにエラー表示になり二重会計を招く。
+      if (activeTakeoutOrder?.id) {
+        updateDoc(doc(db, 'stores', storeId, 'takeoutOrders', activeTakeoutOrder.id), {
+          status: 'handed',
+          handedAt: new Date(),
+          updatedAt: new Date()
+        }).catch((err) => {
+          console.error('[PosMain] takeoutOrder handed 更新に失敗', err?.message);
+        });
+        setActiveTakeoutOrder(null);
+      }
       clearCrmMember(); // 会員は会計ごとに解除(次のお客様に持ち越さない)
       setTakeoutCart([]);
       setTakeoutPaymentAmount('');
@@ -2767,7 +2825,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             ) : isTakeoutMode ? (
               <>
               <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm">
-                <div className="flex shrink-0 items-center border-b bg-gray-50 px-5 py-3">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-gray-50 px-5 py-3">
                   <button
                     type="button"
                     onClick={closeTakeoutMode}
@@ -2776,6 +2834,28 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <ChevronLeft size={18} className="mr-1" />
                     戻る
                   </button>
+
+                {/* Webからの予約注文。⚠ キッチンで「準備できた」にした分だけ出る。
+                    件数を必ず出す。0件のとき押せるだけだと「無いのか壊れているのか」
+                    が分からない。 */}
+                <button
+                  type="button"
+                  onClick={() => setIsTakeoutOrderPickerOpen(true)}
+                  disabled={readyTakeoutOrders.length === 0}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-black shadow-sm transition-colors ${
+                    readyTakeoutOrders.length > 0
+                      ? 'bg-amber-500 text-white hover:bg-amber-600'
+                      : 'cursor-not-allowed border border-gray-200 bg-white text-gray-300'
+                  }`}
+                >
+                  <ShoppingBag size={16} />
+                  テイクアウト予約注文
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-black ${
+                    readyTakeoutOrders.length > 0 ? 'bg-white/25' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    {readyTakeoutOrders.length}
+                  </span>
+                </button>
                 </div>
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-2">
@@ -3590,6 +3670,97 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     />
 
     <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} onSimulate={term.simulate} />
+
+    {/* Webからのテイクアウト予約注文の一覧。
+        ⚠ 選ぶとレジのカートへ展開する。**いまのカートは置き換わる**ので、
+          打ちかけがあるときは確認を出す。 */}
+    {isTakeoutOrderPickerOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+            <div className="flex items-center gap-2">
+              <ShoppingBag size={20} className="text-amber-500" />
+              <span className="text-lg font-black text-gray-800">テイクアウト予約注文</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">
+                準備できた分 {readyTakeoutOrders.length}件
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTakeoutOrderPickerOpen(false)}
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {readyTakeoutOrders.length === 0 ? (
+              <p className="py-10 text-center text-sm font-bold text-gray-400">
+                会計できる予約注文はありません。
+                <br />
+                キッチンで「準備できた」にすると、ここに出ます。
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {readyTakeoutOrders.map((order) => {
+                  const pickup = order.pickupAt?.toDate?.();
+                  const jst = pickup ? new Date(pickup.getTime() + 9 * 3600 * 1000) : null;
+                  const pad = (v) => String(v).padStart(2, '0');
+                  const when = jst
+                    ? `${jst.getUTCMonth() + 1}/${jst.getUTCDate()} ${pad(jst.getUTCHours())}:${pad(jst.getUTCMinutes())}`
+                    : '日時未設定';
+                  return (
+                    <button
+                      key={order.id}
+                      type="button"
+                      onClick={async () => {
+                        // ⚠ window.confirm は使わない（このリポジトリの規約）。appConfirm を使う。
+                        if (takeoutCart.length > 0
+                          && !(await appConfirm('現在の仮伝票を置き換えて、テイクアウト予約注文を呼び出しますか？', { okLabel: '呼び出す' }))) {
+                          return;
+                        }
+                        loadTakeoutOrderIntoCart(order);
+                      }}
+                      className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all hover:border-amber-400 hover:bg-amber-50 active:scale-[0.99]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-black text-amber-600">{when} お渡し</div>
+                          <div className="mt-0.5 truncate text-base font-black text-gray-800">
+                            {order.customerName} 様
+                          </div>
+                          <div className="text-xs font-bold text-gray-400">{order.customerTel}</div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-xl font-black text-gray-900">
+                            ¥{Number(order.totalAmount || 0).toLocaleString()}
+                          </div>
+                          <div className="text-[10px] font-bold text-gray-400">{order.totalQuantity}点</div>
+                        </div>
+                      </div>
+                      <ul className="mt-3 space-y-1 border-t border-gray-100 pt-2">
+                        {(order.items || []).map((line, idx) => (
+                          <li key={idx} className="flex items-start justify-between gap-2 text-xs font-bold text-gray-600">
+                            <span className="flex-1">{String(line.name || '').replace(/\s*\n\s*/g, ' ')}</span>
+                            <span className="shrink-0">×{line.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {order.note && (
+                        <p className="mt-2 rounded-lg bg-gray-50 px-2 py-1.5 text-[11px] font-bold text-gray-500">
+                          {order.note}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
 
     </>
   );
