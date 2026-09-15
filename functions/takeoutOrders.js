@@ -13,12 +13,25 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { Resend } from "resend";
 
 const REGION = "asia-northeast1";
 const db = getFirestore("main");
 
 /** ⚠ Slack通知用。値はSecret Managerに置く（コードにもGitにも書かない）。 */
 const SLACK_WEBHOOK_URL = defineSecret("TAKEOUT_SLACK_WEBHOOK_URL");
+
+/**
+ * 注文確認メール。
+ * ⚠ 送信元は **notify.haus.ne.jp**。index.js の MAIL_FROM は notify.akuto.app
+ *   なので使わない。お客様はHAUSに注文しているので、見知らぬドメインから
+ *   届くと迷惑メール扱いされるか読まれない。
+ */
+// ⚠ Secret Manager ではなく環境変数(.env)から読む。index.js の既存の
+//   メール送信と同じ経路。defineSecret にすると Secret Manager を見に行き、
+//   登録されていないので送れなくなる（実際に踏みかけた）。
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const TAKEOUT_MAIL_FROM = "CAFE TABLE HAUS <order@notify.haus.ne.jp>";
 
 const ALLOWED_ORIGINS = [
   "https://haus.ne.jp",
@@ -85,6 +98,11 @@ export const createTakeoutOrder = onRequest(
       const name = str(body.name).slice(0, 40);
       const telRaw = str(body.tel).replace(/[-\s]/g, "");
       const note = str(body.note).slice(0, 200);
+      // ⚠ メールは**任意**。入力の手間を嫌う人を取りこぼさないため。
+      //   形式が怪しければ黙って捨てる（エラーにしない）。控えが無いだけで
+      //   注文は成立するので、ここで注文を止める理由がない。
+      const emailRaw = str(body.email).slice(0, 120);
+      const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailRaw) ? emailRaw : "";
       if (!name) return res.status(400).json({ error: "name_required" });
       // ⚠ 固定電話も携帯も受ける。国際表記や内線は受けない。
       if (!/^0\d{8,10}$/.test(telRaw)) {
@@ -185,6 +203,7 @@ export const createTakeoutOrder = onRequest(
         status: "pending",
         customerName: name,
         customerTel: telRaw,
+        customerEmail: email,
         note,
         pickupAt: Timestamp.fromDate(pickupAt),
         leadMinutes,
@@ -201,6 +220,14 @@ export const createTakeoutOrder = onRequest(
         (err) => console.error("[createTakeoutOrder] slack失敗", err?.message)
       );
 
+      // ⚠ 確認メールも「送れなくても注文は成立」。Slackと同じ扱い。
+      //   ここで失敗を返すと、実際には入っている注文をお客様が出し直す。
+      if (email) {
+        sendConfirmationMail({ store, email, name, pickupAt, items, totalAmount, note }).catch(
+          (err) => console.error("[createTakeoutOrder] メール失敗", err?.message)
+        );
+      }
+
       return res.json({
         ok: true,
         orderId: ref.id,
@@ -213,6 +240,98 @@ export const createTakeoutOrder = onRequest(
     }
   }
 );
+
+/**
+ * 注文確認メール。**控えとして役に立つこと**を目的にする。
+ *
+ * ⚠ お客様がこのメールを見るのは「いつ・いくら・どこへ」を確かめたいとき。
+ *   受取日時・金額・店の電話番号は必ず入れる。
+ * ⚠ 変更・取消の導線はWebに無いので、電話番号を目立たせる。
+ * ⚠ 「支払いは店頭」を明記する。前払いだと誤解されると受け取り時に揉める。
+ */
+async function sendConfirmationMail({ store, email, name, pickupAt, items, totalAmount, note }) {
+  const apiKey = RESEND_API_KEY;
+  if (!apiKey) {
+    console.log("[createTakeoutOrder] RESEND_API_KEY が無いのでメールを送りません");
+    return;
+  }
+  const when = formatPickupJst(pickupAt);
+  const lines = items.map(
+    (i) => `${i.name.replace(/\s*\n\s*/g, " ")} × ${i.quantity}　¥${i.totalPrice.toLocaleString()}`
+  );
+
+  const text = [
+    `${name} 様`,
+    "",
+    "ご注文ありがとうございます。下記の内容で承りました。",
+    "",
+    `【お受け取り】${when}`,
+    `【お会計】¥${totalAmount.toLocaleString()}（店頭でお支払いください）`,
+    "",
+    "【ご注文の品】",
+    ...lines.map((l) => `・${l}`),
+    note ? `\n【ご要望】${note}` : "",
+    "",
+    "──────────────",
+    store.name,
+    "島根県松江市乃白町2027",
+    `電話 ${store.tel}`,
+    "",
+    "ご変更・お取り消しは、お手数ですがお電話でお願いします。",
+    "※このメールは送信専用です。ご返信いただいてもお答えできません。",
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+
+  const esc = (v) =>
+    String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;line-height:1.9;color:#282b2d;max-width:520px">
+  <p>${esc(name)} 様</p>
+  <p>ご注文ありがとうございます。下記の内容で承りました。</p>
+  <table style="width:100%;border-collapse:collapse;margin:24px 0">
+    <tr><td style="padding:10px 0;border-bottom:1px solid #e5e5e0;color:#6b6f72">お受け取り</td>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e5e0;text-align:right;font-weight:600">${esc(when)}</td></tr>
+    <tr><td style="padding:10px 0;border-bottom:1px solid #e5e5e0;color:#6b6f72">お会計</td>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e5e0;text-align:right;font-weight:600">¥${totalAmount.toLocaleString()}</td></tr>
+  </table>
+  <p style="color:#6b6f72;font-size:13px;margin:-12px 0 24px">お支払いは、お受け取りのときに店頭で承ります。</p>
+  <p style="font-weight:600;margin-bottom:8px">ご注文の品</p>
+  <ul style="padding-left:1.2em;margin:0 0 24px">
+    ${items.map((i) => `<li>${esc(i.name.replace(/\s*\n\s*/g, " "))} × ${i.quantity}　¥${i.totalPrice.toLocaleString()}</li>`).join("")}
+  </ul>
+  ${note ? `<p style="background:#f2f2ee;padding:12px 16px;font-size:14px"><strong>ご要望</strong><br>${esc(note)}</p>` : ""}
+  <hr style="border:none;border-top:1px solid #e5e5e0;margin:28px 0">
+  <p style="font-size:14px;line-height:1.9">
+    <strong>${esc(store.name)}</strong><br>
+    島根県松江市乃白町2027<br>
+    電話 <a href="tel:${esc(store.tel.replace(/-/g, ""))}" style="color:#282b2d">${esc(store.tel)}</a>
+  </p>
+  <p style="font-size:13px;color:#6b6f72">
+    ご変更・お取り消しは、お手数ですがお電話でお願いします。<br>
+    ※このメールは送信専用です。ご返信いただいてもお答えできません。
+  </p>
+</div>`;
+
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from: TAKEOUT_MAIL_FROM,
+    to: [email],
+    // ⚠ 件名に受取日時を入れる。受信箱で並んだとき、開かずに判別できる。
+    subject: `【${store.name}】ご注文を承りました（${when} お受け取り）`,
+    text,
+    html,
+  });
+  if (error) throw new Error(JSON.stringify(error).slice(0, 200));
+}
+
+/** 受取日時を「9月17日(木) 12:00」の形に。⚠ 日をまたぐので日付を必ず入れる。 */
+function formatPickupJst(date) {
+  const j = new Date(date.getTime() + 9 * 3600 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const wd = ["日", "月", "火", "水", "木", "金", "土"][j.getUTCDay()];
+  return `${j.getUTCMonth() + 1}月${j.getUTCDate()}日(${wd}) ${pad(j.getUTCHours())}:${pad(j.getUTCMinutes())}`;
+}
 
 async function notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, note }) {
   const url = SLACK_WEBHOOK_URL.value();
