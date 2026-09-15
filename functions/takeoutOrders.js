@@ -35,13 +35,13 @@ const ACCEPTING_STORES = {
 // ⚠ サイト側(takeoutSlots.ts / TakeoutOrder.tsx)と同じ値にすること。
 //   ここが本当の関門で、サイト側は親切のための表示にすぎない。
 const LIMITS = {
-  maxQuantity: 10,
-  maxAmount: 20000,
+  maxQuantity: 50,
+  maxAmount: 100000,
   pickupFromMinutes: 11 * 60 + 30,
   pickupToMinutes: 19 * 60 + 30,
   slotStepMinutes: 30,
   defaultLeadMinutes: 180,
-  maxDaysAhead: 14,
+  maxDaysAhead: 60,
 };
 
 const str = (v) => (typeof v === "string" ? v.trim() : "");
