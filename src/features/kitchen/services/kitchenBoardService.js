@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../../shared/api/firebase/client';
 
 export const updateKitchenOrderMeta = (storeId, orderId, payload = {}) => {
@@ -68,8 +68,18 @@ export const subscribeKitchenMenu = (storeId, onChange) => {
   });
 };
 
+// ⚠ orders/serviceRequests は日々増え続ける（prodで数千件）。全件購読すると
+//   1回のタップごとに全件を再処理してモニターの反応が悪化するため、直近分に限定する。
+const KITCHEN_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
 export const subscribeKitchenOrders = (storeId, onChange) => {
-  return onSnapshot(query(collection(db, 'stores', storeId, 'orders'), orderBy('timestamp', 'asc')), (snapshot) => {
+  const cutoff = new Date(Date.now() - KITCHEN_LOOKBACK_MS);
+
+  return onSnapshot(query(
+    collection(db, 'stores', storeId, 'orders'),
+    where('timestamp', '>=', cutoff),
+    orderBy('timestamp', 'asc')
+  ), (snapshot) => {
     const allOrders = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
     const activeOrders = allOrders.filter((order) => {
       if (!order) return false;
@@ -119,7 +129,13 @@ export const updateTakeoutOrderStatus = (storeId, orderId, status) => {
 };
 
 export const subscribeKitchenRequests = (storeId, onChange) => {
-  return onSnapshot(query(collection(db, 'stores', storeId, 'serviceRequests'), orderBy('createdAt', 'desc')), (snapshot) => {
+  const cutoff = new Date(Date.now() - KITCHEN_LOOKBACK_MS);
+
+  return onSnapshot(query(
+    collection(db, 'stores', storeId, 'serviceRequests'),
+    where('createdAt', '>=', cutoff),
+    orderBy('createdAt', 'desc')
+  ), (snapshot) => {
     const calls = [];
     const checks = [];
 
