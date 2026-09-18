@@ -137,6 +137,7 @@ const CustomerApp = ({
     placeOrder,
     handleCallStaff,
     orderHistory,
+    historyLoading,
     sessionCreatedAtMs,
     sessionKeepAliveAtMs,
     keepNoOrderSessionAlive,
@@ -2236,7 +2237,12 @@ if (shouldWaitForSessionBeforeWelcome) {
         >
           <div className="mb-6 rounded-3xl border-b-4 border-orange-100 bg-white p-6 text-center shadow-sm">
             <p className="mb-1 text-sm text-gray-500">あなたの注文金額</p>
-            <p className="text-4xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
+            {historyLoading && filteredOrderHistory.length === 0 ? (
+              // 読込中に「¥0」を確定値として見せない(二重注文の引き金になる)。
+              <p className="text-2xl font-bold text-gray-400">確認中…</p>
+            ) : (
+              <p className="text-4xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
+            )}
 
             {Number(grandTotal || 0) > Number(myTotal || 0) && (
               <div className="mt-4 border-t border-gray-100 pt-4">

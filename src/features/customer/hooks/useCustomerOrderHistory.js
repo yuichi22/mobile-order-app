@@ -5,6 +5,64 @@ import { db } from '../../../shared/api/firebase/client';
 import { isOrderOwnedByCustomer } from '../../../shared/utils/orderCustomerIdentity';
 import { getActiveOrderItemsTotal } from '../../../shared/utils/orderItems';
 
+// リロード(iOSのタブ回収など)直後は onSnapshot 到着まで履歴が空になり、
+// 会計¥0・お会計ボタン非表示を「確定値」として見せてしまう(楽観反映はページ内の
+// 空白しか塞げない)。直近の履歴をセッション単位で端末に控えておき、購読開始から
+// 実データ到着までの間はキャッシュで即表示する。
+const ORDER_CACHE_PREFIX = 'customer-order-cache:';
+const ORDER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const buildOrderCacheKey = (storeId, sessionId) => (
+  `${ORDER_CACHE_PREFIX}${storeId}:${sessionId}`
+);
+
+const readCachedOrders = (storeId, sessionId) => {
+  try {
+    const raw = window.localStorage.getItem(buildOrderCacheKey(storeId, sessionId));
+    const parsed = raw ? JSON.parse(raw) : null;
+
+    if (!Array.isArray(parsed?.orders)) return [];
+    if (!Number.isFinite(parsed?.savedAt) || Date.now() - parsed.savedAt > ORDER_CACHE_TTL_MS) return [];
+
+    return parsed.orders.map((order) => ({
+      ...order,
+      timestamp: order?.timestamp ? new Date(order.timestamp) : new Date(0)
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const writeCachedOrders = (storeId, sessionId, orders) => {
+  try {
+    window.localStorage.setItem(
+      buildOrderCacheKey(storeId, sessionId),
+      JSON.stringify({ savedAt: Date.now(), orders })
+    );
+  } catch {
+    // localStorage が使えない環境では控えない
+  }
+};
+
+const pruneExpiredOrderCaches = () => {
+  try {
+    Object.keys(window.localStorage || {}).forEach((key) => {
+      if (!key.startsWith(ORDER_CACHE_PREFIX)) return;
+
+      try {
+        const parsed = JSON.parse(window.localStorage.getItem(key));
+        if (!Number.isFinite(parsed?.savedAt) || Date.now() - parsed.savedAt > ORDER_CACHE_TTL_MS) {
+          window.localStorage.removeItem(key);
+        }
+      } catch {
+        window.localStorage.removeItem(key);
+      }
+    });
+  } catch {
+    // localStorage inaccessible
+  }
+};
+
 export const useCustomerOrderHistory = ({ sessionId, storeId, participantId }) => {
   const [orderHistory, setOrderHistory] = useState([]);
   // 注文成立(サーバ200)からクライアントの onSnapshot に反映されるまでの間、
@@ -17,6 +75,15 @@ export const useCustomerOrderHistory = ({ sessionId, storeId, participantId }) =
 
   useEffect(() => {
     if (!hasSessionContext) return undefined;
+
+    pruneExpiredOrderCaches();
+
+    // 実データ到着までの間、前回控えた履歴で即表示する(到着後は必ず実データで上書き)。
+    const cachedOrders = readCachedOrders(storeId, sessionId);
+    if (cachedOrders.length > 0) {
+      setOrderHistory((current) => (current.length === 0 ? cachedOrders : current));
+    }
+
     const ordersQuery = query(
       collection(db, 'stores', storeId, 'orders'),
       where('sessionId', '==', sessionId)
@@ -85,6 +152,14 @@ export const useCustomerOrderHistory = ({ sessionId, storeId, participantId }) =
 
     return [...pending, ...orderHistory].sort((left, right) => right.timestamp - left.timestamp);
   }, [optimisticOrders, orderHistory, serverOrderIds, sessionId]);
+
+  // 表示中の履歴(楽観注文込み)を端末に控える。注文直後にリロードされても
+  // 実データ到着を待たずに会計金額・お会計ボタンを出せるようにするため。
+  // 初回購読中(historyLoading)はキャッシュ由来の内容しか無いので書き戻さない。
+  useEffect(() => {
+    if (!hasSessionContext || historyLoading) return;
+    writeCachedOrders(storeId, sessionId, mergedOrderHistory);
+  }, [hasSessionContext, historyLoading, mergedOrderHistory, sessionId, storeId]);
 
   const totals = useMemo(() => {
     if (!participantId) return { myTotal: 0, grandTotal: 0, myOrderHistory: [] };
