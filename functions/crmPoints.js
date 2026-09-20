@@ -71,6 +71,13 @@ export const onTransactionCreatedSyncCrmPoints = onDocumentCreated(
 
     const paidAt = tx.paidAt?.toDate ? tx.paidAt.toDate() : null;
 
+    // セグメント配信用: 購入商品の売り場・ブランド(ユニーク名・最大20件)を同梱する。
+    // Core側で台帳行に載り、「HAUSでブランドXを買った人に配信」等の絞り込みに使う。
+    const uniqNames = (vals) => [...new Set(vals.map((v) => str(v)).filter(Boolean))].slice(0, 20);
+    const txItems = Array.isArray(tx.items) ? tx.items : [];
+    const salesAreas = uniqNames(txItems.map((i) => i?.salesAreaName));
+    const brands = uniqNames(txItems.map((i) => i?.brandName));
+
     const payload = {
       coreTenantId,
       coreSpaceId: coreSpaceId || null,
@@ -82,6 +89,8 @@ export const onTransactionCreatedSyncCrmPoints = onDocumentCreated(
       type: tx.isReversal === true ? "pos_reversal" : "pos",
       provider: "pos",
       brand: str(tx.departmentName) || null,
+      ...(salesAreas.length ? { salesAreas } : {}),
+      ...(brands.length ? { brands } : {}),
       at: (paidAt || new Date()).toISOString(),
       bookingId: str(tx.groomBookingId) || null,
     };
