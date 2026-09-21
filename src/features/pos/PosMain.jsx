@@ -314,8 +314,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           ...data,
           isExpired: Boolean(data.expiresAt?.toMillis && data.expiresAt.toMillis() < nowMs),
           handoverDate: handover || null,
-          // お渡し予定日が今日以前=いま渡すべき分(カードで強調表示)
-          isHandoverDue: Boolean(handover) && handover <= todayKey
+          // お渡し予定日が今日以前=いま渡すべき分(カードで強調表示)。当日だけ「本日」表記
+          isHandoverDue: Boolean(handover) && handover <= todayKey,
+          isHandoverToday: Boolean(handover) && handover === todayKey
         };
       });
       // お渡し予定日(handoverDate)があるものはその日順に並べ、無いもの(groom当日会計)は
@@ -1224,7 +1225,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutPaymentMethod('');
     clearTakeoutDiscount();
     setIsTakeoutMode(true);
-    setPosMessage(`${request.customerName || '予約会計'} を呼び出しました。`, 'success');
+    setPosMessage(`${request.customerName ? `${request.customerName} 様` : '予約会計'} を呼び出しました。`, 'success');
     // 予約会計が会員(personId)を運んでいたら会員バーに載せる。
     // ⚠これが無いとレジに会員が出ず、ポイント利用もできない（付与だけ裏で走る）。
     if (request.personId) {
@@ -1242,7 +1243,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 呼出を解除して一覧(pending)へ戻す。カートに展開済みならカートも空にする。
   const releaseCheckoutRequest = async (request) => {
     if (!storeId || !request?.id) return;
-    if (!(await appConfirm(`${request.customerName || '予約会計'} の呼出を解除して一覧に戻しますか？`, { okLabel: '戻す' }))) return;
+    if (!(await appConfirm(`${request.customerName ? `${request.customerName} 様` : '予約会計'} の呼出を解除して一覧に戻しますか？`, { okLabel: '戻す' }))) return;
 
     try {
       await runTransaction(db, async (tx) => {

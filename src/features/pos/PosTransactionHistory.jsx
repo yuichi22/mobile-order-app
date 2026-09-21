@@ -3328,15 +3328,8 @@ export const PosTransactionHistory = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-black text-slate-800">
-                      {request.customerName || '予約のお客様'}
+                      {request.customerName ? `${request.customerName} 様` : '予約のお客様'}
                     </span>
-                    {handoverLabel && (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                        isExpired ? 'bg-slate-100 text-slate-400' : request.isHandoverDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        お渡し {handoverLabel}
-                      </span>
-                    )}
                     {isExpired ? (
                       <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">期限切れ</span>
                     ) : isClaimed ? (
@@ -3345,6 +3338,13 @@ export const PosTransactionHistory = ({
                       </span>
                     ) : null}
                   </div>
+                  {handoverLabel && (
+                    <div className={`mt-1 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-sm font-black ${
+                      isExpired ? 'bg-slate-100 text-slate-400' : request.isHandoverDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      お渡し {handoverLabel}{!isExpired && request.isHandoverToday ? '（本日）' : ''}
+                    </div>
+                  )}
                   <div className="truncate text-xs font-bold text-slate-400">
                     {requestedAt && `${requestedAt} ・ `}¥{Number(request.totalAmount || 0).toLocaleString()}
                     {lineSummary && ` ・ ${lineSummary}`}
