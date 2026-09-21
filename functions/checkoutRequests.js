@@ -29,6 +29,8 @@ const safeEqual = (a, b) => {
 
 // 送信から12時間で失効(レジ側はグレー表示、groomから再送で復活)
 const EXPIRES_HOURS = 12;
+// メガネカルテ等の予約販売は送信側が有効期限を指定できる(お渡し予定日+7日など)。上限60日。
+const MAX_EXPIRES_HOURS = 24 * 60;
 
 const REQUEST_ID_RE = /^[A-Za-z0-9_-]{1,200}$/;
 const MAX_LINES = 50;
@@ -44,7 +46,8 @@ function normalizeLine(raw) {
   const taxRateType = raw.taxRateType === "reduced" ? "reduced" : "standard";
   if (!name || name.length > 200) return null;
   if (!Number.isInteger(qty) || qty <= 0 || qty > 999) return null;
-  if (!Number.isInteger(unitPrice) || unitPrice < 0 || unitPrice > MAX_AMOUNT) return null;
+  // 負値はイベント割引等の値引き行(メガネカルテ)。伝票全体の totalAmount >= 0 は呼び出し側で検証済み。
+  if (!Number.isInteger(unitPrice) || Math.abs(unitPrice) > MAX_AMOUNT) return null;
   if (![8, 10].includes(taxRate)) return null;
   return { name, qty, unitPrice, taxRate, taxRateType };
 }
@@ -64,6 +67,8 @@ function buildRequestFields({ tenantId, spaceId, source, request, lines }) {
     totalAmount: Number(request.totalAmount),
     lines,
     note: str(request.note) || null,
+    // お渡し予定日(YYYY-MM-DD)。メガネカルテ等の予約販売でレジの並び順・表示に使う。
+    handoverDate: /^\d{4}-\d{2}-\d{2}$/.test(str(request.handoverDate)) ? str(request.handoverDate) : null,
   };
 }
 
@@ -141,7 +146,12 @@ export const receiveCheckoutRequest = onRequest(
 
         // action === "create"
         const fields = buildRequestFields({ tenantId, spaceId, source, request, lines });
-        const expiresAt = Timestamp.fromMillis(Date.now() + EXPIRES_HOURS * 60 * 60 * 1000);
+        // 有効期限: 送信側指定(1〜1440h)があれば採用、無指定は従来の12h(groom互換)。
+        const reqHours = Number(request.expiresHours);
+        const expiresHours = Number.isFinite(reqHours) && reqHours >= 1
+          ? Math.min(Math.floor(reqHours), MAX_EXPIRES_HOURS)
+          : EXPIRES_HOURS;
+        const expiresAt = Timestamp.fromMillis(Date.now() + expiresHours * 60 * 60 * 1000);
 
         if (!cur) {
           tx.set(reqRef, {
@@ -189,6 +199,67 @@ export const receiveCheckoutRequest = onRequest(
       return res.json({ ok: true, storeId, requestId, status });
     } catch (e) {
       console.error("[receiveCheckoutRequest] error:", e);
+      return res.status(500).json({ ok: false, error: e?.message || "internal error" });
+    }
+  }
+);
+
+// ── Core(メガネカルテ)からの商品バーコード照会 ─────────────────────────
+// カルテ入力でフレーム等をスキャン→POS商品マスタからブランド・品番・価格を自動入力するためのS2S。
+// 認証・拠点逆引きは receiveCheckoutRequest と同じ(Bearer CORE_SALES_SECRET / coreLinks)。
+// POSレジのスキャンと同じ優先順位: barcode完全一致 → sku → productCode。
+export const lookupPosProduct = onRequest(
+  { region: REGION, cors: false, invoker: "public" },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+
+    const secret = str(process.env.CORE_SALES_SECRET);
+    const authz = req.get("authorization") || "";
+    const bearer = authz.startsWith("Bearer ") ? authz.slice("Bearer ".length) : "";
+    if (!secret || !safeEqual(bearer, secret)) {
+      return res.status(401).json({ ok: false, error: "unauthorized" });
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const tenantId = str(body.tenantId);
+    const spaceId = str(body.spaceId);
+    const code = str(body.code);
+    if (!tenantId || !spaceId || !code || code.length > 100) {
+      return res.status(400).json({ ok: false, error: "invalid_request" });
+    }
+
+    try {
+      const linkSnap = await db.collection("coreLinks").doc(`${tenantId}__${spaceId}`).get();
+      const storeId = str(linkSnap.data()?.storeId);
+      if (!linkSnap.exists || !storeId) {
+        return res.status(404).json({ ok: false, error: "space_not_linked" });
+      }
+
+      const productsCol = db.collection("stores").doc(storeId).collection("products");
+      const isSellable = (p) => p && p.isArchived !== true && p.isActive !== false;
+      let hit = null;
+      for (const field of ["barcode", "sku", "productCode"]) {
+        const snap = await productsCol.where(field, "==", code).limit(5).get();
+        hit = snap.docs.map((d) => ({ id: d.id, ...d.data() })).find(isSellable) || null;
+        if (hit) break;
+      }
+      if (!hit) return res.json({ ok: true, found: false });
+
+      return res.json({
+        ok: true,
+        found: true,
+        product: {
+          productId: hit.id,
+          name: str(hit.name) || null,
+          brandName: str(hit.brandName) || null,
+          sku: str(hit.sku) || str(hit.productCode) || null,
+          barcode: str(hit.barcode) || null,
+          price: Number(hit.priceTaxIncluded ?? hit.price ?? 0) || 0,
+          taxRate: Number.isFinite(Number(hit.taxRate)) ? Number(hit.taxRate) : 10,
+        },
+      });
+    } catch (e) {
+      console.error("[lookupPosProduct] error:", e);
       return res.status(500).json({ ok: false, error: e?.message || "internal error" });
     }
   }

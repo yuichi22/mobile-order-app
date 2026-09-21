@@ -3294,7 +3294,7 @@ export const PosTransactionHistory = ({
               予約の会計依頼はありません
             </p>
             <p className="mt-1 text-xs font-bold text-slate-300">
-              Groomの「POSへ会計送信」で届きます
+              Groomの会計送信・メガネカルテのPOS送信で届きます
             </p>
           </div>
         )}
@@ -3308,6 +3308,10 @@ export const PosTransactionHistory = ({
             : '';
           const requestedAt = request.createdAt?.toDate
             ? request.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+            : '';
+          // お渡し予定日(メガネカルテ等の予約販売)。今日以前は強調(isHandoverDueは購読側で判定済み)。
+          const handoverLabel = request.handoverDate
+            ? new Date(`${request.handoverDate}T00:00:00`).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
             : '';
           const lineSummary = (Array.isArray(request.lines) ? request.lines : [])
             .map((line) => line.name)
@@ -3326,6 +3330,13 @@ export const PosTransactionHistory = ({
                     <span className="truncate text-sm font-black text-slate-800">
                       {request.customerName || '予約のお客様'}
                     </span>
+                    {handoverLabel && (
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                        isExpired ? 'bg-slate-100 text-slate-400' : request.isHandoverDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        お渡し {handoverLabel}
+                      </span>
+                    )}
                     {isExpired ? (
                       <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">期限切れ</span>
                     ) : isClaimed ? (
@@ -3353,7 +3364,7 @@ export const PosTransactionHistory = ({
                     </button>
                   )}
                   {isExpired ? (
-                    <span className="self-center text-[11px] font-bold text-slate-400">Groomから再送で復活</span>
+                    <span className="self-center text-[11px] font-bold text-slate-400">送信元から再送で復活</span>
                   ) : (
                     <button
                       type="button"

@@ -305,15 +305,31 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       // 期限切れ(expiresAt超過)はここで判定して isExpired として渡す(遅延判定・groomからの再送で復活)。
       // render中のDate.now()はlint(react-hooks/purity)で禁止のため、購読コールバック側で判定する。
       const nowMs = Date.now();
+      const todayKey = new Date(nowMs).toLocaleDateString('sv-SE');
       const rows = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();
+        const handover = /^\d{4}-\d{2}-\d{2}$/.test(String(data.handoverDate || '')) ? String(data.handoverDate) : '';
         return {
           id: docSnap.id,
           ...data,
-          isExpired: Boolean(data.expiresAt?.toMillis && data.expiresAt.toMillis() < nowMs)
+          isExpired: Boolean(data.expiresAt?.toMillis && data.expiresAt.toMillis() < nowMs),
+          handoverDate: handover || null,
+          // お渡し予定日が今日以前=いま渡すべき分(カードで強調表示)
+          isHandoverDue: Boolean(handover) && handover <= todayKey
         };
       });
-      rows.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+      // お渡し予定日(handoverDate)があるものはその日順に並べ、無いもの(groom当日会計)は
+      // 「今日渡す分」と同列に扱う。今日以前(=いま渡すべき分)が上に来る。
+      const dateKey = (row) => (row.handoverDate ? String(row.handoverDate) : todayKey);
+      rows.sort((a, b) => {
+        const dateA = dateKey(a);
+        const dateB = dateKey(b);
+        // 過ぎた予定日は「今日」に繰り上げて比較(未渡し分が下に沈まないように)
+        const keyA = dateA < todayKey ? todayKey : dateA;
+        const keyB = dateB < todayKey ? todayKey : dateB;
+        if (keyA !== keyB) return keyA < keyB ? -1 : 1;
+        return (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0);
+      });
       setCheckoutRequests(rows);
     }, (error) => {
       console.error('[PosMain] checkoutRequests subscribe failed', error);
@@ -1192,9 +1208,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutCart((Array.isArray(request.lines) ? request.lines : []).map((line, index) => ({
       id: `groomreq:${request.id}:${index}`,
       sourceType: 'groom',
-      name: line.name || 'トリミング',
+      name: line.name || (request.source === 'core-karte' ? 'メガネ' : 'トリミング'),
       categoryId: '',
-      categoryName: '予約会計(Groom)',
+      categoryName: request.source === 'core-karte' ? '予約会計(メガネ)' : '予約会計(Groom)',
       takeoutPrice: Number(line.unitPrice || 0),
       unitPrice: Number(line.unitPrice || 0),
       priceTaxIncluded: Number(line.unitPrice || 0),
