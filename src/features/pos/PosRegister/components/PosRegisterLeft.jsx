@@ -120,7 +120,7 @@ export const PosRegisterLeft = ({
           <div className="flex shrink-0 items-center justify-between gap-3 bg-emerald-600 px-4 py-2.5 text-white shadow-md">
             <div className="flex min-w-0 items-center gap-3">
               <span className="truncate text-sm font-black">
-                会員: {crmMember.displayName || '会員さま'}
+                会員: {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
               </span>
               <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-black">
                 利用可能 {Number(crmMember.pointBalance || 0).toLocaleString()}pt

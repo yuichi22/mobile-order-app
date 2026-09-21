@@ -2656,7 +2656,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           <div className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-emerald-600 px-4 py-2.5 text-white shadow-md">
             <div className="flex min-w-0 items-center gap-3">
               <span className="truncate text-sm font-black">
-                会員: {crmMember.displayName || '会員さま'}
+                会員: {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
               </span>
               <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-black">
                 利用可能 {crmMember.pointBalance.toLocaleString()}pt
@@ -3120,7 +3120,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-emerald-800">
-                        {crmMember.displayName || '会員さま'}
+                        {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
                       </div>
                       <div className="text-[11px] font-bold text-emerald-600">
                         利用可能 {crmMember.pointBalance.toLocaleString()}pt
