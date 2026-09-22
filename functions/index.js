@@ -5025,6 +5025,90 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
 );
 
 
+// ── POSスキャン索引(scanIndex)の夜間再構築 ───────────────────────────────
+// 差分更新(商品保存時 upsertScanIndexForProduct)を通らない削除/差し替え
+// (Shopify再取込で productId が変わる・スクリプト等)で旧エントリが索引に残り、
+// スキャンで「価格改定の前後が二重表示(ゴースト)」になる事故があった。
+// 毎晩 products から全量再構築し索引を正にする(48バケットを全置換=ゴースト消去)。
+// ⚠ロジックは src/shared/api/firebase/scanIndex.js / functions/buildScanIndex.mjs と一致させること。
+const SCAN_INDEX_BUCKETS = 48; // = SCAN_INDEX_BUCKET_COUNT
+const SCAN_INDEX_ENTRY_FIELDS = [
+  'barcode', 'sku', 'productCode', 'name',
+  'price', 'priceTaxIncluded', 'taxRate',
+  'categoryId', 'categoryName', 'categoryGroupId', 'categoryGroupName',
+  'salesAreaId', 'salesAreaName', 'brandId', 'brandName',
+  'costTaxExcluded', 'costTaxIncluded', 'supplierCostRate',
+  'inventoryQuantity', 'quantity', 'inventoryUnmanaged'
+];
+const scanIndexBucketOf = (id) => {
+  let h = 5381; const s = String(id);
+  for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return `bucket_${h % SCAN_INDEX_BUCKETS}`;
+};
+
+const rebuildScanIndexForStore = async (storeId) => {
+  const buckets = Object.fromEntries(Array.from({ length: SCAN_INDEX_BUCKETS }, (_, i) => [`bucket_${i}`, {}]));
+  let scanned = 0; let indexed = 0; let last = null;
+  const col = db.collection('stores').doc(storeId).collection('products');
+  for (;;) {
+    let q = col.orderBy('__name__').limit(2000);
+    if (last) q = q.startAfter(last);
+    const snap = await q.get();
+    if (snap.empty) break;
+    for (const d of snap.docs) {
+      scanned += 1;
+      const o = d.data();
+      if (o.isArchived === true || o.isActive === false) continue;
+      const entry = {};
+      for (const k of SCAN_INDEX_ENTRY_FIELDS) {
+        const v = o[k];
+        if (v !== undefined && v !== null && v !== '') entry[k] = v;
+      }
+      buckets[scanIndexBucketOf(d.id)][d.id] = entry;
+      indexed += 1;
+    }
+    last = snap.docs[snap.docs.length - 1];
+    if (snap.size < 2000) break;
+  }
+  if (scanned === 0) return { scanned, indexed, skipped: true }; // 商品0の店は索引を作らない
+  // 分割数変更などで残った旧バケットを掃除(残すと重複ヒットの原因)。
+  const existing = await db.collection(`stores/${storeId}/scanIndex`).get();
+  for (const d of existing.docs) {
+    if (!(d.id in buckets)) await d.ref.delete();
+  }
+  for (const [bid, entries] of Object.entries(buckets)) {
+    const bytes = Buffer.byteLength(JSON.stringify(entries));
+    if (bytes > 900000) console.error(`[rebuildScanIndex] ${storeId}/${bid} が ${(bytes / 1024).toFixed(0)}KB で上限接近`);
+    await db.doc(`stores/${storeId}/scanIndex/${bid}`).set({
+      entries,
+      count: Object.keys(entries).length,
+      rebuiltAt: FieldValue.serverTimestamp()
+    });
+  }
+  return { scanned, indexed };
+};
+
+export const scheduledRebuildScanIndex = onSchedule(
+  { region: REGION, schedule: 'every day 04:00', timeZone: 'Asia/Tokyo', timeoutSeconds: 540, memory: '1GiB' },
+  async () => {
+    try {
+      const storesSnap = await db.collection('stores').get();
+      for (const storeDoc of storesSnap.docs) {
+        const storeId = storeDoc.id;
+        try {
+          const result = await rebuildScanIndexForStore(storeId);
+          if (!result.skipped) console.log('[scheduledRebuildScanIndex] done', { storeId, ...result });
+        } catch (error) {
+          console.error('[scheduledRebuildScanIndex] store failed', { storeId, message: error?.message });
+        }
+      }
+    } catch (error) {
+      console.error('[scheduledRebuildScanIndex] failed', error);
+    }
+  }
+);
+
+
 // ── Shopify EC(オンラインストア)売上の取り込み ─────────────────────────────
 // Shopify注文を updated_at 昇順でページング取得し stores/{id}/ecOrders/{orderId} に upsert する。
 // 返金/編集/キャンセルは updated_at が動くので再取得され、current* の純額で上書きされる。

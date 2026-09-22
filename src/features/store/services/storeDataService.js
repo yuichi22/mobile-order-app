@@ -839,6 +839,13 @@ export const saveSupplier = async (storeId, itemData) => {
 
 export const deleteProductMasterDoc = async (storeId, collectionName, itemId) => {
   await deleteDoc(doc(db, 'stores', storeId, collectionName, itemId));
+  // 商品(products)を消したら scanIndex のエントリも消す。残すとスキャンで
+  // 「価格改定前後が二重表示」等のゴースト二重ヒットになる(不在なら索引側は削除される)。
+  if (collectionName === 'products') {
+    await upsertScanIndexForProduct(storeId, itemId).catch((error) => {
+      console.warn('[scanIndex] 削除後の索引掃除に失敗(夜間再構築で治癒します):', error);
+    });
+  }
 };
 
 // ===== 発注管理 (purchaseOrders) =====
