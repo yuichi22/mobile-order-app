@@ -690,7 +690,8 @@ const {
       !storeId ||
       !resolvedTableNumber ||
       !user ||
-      user.uid !== sessionHostId ||
+      // ホストだけでなく、合流した同席者にも同席者QRを出す(3人目以降の合流用)。
+      (user.uid !== sessionHostId && isCurrentUserSessionMember !== true) ||
       inviteToken
     ) {
       return undefined;
@@ -723,7 +724,7 @@ const {
     return () => {
       isMounted = false;
     };
-  }, [sessionId, storeId, resolvedTableNumber, user, sessionHostId, inviteToken, sessionStatus]);
+  }, [sessionId, storeId, resolvedTableNumber, user, sessionHostId, isCurrentUserSessionMember, inviteToken, sessionStatus]);
 
   const getLocalDateKey = (date = serverNow()) => {
     const year = date.getFullYear();

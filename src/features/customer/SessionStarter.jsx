@@ -7,6 +7,7 @@ import AppLoading from '../../shared/components/feedback/AppLoading';
 import { auth, initializeAuth } from '../../shared/api/firebase/client';
 import { prefetchCustomerStoreData } from '../store/services/storePrefetchService';
 import { getStoredTableEntryGuard } from './utils/entryGuards';
+import InviteHintIllustration from './components/InviteHintIllustration';
 
 const safeGetStoredTableEntryGuard = (tableContext) => {
   try {
@@ -187,11 +188,11 @@ const SessionStarter = ({ tableId, storeId, tableToken, onEntryReady }) => {
           icon={<Lock className="h-10 w-10 text-gray-700" />}
           title="利用中のテーブルです"
         >
-          <p>
-            先にQRコードを読まれた方の画面右上の
-            <br />
-            <span className="font-black text-gray-800">一緒に注文</span>
-            {' '}ボタンから表示されるQRをご利用ください。
+          <InviteHintIllustration />
+          <p className="mt-4">
+            先にQRコードを読まれた方のスマホで
+            <span className="font-black text-gray-800">同席者QR</span>
+            を表示し、そのQRを読み取ると同じ伝票で注文できます。
           </p>
         </StatusModal>
       </LoadingSurface>

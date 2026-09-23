@@ -26,6 +26,7 @@ import CrossSellPrompt from './components/CrossSellPrompt';
 import { useCrossSellFlow } from './hooks/useCrossSellFlow';
 import { useCustomerLogic } from './components/useCustomerLogic';
 import { recordEntryEvent } from './utils/entryTelemetry';
+import InviteHintIllustration from './components/InviteHintIllustration';
 
 const formatOrderTime = (value) => {
   try {
@@ -2073,13 +2074,16 @@ if (shouldWaitForSessionBeforeWelcome) {
           <Lock className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">このテーブルは利用中です</h2>
-        <p className="mx-auto mb-4 max-w-sm leading-relaxed text-gray-600">
+        <p className="mx-auto mb-5 max-w-sm leading-relaxed text-gray-600">
           このテーブルでは、すでに注文が始まっています。
         </p>
-        <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-gray-500">
-          お連れ様が先に開いている場合は、そのスマホの画面右上
-          <span className="font-bold text-orange-600">「一緒に注文」</span>
-          から表示されるQRコードを読み取ると、同じ伝票で注文できます。
+        <InviteHintIllustration
+          themeColor={customerThemeColor}
+          periodLabel={currentPeriod?.name ? `${currentPeriod.name} ${currentPeriod.start} - ${currentPeriod.end}` : 'モーニング 07:00 - 11:30'}
+        />
+        <p className="mx-auto mb-8 mt-5 max-w-sm text-sm leading-relaxed text-gray-500">
+          お連れ様のスマホで<span className="font-bold text-gray-800">同席者QR</span>を表示し、
+          そのQRを読み取ると同じ伝票で注文できます。
           <br />
           ご自身の画面を閉じてしまった場合は、下のボタンからもう一度お試しください。
         </p>

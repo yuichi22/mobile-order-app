@@ -1417,7 +1417,14 @@ export const ensureSessionInvite = onRequest({ region: REGION, cors: true, invok
       return sendAppError(response, 400, 'app/invite-unavailable', 'このセッションでは招待を利用できません。');
     }
 
-    if (sessionData.hostUserId !== authUser.uid) {
+    // ホストだけでなく、同席者(招待リンク/テーブルQRで合流したメンバー)も同席者QRを出せる。
+    // 3人目以降が「2人目のスマホ」から合流できないと、結局テーブルQRを読んで弾かれる。
+    const sessionMembers = Array.isArray(sessionData.members) ? sessionData.members : [];
+    const isSessionMember = sessionData.hostUserId === authUser.uid
+      || sessionMembers.includes(authUser.uid)
+      || Object.values(getParticipantRecords(sessionData)).some((record) => record?.currentUserId === authUser.uid);
+
+    if (!isSessionMember) {
       return sendAppError(response, 403, 'app/permission-denied', 'この操作を行う権限がありません。');
     }
 
