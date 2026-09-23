@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 
+import { serverNow } from '../../../shared/utils/serverClock';
+
 export const useCustomerCurrentPeriod = (periods) => {
   const [currentPeriod, setCurrentPeriod] = useState(null);
 
   useEffect(() => {
     const checkPeriod = () => {
-      const now = new Date();
+      // 端末の時計ではなくサーバー補正後の時刻で判定する(時計ズレで全商品非表示になる事故防止)
+      const now = serverNow();
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
       const foundPeriod = periods.find((period) => {

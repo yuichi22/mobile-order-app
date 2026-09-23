@@ -7,6 +7,7 @@ import { hashToken } from '../../../shared/utils/tableAccess';
 import { preflightCustomerSession } from '../services/customerSessionService';
 import { getStoredParticipantIdentityForSession } from '../utils/participantIdentity';
 import { useSubscriptionWatchdog } from '../../store/hooks/useSubscriptionWatchdog';
+import { syncServerClock } from '../../../shared/utils/serverClock';
 
 export const useCustomerSessionState = ({ sessionId, storeId }) => {
   const hasSessionContext = Boolean(sessionId && storeId);
@@ -88,6 +89,8 @@ export const useCustomerSessionState = ({ sessionId, storeId }) => {
 
         const preflightResult = await preflightPromise;
         if (!isMounted) return;
+
+        syncServerClock(preflightResult?.serverNow);
 
         if (preflightResult?.action === 'missing') {
           setUser(null);

@@ -108,8 +108,13 @@ const getParticipantRecords = (sessionData) => (
     : {}
 );
 
+// 200応答には serverNow を必ず載せる。顧客画面の営業時間・時間帯判定を端末時計でなく
+// サーバー時刻で行うため(端末の時計/タイムゾーンずれで全商品非表示になる事故防止)。
 const sendJson = (response, status, body) => {
-  response.status(status).json(body);
+  const payload = status === 200 && body && typeof body === 'object' && !Array.isArray(body)
+    ? { ...body, serverNow: Date.now() }
+    : body;
+  response.status(status).json(payload);
 };
 
 const sendAppError = (response, status, appCode, fallbackMessage) => {
@@ -708,6 +713,24 @@ export const bootstrapCustomerSession = onRequest(
           && isSameTableToken
         );
 
+        // 合流可否の判定に使う注文有無。トランザクションは読み取りを書き込みより先に
+        // 済ませる必要があるため、tableSession 更新より前にここで読む。
+        let hasNoOrdersForJoin = false;
+        if (
+          !canRestoreByParticipant
+          && !canRestoreByCurrentUser
+          && !isStoreStaff
+          && isSameTableToken
+          && activeSession.data.hasOrders !== true
+        ) {
+          const existingOrders = await transaction.get(
+            db.collection('stores').doc(normalizedStoreId).collection('orders')
+              .where('sessionId', '==', activeSession.id)
+              .limit(1)
+          );
+          hasNoOrdersForJoin = existingOrders.empty;
+        }
+
         transaction.set(tableSessionRef, {
           tableId: normalizedTableId,
           sessionId: activeSession.id,
@@ -782,6 +805,43 @@ export const bootstrapCustomerSession = onRequest(
             participantToken: nextParticipantToken,
             participantId: nextParticipantId
           };
+        }
+
+        // 同じテーブルの複数人がそれぞれテーブルQRを読むのが実態(2026-09 実測: 利用中判定の
+        // 大半は着席直後の別端末)。注文がまだ無いセッションなら、テーブルQRを物理的に
+        // 読めた端末を参加者として合流させる。注文ゼロなので乗っ取りの実害は無い。
+        // 注文済みセッションへの合流はQR写真による店外イタズラの懸念があるため従来どおり弾く。
+        if (hasNoOrdersForJoin) {
+          {
+            const joinedParticipantToken = createParticipantToken();
+            const joinedParticipantTokenHash = hashToken(joinedParticipantToken);
+            const joinedParticipantId = createParticipantId();
+
+            transaction.set(sessionsRef.doc(activeSession.id), {
+              members: FieldValue.arrayUnion(authUser.uid),
+              participantsByTokenHash: {
+                ...participantRecords,
+                [joinedParticipantTokenHash]: {
+                  participantId: joinedParticipantId,
+                  role: 'member',
+                  currentUserId: authUser.uid,
+                  joinedViaTableQr: true
+                }
+              },
+              updatedAt: FieldValue.serverTimestamp(),
+              lastActivityAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return {
+              action: 'joined',
+              sessionId: activeSession.id,
+              tableId: normalizedTableId,
+              tableDisplayName: activeSession.data.tableDisplayName || activeSession.data.tableName || tableDisplayName || '',
+              tableName: activeSession.data.tableName || activeSession.data.tableDisplayName || tableDisplayName || '',
+              participantToken: joinedParticipantToken,
+              participantId: joinedParticipantId
+            };
+          }
         }
 
         transaction.set(tableEntryGuardRef, {
@@ -8853,6 +8913,54 @@ export const drainShopifyInventoryPushQueue = onSchedule(
       } catch (error) {
         console.error('[drainShopifyInventoryPushQueue] store failed', { storeId, message: error?.message });
       }
+    }
+  }
+);
+
+// QR入場ファネルの計測受け口。端末側の到達状況(人数モーダル表示/メニュー表示など)を
+// サーバーから観測できないため、クライアントが各段階で1行ずつ送る。認証不要・失敗しても
+// 入場には影響させない。集計は stores/{storeId}/entryEvents を読む。
+export const recordEntryEvent = onRequest(
+  { region: REGION, cors: true, invoker: 'public' },
+  async (request, response) => {
+    if (request.method !== 'POST') {
+      return sendAppError(response, 405, 'app/method-not-allowed');
+    }
+
+    try {
+      let body = {};
+      try {
+        body = parseJsonBody(request) || {};
+      } catch {
+        // sendBeacon は text/plain で届くことがある
+        try { body = JSON.parse(String(request.rawBody || '{}')); } catch { body = {}; }
+      }
+
+      const storeId = String(body.storeId || '').trim().slice(0, 64);
+      const event = String(body.event || '').trim().slice(0, 64);
+
+      if (!storeId || !event) {
+        return sendJson(response, 200, { ok: false });
+      }
+
+      const safe = {};
+      Object.entries(body).forEach(([key, value]) => {
+        if (['storeId'].includes(key)) return;
+        if (Object.keys(safe).length >= 30) return;
+        if (typeof value === 'string') safe[key] = value.slice(0, 200);
+        else if (typeof value === 'number' || typeof value === 'boolean' || value === null) safe[key] = value;
+      });
+
+      await db.collection('stores').doc(storeId).collection('entryEvents').add({
+        ...safe,
+        userAgent: String(request.headers['user-agent'] || '').slice(0, 300),
+        createdAt: FieldValue.serverTimestamp()
+      });
+
+      return sendJson(response, 200, { ok: true });
+    } catch (error) {
+      console.warn('[recordEntryEvent] failed', error?.message);
+      return sendJson(response, 200, { ok: false });
     }
   }
 );

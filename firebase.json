@@ -92,6 +92,13 @@
         }
       },
       {
+        "source": "/api/recordEntryEvent",
+        "function": {
+          "functionId": "recordEntryEvent",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/api/joinCustomerSession",
         "function": {
           "functionId": "joinCustomerSession",

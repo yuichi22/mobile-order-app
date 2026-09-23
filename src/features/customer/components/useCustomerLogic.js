@@ -49,6 +49,8 @@ import {
   removeStoredInviteToken,
   setStoredInviteToken
 } from '../utils/sessionInvite';
+import { recordEntryEvent } from '../utils/entryTelemetry';
+import { serverNow, syncServerClock } from '../../../shared/utils/serverClock';
 
 const BOOTSTRAP_TIMEOUT_MS = 12000;
 
@@ -172,6 +174,8 @@ export const useCustomerLogic = (
   // useState 初期化中に localStorage 系を読まない。
   const [entryBootstrapStatus, setEntryBootstrapStatus] = useState('preparing');
   const [entryBootstrapError, setEntryBootstrapError] = useState('');
+  // 「利用中」画面の「もう一度試す」用。進めると bootstrap を再実行する。
+  const [entryBootstrapRetryNonce, setEntryBootstrapRetryNonce] = useState(0);
   const onSessionCreatedRef = useRef(onSessionCreated);
 
   const {
@@ -337,6 +341,11 @@ export const useCustomerLogic = (
     onSessionCreatedRef.current = onSessionCreated;
   }, [onSessionCreated]);
 
+  // 保存済み participantToken は ref で参照する。effect の依存に入れると identity 保存の
+  // たびに再実行され、bootstrap が created→restore と二重に飛んでいた(2026-09 実測)。
+  const preferredParticipantTokenRef = useRef('');
+  preferredParticipantTokenRef.current = preferredParticipantIdentity?.participantToken || '';
+
   useEffect(() => {
     if (!isEntryPreview || !entryTableContext) return undefined;
 
@@ -346,6 +355,7 @@ export const useCustomerLogic = (
       setEntryBootstrapStatus('preparing');
       setEntryBootstrapError('');
       prefetchCustomerStoreData(storeId).catch(() => {});
+      const bootstrapStartedAt = Date.now();
 
       try {
         await withTimeout(
@@ -381,7 +391,7 @@ export const useCustomerLogic = (
 
             // タブを閉じた本人の復元を可能にするため participantToken は送る。
             // ただしサーバー側で「現在テーブルの active session と一致する token だけ restore」する前提。
-            participantToken: preferredParticipantIdentity?.participantToken || ''
+            participantToken: preferredParticipantTokenRef.current
           }),
           BOOTSTRAP_TIMEOUT_MS,
           'セッション開始に時間がかかっています。'
@@ -389,7 +399,19 @@ export const useCustomerLogic = (
 
         if (!isMounted) return;
 
-        if (result.action === 'restore' || result.action === 'created') {
+        syncServerClock(result?.serverNow);
+        recordEntryEvent('bootstrap_result', {
+          storeId,
+          tableId: entryTableId,
+          sessionId: result?.sessionId || '',
+          action: result?.action || '',
+          hadStoredToken: Boolean(preferredParticipantTokenRef.current),
+          uid: nextUser?.uid || '',
+          bootstrapMs: Date.now() - bootstrapStartedAt
+        });
+
+        // joined = 注文前のセッションにテーブルQRで合流(同卓の2台目以降)。restore と同じ扱い。
+        if (result.action === 'restore' || result.action === 'created' || result.action === 'joined') {
           if (result.participantToken && result.participantId) {
             const identity = {
               sessionId: result.sessionId,
@@ -418,11 +440,8 @@ export const useCustomerLogic = (
         }
 
         if (result.action === 'occupied' || result.action === 'blocked_reuse') {
-          safeRemoveStoredParticipantIdentityForTable({
-            storeId,
-            tableId: entryTableId
-          });
-
+          // ⚠ ここで保存済み identity を消してはいけない。一時的に弾かれただけの本人が
+          //   復帰用トークンを失い、恒久ロックになっていた(2026-09 「利用中です」多発の一因)。
           safeClearStoredTableEntryGuard(entryTableContext);
 
           setEntryBootstrapStatus('locked');
@@ -446,6 +465,13 @@ export const useCustomerLogic = (
 
         if (!isMounted) return;
 
+        recordEntryEvent('bootstrap_error', {
+          storeId,
+          tableId: entryTableId,
+          message: String(error?.message || '').slice(0, 120),
+          bootstrapMs: Date.now() - bootstrapStartedAt
+        });
+
         setEntryBootstrapStatus('error');
         setEntryBootstrapError(error.message || 'テーブル情報の確認に失敗しました。');
       }
@@ -457,11 +483,11 @@ export const useCustomerLogic = (
       isMounted = false;
     };
   }, [
+    entryBootstrapRetryNonce,
     entryTableContext,
     entryTableId,
     entryTableToken,
     isEntryPreview,
-    preferredParticipantIdentity?.participantToken,
     storeId
   ]);
 
@@ -487,7 +513,8 @@ export const useCustomerLogic = (
     periods
   });
   const currentPeriod = tableMenuOverride?.period || baseCurrentPeriod;
-  const businessStatus = useMemo(() => getBusinessStatus(businessSettings), [businessSettings]);
+  // 端末の時計ではなくサーバー補正後の時刻で営業時間を判定する
+  const businessStatus = useMemo(() => getBusinessStatus(businessSettings, serverNow()), [businessSettings]);
 
   const {
     orderHistory,
@@ -698,7 +725,7 @@ const {
     };
   }, [sessionId, storeId, resolvedTableNumber, user, sessionHostId, inviteToken, sessionStatus]);
 
-  const getLocalDateKey = (date = new Date()) => {
+  const getLocalDateKey = (date = serverNow()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -1126,6 +1153,9 @@ const {
     sessionHostId,
     isSessionEnded: isEntryPreview ? false : isSessionEnded,
     sessionError: isEntryPreview ? entryBootstrapError : sessionError,
+    retryEntryBootstrap: isEntryPreview
+      ? () => setEntryBootstrapRetryNonce((nonce) => nonce + 1)
+      : null,
     cartTotal,
     myTotal,
     grandTotal,

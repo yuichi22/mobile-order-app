@@ -25,6 +25,7 @@ import MenuLayoutRenderer from './components/MenuLayoutRenderer';
 import CrossSellPrompt from './components/CrossSellPrompt';
 import { useCrossSellFlow } from './hooks/useCrossSellFlow';
 import { useCustomerLogic } from './components/useCustomerLogic';
+import { recordEntryEvent } from './utils/entryTelemetry';
 
 const formatOrderTime = (value) => {
   try {
@@ -125,6 +126,7 @@ const CustomerApp = ({
     sessionHostId,
     isSessionEnded,
     sessionError,
+    retryEntryBootstrap,
     cartTotal,
     myTotal,
     grandTotal,
@@ -655,6 +657,42 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
     setIsWelcomeOpen(canAskPartySize);
   }, [canAskPartySize]);
 
+  // 入場ファネル計測: 人数モーダル表示 / メニュー表示(セッションごとに1回)
+  const entryTelemetrySentRef = useRef({ partyModal: '', menu: '' });
+
+  useEffect(() => {
+    if (!isWelcomeOpen || !sessionId) return;
+    if (entryTelemetrySentRef.current.partyModal === sessionId) return;
+    entryTelemetrySentRef.current.partyModal = sessionId;
+    recordEntryEvent('party_modal_shown', { storeId, sessionId, tableId: tableNumber || entryTableId || '' });
+  }, [isWelcomeOpen, sessionId, storeId, tableNumber, entryTableId]);
+
+  useEffect(() => {
+    if (!sessionId || shouldHideCustomerSurface || contentLoading) return;
+    if (entryTelemetrySentRef.current.menu === sessionId) return;
+    entryTelemetrySentRef.current.menu = sessionId;
+    recordEntryEvent('menu_shown', {
+      storeId,
+      sessionId,
+      tableId: tableNumber || entryTableId || '',
+      categoryCount: headerCategories.length,
+      itemCount: safeMenuItems.length,
+      periodId: currentPeriod?.id || '',
+      businessStatus: businessStatus?.status || ''
+    });
+  }, [
+    sessionId,
+    shouldHideCustomerSurface,
+    contentLoading,
+    storeId,
+    tableNumber,
+    entryTableId,
+    headerCategories.length,
+    safeMenuItems.length,
+    currentPeriod?.id,
+    businessStatus?.status
+  ]);
+
   // 人数モーダル→メニュー等の全画面切替時、前のスクロール位置が残ると
   // sticky ヘッダーが隠れるため、メニュー表示になったら先頭へ戻す。
   // ※iOS Chrome には「初回描画でページ全体(fixed含む)がURLバー分上に貼られ、
@@ -690,6 +728,13 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
     if (sessionId) {
       setLocalConfirmedPartySizeSessionId(sessionId);
     }
+
+    recordEntryEvent('party_confirmed', {
+      storeId,
+      sessionId: sessionId || '',
+      tableId: tableNumber || entryTableId || '',
+      partySize: normalizedPartySize
+    });
 
     setShouldPersistPartySize(true);
     setIsWelcomeOpen(false);
@@ -2028,13 +2073,31 @@ if (shouldWaitForSessionBeforeWelcome) {
           <Lock className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">このテーブルは利用中です</h2>
-        <p className="mx-auto mb-8 max-w-sm leading-relaxed text-gray-600">
-          セキュリティのため、QRコードの使い回しはできません。
+        <p className="mx-auto mb-4 max-w-sm leading-relaxed text-gray-600">
+          このテーブルでは、すでに注文が始まっています。
+        </p>
+        <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-gray-500">
+          お連れ様が先に開いている場合は、そのスマホの画面右上
+          <span className="font-bold text-orange-600">「一緒に注文」</span>
+          から表示されるQRコードを読み取ると、同じ伝票で注文できます。
           <br />
-          利用中の場合は画面に表示された
-          <br />
-          <span className="font-bold text-orange-600">参加用QRコード</span>
-          {' '}を読み取ってください。
+          ご自身の画面を閉じてしまった場合は、下のボタンからもう一度お試しください。
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof retryEntryBootstrap === 'function') {
+              retryEntryBootstrap();
+            } else {
+              window.location.reload();
+            }
+          }}
+          className="h-14 w-full max-w-sm rounded-[1.6rem] bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
+        >
+          もう一度試す
+        </button>
+        <p className="mt-4 text-xs font-bold text-gray-400">
+          それでも入れない場合はスタッフにお声がけください
         </p>
       </div>
     );
@@ -2614,6 +2677,9 @@ if (shouldWaitForSessionBeforeWelcome) {
             <p className="mt-2 text-sm font-bold leading-relaxed text-gray-400">
               ご利用人数を選択してください
             </p>
+            <p className="mt-2 text-[11px] font-bold leading-relaxed text-gray-400">
+              お連れ様もテーブルのQRコードを読み取ると、同じ伝票で注文できます
+            </p>
 
             <div className="mt-8 grid grid-cols-3 gap-2">
               {[1, 2, 3, 4, 5, 6].map((count) => {
@@ -2959,6 +3025,23 @@ if (shouldWaitForSessionBeforeWelcome) {
                 onSkip={undefined}
               />
             )}
+{!isCrossSellActive && !contentLoading && headerCategories.length === 0 ? (
+  // 購読の宙吊り等でメニュー/カテゴリ/時間帯が空のまま確定すると、白い画面で
+  // 詰まって見える。エラーとして見せ、再読み込みの導線を出す。
+  <div className="px-6 py-14 text-center">
+    <p className="text-base font-black text-gray-800">メニューを読み込めませんでした</p>
+    <p className="mt-2 text-sm font-bold leading-relaxed text-gray-400">
+      通信状況をご確認のうえ、もう一度お試しください。
+    </p>
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      className="mt-6 h-12 w-full max-w-xs rounded-[1.4rem] bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
+    >
+      再読み込み
+    </button>
+  </div>
+) : (
 <MenuLayoutRenderer
   layoutMode={layoutMode}
   items={sortedMenuItems}
@@ -2970,6 +3053,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   )}
   customerThemeColor={customerThemeColor}
 />
+)}
           </div>
 
           {basicSettings?.customerLogoUrl && (
