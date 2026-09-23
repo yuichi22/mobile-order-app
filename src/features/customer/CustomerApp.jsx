@@ -2273,28 +2273,17 @@ if (shouldWaitForSessionBeforeWelcome) {
           <div className="h-1.5 w-14 rounded-full bg-gray-200" />
         </div>
 
+        <button
+          type="button"
+          onClick={() => handleChangeView('menu')}
+          className="absolute right-3 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full text-2xl font-semibold leading-none text-gray-400 transition-colors hover:bg-gray-50"
+          aria-label="閉じてメニューに戻る"
+        >
+          ×
+        </button>
+
         <div className="shrink-0 border-b border-gray-100 px-6 pb-4 pt-3">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-            <h2 className="text-lg font-black leading-tight text-gray-900">
-              お会計伝票
-              {tableTitle && (
-                <span className="ml-2 text-xl text-gray-700">
-                  {tableTitle}
-                </span>
-              )}
-            </h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleChangeView('menu')}
-              className="-mt-[22px] translate-x-1 flex h-10 w-10 items-center justify-center self-start rounded-full text-2xl font-semibold leading-none text-gray-400 transition-colors hover:bg-gray-50"
-              aria-label="閉じてメニューに戻る"
-            >
-              ×
-            </button>
-          </div>
-          <div className="mt-3 flex items-center gap-3 rounded-xl bg-orange-50 px-3 py-3">
+          <div className="flex items-center gap-3 rounded-xl bg-orange-50 px-4 py-3">
             <Barcode size={22} className="shrink-0 text-orange-600" />
             <p className="text-lg font-black leading-snug text-orange-700">
               レジ会計で提示してください
@@ -2310,6 +2299,10 @@ if (shouldWaitForSessionBeforeWelcome) {
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
           <div className="mb-6 rounded-3xl border-b-4 border-orange-100 bg-white p-6 text-center shadow-sm">
+            <p className="mb-3 text-base font-black text-gray-900">
+              お会計伝票
+              {tableTitle && <span className="ml-2 text-gray-700">{tableTitle}</span>}
+            </p>
             <p className="mb-1 text-xs text-gray-500">あなたの注文金額</p>
             {historyLoading && filteredOrderHistory.length === 0 ? (
               // 読込中に「¥0」を確定値として見せない(二重注文の引き金になる)。
