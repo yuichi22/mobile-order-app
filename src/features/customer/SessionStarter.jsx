@@ -188,11 +188,15 @@ const SessionStarter = ({ tableId, storeId, tableToken, onEntryReady }) => {
           icon={<Lock className="h-10 w-10 text-gray-700" />}
           title="利用中のテーブルです"
         >
+          <p className="mb-4">
+            注文が始まっているテーブルは、外部からの新規参加をロックしています。
+          </p>
+          <p className="mb-3 text-base font-black text-gray-900">同席者の方の参加方法</p>
           <InviteHintIllustration />
           <p className="mt-4">
-            先にQRコードを読まれた方のスマホで
+            同席者の方は、先に開いた方のスマホで
             <span className="font-black text-gray-800">同席者QR</span>
-            を表示し、そのQRを読み取ると同じ伝票で注文できます。
+            を表示してもらい、そのQRを読み取ってください。同じ伝票で注文できます。
           </p>
         </StatusModal>
       </LoadingSurface>

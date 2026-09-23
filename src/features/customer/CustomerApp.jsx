@@ -2074,18 +2074,25 @@ if (shouldWaitForSessionBeforeWelcome) {
           <Lock className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">このテーブルは利用中です</h2>
-        <p className="mx-auto mb-5 max-w-sm leading-relaxed text-gray-600">
-          このテーブルでは、すでに注文が始まっています。
+        <p className="mx-auto mb-6 max-w-sm text-sm leading-relaxed text-gray-500">
+          注文が始まっているテーブルは、外部からの新規参加をロックしています。
         </p>
-        <InviteHintIllustration
-          themeColor={customerThemeColor}
-          periodLabel={currentPeriod?.name ? `${currentPeriod.name} ${currentPeriod.start} - ${currentPeriod.end}` : 'モーニング 07:00 - 11:30'}
-        />
-        <p className="mx-auto mb-8 mt-5 max-w-sm text-sm leading-relaxed text-gray-500">
-          お連れ様のスマホで<span className="font-bold text-gray-800">同席者QR</span>を表示し、
-          そのQRを読み取ると同じ伝票で注文できます。
-          <br />
-          ご自身の画面を閉じてしまった場合は、下のボタンからもう一度お試しください。
+
+        <div className="mx-auto mb-8 w-full max-w-sm rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-base font-black text-gray-900">同席者の方の参加方法</p>
+          <InviteHintIllustration
+            themeColor={customerThemeColor}
+            periodLabel={currentPeriod?.name ? `${currentPeriod.name} ${currentPeriod.start} - ${currentPeriod.end}` : 'モーニング 07:00 - 11:30'}
+          />
+          <p className="mt-4 text-sm leading-relaxed text-gray-600">
+            同席者の方は、先に開いた方のスマホで
+            <span className="font-bold text-gray-800">同席者QR</span>
+            を表示してもらい、そのQRを読み取ってください。同じ伝票で注文できます。
+          </p>
+        </div>
+
+        <p className="mx-auto mb-3 max-w-sm text-sm font-bold leading-relaxed text-gray-500">
+          ご自身の画面を閉じてしまった方は、こちらからもう一度お試しください。
         </p>
         <button
           type="button"
@@ -2269,10 +2276,10 @@ if (shouldWaitForSessionBeforeWelcome) {
         <div className="shrink-0 border-b border-gray-100 px-6 pb-4 pt-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-            <h2 className="text-2xl font-black leading-tight text-gray-900">
-              お会計
+            <h2 className="text-lg font-black leading-tight text-gray-900">
+              お会計伝票
               {tableTitle && (
-                <span className="ml-3 text-3xl text-gray-700">
+                <span className="ml-2 text-xl text-gray-700">
                   {tableTitle}
                 </span>
               )}
@@ -2287,12 +2294,12 @@ if (shouldWaitForSessionBeforeWelcome) {
               ×
             </button>
           </div>
-          <div className="mt-2 flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2.5">
-            <Barcode size={18} className="shrink-0 text-orange-600" />
-            <p className="text-sm font-bold leading-snug text-orange-700">
-              この伝票画面をレジへお持ちください
-              <span className="block text-xs font-medium text-orange-500">
-                お会計が終わるまで画面は閉じないでください
+          <div className="mt-3 flex items-center gap-3 rounded-xl bg-orange-50 px-3 py-3">
+            <Barcode size={22} className="shrink-0 text-orange-600" />
+            <p className="text-lg font-black leading-snug text-orange-700">
+              レジ会計で提示してください
+              <span className="mt-0.5 block text-sm font-bold text-orange-500">
+                それまでアプリは閉じないでください
               </span>
             </p>
           </div>
@@ -2303,12 +2310,12 @@ if (shouldWaitForSessionBeforeWelcome) {
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
           <div className="mb-6 rounded-3xl border-b-4 border-orange-100 bg-white p-6 text-center shadow-sm">
-            <p className="mb-1 text-sm text-gray-500">あなたの注文金額</p>
+            <p className="mb-1 text-xs text-gray-500">あなたの注文金額</p>
             {historyLoading && filteredOrderHistory.length === 0 ? (
               // 読込中に「¥0」を確定値として見せない(二重注文の引き金になる)。
               <p className="text-2xl font-bold text-gray-400">確認中…</p>
             ) : (
-              <p className="text-4xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
+              <p className="text-3xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
             )}
 
             {Number(grandTotal || 0) > Number(myTotal || 0) && (
