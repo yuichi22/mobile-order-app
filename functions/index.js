@@ -2748,6 +2748,12 @@ export const syncLimitedMenuStock = onDocumentWritten(
     const beforeData = event.data?.before?.exists ? event.data.before.data() : null;
     const afterData = event.data?.after?.exists ? event.data.after.data() : null;
 
+    // createPostpayOrder が作成時に計上済みの注文は、作成イベントでは数えない
+    // (取消・数量変更など、その後の差分は従来どおりここで反映する)。
+    if (!beforeData && afterData?.limitedStockCountedAtCreate === true) {
+      return;
+    }
+
     const beforeItems = shouldCountOrderForLimitedStock(beforeData) ? beforeData.items : [];
     const afterItems = shouldCountOrderForLimitedStock(afterData) ? afterData.items : [];
 
@@ -2779,10 +2785,14 @@ export const syncLimitedMenuStock = onDocumentWritten(
           ? Math.max(Number(itemData.dailySoldCount) || 0, 0)
           : 0;
         const nextSoldCount = Math.max(currentSoldCount + delta, 0);
+        const nextRemainingQuantity = Math.max(limitedQuantity - nextSoldCount, 0);
 
+        // remainingQuantity / soldQuantity は管理画面表示用のミラー(判定の正は dailySoldCount)
         transaction.set(itemRef, {
           dailySoldDate: todayKey,
           dailySoldCount: nextSoldCount,
+          soldQuantity: nextSoldCount,
+          remainingQuantity: nextRemainingQuantity,
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
       }
@@ -5991,6 +6001,7 @@ export const createPostpayOrder = onRequest(
             : null;
 
       const result = await db.runTransaction(async (transaction) => {
+        const stockTodayKey = getTokyoDateKey();
         const menuRefs = normalizedCart.map((item) => ({
           cartItem: item,
           ref: db
@@ -6024,32 +6035,31 @@ export const createPostpayOrder = onRequest(
           const limitedQuantity = Number(menuData.limitedQuantity);
           const shouldCheckStock = Number.isFinite(limitedQuantity) && limitedQuantity > 0;
 
-          const hasRemainingQuantity =
-            menuData.remainingQuantity !== null
-            && menuData.remainingQuantity !== undefined
-            && menuData.remainingQuantity !== ''
-            && Number.isFinite(Number(menuData.remainingQuantity));
-
-          const currentSoldQuantity = Number(menuData.soldQuantity || 0);
-
-          const currentRemainingQuantity = hasRemainingQuantity
-            ? Number(menuData.remainingQuantity)
-            : Math.max(limitedQuantity - currentSoldQuantity, 0);
-
           // limitedQuantity が 1以上の商品だけ在庫管理する。
-          // limitedQuantity が null / 空 / 0 以下の商品は remainingQuantity が 0 でも在庫制限なしとして扱う。
+          // ⚠ 残数は顧客画面(menuAvailability.getLimitedQuantityStatus)と同じ
+          //   「limitedQuantity − 本日の販売数(dailySoldCount)」で判定する。
+          //   以前は保存済み remainingQuantity を見ていたため、顧客画面は「残りあり」なのに
+          //   サーバーだけ「残り0」で拒否する食い違いが起きていた(2026-09-23 現場報告)。
+          //   remainingQuantity / soldQuantity は管理画面表示用のミラーとして更新する。
           if (shouldCheckStock) {
+            const soldToday = menuData.dailySoldDate === stockTodayKey
+              ? Math.max(Number(menuData.dailySoldCount) || 0, 0)
+              : 0;
+            const currentRemainingQuantity = Math.max(limitedQuantity - soldToday, 0);
+
             if (quantity > currentRemainingQuantity) {
               throw new Error(`${cartItem.name || menuData.name || '商品'} の残りは ${currentRemainingQuantity} 点です。`);
             }
 
-            const nextSoldQuantity = currentSoldQuantity + quantity;
-            const nextRemainingQuantity = Math.max(currentRemainingQuantity - quantity, 0);
+            const nextSoldToday = soldToday + quantity;
+            const nextRemainingQuantity = Math.max(limitedQuantity - nextSoldToday, 0);
 
             menuUpdates.push({
               ref,
               data: {
-                soldQuantity: nextSoldQuantity,
+                dailySoldDate: stockTodayKey,
+                dailySoldCount: nextSoldToday,
+                soldQuantity: nextSoldToday,
                 remainingQuantity: nextRemainingQuantity,
                 isSoldOut: nextRemainingQuantity <= 0,
                 updatedAt: FieldValue.serverTimestamp()
@@ -6144,6 +6154,9 @@ export const createPostpayOrder = onRequest(
           totalPrice: Number(totalPrice || 0),
           orderFlow: 'postpay',
           paymentStatus: 'unpaid',
+          // 残数はこのトランザクション内で dailySoldCount に計上済み。
+          // syncLimitedMenuStock(orders書き込みトリガー)が作成分を二重計上しないための目印。
+          limitedStockCountedAtCreate: true,
           ...(externalCustomer ? { externalCustomer } : {}),
           ...(shouldMarkStaffOrder
             ? {

@@ -826,10 +826,14 @@ const confirmStockInput = async () => {
     return;
   }
 
+  // 残数の判定は「limitedQuantity − 本日の販売数(dailySoldCount)」。
+  // ここで入力した数を「今からの残り」にするため本日の販売数も0に戻す。
   await updateMenuStockState(stockInputTarget, {
     limitedQuantity: nextQuantity,
     soldQuantity: 0,
     remainingQuantity: nextQuantity,
+    dailySoldCount: 0,
+    dailySoldDate: null,
     isSoldOut: nextQuantity <= 0
   });
 

@@ -176,8 +176,17 @@ export const updateKitchenOrderItems = (storeId, orderId, items, status = null, 
   return updateDoc(doc(db, 'stores', storeId, 'orders', orderId), payload);
 };
 
+// 売り切れ→販売再開。管理画面の「販売再開」と同じく残数設定ごと解除する。
+// isSoldOut だけ戻すと、残数0のまま販売中になり注文がサーバーで弾かれ続ける。
 export const restoreKitchenStock = (storeId, itemId) => {
-  return updateDoc(doc(db, 'stores', storeId, 'menuItems', itemId), { isSoldOut: false });
+  return updateDoc(doc(db, 'stores', storeId, 'menuItems', itemId), {
+    isSoldOut: false,
+    limitedQuantity: null,
+    soldQuantity: 0,
+    remainingQuantity: null,
+    dailySoldCount: 0,
+    dailySoldDate: null
+  });
 };
 
 export const completeKitchenRequest = (storeId, requestId) => {
