@@ -61,6 +61,37 @@ export const sendCurrentUserVerificationMail = async () => {
   return true;
 };
 
+// 招待/オーナー登録の直後に使う。サインインしたまま確認メールだけ送る。
+// （サインアウトすると「一度入って勝手にログアウト→登録画面に戻る」体験になるため）
+// 確認メールの送信失敗でサインイン状態は壊さない（アカウントは既に作成済み）。
+export const signInAndSendVerificationMail = async (email, password) => {
+  await ensureSessionPersistence();
+  const result = await signInWithEmailAndPassword(auth, email, password);
+
+  try {
+    await requestCustomVerificationMail();
+  } catch (error) {
+    const shouldFallbackToFirebase = (
+      error?.code === 'app/custom-mail-not-configured'
+      || error?.code === 'app/email-verification-mail-failed'
+      || error?.name === 'TypeError'
+    );
+
+    try {
+      if (shouldFallbackToFirebase) {
+        await sendEmailVerification(result.user, actionCodeSettings());
+      } else {
+        throw error;
+      }
+    } catch (mailError) {
+      // メールが送れなくてもログイン状態は維持する（後から再送できる）
+      console.warn('[auth] 確認メールの送信に失敗しました', mailError);
+    }
+  }
+
+  return result.user;
+};
+
 export const sendVerificationMailForCredentials = async (email, password) => {
   await ensureSessionPersistence();
   const result = await signInWithEmailAndPassword(auth, email, password);

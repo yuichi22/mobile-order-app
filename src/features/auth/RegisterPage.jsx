@@ -58,7 +58,10 @@ const RegisterPage = () => {
         inviteStoreId: inviteStoreId.trim()
       });
 
-      navigate(hasInvite || signupResult?.invited || signupResult?.ownerRegistered ? '/login' : '/');
+      // 登録でログイン状態になった場合はそのままアプリへ。
+      // （旧: 招待登録は必ず /login へ戻し、利用者に再ログインを強いていた）
+      const stayedSignedIn = signupResult?.signedIn === true || !(hasInvite || signupResult?.invited || signupResult?.ownerRegistered);
+      navigate(stayedSignedIn ? '/' : '/login');
     } catch (signupError) {
       setError(getAuthErrorMessage(signupError, 'アカウント登録に失敗しました。'));
     } finally {

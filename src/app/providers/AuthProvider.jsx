@@ -19,7 +19,8 @@ import { createAppAuthError } from '../../shared/utils/authErrorMessages';
 import { createInvitedMember } from '../../features/auth/services/inviteRegistrationService';
 import {
   sendCurrentUserVerificationMail,
-  sendVerificationMailForCredentials
+  sendVerificationMailForCredentials,
+  signInAndSendVerificationMail
 } from '../../features/auth/services/emailVerificationService';
 import { createOwnerAccount } from '../../features/auth/services/ownerRegistrationService';
 import { AuthContext } from './AuthContext';
@@ -128,9 +129,10 @@ export const AuthProvider = ({ children }) => {
           inviteCode: options.inviteCode,
           storeId: options.inviteStoreId
         });
-        await sendVerificationMailForCredentials(email, password);
+        // 登録後はそのままログイン状態にする（オーナー登録と同じ体験に揃える）。
+        await signInAndSendVerificationMail(email, password);
         pendingProfileRef.current = null;
-        return { invited: true, verificationSent: true };
+        return { invited: true, verificationSent: true, signedIn: true };
       }
 
       const profile = createOwnerSeed();
@@ -155,8 +157,8 @@ export const AuthProvider = ({ children }) => {
           password,
           name: String(options.name || '').trim()
         });
-        await sendVerificationMailForCredentials(email, password);
-        return { ownerRegistered: true, verificationSent: true };
+        await signInAndSendVerificationMail(email, password);
+        return { ownerRegistered: true, verificationSent: true, signedIn: true };
       }
 
       pendingProfileRef.current = null;
