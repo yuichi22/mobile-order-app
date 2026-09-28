@@ -8807,7 +8807,7 @@ export { receiveCheckoutRequest, lookupPosProduct } from "./checkoutRequests.js"
 export { onBasicSettingsWriteSyncAppOptions } from "./appOptions.js";
 
 // 会計確定を Core の CRM へ通知してポイント付与（会員特定は当面 groom 由来の personId のみ）
-export { onTransactionCreatedSyncCrmPoints } from "./crmPoints.js";
+export { onTransactionCreatedSyncCrmPoints, onTransactionUpdatedSyncCrmCancel } from "./crmPoints.js";
 
 // レジからの会員照会・ポイント利用（共有シークレットはサーバ側だけが持つ）
 export { crmLookupMember, crmRedeemPoints } from "./crmMember.js";
