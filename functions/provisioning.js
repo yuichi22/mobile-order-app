@@ -57,11 +57,69 @@ export const provisionStoreForSpace = onRequest(
     const linkRef = db.collection("coreLinks").doc(`${tenantId}__${spaceId}`);
 
     try {
-      // 冪等: 既存リンクがあればそれを返す
+      // 冪等: 既存リンクがあればそれを返す。
+      // ただし「未使用のまま失効した招待」は自動で再発行する（運営が手で直さないと
+      // 詰む状態を避ける。招待がTTL切れ＋店舗にオーナー未登録だと誰も入れないため）。
       const existing = await linkRef.get();
       if (existing.exists) {
         const d = existing.data() || {};
-        return res.json({ ok: true, alreadyProvisioned: true, storeId: d.storeId, inviteUrl: d.inviteUrl || null });
+        const storeId = str(d.storeId);
+        let inviteUrl = d.inviteUrl || null;
+        let inviteStatus = "none";
+        let inviteExpiresAt = null;
+        let renewed = false;
+
+        if (storeId) {
+          const prevCode = str((String(inviteUrl || "").match(/[?&]invite=([^&]+)/) || [])[1]);
+          const invitesCol = db.collection("stores").doc(storeId).collection("staffInvites");
+          const prevSnap = prevCode ? await invitesCol.doc(prevCode).get() : null;
+          const prev = prevSnap && prevSnap.exists ? prevSnap.data() : null;
+          const prevExpired = prev?.expiresAt?.toMillis ? prev.expiresAt.toMillis() <= Date.now() : true;
+
+          if (prev && prev.status === "used") {
+            // 既に登録済み。再発行しない（アカウントは存在する）
+            inviteStatus = "used";
+            inviteExpiresAt = prev.expiresAt?.toDate?.()?.toISOString() || null;
+          } else if (!prev || prevExpired) {
+            // 招待が無い/失効 → 新しいコードを発行して招待URLを差し替える
+            const newCode = randomBytes(16).toString("hex");
+            const newExpiresAt = Timestamp.fromMillis(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+            const now2 = FieldValue.serverTimestamp();
+            const batch2 = db.batch();
+            batch2.set(invitesCol.doc(newCode), {
+              storeId,
+              role: "owner",
+              status: "active",
+              source: "core-provision",
+              createdBy: "core-provision-renew",
+              createdAt: now2,
+              expiresAt: newExpiresAt,
+            });
+            if (prevSnap && prevSnap.exists) {
+              batch2.set(prevSnap.ref, { status: "expired", replacedBy: newCode, updatedAt: now2 }, { merge: true });
+            }
+            inviteUrl = inviteBase ? `${inviteBase}/register?store_id=${storeId}&invite=${newCode}` : null;
+            batch2.set(linkRef, { inviteUrl, inviteRenewedAt: now2 }, { merge: true });
+            await batch2.commit();
+            renewed = true;
+            inviteStatus = "active";
+            inviteExpiresAt = newExpiresAt.toDate().toISOString();
+            console.log(`[provisionStoreForSpace] renewed invite for ${storeId} (${tenantId}/${spaceId})`);
+          } else {
+            inviteStatus = "active";
+            inviteExpiresAt = prev.expiresAt?.toDate?.()?.toISOString() || null;
+          }
+        }
+
+        return res.json({
+          ok: true,
+          alreadyProvisioned: true,
+          storeId: d.storeId,
+          inviteUrl,
+          inviteStatus,
+          inviteExpiresAt,
+          inviteRenewed: renewed,
+        });
       }
 
       const storeId = createStoreId();
@@ -119,7 +177,14 @@ export const provisionStoreForSpace = onRequest(
       await batch.commit();
 
       console.log(`[provisionStoreForSpace] created store ${storeId} for ${tenantId}/${spaceId}`);
-      return res.json({ ok: true, storeId, inviteUrl });
+      return res.json({
+        ok: true,
+        storeId,
+        inviteUrl,
+        inviteStatus: "active",
+        inviteExpiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+        inviteRenewed: false,
+      });
     } catch (e) {
       console.error("[provisionStoreForSpace] error:", e);
       return res.status(500).json({ ok: false, error: e?.message || "internal error" });
