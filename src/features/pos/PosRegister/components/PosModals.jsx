@@ -174,7 +174,10 @@ export const PosModals = ({
   };
 
   const applyCrmPoints = (points) => {
-    const usePoints = Math.min(Math.floor(Number(points) || 0), crmPointMax);
+    // ⚠利用単位(例 500pt)の倍数に切り下げる。単位外の値(700pt等)はCoreが invalid_unit で拒否し、
+    //   会計確定の直前で止まってしまう。
+    const raw = Math.min(Math.floor(Number(points) || 0), crmPointMax);
+    const usePoints = Math.floor(raw / crmPointUnit) * crmPointUnit;
     if (usePoints <= 0) return;
     const item = buildCrmPointItem(usePoints);
     setCrmPointsToUse?.(usePoints);
@@ -459,8 +462,61 @@ export const PosModals = ({
                     </div>
                   ) : crmPointMax <= 0 ? (
                     <div className="rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-gray-500">
-                      この会計で使えるポイントがありません。
+                      {crmPointUnit > 1 && Number(crmMember.pointBalance || 0) < crmPointUnit
+                        ? `${crmPointUnit.toLocaleString()}pt から使えます（残高 ${Number(crmMember.pointBalance || 0).toLocaleString()}pt）。`
+                        : crmPointUnit > 1 && crmPointPayableBase < crmPointUnit * crmYenPerPoint
+                          ? `お会計が ¥${(crmPointUnit * crmYenPerPoint).toLocaleString()} 未満のため、ポイントは使えません。`
+                          : 'この会計で使えるポイントがありません。'}
                     </div>
+                  ) : crmPointUnit > 1 ? (
+                    // 単位あり(例 500pt): 自由入力ではなく単位刻みのステッパー(打ち間違いで会計が止まらない)
+                    (() => {
+                      const stepVal = Math.min(
+                        crmPointMax,
+                        Math.max(crmPointUnit, Math.floor((Number(pointInput) || crmPointUnit) / crmPointUnit) * crmPointUnit)
+                      );
+                      return (
+                        <div className="flex items-center gap-2">
+                          <div className="flex min-w-0 flex-1 items-center overflow-hidden rounded-lg border border-emerald-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => setPointInput(String(Math.max(crmPointUnit, stepVal - crmPointUnit)))}
+                              disabled={stepVal <= crmPointUnit}
+                              className="h-9 w-9 shrink-0 text-lg font-black text-emerald-700 disabled:text-gray-300"
+                              aria-label={`${crmPointUnit}pt減らす`}
+                            >
+                              −
+                            </button>
+                            <div className="min-w-0 flex-1 text-center text-sm font-black text-emerald-800">
+                              {stepVal.toLocaleString()}pt
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPointInput(String(Math.min(crmPointMax, stepVal + crmPointUnit)))}
+                              disabled={stepVal + crmPointUnit > crmPointMax}
+                              className="h-9 w-9 shrink-0 text-lg font-black text-emerald-700 disabled:text-gray-300"
+                              aria-label={`${crmPointUnit}pt増やす`}
+                            >
+                              ＋
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => applyCrmPoints(stepVal)}
+                            className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white"
+                          >
+                            利用
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyCrmPoints(crmPointMax)}
+                            className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                          >
+                            全部使う
+                          </button>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="flex items-center gap-2">
                       <input

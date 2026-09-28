@@ -1597,6 +1597,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     if (isPaymentSubmitting) return;
     if (consolidatedItems.length === 0) return;
 
+    // ⚠ポイントの利用単位(例 500pt)に合わない充当になっていたら、決済や書き込みより前に止める。
+    //   ポイント適用後にカートを減らすと、充当額が単位の倍数でなくなり(例 1,000pt→¥700充当)、
+    //   Core が invalid_unit で拒否して会計確定の直前で止まる。適用し直してもらう。
+    {
+      const unit = Math.max(Math.floor(Number(crmMember?.redeem?.unit) || 1), 1);
+      if (unit > 1 && crmPointsRedeemable > 0 && crmPointsRedeemable % unit !== 0) {
+        alert(`ポイント（${unit}pt単位）の利用額がお会計に合わなくなりました。\n割引・ポイントの画面でポイント利用を一度「取り消す」→選び直してください。`);
+        return;
+      }
+    }
+
     // 支払額0(全額充当)の会計は支払い方法を選ばず「会計を確定」で確定するため、
     // 記録上は売掛系(credit)に寄せる(従来の全額売掛ワンタップと同じ扱い)。
     const paymentMethodForCheckout = isZeroPayableCheckout ? 'credit' : resolvedPaymentMethod;
