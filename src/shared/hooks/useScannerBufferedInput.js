@@ -10,6 +10,13 @@ import { useCallback, useEffect, useRef } from 'react';
 //    1回だけ commit する。これにより1スキャン＝1回のstate更新になり取りこぼさない。
 //  - 低速(手入力)はそのまま素通り＝従来の onChange に委ねる(IME入力も壊さない)。
 
+// IME(日本語入力)経由の打鍵か。Macは変換の最初の1打鍵で isComposing=false のことがあるため
+// keyCode 229 / key 'Process' でも判定する。ローマ字の速打ちをスキャナと誤認して
+// 打鍵を奪う(=変換が途中で勝手に確定する)のを防ぐ。
+export const isImeKeyEvent = (event) => (
+  Boolean(event?.isComposing) || event?.keyCode === 229 || event?.key === 'Process'
+);
+
 export const createScannerBufferedState = () => ({
   buffer: '',
   base: '',
@@ -63,7 +70,13 @@ export const createScannerBufferedKeyDown = ({
   };
 
   return (event) => {
-    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isImeKeyEvent(event)) {
+      // 変換中はスキャン列を破棄して素通り(IMEに任せる)。
+      resetScan();
+      state.last = Date.now();
+      return;
+    }
 
     const now = Date.now();
     const gap = now - state.last;

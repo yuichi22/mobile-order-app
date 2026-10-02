@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isImeKeyEvent } from './useScannerBufferedInput';
 
 // フォーカス位置に関係なく、バーコードリーダーの読み取り(高速連続入力＋Enter終端)を
 // グローバルに捕捉して onScan(value) を呼ぶフック。手入力(ゆっくり)は速度で除外。
@@ -30,7 +31,7 @@ export const useGlobalBarcodeScanner = ({ active, onScan, intervalMs = 40, minLe
         buffer = '';
         return;
       }
-      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || isImeKeyEvent(event)) return;
 
       // 入力欄(検索窓・バーコード欄など)にフォーカス中は、その欄自身がスキャンを
       // 取り込む(useScannerBufferedInput)。グローバル側が Enter を横取りして検索へ
