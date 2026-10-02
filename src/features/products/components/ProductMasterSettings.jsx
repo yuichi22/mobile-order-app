@@ -42,6 +42,7 @@ const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
 // 同グループの兄弟SKUも取得してグループ丸ごと表示する。多すぎる場合(フリーワード広域検索)は
 // 従来どおり一致SKUのみ表示して読み取り量の膨張を防ぐ。
 const PRODUCT_MASTER_SEARCH_MERGE_GROUP_CAP = 40;
+const PRODUCT_MASTER_DIRECT_CODE_FIELDS = ['barcode', 'sku', 'productCode'];
 
 const normalizeProductMasterSearchText = (value) => (
   String(value || '')
@@ -8020,18 +8021,40 @@ const ProductMasterSettings = ({
           })
         );
 
+        // バーコード/SKU/品番は実フィールドを完全一致でも引く(POSと同じ経路)。
+        // searchKeywords は語数上限で長い商品名だとコードが落ちることがあり、キーワード頼みだとスキャンで出ない。
+        const codeVariants = requiredTerms.length === 1
+          ? [...new Set([headerSearchKeyword, headerSearchKeyword.toUpperCase()])]
+          : [];
+        const directCodeSnapshots = await Promise.all(
+          codeVariants.length
+            ? PRODUCT_MASTER_DIRECT_CODE_FIELDS.map((fieldPath) => getDocs(query(
+              productsRef,
+              where(fieldPath, 'in', codeVariants),
+              limit(PRODUCT_MASTER_HEADER_SEARCH_LIMIT)
+            )))
+            : []
+        );
+
         const bestCandidate = candidateSnapshots
           .filter((candidate) => candidate.docs.length > 0)
           .sort((a, b) => a.docs.length - b.docs.length)[0];
 
         const sourceDocs = bestCandidate?.docs || [];
 
-        const matches = sourceDocs
+        const directMatches = new Map();
+        directCodeSnapshots.forEach((snapshot) => snapshot.docs.forEach((docSnapshot) => {
+          if (!directMatches.has(docSnapshot.id)) directMatches.set(docSnapshot.id, { id: docSnapshot.id, ...docSnapshot.data() });
+        }));
+
+        const keywordMatches = sourceDocs
           .map((docSnapshot) => ({
             id: docSnapshot.id,
             ...docSnapshot.data()
           }))
-          .filter((product) => productMatchesAllHeaderSearchTerms(product, requiredTerms))
+          .filter((product) => !directMatches.has(product.id) && productMatchesAllHeaderSearchTerms(product, requiredTerms));
+
+        const matches = [...directMatches.values(), ...keywordMatches]
           .slice(0, PRODUCT_MASTER_HEADER_SEARCH_LIMIT);
 
         // ヒットしたグループが少数のときだけ、同グループの兄弟SKUを補完してグループ丸ごと表示する。

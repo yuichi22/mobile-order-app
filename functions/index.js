@@ -7300,16 +7300,18 @@ const addProductSearchKeywordTerm = (terms, value) => {
 const buildProductSearchKeywordsForFunction = (product = {}) => {
   const terms = new Set();
 
+  // コード類は先頭で積む: 長い/記号入りの商品名はn-gramだけで120語上限に達し、
+  // 後ろに置くとバーコード/品番が切り捨てられて管理画面のスキャン検索で出なくなる。
   [
-    product.name,
-    product.productName,
-    product.title,
-    product.productGroupTitle,
     product.sku,
     product.productCode,
     product.code,
     product.barcode,
     product.janCode,
+    product.name,
+    product.productName,
+    product.title,
+    product.productGroupTitle,
     product.brandName,
     product.vendor,
     product.categoryGroupName,
