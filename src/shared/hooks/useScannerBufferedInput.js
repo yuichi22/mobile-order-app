@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef } from 'react';
 // 「途中までしか読まない(文字の取りこぼし)」問題への対策。
 //
 // 仕組み:
-//  - スキャナ速度(平均文字間隔が avgMs 未満)の連続入力を検出したら、以降のキーを
-//    preventDefault してネイティブ入力を止め、バッファに溜める。
-//  - Enter、または小休止(idleCommitMs)で「列開始時のフィールド値＋バッファ」を
-//    1回だけ commit する。これにより1スキャン＝1回のstate更新になり取りこぼさない。
-//  - 低速(手入力)はそのまま素通り＝従来の onChange に委ねる(IME入力も壊さない)。
+//  - 連続入力は常にバッファにも記録する(列=gapMs以内の打鍵のまとまり)。
+//  - 人には出せない速さ(stealMinLength文字以上・平均 stealAvgMs 未満)と判定できた時だけ、
+//    以降のキーを preventDefault してネイティブ入力を止める(高速スキャンの取りこぼし対策)。
+//    ⚠ 人の速打ち(〜100ms/字)まで奪うと「打った文字が消える/上書きされる」ため、奪う閾値は厳しく。
+//  - Enter終端で、列が avgMs 未満(遅めのBluetoothスキャナも含む)ならスキャンとして commit。
+//  - Enterの無い小休止(idleCommitMs)での commit は、奪った(=欄に出ていない)時だけ行う。
+//  - それ以外(手入力)はそのまま素通り＝従来の onChange に委ねる(IME入力も壊さない)。
 
 // IME(日本語入力)経由の打鍵か。Macは変換の最初の1打鍵で isComposing=false のことがあるため
 // keyCode 229 / key 'Process' でも判定する。ローマ字の速打ちをスキャナと誤認して
@@ -16,6 +18,9 @@ import { useCallback, useEffect, useRef } from 'react';
 export const isImeKeyEvent = (event) => (
   Boolean(event?.isComposing) || event?.keyCode === 229 || event?.key === 'Process'
 );
+
+// スキャナの終端Enterは最後の文字から遅れて届くことがある(Bluetooth)。
+const ENTER_GRACE_MS = 500;
 
 export const createScannerBufferedState = () => ({
   buffer: '',
@@ -40,6 +45,9 @@ export const createScannerBufferedKeyDown = ({
   // 通常は終端Enterで確定し、これはEnterを送らないスキャナ向けの遅延フォールバック。
   idleCommitMs = 600,
   minLength = 2,
+  // 打鍵を奪う(ネイティブ入力を止める)条件。USB/一般的なBluetoothスキャナは〜30ms/字。
+  stealAvgMs = 40,
+  stealMinLength = 4,
   // true: スキャンは列開始時のフィールド値を無視して「バッファのみ」を確定(置換)。
   //       バーコード欄・検索窓は1スキャン=コード全体なので置換が自然。
   // false: 列開始時のフィールド値＋バッファを確定(追記)。
@@ -59,15 +67,24 @@ export const createScannerBufferedKeyDown = ({
     state.scanning = false;
   };
 
+  const commitBuffer = () => {
+    const value = `${state.base}${state.buffer}`;
+    resetScan();
+    if (typeof commit === 'function') commit(value);
+  };
+
+  // 小休止での確定は「奪った(=欄に出ていない)」時だけ。手入力の速打ちを勝手に確定しない。
   const flush = () => {
     if (!state.scanning || !state.buffer) {
       resetScan();
       return;
     }
-    const value = `${state.base}${state.buffer}`;
-    resetScan();
-    if (typeof commit === 'function') commit(value);
+    commitBuffer();
   };
+
+  const runAvg = (endTime) => (
+    state.buffer.length >= 2 ? (endTime - state.start) / (state.buffer.length - 1) : Infinity
+  );
 
   return (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -83,33 +100,43 @@ export const createScannerBufferedKeyDown = ({
     state.last = now;
 
     if (event.key === 'Enter') {
-      if (state.scanning && state.buffer) {
-        // スキャン中のEnterはバッファをまとめて確定。フィールド側のEnter挙動は抑止。
+      // 奪っている最中、または「列の直後のEnter」かつ列がスキャナ速度ならスキャンとして確定。
+      // (遅めのBluetoothスキャナは奪わずに素通しで入るが、Enter終端でここに来る)
+      const isScanEnter = state.buffer && (
+        state.scanning
+        || (gap <= ENTER_GRACE_MS && state.buffer.length >= minLength && runAvg(state.last - gap) < avgMs)
+      );
+      if (isScanEnter) {
+        // フィールド側のEnter挙動は抑止。
         event.preventDefault();
         event.stopPropagation();
-        flush();
+        commitBuffer();
         return;
       }
+      resetScan();
       if (typeof onManualEnter === 'function') onManualEnter(event);
       return;
     }
 
-    if (event.key.length !== 1) return; // 制御キー(矢印・BS等)は対象外
+    if (event.key.length !== 1) {
+      // BS・矢印などは人の編集操作(スキャナは送らない)。列を打ち切る。
+      if (!state.scanning) resetScan();
+      return;
+    }
 
     // 新しい連続入力列の開始判定。列開始時のフィールド値(=この打鍵前の値)を土台に保持。
     if (gap > gapMs || state.buffer === '') {
-      state.buffer = '';
+      resetScan();
       state.start = now;
       state.base = replace ? '' : (event.target?.value ?? '');
-      state.scanning = false;
     }
 
     state.buffer += event.key;
 
-    const avg = state.buffer.length >= 2 ? (now - state.start) / (state.buffer.length - 1) : Infinity;
-    const isScanSpeed = state.buffer.length >= minLength && avg < avgMs;
+    const shouldSteal = state.scanning
+      || (state.buffer.length >= Math.max(minLength, stealMinLength) && runAvg(now) < stealAvgMs);
 
-    if (isScanSpeed) {
+    if (shouldSteal) {
       state.scanning = true;
       // 取りこぼし防止: 以降はネイティブ入力させずバッファのみに集約する。
       event.preventDefault();
@@ -117,7 +144,7 @@ export const createScannerBufferedKeyDown = ({
       clearTimer();
       state.timer = window.setTimeout(flush, idleCommitMs);
     }
-    // isScanSpeed でない(=手入力)は preventDefault せず素通り。
+    // 奪わない打鍵(=人の速さ)は preventDefault せず素通り。
   };
 };
 
