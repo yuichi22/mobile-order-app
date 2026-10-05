@@ -152,3 +152,139 @@ export const crmRedeemPoints = onCall({ region: REGION }, async (request) => {
   );
   return { ok: true, ...data };
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ポイントカードのご案内（2026-10-05）の3本。
+// 既存会員の多くは固定電話で登録されている（prod 17,781人中 3,320人=18.7%）。
+// 名寄せキーは電話番号の数字列の完全一致なので、その人がポイントカードに携帯で登録すると
+// 既存 person に繋がらず、過去のポイントと LTV が引き継がれない。
+// 先にレジで探して携帯番号を主番号に入れ、手書きスタンプの途中分もここで引き継ぐ。
+//
+// ⚠全桁の電話番号・番地・LTV・生年月日は Core 側で既に落ちている。
+//   ここで足して返さないこと（端末に無ければ漏れない）。
+
+/** 日本の携帯番号か（070/080/090 の11桁）。Core 側 lib/jpPhone.js と同じ規則。 */
+const isJpMobile = (raw) => {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (d.startsWith("81") && d.length >= 11) d = `0${d.slice(2)}`;
+  return /^0[789]0\d{8}$/.test(d);
+};
+
+/** 担当スタッフ（監査記録に残す）。Core は検証できないので POS の認証済み uid を正とする。 */
+const actorOf = (request, storeId, role) => ({
+  uid: String(request.auth?.uid || ""),
+  role: String(role || ""),
+  storeId: String(storeId || ""),
+});
+
+/**
+ * 既存会員の検索（電話番号 / 氏名 / ふりがな / 町名・番地のスペース区切りAND）。
+ * ⚠**複数ヒットする前提**。prod には 871番号・1,837人の重複（家族で1番号を共有）があり、
+ *   1件目を自動選択すると他人のポイントを渡す事故になる。必ず人に選ばせる。
+ */
+export const crmSearchMembers = onCall({ region: REGION }, async (request) => {
+  const storeId = str(request.data?.storeId);
+  const q = str(request.data?.q);
+  if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  if (q.replace(/[\s\u3000]+/g, "").length < 3) {
+    throw new HttpsError("invalid-argument", "3文字以上で検索してください。");
+  }
+  await assertStoreStaff(request, storeId);
+  const link = await resolveCoreLink(storeId);
+
+  const data = await callCore("searchCrmMembers", {
+    coreTenantId: link.coreTenantId,
+    coreSpaceId: link.coreSpaceId,
+    q,
+    limit: 20,
+  });
+  return {
+    ok: true,
+    members: Array.isArray(data.members) ? data.members : [],
+    matchCount: Number(data.matchCount || 0),
+    truncated: data.truncated === true,
+  };
+});
+
+/**
+ * 主番号（携帯）の登録 / 直近15分の取消。
+ * action: "set" で携帯を主番号にし、旧主番号は副番号へ降格（索引は両方に残る）。
+ * action: "undo" で元に戻す（登録したスタッフ本人・15分以内のみ）。
+ */
+export const crmSetMemberPhone = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId);
+  const personId = str(d.personId);
+  const action = str(d.action) || "set";
+  if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  if (!personId) throw new HttpsError("invalid-argument", "personId required.");
+  if (action === "set" && !isJpMobile(d.phone)) {
+    // サーバ側でも弾くが、往復させる前にここで止める（打ち間違いが一番多い）
+    throw new HttpsError("invalid-argument", "携帯番号（090/080/070）を入力してください。");
+  }
+  if (action === "undo" && !str(d.changeId)) {
+    throw new HttpsError("invalid-argument", "changeId required.");
+  }
+  const role = await assertStoreStaff(request, storeId);
+  const link = await resolveCoreLink(storeId);
+
+  return callCore("updateCrmMemberPhone", {
+    coreTenantId: link.coreTenantId,
+    coreSpaceId: link.coreSpaceId,
+    personId,
+    action,
+    ...(action === "undo" ? { changeId: str(d.changeId) } : { phone: str(d.phone) }),
+    actor: actorOf(request, storeId, role),
+  });
+});
+
+/** スタンプカード1枚＝30,000円（AppSheet取込の LTV 換算と同じ尺度）。 */
+const LEGACY_STAMP_CARD_YEN = 30000;
+
+/**
+ * 手書きスタンプカードの途中分をポイントにする。
+ * ⚠入力は**金額（円）**。ポイントは Core が付与率から計算する（元帳に amount と points の
+ *   両方が残り、後から「何に対する付与か」を追える）。
+ * ⚠1回 30,000円＝カード1枚まで。2枚以上溜めている人は複数回に分ける。
+ * ⚠grantId は呼び出し側が作る冪等キー。通信が切れて再送しても二重付与にならない。
+ */
+export const crmGrantLegacyStamp = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId);
+  const personId = str(d.personId);
+  const amount = Math.floor(Number(d.amount) || 0);
+  const reason = str(d.reason);
+  const grantId = str(d.grantId);
+
+  if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  if (!personId) throw new HttpsError("invalid-argument", "personId required.");
+  if (!grantId) throw new HttpsError("invalid-argument", "grantId required.");
+  if (!reason) throw new HttpsError("invalid-argument", "付与の理由を入力してください。");
+  if (amount <= 0) throw new HttpsError("invalid-argument", "金額を入力してください。");
+  if (amount > LEGACY_STAMP_CARD_YEN) {
+    throw new HttpsError(
+      "invalid-argument",
+      `1回あたり ¥${LEGACY_STAMP_CARD_YEN.toLocaleString()}（カード1枚分）までです。2枚以上は分けて付与してください。`,
+    );
+  }
+  const role = await assertStoreStaff(request, storeId);
+  const link = await resolveCoreLink(storeId);
+
+  const data = await callCore(
+    "grantCrmLegacyStamp",
+    {
+      coreTenantId: link.coreTenantId,
+      coreSpaceId: link.coreSpaceId,
+      personId,
+      amount,
+      reason,
+      idempotencyKey: `stamp-${grantId}`,
+      confirm: d.confirm === true,
+      actor: actorOf(request, storeId, role),
+    },
+    `stamp-${grantId}`,
+  );
+  // 枚数から見て多すぎる付与は Core が確認を求めてくる（200 で返るのでエラーにならない）。
+  if (data?.requiresConfirm === true) return { ok: false, ...data };
+  return { ok: true, ...data };
+});

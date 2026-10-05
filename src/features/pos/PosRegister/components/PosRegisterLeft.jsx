@@ -69,7 +69,8 @@ export const PosRegisterLeft = ({
   crmCodeInput,
   setCrmCodeInput,
   onLookupCrmMember,
-  onClearCrmMember
+  onClearCrmMember,
+  onOpenMemberSearch
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
   const isCustomMode = checkoutSelectionMode === 'custom';
@@ -159,6 +160,16 @@ export const PosRegisterLeft = ({
               >
                 {crmMemberBusy ? '照会中…' : '照会'}
               </button>
+              {/* 会員番号が分からないお客様（ポイントカード未登録・固定電話で登録）はこちらから探す。 */}
+              {typeof onOpenMemberSearch === 'function' && (
+                <button
+                  type="button"
+                  onClick={onOpenMemberSearch}
+                  className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                >
+                  検索
+                </button>
+              )}
             </form>
             {crmMemberMsg && (
               <div className="mt-1 text-[11px] font-bold text-red-600">{crmMemberMsg}</div>

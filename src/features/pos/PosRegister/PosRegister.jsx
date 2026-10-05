@@ -21,6 +21,7 @@ import {
 } from '../../store/hooks';
 
 import { PosRegisterLeft } from './components/PosRegisterLeft';
+import PosMemberSearchModal from '../components/PosMemberSearchModal';
 import { PosRegisterRight } from './components/PosRegisterRight';
 import { PosModals } from './components/PosModals';
 import { computePaymentSplit, getSplitMethodLabel } from '../utils/paymentSplit';
@@ -146,12 +147,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     codeInput: crmCodeInput,
     setCodeInput: setCrmCodeInput,
     lookupByCode: lookupCrmMemberByCode,
+    lookupByPersonId: lookupCrmMemberByPersonId,
     clearMember: clearCrmMember,
     pointsToUse: crmPointsToUse,
     setPointsToUse: setCrmPointsToUse,
     maxUsablePoints: crmMaxUsablePoints,
     redeemPoints: crmRedeemPoints
   } = crm || fallbackCrm;
+
+  // 会員検索（ポイントカードのご案内で、固定電話のお客様に携帯番号をお伺いする画面）。
+  // ⚠開いている時だけマウントする(前のお客様の検索結果を持ち越さない)。
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
 
   // 会員バーコード(Code128 "MB"+番号)のスキャナ取り込み。
   // イートインの会計画面には商品スキャン欄が無いため、キーボードウェッジの打鍵を直接拾う。
@@ -2628,6 +2634,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         setCrmCodeInput={setCrmCodeInput}
         onLookupCrmMember={lookupCrmMemberByCode}
         onClearCrmMember={clearCrmMember}
+        onOpenMemberSearch={() => setMemberSearchOpen(true)}
       />
       <PosRegisterRight
         orders={orders}
@@ -2679,6 +2686,14 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         tableDisplayName={tableDisplayName}
         onClose={onBack}
       />
+
+      {memberSearchOpen && (
+        <PosMemberSearchModal
+          storeId={storeId}
+          onClose={() => setMemberSearchOpen(false)}
+          onLoadMember={(row) => lookupCrmMemberByPersonId(row?.personId, { fallbackName: row?.displayName })}
+        />
+      )}
 
       <TerminalPaymentModal state={term.modal} onCancel={term.cancel} onClose={term.close} onSimulate={term.simulate} />
 

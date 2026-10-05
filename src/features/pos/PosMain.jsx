@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
 import { collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
-import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins } from 'lucide-react';
+import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins, User } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
 import { db, functionsApi } from '../../shared/api/firebase/client';
@@ -9,6 +9,7 @@ import { queryDocsWithRestFallback } from '../../shared/api/firebase/scanQuery';
 import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useCrmMember } from './hooks/useCrmMember';
+import PosMemberSearchModal from './components/PosMemberSearchModal';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
 import { attachScanIndex } from '../../shared/api/firebase/scanIndex';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
@@ -445,6 +446,18 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const clearCrmMember = ({ notify = false } = {}) => {
     clearCrmMemberState();
     if (notify) setPosMessage('会員を解除しました。', 'info');
+  };
+
+  // 会員検索（ポイントカードのご案内で、固定電話のお客様に携帯番号をお伺いする画面）。
+  // ⚠開いている時だけマウントする(前のお客様の検索結果を持ち越さない)。
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const loadSearchedMember = async (row) => {
+    const found = await lookupCrmMemberByPersonId(row?.personId, { fallbackName: row?.displayName });
+    if (found) {
+      setPosMessage(`会員を読み込みました（利用可能 ${Number(found.pointBalance || 0).toLocaleString()}pt）`, 'success');
+    } else {
+      setPosMessage('会員を読み込めませんでした。', 'error');
+    }
   };
 
   const clearTakeoutDiscount = () => {
@@ -2766,6 +2779,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               >
                 <Search size={18} />
               </button>
+              {/* 会計が無くても使えるように、スキャン枠の隣に常設する
+                  （ポイントカードのご案内は会計の前後どちらでも起きる）。 */}
+              {registerMode === 'pos' && (
+                <button
+                  type="button"
+                  onClick={() => setMemberSearchOpen(true)}
+                  title="会員検索・携帯番号の登録"
+                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
+                >
+                  <User size={16} strokeWidth={2.8} />
+                  会員検索
+                </button>
+              )}
             </form>
           </div>
         </div>
@@ -3164,6 +3190,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     >
                       {crmMemberBusy ? '照会中…' : '照会'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberSearchOpen(true)}
+                      className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                    >
+                      検索
+                    </button>
                   </form>
                 )}
                 {crmMemberMsg && (
@@ -3428,6 +3461,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           </button>
         </div>
       </div>
+    )}
+
+    {memberSearchOpen && (
+      <PosMemberSearchModal
+        storeId={storeId}
+        onClose={() => setMemberSearchOpen(false)}
+        onLoadMember={loadSearchedMember}
+      />
     )}
 
     <PosModals
