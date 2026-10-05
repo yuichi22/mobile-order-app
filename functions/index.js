@@ -3585,11 +3585,19 @@ const assertUniqueShopifyInputValues = (products = []) => {
   }
 };
 
-// 単品(バリエーション無し)は Shopify 標準の Title/Default Title パターンで登録する。
+// サイズ・カラーが空の単品は Shopify 標準の Title/Default Title パターンで登録する。
 // → hasOnlyDefaultVariant=true となりバリエーション欄が表示されず、SKU空でも登録できる
 //   (品番にバーコードを入れてバリエーション表示される不自然さを回避)。
+// サイズ・カラーのどちらかが入力された単品は、複数SKUと同じく Size/Color オプションで登録する
+// (商品ページ・カートに色/サイズを出す＋後からSKUを追加してもオプション構成が変わらない)。
 const SHOPIFY_DEFAULT_OPTION_NAME = 'Title';
 const SHOPIFY_DEFAULT_OPTION_VALUE = 'Default Title';
+
+const shouldUseShopifyDefaultVariant = (products = []) => (
+  products.length === 1
+  && !String(products[0]?.size || '').trim()
+  && !String(products[0]?.colorName || '').trim()
+);
 
 const SHOPIFY_SIZE_OPTION_NAME = 'Size';
 const SHOPIFY_COLOR_OPTION_NAME = 'Color';
@@ -3744,11 +3752,11 @@ const buildShopifyVariantMetafields = (group = {}, product = {}) => ([
 ]);
 
 const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
-  const isSingleProduct = products.length === 1;
-  const assignment = isSingleProduct ? null : buildShopifyOptionAssignment(products);
+  const useDefaultVariant = shouldUseShopifyDefaultVariant(products);
+  const assignment = useDefaultVariant ? null : buildShopifyOptionAssignment(products);
 
   const variants = products.map((product, index) => {
-    const optionValues = isSingleProduct
+    const optionValues = useDefaultVariant
       ? [{ optionName: SHOPIFY_DEFAULT_OPTION_NAME, name: SHOPIFY_DEFAULT_OPTION_VALUE }]
       : assignment.optionValuesByIndex[index];
     const sku = String(product.sku || product.productCode || '').trim();
@@ -3766,7 +3774,7 @@ const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncl
     };
   });
 
-  const productOptions = isSingleProduct
+  const productOptions = useDefaultVariant
     ? [{ name: SHOPIFY_DEFAULT_OPTION_NAME, values: [{ name: SHOPIFY_DEFAULT_OPTION_VALUE }] }]
     : assignment.productOptions;
   const tags = buildMergedShopifyTags(
@@ -4166,12 +4174,12 @@ const productSetUpdateMutation = `
 `;
 
 const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
-  const isSingleProduct = products.length === 1;
-  const assignment = isSingleProduct ? null : buildShopifyOptionAssignment(products);
+  const useDefaultVariant = shouldUseShopifyDefaultVariant(products);
+  const assignment = useDefaultVariant ? null : buildShopifyOptionAssignment(products);
   const usedShopifyVariantIds = new Set();
 
   const variants = products.map((product, index) => {
-    const optionValues = isSingleProduct
+    const optionValues = useDefaultVariant
       ? [{ optionName: SHOPIFY_DEFAULT_OPTION_NAME, name: SHOPIFY_DEFAULT_OPTION_VALUE }]
       : assignment.optionValuesByIndex[index];
     const shopifyVariantId = String(product.shopifyVariantId || '').trim();
@@ -4192,7 +4200,7 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], pr
     };
   });
 
-  const productOptions = isSingleProduct
+  const productOptions = useDefaultVariant
     ? [{ name: SHOPIFY_DEFAULT_OPTION_NAME, position: 1, values: [{ name: SHOPIFY_DEFAULT_OPTION_VALUE }] }]
     : assignment.productOptions;
 
@@ -4290,7 +4298,7 @@ export const updateShopifyProduct = onRequest(
       }
 
       // 複数バリエーションのみSKU必須(単品はSKU無しのデフォルトバリアント運用を許可)。
-      const optionName = products.length === 1 ? SHOPIFY_DEFAULT_OPTION_NAME : resolveShopifyOptionName(products);
+      const optionName = shouldUseShopifyDefaultVariant(products) ? SHOPIFY_DEFAULT_OPTION_NAME : resolveShopifyOptionName(products);
       if (products.length > 1) {
         const invalidSku = products.find((product) => !String(product.sku || product.productCode || '').trim());
         if (invalidSku) {
