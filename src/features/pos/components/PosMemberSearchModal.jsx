@@ -23,16 +23,13 @@ import {
 //   871番号・1,837人）ため、自動で選ぶと他人のポイントを渡す事故になる。必ず人に選ばせる。
 // ⚠表示は氏名・カナ・電話下4桁・町名まで。番地・累計購入額・生年月日はサーバが返していない。
 
-// 付与の理由は「分類」ではなく**事実**を残す。手書きカードには「何枚目か」しか
-// 書いていないので、その数字をそのまま入れてもらい、台帳には
-// 「スタンプカード3枚目の途中分」の形で残す。後から見て何のカードか分かる。
-// ⚠満了カードは顧客情報シートと引き換えに回収しているので、お客様の手元にあるのは
-//   記入中の1枚だけ。だから1回あたり¥30,000（カード1枚分）の上限と素直に噛み合う。
-const cardReason = (cardNo, memo) => {
-  const n = Math.floor(Number(cardNo) || 0);
-  const head = n > 0 ? `スタンプカード${n}枚目の途中分` : 'スタンプカード途中分';
+// 付与の理由。⚠管理しているのは「カードが何枚目か」ではなく**お買い上げ金額**で、
+// それは金額欄そのもの（累計購入額にも同じ額が積まれる）。枚数は金額の代用でしか
+// ないので聞かない。理由は固定文＋任意の補足で足りる。
+const STAMP_REASON = 'スタンプカード途中分';
+const grantReason = (memo) => {
   const note = String(memo || '').trim();
-  return note ? `${head} / ${note}` : head;
+  return note ? `${STAMP_REASON} / ${note}` : STAMP_REASON;
 };
 
 const MIN_QUERY_LENGTH = 3;
@@ -141,7 +138,6 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const [phoneDone, setPhoneDone] = useState(null); // { changeId, undoableUntilMs }
 
   const [amount, setAmount] = useState('');
-  const [cardNo, setCardNo] = useState('');   // カードに書いてある「何枚目」
   const [memo, setMemo] = useState('');       // 例外（紛失・再発行など）の補足
   const [granting, setGranting] = useState(false);
   const [grantErr, setGrantErr] = useState('');
@@ -218,14 +214,8 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const rateMissing = meta.pointsEnabled && !(meta.pointsPerYen > 0);
   const overLimit = amountNumber > stampCardYen;
   // ⚠1pt にも満たない金額は Core が amount_too_small で弾く。押せてしまうと現場が迷うので手前で止める。
-  const cardNoNumber = Math.floor(Number(cardNo) || 0);
-  const reason = cardReason(cardNoNumber, memo);
-  // カードに書いてある枚数と CRM の満了カード枚数の照合。
-  // 「3枚目」なら満了は2枚のはず。合わなければ作り直したカードや別のお客様の疑い。
-  // ⚠止めない（手書き運用なので食い違いは普通に起きる）。気づける材料として出すだけ。
-  const expectedCards = cardNoNumber > 0 ? cardNoNumber - 1 : null;
-  const cardNoMismatch = expectedCards !== null && Number(member.legacyStampCards || 0) !== expectedCards;
-  const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit && cardNoNumber > 0 && meta.pointsEnabled;
+  const reason = grantReason(memo);
+  const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit && meta.pointsEnabled;
 
   const grant = async () => {
     if (!canGrant || !member) return;
@@ -265,10 +255,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         pointBalance: Number(member.pointBalance || 0) + Number(res.points || 0),
         legacyStampGrantedAmount: Number(member.legacyStampGrantedAmount || 0) + amountNumber
       });
-      // 1枚のカードにつき1回。終わったら入力を空にして、同じカードを続けて
-      // 付与できない状態に戻す（金額だけ消すと枚数が残り、同じ番号で二重に記録される）。
       setAmount('');
-      setCardNo('');
       setMemo('');
       grantIdRef.current = ''; // 次の付与は別の冪等キーで
     } catch (e) {
@@ -388,6 +375,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
           <>
             <p className="mt-1 text-[11px] font-bold text-slate-500">
               お手元のカードに貯まっている分を<strong className="text-slate-700">お買い上げ金額</strong>で入力してください。
+              ポイントと<strong className="text-slate-700">累計のお買い上げ金額</strong>の両方に、この金額が反映されます。
               1回あたり ¥{stampCardYen.toLocaleString()}（カード1枚分）までです。
               2枚以上は分けて付与してください。
             </p>
@@ -430,35 +418,13 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
 
             <div className="mt-3">
               <div className="mb-1 text-[11px] font-black text-slate-500">付与の理由（記録に残ります）</div>
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs font-black text-slate-700">スタンプカード</span>
-                <input
-                  value={cardNo}
-                  onChange={(e) => setCardNo(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                  inputMode="numeric"
-                  placeholder="何枚目"
-                  className="h-10 w-20 rounded-xl border-2 border-slate-100 bg-white px-3 text-center font-mono text-sm font-black outline-none focus:border-emerald-400"
-                />
-                <span className="shrink-0 text-xs font-black text-slate-700">枚目の途中分</span>
-              </div>
-              <p className="mt-1 text-[11px] font-bold text-slate-400">
-                お手元のカードに書いてある数字をそのまま入れてください。
-              </p>
-              {cardNoMismatch && (
-                <div className="mt-1.5 text-[11px] font-bold text-amber-700">
-                  記録上の満了カードは{member.legacyStampCards}枚です（{cardNoNumber}枚目なら{expectedCards}枚のはず）。
-                  作り直したカードか、別のお客様の可能性があります。ご確認ください。
-                </div>
-              )}
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{STAMP_REASON}</div>
               <input
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
                 placeholder="補足（任意・紛失や再発行などがあれば）"
                 className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
               />
-              <p className="mt-1 text-[11px] font-bold text-slate-400">
-                記録: {reason}
-              </p>
             </div>
 
             <button
