@@ -1725,11 +1725,19 @@ const ProductMasterTable = ({
   }, [storeId]);
 
 
+  const productByIdMap = useMemo(
+    () => new Map(effectiveProducts.filter((product) => product?.id).map((product) => [product.id, product])),
+    [effectiveProducts]
+  );
+
   const getDraftShopifyTarget = (product) => {
     const draft = draftRows[product.id];
+    // product は getWorkingGroup 経由で下書き(フラグを外したもの)になっていることがあるため、
+    // 下書きにフラグが無い場合は保存済みの商品で判定する。
+    const saved = productByIdMap.get(product.id) || product;
 
     if (!draft) {
-      return Boolean(product.shopifyCreateEnabled || product.shopifyEnabled);
+      return Boolean(saved.shopifyCreateEnabled || saved.shopifyEnabled);
     }
 
     if (Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')) {
@@ -1740,7 +1748,7 @@ const ProductMasterTable = ({
       return Boolean(draft.shopifyEnabled);
     }
 
-    return Boolean(product.shopifyCreateEnabled || product.shopifyEnabled);
+    return Boolean(saved.shopifyCreateEnabled || saved.shopifyEnabled);
   };
 
   const groupHasDraftShopifyTarget = (group) =>
@@ -1772,11 +1780,6 @@ const ProductMasterTable = ({
     groupHasPendingShopifySync(group)
     || groupHasDraftShopifyTarget(group)
     || groupHasSavedUnsyncedShopifyReservation(group);
-
-  const productByIdMap = useMemo(
-    () => new Map(effectiveProducts.filter((product) => product?.id).map((product) => [product.id, product])),
-    [effectiveProducts]
-  );
 
   const normalizeComparableText = (value) => String(value ?? '').trim();
 
@@ -2238,6 +2241,23 @@ const ProductMasterTable = ({
     return { type: 'standard', rate: 10 };
   };
 
+  // 編集開始時(updateDraft)にShopifyフラグを下書きから外しているため、下書きに無いフラグは
+  // 保存済みの値を引き継ぐ。Boolean(undefined)=false で保存すると、連携済み商品を「更新」しただけで
+  // 連携フラグがOFFになり、以後「Shopify同期」の更新対象から外れてしまう。
+  const resolveShopifyFlagsForSave = (draft) => {
+    const saved = productByIdMap.get(draft.id) || {};
+    const createEnabled = Object.prototype.hasOwnProperty.call(draft, 'shopifyCreateEnabled')
+      ? draft.shopifyCreateEnabled
+      : saved.shopifyCreateEnabled;
+    const enabled = Object.prototype.hasOwnProperty.call(draft, 'shopifyEnabled')
+      ? draft.shopifyEnabled
+      : saved.shopifyEnabled;
+    return {
+      shopifyCreateEnabled: Boolean(createEnabled),
+      shopifyEnabled: Boolean(enabled || createEnabled)
+    };
+  };
+
   const buildProductSavePayload = (draft) => {
     const matchedBrand = brands.find((brand) => brand.id === draft.brandId);
     const matchedCategory = productCategories.find((category) => category.id === draft.categoryId);
@@ -2272,8 +2292,7 @@ const ProductMasterTable = ({
       categoryGroupName: matchedGroup?.name || draft.categoryGroupName || '',
       supplierId: matchedBrand?.supplierId || draft.supplierId || '',
       supplierName: matchedSupplier?.name || matchedBrand?.supplierName || draft.supplierName || '',
-      shopifyCreateEnabled: Boolean(draft.shopifyCreateEnabled),
-      shopifyEnabled: Boolean(draft.shopifyEnabled || draft.shopifyCreateEnabled)
+      ...resolveShopifyFlagsForSave(draft)
     });
   };
 
