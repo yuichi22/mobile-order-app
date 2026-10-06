@@ -11,7 +11,7 @@ import {
   undoCrmMemberPhone
 } from '../services/crmMemberDirectoryService';
 
-// 既存会員の検索 → 携帯番号を主番号に登録 → 手書きスタンプ途中分のポイント付与。
+// 既存会員の検索 → 携帯番号を主番号に登録 → 手動でのポイント付与（紙のカードなどからの移行）。
 // ポイントカードのご案内を始める前に必要になる店頭作業をここ1枚にまとめる。
 //
 // なぜ要るか: 会員の名寄せキーは電話番号の数字列の完全一致。既存会員の18.7%(prod 3,320人)は
@@ -23,14 +23,12 @@ import {
 //   871番号・1,837人）ため、自動で選ぶと他人のポイントを渡す事故になる。必ず人に選ばせる。
 // ⚠表示は氏名・カナ・電話下4桁・町名まで。番地・累計購入額・生年月日はサーバが返していない。
 
-// 付与の理由。⚠管理しているのは「カードが何枚目か」ではなく**お買い上げ金額**で、
-// それは金額欄そのもの（累計購入額にも同じ額が積まれる）。枚数は金額の代用でしか
-// ないので聞かない。理由は固定文＋任意の補足で足りる。
-const STAMP_REASON = 'スタンプカード途中分';
-const grantReason = (memo) => {
-  const note = String(memo || '').trim();
-  return note ? `${STAMP_REASON} / ${note}` : STAMP_REASON;
-};
+// 付与の理由。⚠管理しているのは**お買い上げ金額**で、それは金額欄そのもの
+// （ポイントと累計購入額の両方に同じ額が積まれる）。理由は「何のための付与か」を
+// 台帳に残すためだけに要る。
+// 既定は「ポイント移動」＝紙のカードや他システムからの引き継ぎ。それ以外は自由記入
+// （テナントごとに事情が違うので、選択肢をこちらで増やさない）。
+const TRANSFER_REASON = 'ポイント移動';
 
 const MIN_QUERY_LENGTH = 3;
 
@@ -107,7 +105,6 @@ const MemberRow = ({ row, active, onClick }) => (
       <span>{row.phoneLast4 ? `電話 下4桁 ${row.phoneLast4}` : '電話番号なし'}</span>
       {row.subPhoneLast4 && <span>/ 副 {row.subPhoneLast4}</span>}
       <span>{row.addressUnknown ? '住所不明' : (formatTown(row) || '住所なし')}</span>
-      {row.legacyStampCards > 0 && <span>カード {row.legacyStampCards}枚</span>}
     </div>
     <div className="mt-1 flex flex-wrap gap-1">
       {row.needsMobile && (
@@ -138,7 +135,8 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const [phoneDone, setPhoneDone] = useState(null); // { changeId, undoableUntilMs }
 
   const [amount, setAmount] = useState('');
-  const [memo, setMemo] = useState('');       // 例外（紛失・再発行など）の補足
+  const [reasonKind, setReasonKind] = useState('transfer'); // transfer | other
+  const [memo, setMemo] = useState('');                     // 「その他」を選んだ時の内容
   const [granting, setGranting] = useState(false);
   const [grantErr, setGrantErr] = useState('');
   const [grantDone, setGrantDone] = useState(null); // { amount, points }
@@ -206,16 +204,19 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   };
 
   const amountNumber = Math.max(0, Math.floor(Number(amount || 0) || 0));
-  const stampCardYen = Number(meta.stampCardYen || 30000);
+  // 1回あたりの上限。Core が返す（DECOLLE ではスタンプカード1枚＝¥30,000 が由来）。
+  const grantLimitYen = Number(meta.stampCardYen || 30000);
   const previewPoints = meta.pointsPerYen > 0 ? Math.floor(amountNumber * meta.pointsPerYen) : 0;
   // 付与は有効なのに付与率が取れていない＝サーバ側の受け渡し漏れ。
   // ⚠「金額が小さい」と区別しないと、原因が分からないまま押せないボタンを眺めることになる
   //   （実際に2026-10-06、レジの中継が pointsPerYen を返し忘れてこの状態になった）。
   const rateMissing = meta.pointsEnabled && !(meta.pointsPerYen > 0);
-  const overLimit = amountNumber > stampCardYen;
+  const overLimit = amountNumber > grantLimitYen;
   // ⚠1pt にも満たない金額は Core が amount_too_small で弾く。押せてしまうと現場が迷うので手前で止める。
-  const reason = grantReason(memo);
-  const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit && meta.pointsEnabled;
+  const reason = reasonKind === 'other' ? memo.trim() : TRANSFER_REASON;
+  // ⚠「その他」を選んだら中身は必須。空のまま通すと台帳に理由が残らない。
+  const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit
+    && !!reason && meta.pointsEnabled;
 
   const grant = async () => {
     if (!canGrant || !member) return;
@@ -237,10 +238,10 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       // 満了済み枚数から見て多すぎる付与。止めるのではなく、スタッフに確認させて記録に残す。
       if (res.requiresConfirm === true) {
         const ok = await appConfirm(
-          `このお客様の満了カードは ${res.legacyStampCards}枚（これまでの付与 ¥${Number(res.grantedAmount || 0).toLocaleString()}）です。\n`
-          + `今回の ¥${amountNumber.toLocaleString()} を足すと、カード枚数から見た目安 ¥${Number(res.cap || 0).toLocaleString()} を超えます。\n\n`
-          + 'お手元のカードの枚数をご確認ください。このまま付与しますか？',
-          { title: 'カード枚数より多い付与', okLabel: '確認した・付与する', tone: 'danger' }
+          `このお客様へのこれまでの手動付与は ¥${Number(res.grantedAmount || 0).toLocaleString()} です。\n`
+          + `今回の ¥${amountNumber.toLocaleString()} を足すと、過去のご購入から見た目安 ¥${Number(res.cap || 0).toLocaleString()} を超えます。\n\n`
+          + '金額に間違いがないかご確認ください。このまま付与しますか？',
+          { title: '目安より多い付与', okLabel: '確認した・付与する', tone: 'danger' }
         );
         if (!ok) return;
         res = await grantCrmLegacyStamp({ ...args, confirm: true });
@@ -253,9 +254,11 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       setGrantDone({ amount: amountNumber, points: Number(res.points || 0), duplicate: res.duplicate === true });
       onPatchRow(member.personId, {
         pointBalance: Number(member.pointBalance || 0) + Number(res.points || 0),
-        legacyStampGrantedAmount: Number(member.legacyStampGrantedAmount || 0) + amountNumber
+        ltvTotal: Number(member.ltvTotal || 0) + amountNumber,
+        manualGrantedAmount: Number(member.manualGrantedAmount || 0) + amountNumber
       });
       setAmount('');
+      setReasonKind('transfer');
       setMemo('');
       grantIdRef.current = ''; // 次の付与は別の冪等キーで
     } catch (e) {
@@ -290,11 +293,13 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             <dd className="text-emerald-700">{member.pointBalance.toLocaleString()}pt</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">満了カード</dt>
+            {/* ⚠累計購入額(LTV)はレジに出す(2026-10-06 判断)。手動付与の妥当性を
+                その場で判断するのに要るため。内訳として手動付与分も添える。 */}
+            <dt className="text-slate-400">お買い上げ累計</dt>
             <dd>
-              {member.legacyStampCards}枚
-              {member.legacyStampGrantedAmount > 0
-                && `（途中分の付与 ¥${Number(member.legacyStampGrantedAmount).toLocaleString()}）`}
+              ¥{Number(member.ltvTotal || 0).toLocaleString()}
+              {Number(member.manualGrantedAmount || 0) > 0
+                && `（うち手動付与 ¥${Number(member.manualGrantedAmount).toLocaleString()}）`}
             </dd>
           </div>
         </dl>
@@ -364,9 +369,9 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         )}
       </div>
 
-      {/* スタンプ途中分の付与。入力は金額だけ。ポイントは付与率から自動計算。 */}
+      {/* 手動付与（紙のカードなどからの移行）。入力は金額だけで、ポイントは付与率から自動計算。 */}
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <div className="text-xs font-black text-slate-700">手書きスタンプの途中分を付与</div>
+        <div className="text-xs font-black text-slate-700">手動でポイントを付与</div>
         {!meta.pointsEnabled ? (
           <p className="mt-2 text-[11px] font-bold text-slate-500">
             この店舗はポイントの付与が無効になっています。
@@ -374,10 +379,9 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         ) : (
           <>
             <p className="mt-1 text-[11px] font-bold text-slate-500">
-              お手元のカードに貯まっている分を<strong className="text-slate-700">お買い上げ金額</strong>で入力してください。
+              付与の対象になる<strong className="text-slate-700">お買い上げ金額</strong>を入力してください。
               ポイントと<strong className="text-slate-700">累計のお買い上げ金額</strong>の両方に、この金額が反映されます。
-              1回あたり ¥{stampCardYen.toLocaleString()}（カード1枚分）までです。
-              2枚以上は分けて付与してください。
+              1回あたり ¥{grantLimitYen.toLocaleString()} までです。超える分は分けて付与してください。
             </p>
 
             <div className="mt-2 flex items-baseline justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
@@ -394,7 +398,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             </div>
             {overLimit && (
               <div className="mt-1.5 text-[11px] font-bold text-red-600">
-                1回あたり ¥{stampCardYen.toLocaleString()} までです。
+                1回あたり ¥{grantLimitYen.toLocaleString()} までです。
               </div>
             )}
             {rateMissing && (
@@ -418,13 +422,30 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
 
             <div className="mt-3">
               <div className="mb-1 text-[11px] font-black text-slate-500">付与の理由（記録に残ります）</div>
-              <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{STAMP_REASON}</div>
-              <input
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="補足（任意・紛失や再発行などがあれば）"
-                className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
-              />
+              <div className="flex gap-1.5">
+                {[['transfer', TRANSFER_REASON], ['other', 'その他']].map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => setReasonKind(kind)}
+                    className={`rounded-lg px-3 py-1.5 text-[11px] font-black transition ${
+                      reasonKind === kind
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {reasonKind === 'other' && (
+                <input
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="理由を入力（必須）"
+                  className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
+                />
+              )}
             </div>
 
             <button
@@ -566,10 +587,10 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
               {rows === null && !searchErr && (
                 <p className="px-1 py-6 text-xs font-bold leading-relaxed text-slate-400">
-                  手書きスタンプカードに「1」と書かれているお客様は新規です。検索は不要で、
-                  そのまま LINE でポイントカードにご登録いただけます（携帯番号でご登録いただければ自動で繋がります）。
+                  はじめてのお客様は検索不要です。そのまま LINE でポイントカードにご登録いただけます
+                  （携帯番号でご登録いただければ、これまでの記録と自動で繋がります）。
                   <br />
-                  検索が必要なのは2枚目以降のお客様です。
+                  検索が必要なのは、すでにお客様情報をお預かりしている方です。
                 </p>
               )}
 
