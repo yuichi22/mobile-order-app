@@ -3471,8 +3471,18 @@ export const PosTransactionHistory = ({
           const addRefundList = (list) => {
             (Array.isArray(list) ? list : []).forEach((r) => {
               if (Number(r.amount || 0) <= 0) return;
-              const label = r.kind === 'voucher' ? (r.name || '金券/売掛') : refundMethodLabel(r.method);
-              refundByLabel.set(label, (refundByLabel.get(label) || 0) + Number(r.amount));
+              // ⚠kind:'points' は「ポイントの返却」であって現金ではない。kind を見ずに
+              //   method でラベルを決めると、method を持たないポイント行が既定の「現金」に
+              //   落ちて「返金 現金 ¥366」と出る(2026-10-06 の実機テストで発生)。
+              //   単位も円ではなく pt（付与率次第で円額とは一致しない）。
+              const isPoints = r.kind === 'points';
+              const label = r.kind === 'voucher'
+                ? (r.name || '金券/売掛')
+                : isPoints
+                  ? (r.name || 'ポイント返却')
+                  : refundMethodLabel(r.method);
+              const prev = refundByLabel.get(label);
+              refundByLabel.set(label, { amount: Number(prev?.amount || 0) + Number(r.amount), isPoints });
             });
           };
           addRefundList(ticket.refunds);
@@ -3482,10 +3492,16 @@ export const PosTransactionHistory = ({
             const fallbackAmt = Number(ticketGrossTotal || 0)
               || (Array.isArray(ticket.cancellations) ? ticket.cancellations : []).reduce((s, c) => s + Number(c.amount || 0), 0);
             if (fallbackAmt > 0) {
-              refundByLabel.set(refundMethodLabel(getPaymentMethodKey(ticket.paymentMethodGroup || ticket.paymentMethod)), fallbackAmt);
+              refundByLabel.set(
+                refundMethodLabel(getPaymentMethodKey(ticket.paymentMethodGroup || ticket.paymentMethod)),
+                { amount: fallbackAmt, isPoints: false }
+              );
             }
           }
           const refundEntries = [...refundByLabel.entries()];
+          const refundAmountLabel = (v) => (v.isPoints
+            ? `${Number(v.amount).toLocaleString()}pt`
+            : `¥${Number(v.amount).toLocaleString()}`);
           const paymentRowsCount = Array.isArray(ticket.paidOrders) ? ticket.paidOrders.length : 0;
           const breakdownRowsCount = Array.isArray(ticket.paymentBreakdown)
             ? ticket.paymentBreakdown.reduce((sum, entry) => sum + Math.max(Number(entry?.count || 1), 1), 0)
@@ -3598,7 +3614,7 @@ export const PosTransactionHistory = ({
                       <>
                         <span className="h-1 w-1 rounded-full bg-gray-300" />
                         <span className="font-bold text-blue-600">
-                          {refundEntries.map(([label, amt]) => `返金 ${label} ¥${amt.toLocaleString()}`).join(' / ')}
+                          {refundEntries.map(([label, v]) => `返金 ${label} ${refundAmountLabel(v)}`).join(' / ')}
                         </span>
                       </>
                     )}
@@ -3947,10 +3963,10 @@ export const PosTransactionHistory = ({
                           <div className="mt-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-3">
                             <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-blue-500">返金内訳</div>
                             <ul className="space-y-1">
-                              {refundEntries.map(([label, amt]) => (
+                              {refundEntries.map(([label, v]) => (
                                 <li key={`refund-${label}`} className="flex items-center justify-between text-sm font-bold text-blue-700">
                                   <span>返金 {label}</span>
-                                  <span className="tabular-nums">¥{amt.toLocaleString()}</span>
+                                  <span className="tabular-nums">{refundAmountLabel(v)}</span>
                                 </li>
                               ))}
                             </ul>
