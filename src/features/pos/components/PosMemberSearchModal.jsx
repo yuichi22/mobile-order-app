@@ -205,6 +205,10 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const amountNumber = Math.max(0, Math.floor(Number(amount || 0) || 0));
   const stampCardYen = Number(meta.stampCardYen || 30000);
   const previewPoints = meta.pointsPerYen > 0 ? Math.floor(amountNumber * meta.pointsPerYen) : 0;
+  // 付与は有効なのに付与率が取れていない＝サーバ側の受け渡し漏れ。
+  // ⚠「金額が小さい」と区別しないと、原因が分からないまま押せないボタンを眺めることになる
+  //   （実際に2026-10-06、レジの中継が pointsPerYen を返し忘れてこの状態になった）。
+  const rateMissing = meta.pointsEnabled && !(meta.pointsPerYen > 0);
   const overLimit = amountNumber > stampCardYen;
   // ⚠1pt にも満たない金額は Core が amount_too_small で弾く。押せてしまうと現場が迷うので手前で止める。
   const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit && !!reason.trim() && meta.pointsEnabled;
@@ -387,7 +391,12 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                 1回あたり ¥{stampCardYen.toLocaleString()} までです。
               </div>
             )}
-            {!overLimit && amountNumber > 0 && previewPoints <= 0 && (
+            {rateMissing && (
+              <div className="mt-1.5 text-[11px] font-bold text-red-600">
+                ポイントの付与率を取得できませんでした。検索をやり直しても直らない場合は運営にご連絡ください。
+              </div>
+            )}
+            {!rateMissing && !overLimit && amountNumber > 0 && previewPoints <= 0 && (
               <div className="mt-1.5 text-[11px] font-bold text-amber-700">
                 この金額ではポイントが付きません。金額をご確認ください。
               </div>

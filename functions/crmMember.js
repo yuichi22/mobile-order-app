@@ -203,6 +203,11 @@ export const crmSearchMembers = onCall({ region: REGION }, async (request) => {
     members: Array.isArray(data.members) ? data.members : [],
     matchCount: Number(data.matchCount || 0),
     truncated: data.truncated === true,
+    // ⚠付与率もそのまま返すこと。レジは「¥○○ → ○pt」を先に見せてから付与する。
+    //   ここで落とすと画面側が付与率0と解釈し、付与ボタンがずっと押せなくなる。
+    pointsPerYen: Number(data.pointsPerYen || 0),
+    pointsEnabled: data.pointsEnabled !== false,
+    stampCardYen: Number(data.stampCardYen || 30000),
   };
 });
 
