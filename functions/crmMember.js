@@ -293,3 +293,62 @@ export const crmGrantLegacyStamp = onCall({ region: REGION }, async (request) =>
   if (data?.requiresConfirm === true) return { ok: false, ...data };
   return { ok: true, ...data };
 });
+
+/**
+ * 累計のお買い上げ金額(LTV)の内訳照会と修正。
+ * action: "detail" = 内訳と履歴 / "adjust" = 正しい累計に直す
+ *
+ * ⚠**ポイントには触らない**。ポイントは会計と手動付与で積んだ結果で、
+ *   LTV の補正で動かすと二重計上になる。
+ * ⚠取込元(AppSheet)のカード枚数が空白・不正確なお客様の LTV を概算に直すための口。
+ *   ランク（カードの格）に直結するので、誰が・いつ・いくら→いくら・なぜ を必ず残す。
+ */
+export const crmMemberLtv = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId);
+  const personId = str(d.personId);
+  const action = str(d.action) || "detail";
+  if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  if (!personId) throw new HttpsError("invalid-argument", "personId required.");
+
+  const role = await assertStoreStaff(request, storeId);
+  const link = await resolveCoreLink(storeId);
+
+  if (action === "detail") {
+    const data = await callCore("crmMemberLtv", {
+      coreTenantId: link.coreTenantId,
+      coreSpaceId: link.coreSpaceId,
+      personId,
+      action: "detail",
+    });
+    return { ok: true, ...data };
+  }
+
+  const ltvTotal = Math.floor(Number(d.ltvTotal));
+  const reason = str(d.reason);
+  const adjustId = str(d.adjustId);
+  if (!adjustId) throw new HttpsError("invalid-argument", "adjustId required.");
+  if (!reason) throw new HttpsError("invalid-argument", "修正の理由を入力してください。");
+  if (!Number.isFinite(ltvTotal) || ltvTotal < 0) {
+    throw new HttpsError("invalid-argument", "金額を入力してください。");
+  }
+
+  const data = await callCore(
+    "crmMemberLtv",
+    {
+      coreTenantId: link.coreTenantId,
+      coreSpaceId: link.coreSpaceId,
+      personId,
+      action: "adjust",
+      ltvTotal,
+      reason,
+      adjustId,
+      confirm: d.confirm === true,
+      actor: actorOf(request, storeId, role),
+    },
+    `ltv-${adjustId}`
+  );
+  // 大きな修正は Core が確認を求めてくる（200 で返るのでエラーにならない）。
+  if (data?.requiresConfirm === true) return { ok: false, ...data };
+  return { ok: true, ...data };
+});

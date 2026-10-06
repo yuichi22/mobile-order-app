@@ -74,3 +74,21 @@ export const grantCrmLegacyStamp = async ({ storeId, personId, amount, reason, g
   });
   return res.data || {};
 };
+
+/** 累計のお買い上げ金額(LTV)の内訳と履歴。アコーディオンを開いた時に読む。 */
+export const getCrmMemberLtv = async ({ storeId, personId }) => {
+  const res = await httpsCallable(functionsApi, 'crmMemberLtv')({ storeId, personId, action: 'detail' });
+  return res.data || {};
+};
+
+/**
+ * LTV を正しい累計に直す。
+ * ⚠adjustId は冪等キー。1回の修正操作につき1つ作り、成功するまで使い回すこと。
+ * ⚠ポイントは動かない（会計と手動付与で積んだ結果なので、ここで触ると二重計上になる）。
+ */
+export const adjustCrmMemberLtv = async ({ storeId, personId, ltvTotal, reason, adjustId, confirm = false }) => {
+  const res = await httpsCallable(functionsApi, 'crmMemberLtv')({
+    storeId, personId, action: 'adjust', ltvTotal, reason, adjustId, confirm
+  });
+  return res.data || {};
+};

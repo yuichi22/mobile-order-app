@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, Delete, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Delete, Search, Undo2, X } from 'lucide-react';
 
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import {
+  adjustCrmMemberLtv,
   coreErrorMessage,
+  getCrmMemberLtv,
   grantCrmLegacyStamp,
   searchCrmMembers,
   setCrmMemberPhone,
@@ -29,6 +31,33 @@ import {
 // 既定は「ポイント移動」＝紙のカードや他システムからの引き継ぎ。それ以外は自由記入
 // （テナントごとに事情が違うので、選択肢をこちらで増やさない）。
 const TRANSFER_REASON = 'ポイント移動';
+
+// カードの格。⚠お客様のポイントカード(PointCard.jsx)と同じ配色にしてある。
+//   店頭で「私のカードは金色なのにレジでは違う」と見えないようにするため。
+//   判定そのものはサーバー(lib/crmLtvRank.js)が返す値を使う＝閾値をここに書かない。
+const RANK_THEMES = {
+  bronze: { bg: 'linear-gradient(135deg,#5a4632 0%,#8a6c4d 50%,#4a3826 100%)', label: '#e8c9a0' },
+  gold: { bg: 'linear-gradient(135deg,#6d5518 0%,#b98f2e 50%,#5a460f 100%)', label: '#f6e3a1' },
+  platinum: { bg: 'linear-gradient(135deg,#3f4753 0%,#8e99a8 50%,#333a44 100%)', label: '#eef2f7' }
+};
+
+const RankBadge = ({ rank, size = 'sm' }) => {
+  const theme = rank?.key ? RANK_THEMES[rank.key] : null;
+  if (!theme) return null;
+  return (
+    <span
+      className={`shrink-0 rounded-md font-black tracking-[0.12em] ${
+        size === 'lg' ? 'px-2.5 py-1 text-[11px]' : 'px-1.5 py-0.5 text-[10px]'
+      }`}
+      style={{ background: theme.bg, color: theme.label }}
+    >
+      {rank.name}
+    </span>
+  );
+};
+
+const yen = (v) => `¥${Number(v || 0).toLocaleString()}`;
+const fmtAt = (ms) => (ms ? new Date(ms).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
 const MIN_QUERY_LENGTH = 3;
 
@@ -90,7 +119,10 @@ const MemberRow = ({ row, active, onClick }) => (
   >
     <div className="flex items-baseline justify-between gap-2">
       <div className="min-w-0">
-        <div className="truncate text-sm font-black">{row.displayName || '（氏名なし）'}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-black">{row.displayName || '（氏名なし）'}</span>
+          <RankBadge rank={row.rank} />
+        </div>
         {row.nameKana && (
           <div className={`truncate text-[11px] font-bold ${active ? 'text-slate-300' : 'text-slate-400'}`}>
             {row.nameKana}
@@ -135,6 +167,16 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const [phoneDone, setPhoneDone] = useState(null); // { changeId, undoableUntilMs }
 
   const [amount, setAmount] = useState('');
+  // 累計のお買い上げ金額(LTV)の内訳・履歴・修正。開いた時だけ読む。
+  const [ltvOpen, setLtvOpen] = useState(false);
+  const [ltvLoading, setLtvLoading] = useState(false);
+  const [ltvDetail, setLtvDetail] = useState(null);
+  const [ltvInput, setLtvInput] = useState('');
+  const [ltvReason, setLtvReason] = useState('');
+  const [ltvBusy, setLtvBusy] = useState(false);
+  const [ltvErr, setLtvErr] = useState('');
+  const adjustIdRef = useRef('');
+
   const [reasonKind, setReasonKind] = useState('transfer'); // transfer | other
   const [memo, setMemo] = useState('');                     // 「その他」を選んだ時の内容
   const [granting, setGranting] = useState(false);
@@ -218,6 +260,87 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const canGrant = !!member && amountNumber > 0 && previewPoints > 0 && !overLimit
     && !!reason && meta.pointsEnabled;
 
+  // 行の値はキャッシュではなく、開いた時に読んだ内訳を正とする（修正直後も合う）。
+  const ltvShown = ltvDetail ? Number(ltvDetail.ltvTotal || 0) : Number(member.ltvTotal || 0);
+  const ltvNext = ltvInput === '' ? null : Math.floor(Number(ltvInput) || 0);
+  const ltvDelta = ltvNext === null ? 0 : ltvNext - ltvShown;
+  const canAdjustLtv = !!ltvDetail && ltvNext !== null && ltvDelta !== 0 && !!ltvReason.trim();
+
+  const loadLtvDetail = useCallback(async () => {
+    setLtvLoading(true);
+    setLtvErr('');
+    try {
+      const d = await getCrmMemberLtv({ storeId, personId: member.personId });
+      setLtvDetail(d);
+      return d;
+    } catch (e) {
+      setLtvDetail(null);
+      setLtvErr(coreErrorMessage(e, '内訳を読み込めませんでした。'));
+      return null;
+    } finally {
+      setLtvLoading(false);
+    }
+  }, [storeId, member.personId]);
+
+  const toggleLtvPanel = () => {
+    setLtvOpen((prev) => {
+      if (!prev && !ltvDetail) loadLtvDetail();
+      return !prev;
+    });
+  };
+
+  const adjustLtv = async () => {
+    if (!canAdjustLtv) return;
+    if (!adjustIdRef.current) {
+      adjustIdRef.current = `${member.personId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+    setLtvBusy(true);
+    setLtvErr('');
+    try {
+      const args = {
+        storeId,
+        personId: member.personId,
+        ltvTotal: ltvNext,
+        reason: ltvReason.trim(),
+        adjustId: adjustIdRef.current
+      };
+      let r = await adjustCrmMemberLtv(args);
+
+      // 大きな修正（ランクが動き得る幅）は確認を挟む。止めはしない。
+      if (r.requiresConfirm === true) {
+        const ok = await appConfirm(
+          `累計のお買い上げ金額を ${yen(r.before)} から ${yen(r.next)} に直します`
+          + `（${r.delta > 0 ? '+' : ''}${yen(r.delta)}）。\n\n`
+          + `${yen(r.confirmOverYen)} を超える修正です。カードの格が変わることがあります。\n`
+          + '金額に間違いがないかご確認ください。このまま修正しますか？',
+          { title: '大きな金額の修正', okLabel: '確認した・修正する', tone: 'danger' }
+        );
+        if (!ok) return;
+        r = await adjustCrmMemberLtv({ ...args, confirm: true });
+        if (r.requiresConfirm === true) {
+          setLtvErr('修正できませんでした。もう一度お試しください。');
+          return;
+        }
+      }
+
+      adjustIdRef.current = '';
+      setLtvInput('');
+      setLtvReason('');
+      // 内訳を読み直し、一覧の行（金額とランク）も合わせる。
+      const fresh = await loadLtvDetail();
+      if (fresh) {
+        onPatchRow(member.personId, {
+          ltvTotal: Number(fresh.ltvTotal || 0),
+          ...(fresh.rank !== undefined ? { rank: fresh.rank } : {})
+        });
+      }
+    } catch (e) {
+      setLtvErr(coreErrorMessage(e, '修正できませんでした。'));
+    } finally {
+      setLtvBusy(false);
+    }
+  };
+
   const grant = async () => {
     if (!canGrant || !member) return;
     if (!grantIdRef.current) {
@@ -260,6 +383,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       setAmount('');
       setReasonKind('transfer');
       setMemo('');
+      if (ltvOpen) loadLtvDetail(); // 内訳を開いていたら手動付与の分を反映する
       grantIdRef.current = ''; // 次の付与は別の冪等キーで
     } catch (e) {
       setGrantErr(coreErrorMessage(e, '付与できませんでした。'));
@@ -271,7 +395,10 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <div className="text-base font-black text-slate-900">{member.displayName || '（氏名なし）'}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-base font-black text-slate-900">{member.displayName || '（氏名なし）'}</span>
+          <RankBadge rank={member.rank} size="lg" />
+        </div>
         {member.nameKana && <div className="text-[11px] font-bold text-slate-400">{member.nameKana}</div>}
         <dl className="mt-2 space-y-1 text-xs font-bold text-slate-600">
           <div className="flex justify-between gap-2">
@@ -294,15 +421,130 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
           </div>
           <div className="flex justify-between gap-2">
             {/* ⚠累計購入額(LTV)はレジに出す(2026-10-06 判断)。手動付与の妥当性を
-                その場で判断するのに要るため。内訳として手動付与分も添える。 */}
+                その場で判断するのに要るため。カードの格もこの金額で決まる。 */}
             <dt className="text-slate-400">お買い上げ累計</dt>
-            <dd>
-              ¥{Number(member.ltvTotal || 0).toLocaleString()}
-              {Number(member.manualGrantedAmount || 0) > 0
-                && `（うち手動付与 ¥${Number(member.manualGrantedAmount).toLocaleString()}）`}
-            </dd>
+            <dd>{yen(ltvShown)}</dd>
           </div>
         </dl>
+
+        {/* 内訳と修正。取込元のカード枚数が空白・不正確なお客様の LTV を概算に直す。
+            ⚠普段は畳んでおく（毎回開くものではないし、誤操作の入口を減らす）。 */}
+        <button
+          type="button"
+          onClick={toggleLtvPanel}
+          className="mt-2 flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100"
+        >
+          <span>お買い上げ累計の内訳と修正</span>
+          <ChevronDown size={14} strokeWidth={3} className={ltvOpen ? 'rotate-180 transition' : 'transition'} />
+        </button>
+
+        {ltvOpen && (
+          <div className="mt-2 rounded-xl border border-slate-200 p-3">
+            {ltvLoading && <p className="text-[11px] font-bold text-slate-400">読み込み中…</p>}
+            {!ltvLoading && ltvDetail && (
+              <>
+                {/* 内訳: 合計だけだと「誰かが手で入れた数字」かどうかが分からない */}
+                <dl className="space-y-1 text-[11px] font-bold text-slate-600">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-400">会計・取込分</dt>
+                    <dd>{yen(ltvDetail.baseAmount)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-400">手動付与</dt>
+                    <dd>{yen(ltvDetail.manualGrantedAmount)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-400">補正</dt>
+                    <dd>{ltvDetail.ltvAdjustedAmount > 0 ? `+${yen(ltvDetail.ltvAdjustedAmount)}` : yen(ltvDetail.ltvAdjustedAmount)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2 border-t border-slate-100 pt-1 text-slate-800">
+                    <dt>合計</dt>
+                    <dd className="font-black">{yen(ltvDetail.ltvTotal)}</dd>
+                  </div>
+                </dl>
+
+                {/* 履歴（補正と手動付与を分けて出す） */}
+                {(ltvDetail.adjustments?.length > 0 || ltvDetail.grants?.length > 0) && (
+                  <div className="mt-3 space-y-2">
+                    {ltvDetail.adjustments?.length > 0 && (
+                      <div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">補正の履歴</div>
+                        <ul className="space-y-1">
+                          {ltvDetail.adjustments.map((a) => (
+                            <li key={a.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-slate-600">
+                              <span className="min-w-0 truncate">{fmtAt(a.at)} {a.reason || ''}</span>
+                              <span className={`shrink-0 tabular-nums ${a.delta < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                                {a.delta > 0 ? '+' : ''}{yen(a.delta)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {ltvDetail.grants?.length > 0 && (
+                      <div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">手動付与の履歴</div>
+                        <ul className="space-y-1">
+                          {ltvDetail.grants.map((g) => (
+                            <li key={g.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-slate-600">
+                              <span className="min-w-0 truncate">{fmtAt(g.at)} {g.reason || ''}</span>
+                              <span className="shrink-0 tabular-nums text-slate-800">
+                                {yen(g.amount)}（{Number(g.points || 0).toLocaleString()}pt）
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 修正フォーム */}
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <div className="mb-1 text-[11px] font-black text-slate-500">正しい累計に直す</div>
+                  <p className="mb-1.5 text-[11px] font-bold text-slate-400">
+                    概算で構いません。⚠ポイントは動きません（会計と手動付与で積んだ結果のため）。
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 font-mono text-sm font-black text-slate-500">¥</span>
+                    <input
+                      value={ltvInput}
+                      onChange={(e) => setLtvInput(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                      inputMode="numeric"
+                      placeholder={String(ltvDetail.ltvTotal)}
+                      className="h-10 min-w-0 flex-1 rounded-xl border-2 border-slate-100 bg-white px-3 font-mono text-sm font-black outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                  {ltvDelta !== 0 && (
+                    <div className="mt-1 text-[11px] font-bold text-slate-500">
+                      増減 <span className={ltvDelta < 0 ? 'text-red-600' : 'text-slate-800'}>
+                        {ltvDelta > 0 ? '+' : ''}{yen(ltvDelta)}
+                      </span>
+                    </div>
+                  )}
+                  <input
+                    value={ltvReason}
+                    onChange={(e) => setLtvReason(e.target.value)}
+                    placeholder="修正の理由（必須）"
+                    className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={adjustLtv}
+                    disabled={!canAdjustLtv || ltvBusy}
+                    className="mt-2 h-10 w-full rounded-xl bg-slate-900 text-xs font-black text-white disabled:opacity-40"
+                  >
+                    {ltvBusy ? '修正中…' : '累計を修正する'}
+                  </button>
+                  {ltvErr && <div className="mt-1.5 text-[11px] font-bold text-red-600">{ltvErr}</div>}
+                </div>
+              </>
+            )}
+            {!ltvLoading && !ltvDetail && ltvErr && (
+              <div className="text-[11px] font-bold text-red-600">{ltvErr}</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 携帯番号。固定電話しか無い人はここで必ずアラートが出る。 */}
