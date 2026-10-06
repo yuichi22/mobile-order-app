@@ -2780,18 +2780,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 <Search size={18} />
               </button>
               {/* 会計が無くても使えるように、スキャン枠の隣に常設する
-                  （ポイントカードのご案内は会計の前後どちらでも起きる）。 */}
-              {registerMode === 'pos' && (
-                <button
-                  type="button"
-                  onClick={() => setMemberSearchOpen(true)}
-                  title="会員検索・携帯番号の登録"
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
-                >
-                  <User size={16} strokeWidth={2.8} />
-                  会員検索
-                </button>
-              )}
+                  （ポイントカードのご案内は会計の前後どちらでも起きる）。
+                  ⚠POS・ORDER の**両方**に出す。ポイントカードのご案内は卓のお客様にも行う。 */}
+              <button
+                type="button"
+                onClick={() => setMemberSearchOpen(true)}
+                title="会員検索・携帯番号の登録"
+                className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
+              >
+                <User size={16} strokeWidth={2.8} />
+                会員検索
+              </button>
             </form>
           </div>
         </div>
