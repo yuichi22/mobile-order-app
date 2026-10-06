@@ -3718,8 +3718,27 @@ const buildShopifyHandle = (group = {}, products = []) => {
   return handle.slice(0, 100);
 };
 
+// メタディスクリプション末尾の店舗名は Shopify の shop.name(=実際のオンラインストア名)。
+// POS店舗名は実店舗の名前で、共有EC(複数店舗→1ストア)ではストアと一致しないため使わない。
+// 取得失敗やmyshopifyハンドルのままの名前は固有名を出さない文言にする(同期は止めない)。
+const fetchShopifyShopName = async ({ shopDomain, accessToken }) => {
+  try {
+    const data = await callShopifyGraphql({ shopDomain, accessToken, query: 'query GetShopName { shop { name } }' });
+    const name = normalizeShopifyText(data?.shop?.name, '');
+    if (!name || name.toLowerCase() === String(shopDomain || '').toLowerCase().replace(/\.myshopify\.com$/, '')) return '';
+    return name;
+  } catch (error) {
+    console.warn('[shopify] shop name fetch failed', error?.message || error);
+    return '';
+  }
+};
+
+const buildShopifySeoStoreTail = (shopName = '') => (
+  shopName ? `オンラインストア「${shopName}」でお求めいただけます。` : 'オンラインストアでお求めいただけます。'
+);
+
 // メタディスクリプション。ブランドプロフィール優先(冒頭要約)、無ければカテゴリー説明。
-const resolveShopifySeoDescription = (group = {}, products = [], brandProfile = '') => {
+const resolveShopifySeoDescription = (group = {}, products = [], brandProfile = '', shopName = '') => {
   const primary = products.find((p) => p.productGroupRole === 'primary') || products[0] || {};
   const brand = normalizeShopifyText(group.brandName || primary.brandName, '');
   const name = normalizeShopifyText(primary.name || primary.productGroupName || group.name, '');
@@ -3730,7 +3749,8 @@ const resolveShopifySeoDescription = (group = {}, products = [], brandProfile = 
     tail = profile.length > 100 ? `${profile.slice(0, 100)}…` : profile;
   } else {
     const cat = [normalizeShopifyText(group.categoryGroupName, ''), normalizeShopifyText(group.categoryName, '')].filter(Boolean).join(' ');
-    tail = cat ? `${cat}のアイテム。HAUSオンラインストアでお求めいただけます。` : 'HAUSオンラインストアでお求めいただけます。';
+    const storeTail = buildShopifySeoStoreTail(shopName);
+    tail = cat ? `${cat}のアイテム。${storeTail}` : storeTail;
   }
   const desc = `${head}。${tail}`;
   return desc.length > 160 ? `${desc.slice(0, 159)}…` : desc;
@@ -3751,7 +3771,7 @@ const buildShopifyVariantMetafields = (group = {}, product = {}) => ([
   }
 ]);
 
-const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
+const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncluded', brandProfile = '', shopName = '' }) => {
   const useDefaultVariant = shouldUseShopifyDefaultVariant(products);
   const assignment = useDefaultVariant ? null : buildShopifyOptionAssignment(products);
 
@@ -3787,7 +3807,7 @@ const buildShopifyProductSetInput = ({ group, products, priceSyncMode = 'taxIncl
   return {
     title: resolveShopifyProductTitle(group, products),
     handle: buildShopifyHandle(group, products),
-    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile) },
+    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile, shopName) },
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
@@ -4002,11 +4022,13 @@ export const createShopifyDraftProduct = onRequest(
       const brandProfile = await fetchShopifyBrandProfile(storeRef, enrichedGroup, products);
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
+      const shopName = await fetchShopifyShopName({ shopDomain, accessToken });
       const input = buildShopifyProductSetInput({
         group: enrichedGroup,
         products,
         priceSyncMode,
-        brandProfile
+        brandProfile,
+        shopName
       });
       const priceSnapshots = products.map((product) => ({
         productId: product.id,
@@ -4173,7 +4195,7 @@ const productSetUpdateMutation = `
   }
 `;
 
-const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded', brandProfile = '' }) => {
+const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], priceSyncMode = 'taxIncluded', brandProfile = '', shopName = '' }) => {
   const useDefaultVariant = shouldUseShopifyDefaultVariant(products);
   const assignment = useDefaultVariant ? null : buildShopifyOptionAssignment(products);
   const usedShopifyVariantIds = new Set();
@@ -4214,7 +4236,7 @@ const buildShopifyProductUpdateInput = ({ group, products, existingTags = [], pr
   return {
     id: String(group.shopifyProductId || '').trim(),
     title: resolveShopifyProductTitle(group, products),
-    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile) },
+    seo: { title: resolveShopifyProductTitle(group, products), description: resolveShopifySeoDescription(group, products, brandProfile, shopName) },
     ...(normalizeShopifyText(group.brandName, '') ? { vendor: normalizeShopifyText(group.brandName, '') } : {}),
     ...(normalizeShopifyText(group.categoryGroupName || group.categoryName, '') ? { productType: normalizeShopifyText(group.categoryGroupName || group.categoryName, '') } : {}),
     ...(tags.length > 0 ? { tags } : {}),
@@ -4311,17 +4333,21 @@ export const updateShopifyProduct = onRequest(
       const brandProfile = await fetchShopifyBrandProfile(storeRef, enrichedGroup, products);
 
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
-      const existingTags = await getShopifyProductTags({
-        shopDomain,
-        accessToken,
-        productId: group.shopifyProductId
-      });
+      const [existingTags, shopName] = await Promise.all([
+        getShopifyProductTags({
+          shopDomain,
+          accessToken,
+          productId: group.shopifyProductId
+        }),
+        fetchShopifyShopName({ shopDomain, accessToken })
+      ]);
       const input = buildShopifyProductUpdateInput({
         group: enrichedGroup,
         products,
         existingTags,
         priceSyncMode,
-        brandProfile
+        brandProfile,
+        shopName
       });
       const priceSnapshots = products.map((product) => ({
         productId: product.id,
