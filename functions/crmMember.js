@@ -107,6 +107,9 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
     personId: data.personId,
     displayName: data.displayName || null,
     pointBalance: Number(data.pointBalance || 0),
+    // カードの格（会員バーの色）と会員番号。⚠ランク判定は Core 側（お客様のカードと同じ）。
+    rank: data.rank || null,
+    memberCode: data.memberCode || null,
     // テナントのポイント設定。OFFでも残高>0なら使い切りまで利用可（旧Coreは未定義=true扱い）
     pointsEnabled: data.pointsEnabled !== false,
     redeem: data.redeem || { yenPerPoint: 1, unit: 1 },
