@@ -2290,17 +2290,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     // POSレジ、またはテイクアウト会計中はバーコードを会計リストへ直接追加する。
     if (registerMode === 'pos' || isTakeoutMode) {
       // 商品として解決できなかった12桁数字は会員番号として照会する(商品が見つかる限り従来動作は不変)。
-      addPosProductByCode(normalizedInput).then((result) => {
+      addPosProductByCode(normalizedInput).then(async (result) => {
         // 追加済み / 候補選択中 / 在庫でブロック は案内不要。
         if (result !== 'notfound') return;
-        // ⚠桁数に関わらず必ず案内を出す(以前は12桁のときしか出ず、13桁=商品の98%は
-        //   読めなくても無反応に近かった)。会員照会は裏で走らせ、当たれば案内を消す。
-        setScanNotFound(normalizedInput);
+        // 12桁は会員番号の可能性がある。⚠**先に照会してから**案内を出すこと。
+        //   先に案内を出して後で消すと、会員が当たる場合でも「見つかりませんでした」が
+        //   一瞬見えてしまう(2026-10-07 ユーザー指摘)。
+        //   12桁の商品バーコード(UPC-A)は少数で、外れた時の案内が1往復遅れるだけ。
         if (/^\d{12}$/.test(normalizedInput)) {
-          lookupCrmMemberByCode(normalizedInput, { silent: true }).then((hit) => {
-            if (hit) setScanNotFound('');
-          });
+          const hit = await lookupCrmMemberByCode(normalizedInput, { silent: true });
+          if (hit) return;
         }
+        // ⚠桁数に関わらず必ず案内を出す(以前は12桁のときしか出ず、13桁=商品の98%は
+        //   読めなくても無反応に近かった)。
+        setScanNotFound(normalizedInput);
       });
       return;
     }
