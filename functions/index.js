@@ -5108,6 +5108,177 @@ export const reconcileShopifyInventory = onRequest(
   }
 );
 
+// 紐付け済みバリアントの 価格・SKU・JAN を POS と Shopify で突合する(読み取りのみ・Shopifyへは書き込まない)。
+// 「保存→Shopify自動反映」を始める前に、既存の食い違いを把握するためのレポート。
+// 価格は Shopify へ送るときと同じ計算(buildShopifySyncPriceSnapshot)で POS 側の期待値を出す。
+const buildShopifyVariantMap = async ({ shopDomain, accessToken }) => {
+  const variantsById = new Map();
+  const query = `query($cursor: String) {
+    productVariants(first: 100, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        sku
+        barcode
+        price
+        product { id title status }
+      }
+    }
+  }`;
+
+  let cursor = null;
+  let pages = 0;
+  do {
+    const data = await callShopifyGraphqlWithRetry({ shopDomain, accessToken, query, variables: { cursor } });
+    const connection = data.productVariants || {};
+    for (const node of connection.nodes || []) {
+      const id = String(node?.id || '').trim();
+      if (id) variantsById.set(id, node);
+    }
+    cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+    pages += 1;
+    if (cursor) await sleepMs(500);
+  } while (cursor && pages < 1000);
+
+  return variantsById;
+};
+
+const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
+  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const taxPriceSnap = await storeRef.collection('settings').doc('taxPrice').get();
+  const priceSyncMode = normalizeShopifyPriceSyncMode((taxPriceSnap.exists ? taxPriceSnap.data() || {} : {}).shopifyPriceSyncMode);
+
+  const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+  const variantsById = await buildShopifyVariantMap({ shopDomain, accessToken });
+
+  const linkedSnap = await storeRef.collection('products').where('shopifyVariantId', '>', '').get();
+
+  const ROW_CAP = 1000;
+  const rows = [];
+  const linkedVariantIds = new Set();
+  let totalLinked = 0;
+  let matched = 0;
+  let missingInShopify = 0;
+  const counts = { price: 0, sku: 0, barcode: 0 };
+  let diffProducts = 0;
+
+  linkedSnap.forEach((docSnap) => {
+    const product = docSnap.data() || {};
+    const variantId = String(product.shopifyVariantId || '').trim();
+    if (!variantId) return;
+    totalLinked += 1;
+    linkedVariantIds.add(variantId);
+
+    const variant = variantsById.get(variantId);
+    if (!variant) {
+      missingInShopify += 1;
+      if (rows.length < ROW_CAP) {
+        rows.push({
+          productId: docSnap.id,
+          name: product.name || '',
+          sku: product.sku || product.productCode || '',
+          barcode: product.barcode || '',
+          reason: 'missingInShopify'
+        });
+      }
+      return;
+    }
+
+    const posPrice = Number(buildShopifySyncPriceSnapshot(product, priceSyncMode).price);
+    const shopifyPrice = Number(variant.price);
+    const posSku = String(product.sku || product.productCode || '').trim();
+    const shopifySku = String(variant.sku || '').trim();
+    const posBarcode = String(product.barcode || '').trim();
+    const shopifyBarcode = String(variant.barcode || '').trim();
+
+    // POS側が空の項目は比較しない(自動反映でも空は送らない前提)。
+    const diffs = [];
+    if (Number.isFinite(posPrice) && posPrice > 0 && posPrice !== shopifyPrice) diffs.push('price');
+    if (posSku && posSku !== shopifySku) diffs.push('sku');
+    if (posBarcode && posBarcode !== shopifyBarcode) diffs.push('barcode');
+
+    if (diffs.length === 0) {
+      matched += 1;
+      return;
+    }
+
+    diffProducts += 1;
+    diffs.forEach((kind) => { counts[kind] += 1; });
+    if (rows.length < ROW_CAP) {
+      rows.push({
+        productId: docSnap.id,
+        name: product.name || '',
+        shopifyTitle: variant.product?.title || '',
+        shopifyStatus: variant.product?.status || '',
+        shopifyEnabled: product.shopifyEnabled === true,
+        reason: 'diff',
+        diffs,
+        posPrice: Number.isFinite(posPrice) ? posPrice : null,
+        shopifyPrice: Number.isFinite(shopifyPrice) ? shopifyPrice : null,
+        posSku,
+        shopifySku,
+        posBarcode,
+        shopifyBarcode
+      });
+    }
+  });
+
+  // Shopifyにあって POS のどの商品とも紐付いていないバリアント(件数のみ)。
+  let shopifyOnlyVariants = 0;
+  variantsById.forEach((_, id) => {
+    if (!linkedVariantIds.has(id)) shopifyOnlyVariants += 1;
+  });
+
+  const summary = {
+    at: FieldValue.serverTimestamp(),
+    triggeredBy: triggeredBy || null,
+    priceSyncMode,
+    totalLinked,
+    matched,
+    diffProducts,
+    priceDiffs: counts.price,
+    skuDiffs: counts.sku,
+    barcodeDiffs: counts.barcode,
+    missingInShopify,
+    shopifyVariantsScanned: variantsById.size,
+    shopifyOnlyVariants,
+    reportedRows: rows.length,
+    truncated: (diffProducts + missingInShopify) > rows.length,
+    rows
+  };
+
+  const reportRef = await storeRef.collection('shopifyVariantDiffReports').add(summary);
+  const { at, ...result } = summary;
+  return { reportId: reportRef.id, ...result };
+};
+
+// 手動トリガー(EC連携「価格・SKU・JANの差分を確認」ボタン)。読み取りのみ。
+export const reportShopifyVariantDiff = onRequest(
+  { region: REGION, cors: true, timeoutSeconds: 540, memory: '1GiB' },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        return sendAppError(res, 405, 'app/method-not-allowed');
+      }
+      const authUser = await verifyRequestUser(req);
+      const { storeId } = parseJsonBody(req);
+      const normalizedStoreId = String(storeId || '').trim();
+      if (!normalizedStoreId) {
+        return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
+      }
+      await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+
+      const result = await runShopifyVariantDiffReport({ storeId: normalizedStoreId, triggeredBy: authUser.uid });
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      console.error('[reportShopifyVariantDiff] failed', error);
+      return sendJson(res, 400, { ok: false, error: { message: error.message || '価格・SKU・JANの差分確認に失敗しました。' } });
+    }
+  }
+);
+
 // 日次の自動リコンサイル。inventorySyncEnabled=true の店舗(=prodのみ想定)だけ実行する。
 export const scheduledShopifyInventoryReconcile = onSchedule(
   { region: REGION, schedule: 'every day 03:00', timeZone: 'Asia/Tokyo', timeoutSeconds: 540, memory: '1GiB' },

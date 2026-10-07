@@ -1353,6 +1353,35 @@ export const pushInventoryToShopify = async ({ storeId, productIds = [], idToken
 };
 
 
+// 紐付け済みバリアントの 価格・SKU・JAN を POS と Shopify で突合する(読み取りのみ)。
+export const reportShopifyVariantDiff = async ({ storeId, idToken }) => {
+  const normalizedStoreId = String(storeId || '').trim();
+  const token = String(idToken || '').trim();
+
+  if (!normalizedStoreId || !token) {
+    throw new Error('差分確認にはログインが必要です。');
+  }
+
+  const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/reportShopifyVariantDiff`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ storeId: normalizedStoreId })
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || body?.ok === false) {
+    throw new Error(body?.error?.message || body?.message || '価格・SKU・JANの差分確認に失敗しました。');
+  }
+
+  return body;
+};
+
 // Firestore現在庫 と Shopify on_hand を突合し、不一致レポートを作成する(自動修復なし)。
 export const reconcileShopifyInventory = async ({ storeId, idToken }) => {
   const normalizedStoreId = String(storeId || '').trim();

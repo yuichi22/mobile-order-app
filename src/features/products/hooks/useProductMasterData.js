@@ -6,6 +6,7 @@ import {
   updateShopifyProductFromGroup,
   syncShopifyProductLinks,
   reconcileShopifyInventory,
+  reportShopifyVariantDiff,
   syncShopifyEcOrders,
   deleteProductMasterDoc,
   isValidStoreId,
@@ -226,6 +227,13 @@ export const useProductMasterData = (storeId, options = {}) => {
     return await reconcileShopifyInventory({ storeId, idToken });
   };
 
+  const reportShopifyVariantDiffData = async () => {
+    const auth = getAuth();
+    const idToken = await auth.currentUser?.getIdToken?.();
+
+    return await reportShopifyVariantDiff({ storeId, idToken });
+  };
+
   const syncShopifyEcOrdersData = async (sinceOverride = null) => {
     const auth = getAuth();
     const idToken = await auth.currentUser?.getIdToken?.();
@@ -273,6 +281,7 @@ export const useProductMasterData = (storeId, options = {}) => {
     updateShopifyProduct: updateShopifyProductData,
     syncShopifyProductLinks: syncShopifyProductLinksData,
     reconcileShopifyInventory: reconcileShopifyInventoryData,
+    reportShopifyVariantDiff: reportShopifyVariantDiffData,
     syncShopifyEcOrders: syncShopifyEcOrdersData
   };
 };

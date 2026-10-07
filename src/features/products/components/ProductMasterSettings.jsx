@@ -4548,6 +4548,7 @@ export const ShopifySettingsPanel = ({
   onSave,
   onSyncProductLinks,
   onReconcileInventory,
+  onReportVariantDiff,
   onSyncEcOrders,
   onSaved
 }) => {
@@ -4570,6 +4571,57 @@ export const ShopifySettingsPanel = ({
 
   const reconcileMismatchRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'mismatch');
   const reconcileMissingRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'missingInShopify');
+
+  const [variantDiffRunning, setVariantDiffRunning] = useState(false);
+  const [variantDiffResult, setVariantDiffResult] = useState(null);
+  const [variantDiffError, setVariantDiffError] = useState('');
+  const [variantDiffFilter, setVariantDiffFilter] = useState('price');
+
+  const variantDiffRows = (variantDiffResult?.rows || []).filter((row) => (
+    variantDiffFilter === 'missing'
+      ? row.reason === 'missingInShopify'
+      : row.reason === 'diff' && (row.diffs || []).includes(variantDiffFilter)
+  ));
+
+  const runVariantDiffReport = async () => {
+    if (!onReportVariantDiff || variantDiffRunning) return;
+    setVariantDiffRunning(true);
+    setVariantDiffError('');
+    setVariantDiffResult(null);
+    try {
+      const result = await onReportVariantDiff();
+      setVariantDiffResult(result);
+    } catch (error) {
+      setVariantDiffError(error?.message || '価格・SKU・JANの差分確認に失敗しました。');
+    } finally {
+      setVariantDiffRunning(false);
+    }
+  };
+
+  const downloadVariantDiffCsv = () => {
+    const header = ['区分', '商品名(POS)', '商品名(Shopify)', 'Shopify公開状態', 'Shopify同期', '価格(POS)', '価格(Shopify)', 'SKU(POS)', 'SKU(Shopify)', 'JAN(POS)', 'JAN(Shopify)'];
+    const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines = (variantDiffResult?.rows || []).map((row) => [
+      row.reason === 'missingInShopify' ? 'Shopify側に無し' : (row.diffs || []).map((kind) => ({ price: '価格', sku: 'SKU', barcode: 'JAN' }[kind])).join('/'),
+      row.name,
+      row.shopifyTitle,
+      row.shopifyStatus,
+      row.shopifyEnabled ? 'ON' : 'OFF',
+      row.posPrice,
+      row.shopifyPrice,
+      row.posSku ?? row.sku,
+      row.shopifySku,
+      row.posBarcode ?? row.barcode,
+      row.shopifyBarcode
+    ].map(escape).join(','));
+    const blob = new Blob([`\uFEFF${[header.map(escape).join(','), ...lines].join('\n')}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `shopify-variant-diff-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const runInventoryReconcile = async () => {
     if (!onReconcileInventory || reconcileRunning) return;
@@ -5138,6 +5190,111 @@ export const ShopifySettingsPanel = ({
                     <div className="shrink-0 text-[11px] font-bold text-slate-500">POS {Number(row.pos || 0).toLocaleString()}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
+          <div className="text-sm font-black text-slate-700">価格・SKU・JANの差分を確認</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+            紐付け済み商品について、POSとShopifyの<span className="text-slate-500">価格・SKU・JAN</span>を突合します。
+            <span className="text-slate-500">読み取りのみ</span>で、POSにもShopifyにも書き込みません。
+            <br />価格はShopifyへ送るときと同じ計算（税・価格設定の「Shopify価格」）でPOS側の値を出しています。POS側が空の項目は比べません。
+          </p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={runVariantDiffReport}
+              disabled={variantDiffRunning || !onReportVariantDiff}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-60"
+            >
+              {variantDiffRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
+              {variantDiffRunning ? '突合中…（数十秒〜数分かかります）' : '価格・SKU・JANの差分を確認する'}
+            </button>
+            {variantDiffResult?.ok && (variantDiffResult.rows || []).length > 0 && (
+              <button
+                type="button"
+                onClick={downloadVariantDiffCsv}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:border-slate-300"
+              >
+                CSVで保存
+              </button>
+            )}
+          </div>
+
+          {variantDiffError && (
+            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+              {variantDiffError}
+            </div>
+          )}
+          {variantDiffResult?.ok && (
+            <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-relaxed ${
+              Number(variantDiffResult.diffProducts || 0) + Number(variantDiffResult.missingInShopify || 0) > 0
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+            }`}>
+              突合完了：紐付け {Number(variantDiffResult.totalLinked || 0).toLocaleString()}件中、
+              一致 {Number(variantDiffResult.matched || 0).toLocaleString()} /
+              食い違い {Number(variantDiffResult.diffProducts || 0).toLocaleString()}（価格 {Number(variantDiffResult.priceDiffs || 0).toLocaleString()} ・
+              SKU {Number(variantDiffResult.skuDiffs || 0).toLocaleString()} ・
+              JAN {Number(variantDiffResult.barcodeDiffs || 0).toLocaleString()}）/
+              Shopify側に無し {Number(variantDiffResult.missingInShopify || 0).toLocaleString()}。
+              <br />Shopifyのバリアント {Number(variantDiffResult.shopifyVariantsScanned || 0).toLocaleString()}件のうち、POSと紐付いていないもの {Number(variantDiffResult.shopifyOnlyVariants || 0).toLocaleString()}件。
+              {variantDiffResult.truncated ? `（明細は先頭${Number(variantDiffResult.reportedRows || 0).toLocaleString()}件まで）` : ''}
+            </div>
+          )}
+
+          {variantDiffResult?.ok && (variantDiffResult.rows || []).length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex flex-wrap gap-1 border-b border-slate-100 bg-slate-50 px-2 py-2">
+                {[
+                  ['price', '価格'],
+                  ['sku', 'SKU'],
+                  ['barcode', 'JAN'],
+                  ['missing', 'Shopify側に無し']
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setVariantDiffFilter(key)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${
+                      variantDiffFilter === key ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                {variantDiffRows.length === 0 && (
+                  <div className="px-3 py-4 text-center text-xs font-bold text-slate-400">該当なし</div>
+                )}
+                {variantDiffRows.map((row) => {
+                  const pair = {
+                    price: [row.posPrice != null ? `¥${Number(row.posPrice).toLocaleString()}` : '—', row.shopifyPrice != null ? `¥${Number(row.shopifyPrice).toLocaleString()}` : '—'],
+                    sku: [row.posSku || '—', row.shopifySku || '（空）'],
+                    barcode: [row.posBarcode || '—', row.shopifyBarcode || '（空）']
+                  }[variantDiffFilter];
+                  return (
+                    <div key={row.productId} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black text-slate-800">{row.name || '(名称未設定)'}</div>
+                        <div className="truncate text-[11px] font-bold text-slate-400">
+                          {row.reason === 'missingInShopify'
+                            ? ([row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし')
+                            : [row.shopifyTitle, row.shopifyStatus, row.shopifyEnabled ? 'Shopify同期ON' : 'Shopify同期OFF'].filter(Boolean).join(' / ')}
+                        </div>
+                      </div>
+                      {pair && (
+                        <div className="shrink-0 text-right text-[11px] font-bold text-slate-500">
+                          POS <span className="font-black text-slate-800">{pair[0]}</span> / Shopify <span className="font-black text-slate-800">{pair[1]}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
