@@ -4792,7 +4792,9 @@ export const ShopifySettingsPanel = ({
     locationId: '',
     syncEnabled: false,
     inventorySyncEnabled: false,
-    ecSalesSyncEnabled: false
+    ecSalesSyncEnabled: false,
+    autoSyncVariantCodes: false,
+    autoSyncVariantPrice: false
   });
   const [saving, setSaving] = useState(false);
 
@@ -4804,9 +4806,11 @@ export const ShopifySettingsPanel = ({
       locationId: settings?.locationId || '',
       syncEnabled: Boolean(settings?.syncEnabled),
       inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
-      ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled)
+      ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled),
+      autoSyncVariantCodes: Boolean(settings?.autoSyncVariantCodes),
+      autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice)
     });
-  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled]);
+  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled, settings?.autoSyncVariantCodes, settings?.autoSyncVariantPrice]);
 
   const update = (patch) => {
     setDraft((current) => ({
@@ -4861,6 +4865,8 @@ export const ShopifySettingsPanel = ({
         syncEnabled: Boolean(draft.syncEnabled),
         inventorySyncEnabled: Boolean(draft.inventorySyncEnabled),
         ecSalesSyncEnabled: Boolean(draft.ecSalesSyncEnabled),
+        autoSyncVariantCodes: Boolean(draft.autoSyncVariantCodes),
+        autoSyncVariantPrice: Boolean(draft.autoSyncVariantPrice),
         authMode: 'devDashboard'
       });
       onSaved?.();
@@ -5012,6 +5018,38 @@ export const ShopifySettingsPanel = ({
               <span className="text-sm font-black text-slate-700">EC売上の取込を有効にする</span>
             </label>
           </div>
+        </div>
+
+        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
+          <div className="text-sm font-black text-slate-700">商品マスターの変更をShopifyへ自動反映</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+            商品マスターで保存すると、1分ほどでShopifyの<span className="text-slate-500">同じバリアント</span>に反映します（Shopifyに紐付いた商品のみ）。
+            <br />商品名・説明・画像・バリエーション構成には触りません。POS側が空の項目は送りません。
+            <br />Shopifyでセール中（割引前価格が価格より高い）の商品には、価格を送りません。
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={draft.autoSyncVariantCodes}
+                onChange={(event) => update({ autoSyncVariantCodes: event.target.checked })}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              <span className="text-sm font-black text-slate-700">SKU・JANを自動反映する</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={draft.autoSyncVariantPrice}
+                onChange={(event) => update({ autoSyncVariantPrice: event.target.checked })}
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              <span className="text-sm font-black text-slate-700">価格を自動反映する</span>
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] font-bold leading-relaxed text-amber-600">
+            価格をONにする前に「価格・SKU・JANの差分を確認」で食い違いを解消してください。ONにした後は、保存した商品からPOSの価格でShopifyが上書きされます。
+          </p>
         </div>
 
         <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-700">

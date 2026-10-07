@@ -5108,6 +5108,20 @@ export const reconcileShopifyInventory = onRequest(
   }
 );
 
+// 全角/半角の違いだけ(例: Shopify側の ４５８９… )は同じ値として扱う。
+const isSameShopifyCode = (a = '', b = '') => (
+  String(a).normalize('NFKC').toUpperCase() === String(b).normalize('NFKC').toUpperCase()
+);
+// UPC-12 と EAN-13(先頭0付き)は同じ商品コード。
+const isSameShopifyBarcode = (a = '', b = '') => (
+  isSameShopifyCode(a, b)
+  || (/^\d+$/.test(a) && /^\d+$/.test(b) && String(a).replace(/^0+/, '') === String(b).replace(/^0+/, ''))
+);
+// Shopify管理画面の「割引前価格」が「価格」より高い = 商品ページでセール表示されている。
+const isShopifyVariantOnSale = (variant = {}) => (
+  variant.compareAtPrice != null && Number(variant.compareAtPrice) > Number(variant.price)
+);
+
 // 紐付け済みバリアントの 価格・SKU・JAN を POS と Shopify で突合する(読み取りのみ・Shopifyへは書き込まない)。
 // 「保存→Shopify自動反映」を始める前に、既存の食い違いを把握するためのレポート。
 // 価格は Shopify へ送るときと同じ計算(buildShopifySyncPriceSnapshot)で POS 側の期待値を出す。
@@ -5196,16 +5210,12 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     const shopifySku = String(variant.sku || '').trim();
     const posBarcode = String(product.barcode || '').trim();
     const shopifyBarcode = String(variant.barcode || '').trim();
-    // 全角/半角の違いだけ(例: Shopify側の ４５８９… )は同じ値として扱う。
-    const sameCode = (a, b) => a.normalize('NFKC').toUpperCase() === b.normalize('NFKC').toUpperCase();
-    // UPC-12 と EAN-13(先頭0付き)は同じ商品コード。
-    const sameBarcode = (a, b) => sameCode(a, b) || (/^\d+$/.test(a) && /^\d+$/.test(b) && a.replace(/^0+/, '') === b.replace(/^0+/, ''));
 
     // POS側が空の項目は比較しない(自動反映でも空は送らない前提)。
     const diffs = [];
     if (Number.isFinite(posPrice) && posPrice > 0 && posPrice !== shopifyPrice) diffs.push('price');
-    if (posSku && !sameCode(posSku, shopifySku)) diffs.push('sku');
-    if (posBarcode && !sameBarcode(posBarcode, shopifyBarcode)) diffs.push('barcode');
+    if (posSku && !isSameShopifyCode(posSku, shopifySku)) diffs.push('sku');
+    if (posBarcode && !isSameShopifyBarcode(posBarcode, shopifyBarcode)) diffs.push('barcode');
 
     if (diffs.length === 0) {
       matched += 1;
@@ -5215,7 +5225,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     diffProducts += 1;
     diffs.forEach((kind) => { counts[kind] += 1; });
     if (diffs.includes('price') && variant.product?.status === 'ACTIVE') activePriceDiffs += 1;
-    if (diffs.includes('price') && variant.compareAtPrice != null && Number(variant.compareAtPrice) > shopifyPrice) salePriceDiffs += 1;
+    if (diffs.includes('price') && isShopifyVariantOnSale(variant)) salePriceDiffs += 1;
     if (diffs.includes('sku') && !shopifySku) skuEmptyInShopify += 1;
     {
       rows.push({
@@ -9173,6 +9183,232 @@ export const drainShopifyInventoryPushQueue = onSchedule(
         console.log('[drainShopifyInventoryPushQueue] done', { storeId, drained: productIds.length, removed, ...result });
       } catch (error) {
         console.error('[drainShopifyInventoryPushQueue] store failed', { storeId, message: error?.message });
+      }
+    }
+  }
+);
+
+// ── 価格・SKU・JAN の自動反映(保存 → Shopify) ─────────────────────────
+// 商品マスターの保存を検知してキューに積み、1分毎にバリアント単位で Shopify へ反映する。
+// 商品名・説明・画像・バリエーション構成には触らない(productVariantsBulkUpdate のみ)。
+// 店舗設定 settings/shopify の autoSyncVariantCodes(SKU/JAN)・autoSyncVariantPrice(価格) で別々にON/OFF。
+// Shopify でセール中(割引前価格 > 価格)のバリアントには価格を送らない。
+const SHOPIFY_VARIANT_CODE_FIELDS = ['sku', 'productCode', 'barcode'];
+const SHOPIFY_VARIANT_PRICE_FIELDS = ['priceTaxIncluded', 'priceTaxExcluded', 'taxRate', 'price'];
+
+export const enqueueShopifyVariantSync = onDocumentWritten(
+  {
+    region: REGION,
+    database: FIRESTORE_DATABASE_ID,
+    document: 'stores/{storeId}/products/{productId}'
+  },
+  async (event) => {
+    const afterSnap = event.data?.after;
+    const beforeSnap = event.data?.before;
+    if (!afterSnap?.exists || !beforeSnap?.exists) return; // 新規作成・削除は対象外
+    const after = afterSnap.data() || {};
+    const before = beforeSnap.data() || {};
+
+    // Shopify に紐付いていない商品、または今回の書き込みで紐付いた(リンク同期・下書き作成)だけの商品は対象外。
+    const variantId = String(after.shopifyVariantId || '').trim();
+    if (!variantId || variantId !== String(before.shopifyVariantId || '').trim()) return;
+
+    const changed = (fields) => fields.some((field) => String(after[field] ?? '') !== String(before[field] ?? ''));
+    const codesChanged = changed(SHOPIFY_VARIANT_CODE_FIELDS);
+    const priceChanged = changed(SHOPIFY_VARIANT_PRICE_FIELDS);
+    if (!codesChanged && !priceChanged) return;
+
+    // スイッチがOFFの項目は積まない(後でONにした瞬間に過去の編集がまとめて流れないように)。
+    const { storeId, productId } = event.params;
+    const settings = (await db.collection('stores').doc(storeId).collection('settings').doc('shopify').get()).data() || {};
+    const kinds = [];
+    if (codesChanged && settings.autoSyncVariantCodes === true) kinds.push('codes');
+    if (priceChanged && settings.autoSyncVariantPrice === true) kinds.push('price');
+    if (kinds.length === 0) return;
+
+    await db.collection('stores').doc(storeId)
+      .collection('shopifyVariantSyncQueue').doc(productId)
+      .set({
+        productId,
+        kinds: FieldValue.arrayUnion(...kinds),
+        status: 'pending',
+        attempts: 0,
+        enqueuedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+  }
+);
+
+const shopifyVariantsByIdsQuery = `query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on ProductVariant { id price compareAtPrice sku barcode product { id } }
+  }
+}`;
+
+const productVariantsBulkUpdateMutation = `mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants { id }
+    userErrors { field message }
+  }
+}`;
+
+// キューの商品を Shopify へ反映する。送る値は常に「今のPOSの値」(キューの中身ではない)。
+const runShopifyVariantSync = async ({ storeId, productIds = [], settings = {} }) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const syncCodes = settings.autoSyncVariantCodes === true;
+  const syncPrice = settings.autoSyncVariantPrice === true;
+  const taxPriceSnap = await storeRef.collection('settings').doc('taxPrice').get();
+  const priceSyncMode = normalizeShopifyPriceSyncMode((taxPriceSnap.exists ? taxPriceSnap.data() || {} : {}).shopifyPriceSyncMode);
+
+  const productSnaps = await db.getAll(...productIds.map((id) => storeRef.collection('products').doc(id)));
+  const products = productSnaps
+    .filter((snap) => snap.exists)
+    .map((snap) => ({ id: snap.id, ...snap.data() }))
+    .filter((product) => String(product.shopifyVariantId || '').trim());
+  if (products.length === 0) return { updated: 0, skippedSale: 0, unchanged: 0 };
+
+  const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
+
+  const variantsById = new Map();
+  const ids = [...new Set(products.map((product) => String(product.shopifyVariantId).trim()))];
+  for (let i = 0; i < ids.length; i += 100) {
+    const data = await callShopifyGraphqlWithRetry({ shopDomain, accessToken, query: shopifyVariantsByIdsQuery, variables: { ids: ids.slice(i, i + 100) } });
+    for (const node of data.nodes || []) {
+      if (node?.id) variantsById.set(node.id, node);
+    }
+  }
+
+  const inputsByShopifyProduct = new Map();
+  const changes = [];
+  let skippedSale = 0;
+  let unchanged = 0;
+  let missing = 0;
+
+  for (const product of products) {
+    const variant = variantsById.get(String(product.shopifyVariantId).trim());
+    if (!variant?.product?.id) { missing += 1; continue; }
+
+    const input = { id: variant.id };
+    const change = { productId: product.id, variantId: variant.id };
+
+    if (syncCodes) {
+      const sku = String(product.sku || product.productCode || '').trim();
+      const barcode = String(product.barcode || '').trim();
+      if (sku && !isSameShopifyCode(sku, variant.sku || '')) {
+        input.inventoryItem = { sku };
+        change.sku = [variant.sku || '', sku];
+      }
+      if (barcode && !isSameShopifyBarcode(barcode, variant.barcode || '')) {
+        input.barcode = barcode;
+        change.barcode = [variant.barcode || '', barcode];
+      }
+    }
+
+    if (syncPrice) {
+      const price = buildShopifySyncPriceSnapshot(product, priceSyncMode).price;
+      if (Number(price) > 0 && Number(price) !== Number(variant.price)) {
+        if (isShopifyVariantOnSale(variant)) {
+          skippedSale += 1;
+        } else {
+          input.price = price;
+          change.price = [variant.price, price];
+        }
+      }
+    }
+
+    if (Object.keys(input).length === 1) { unchanged += 1; continue; }
+    const list = inputsByShopifyProduct.get(variant.product.id) || [];
+    list.push(input);
+    inputsByShopifyProduct.set(variant.product.id, list);
+    changes.push(change);
+  }
+
+  const errors = [];
+  for (const [shopifyProductId, variants] of inputsByShopifyProduct) {
+    const data = await callShopifyGraphqlWithRetry({
+      shopDomain,
+      accessToken,
+      query: productVariantsBulkUpdateMutation,
+      variables: { productId: shopifyProductId, variants }
+    });
+    const userErrors = data.productVariantsBulkUpdate?.userErrors || [];
+    if (userErrors.length) errors.push({ shopifyProductId, userErrors });
+  }
+
+  if (changes.length || errors.length || skippedSale) {
+    await storeRef.collection('shopifySyncLogs').add({
+      action: 'autoVariantSync',
+      status: errors.length ? 'partial_error' : 'success',
+      syncCodes,
+      syncPrice,
+      updated: changes.length,
+      skippedSale,
+      unchanged,
+      missing,
+      changes: changes.slice(0, 200),
+      errors: errors.slice(0, 20),
+      createdAt: FieldValue.serverTimestamp()
+    });
+  }
+
+  if (errors.length) {
+    throw new Error(`Shopifyが一部の更新を拒否しました: ${errors[0].userErrors.map((e) => e.message).join(' / ')}`);
+  }
+  return { updated: changes.length, skippedSale, unchanged, missing };
+};
+
+// 1分毎にキューを処理(在庫のキューと同じ作り)。どちらのスイッチもOFFの店舗はキューを溜めたまま何もしない。
+export const drainShopifyVariantSyncQueue = onSchedule(
+  { region: REGION, schedule: 'every 1 minutes', timeZone: 'Asia/Tokyo', timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    const storesSnap = await db.collection('stores').get();
+    for (const storeDoc of storesSnap.docs) {
+      const storeId = storeDoc.id;
+      try {
+        const settings = (await storeDoc.ref.collection('settings').doc('shopify').get()).data() || {};
+        if (settings.autoSyncVariantCodes !== true && settings.autoSyncVariantPrice !== true) continue;
+
+        const queueRef = storeDoc.ref.collection('shopifyVariantSyncQueue');
+        const pendingSnap = await queueRef.where('status', '==', 'pending').limit(200).get();
+        if (pendingSnap.empty) continue;
+
+        const readAtById = new Map(pendingSnap.docs.map((d) => [d.id, tsMillisSafe(d.data()?.enqueuedAt)]));
+        const productIds = pendingSnap.docs.map((d) => d.id);
+
+        let result;
+        try {
+          result = await runShopifyVariantSync({ storeId, productIds, settings });
+        } catch (syncError) {
+          const failBatch = db.batch();
+          for (const d of pendingSnap.docs) {
+            const attempts = Number(d.data()?.attempts || 0) + 1;
+            failBatch.set(d.ref, {
+              attempts,
+              status: attempts >= 5 ? 'failed' : 'pending',
+              lastError: String(syncError?.message || syncError).slice(0, 300),
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+          await failBatch.commit();
+          console.error('[drainShopifyVariantSyncQueue] sync failed', { storeId, count: productIds.length, message: syncError?.message });
+          continue;
+        }
+
+        let deleteBatch = db.batch();
+        let ops = 0;
+        for (const d of pendingSnap.docs) {
+          const fresh = await d.ref.get();
+          if (!fresh.exists) continue;
+          if (tsMillisSafe(fresh.data()?.enqueuedAt) > (readAtById.get(d.id) || 0)) continue;
+          deleteBatch.delete(d.ref);
+          ops += 1;
+          if (ops >= 400) { await deleteBatch.commit(); deleteBatch = db.batch(); ops = 0; }
+        }
+        if (ops > 0) await deleteBatch.commit();
+
+        console.log('[drainShopifyVariantSyncQueue] done', { storeId, drained: productIds.length, ...result });
+      } catch (error) {
+        console.error('[drainShopifyVariantSyncQueue] store failed', { storeId, message: error?.message });
       }
     }
   }

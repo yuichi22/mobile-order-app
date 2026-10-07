@@ -230,6 +230,8 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
     syncEnabled: Boolean(settings.syncEnabled),
     inventorySyncEnabled: Boolean(settings.inventorySyncEnabled),
     ecSalesSyncEnabled: Boolean(settings.ecSalesSyncEnabled),
+    autoSyncVariantCodes: Boolean(settings.autoSyncVariantCodes),
+    autoSyncVariantPrice: Boolean(settings.autoSyncVariantPrice),
     authMode: settings.authMode || 'devDashboard',
     accessToken: deleteField(),
     updatedAt: serverTimestamp()
