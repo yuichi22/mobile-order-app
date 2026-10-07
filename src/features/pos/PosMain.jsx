@@ -10,6 +10,7 @@ import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
 import { useCrmMember } from './hooks/useCrmMember';
 import PosMemberSearchModal from './components/PosMemberSearchModal';
+import { memberBarStyle, rankTheme } from './utils/rankTheme';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
 import { attachScanIndex } from '../../shared/api/firebase/scanIndex';
 import { useScannerBufferedInput } from '../../shared/hooks/useScannerBufferedInput';
@@ -2677,8 +2678,22 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         {/* 会員バー: 読み込み中は左ペイン最上部に常時表示する。
             ⚠会計せず放置すると次のお客様の会計に紐づく事故になるため、目立たせ・解除しやすくする。 */}
         {crmMember && (
-          <div className="mb-2 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-emerald-600 px-4 py-2.5 text-white shadow-md">
+          /* ランクがあればカードと同じメタリック、無ければ従来の緑。 */
+          <div
+            style={memberBarStyle(crmMember.rank)}
+            className={`mb-2 flex shrink-0 items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-white shadow-md ${
+              crmMember.rank ? '' : 'bg-emerald-600'
+            }`}
+          >
             <div className="flex min-w-0 items-center gap-3">
+              {crmMember.rank && (
+                <span
+                  className="shrink-0 rounded-md bg-black/25 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]"
+                  style={{ color: rankTheme(crmMember.rank)?.label }}
+                >
+                  {crmMember.rank.name}
+                </span>
+              )}
               <span className="truncate text-sm font-black">
                 会員: {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
               </span>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, ChevronDown, Delete, Search, Undo2, X } from 'lucide-react';
 
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
+import { rankTheme } from '../utils/rankTheme';
 import {
   adjustCrmMemberLtv,
   coreErrorMessage,
@@ -32,17 +33,8 @@ import {
 // （テナントごとに事情が違うので、選択肢をこちらで増やさない）。
 const TRANSFER_REASON = 'ポイント移動';
 
-// カードの格。⚠お客様のポイントカード(PointCard.jsx)と同じ配色にしてある。
-//   店頭で「私のカードは金色なのにレジでは違う」と見えないようにするため。
-//   判定そのものはサーバー(lib/crmLtvRank.js)が返す値を使う＝閾値をここに書かない。
-const RANK_THEMES = {
-  bronze: { bg: 'linear-gradient(135deg,#5a4632 0%,#8a6c4d 50%,#4a3826 100%)', label: '#e8c9a0' },
-  gold: { bg: 'linear-gradient(135deg,#6d5518 0%,#b98f2e 50%,#5a460f 100%)', label: '#f6e3a1' },
-  platinum: { bg: 'linear-gradient(135deg,#3f4753 0%,#8e99a8 50%,#333a44 100%)', label: '#eef2f7' }
-};
-
 const RankBadge = ({ rank, size = 'sm' }) => {
-  const theme = rank?.key ? RANK_THEMES[rank.key] : null;
+  const theme = rankTheme(rank);
   if (!theme) return null;
   return (
     <span
@@ -414,6 +406,12 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
           <div className="flex justify-between gap-2">
             <dt className="text-slate-400">ご住所</dt>
             <dd>{member.addressUnknown ? '不明' : (formatTown(member) || '登録なし')}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            {/* 会員番号＝ポイントカードのバーコードの中身("MB"+これ)。お客様との照合に使う。
+                カードを一度開いたお客様にだけ発行される。 */}
+            <dt className="text-slate-400">会員番号</dt>
+            <dd className="font-mono">{member.memberCode || 'カード未発行'}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-slate-400">ポイント</dt>
