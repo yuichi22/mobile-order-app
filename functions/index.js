@@ -5176,7 +5176,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     const variant = variantsById.get(variantId);
     if (!variant) {
       missingInShopify += 1;
-      if (rows.length < ROW_CAP) {
+      {
         rows.push({
           productId: docSnap.id,
           name: product.name || '',
@@ -5212,7 +5212,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     diffs.forEach((kind) => { counts[kind] += 1; });
     if (diffs.includes('price') && variant.product?.status === 'ACTIVE') activePriceDiffs += 1;
     if (diffs.includes('sku') && !shopifySku) skuEmptyInShopify += 1;
-    if (rows.length < ROW_CAP) {
+    {
       rows.push({
         productId: docSnap.id,
         name: product.name || '',
@@ -5230,6 +5230,18 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
       });
     }
   });
+
+  // 重要な順に並べる(公開中の価格 → JAN → Shopify側に無し → その他の価格 → SKU)。
+  // Firestoreの保存は1MB上限があるため先頭ROW_CAP件だけ、画面/CSVには全件を返す。
+  const rowRank = (row) => {
+    if (row.reason === 'missingInShopify') return 2;
+    const kinds = row.diffs || [];
+    if (kinds.includes('price') && row.shopifyStatus === 'ACTIVE') return 0;
+    if (kinds.includes('barcode')) return 1;
+    if (kinds.includes('price')) return 3;
+    return 4;
+  };
+  rows.sort((a, b) => rowRank(a) - rowRank(b));
 
   // Shopifyにあって POS のどの商品とも紐付いていないバリアント(件数のみ)。
   let shopifyOnlyVariants = 0;
@@ -5253,13 +5265,16 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     shopifyVariantsScanned: variantsById.size,
     shopifyOnlyVariants,
     reportedRows: rows.length,
-    truncated: (diffProducts + missingInShopify) > rows.length,
-    rows
+    storedRows: Math.min(rows.length, ROW_CAP),
+    truncated: false
   };
 
-  const reportRef = await storeRef.collection('shopifyVariantDiffReports').add(summary);
+  const reportRef = await storeRef.collection('shopifyVariantDiffReports').add({
+    ...summary,
+    rows: rows.slice(0, ROW_CAP)
+  });
   const { at, ...result } = summary;
-  return { reportId: reportRef.id, ...result };
+  return { reportId: reportRef.id, ...result, rows };
 };
 
 // 手動トリガー(EC連携「価格・SKU・JANの差分を確認」ボタン)。読み取りのみ。

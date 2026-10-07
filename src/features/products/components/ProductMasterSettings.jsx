@@ -5271,7 +5271,12 @@ export const ShopifySettingsPanel = ({
                 {variantDiffRows.length === 0 && (
                   <div className="px-3 py-4 text-center text-xs font-bold text-slate-400">該当なし</div>
                 )}
-                {variantDiffRows.map((row) => {
+                {variantDiffRows.length > 300 && (
+                  <div className="px-3 py-2 text-[11px] font-bold text-slate-400">
+                    {variantDiffRows.length.toLocaleString()}件のうち先頭300件を表示しています。全件は「CSVで保存」で確認できます。
+                  </div>
+                )}
+                {variantDiffRows.slice(0, 300).map((row) => {
                   const pair = {
                     price: [row.posPrice != null ? `¥${Number(row.posPrice).toLocaleString()}` : '—', row.shopifyPrice != null ? `¥${Number(row.shopifyPrice).toLocaleString()}` : '—'],
                     sku: [row.posSku || '—', row.shopifySku || '（空）'],
