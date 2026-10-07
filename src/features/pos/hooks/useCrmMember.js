@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 
 import { functionsApi } from '../../../shared/api/firebase/client';
@@ -16,6 +16,11 @@ export const isCrmMemberScanCode = (value) => CRM_MEMBER_SCAN_PATTERN.test(Strin
  * ⚠会員は「会計ごと」に解除する。読み込んだまま放置して次のお客様に紐づく事故を防ぐため、
  *   会計完了・保留・破棄の各経路で clearMember() を必ず呼ぶこと。
  */
+// レジ起動時のウォームアップ。⚠1回の読み込みにつき店舗ごと1回だけ。
+//   このフックは AdminApp / PosMain / PosRegister から作られることがあり、
+//   素直に書くと同じ暖機が何度も飛ぶ。
+const warmedStores = new Set();
+
 export const useCrmMember = (storeId) => {
   const [member, setMember] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -23,6 +28,18 @@ export const useCrmMember = (storeId) => {
   const [codeInput, setCodeInput] = useState('');
   // この会計で使うポイント数(pt)。会計の割引明細(voucher_payment)として流し込む。
   const [pointsToUse, setPointsToUse] = useState(0);
+
+  // ⚠会員照会は「レジ → この中継 → Core」の2段。どちらもしばらく使われないと
+  //   コンテナが落ち、朝イチの1件目だけ起動待ちで待たされる。
+  //   レジを開いた時に1回だけ空打ちして、両方を起こしておく（お客様は引かない）。
+  //   失敗しても何もしない（暖機は「できたら得」なだけで、会計を止める理由にならない）。
+  const warmedRef = useRef(false);
+  useEffect(() => {
+    if (!storeId || warmedRef.current || warmedStores.has(storeId)) return;
+    warmedRef.current = true;
+    warmedStores.add(storeId);
+    httpsCallable(functionsApi, 'crmLookupMember')({ storeId, warmup: true }).catch(() => {});
+  }, [storeId]);
 
   const clearMember = useCallback(() => {
     setMember(null);

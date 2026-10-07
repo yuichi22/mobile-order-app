@@ -91,6 +91,23 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
   // groom の会計依頼は会員コードでなく personId を運んでくるので、そちらでも引けるようにする。
   const personId = str(request.data?.personId);
   if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  // ウォームアップ: レジの起動時に1回だけ叩き、この関数と Core 側の両方を起こしておく。
+  // ⚠朝イチの1件目だけコールドスタートで待たされるのを消すのが目的。お客様は1人も引かない。
+  //   ⚠ここで throw すると画面に無用なエラーが出るので、失敗しても握りつぶす。
+  if (request.data?.warmup === true) {
+    await assertStoreStaff(request, storeId);
+    const warmLink = await resolveCoreLink(storeId);
+    try {
+      await callCore("lookupCrmMember", {
+        coreTenantId: warmLink.coreTenantId,
+        coreSpaceId: warmLink.coreSpaceId,
+        warmup: true,
+      });
+    } catch {
+      return { ok: true, warmed: false };
+    }
+    return { ok: true, warmed: true };
+  }
   if (!memberCode && !personId) {
     throw new HttpsError("invalid-argument", "memberCode or personId required.");
   }
