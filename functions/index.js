@@ -5121,6 +5121,7 @@ const buildShopifyVariantMap = async ({ shopDomain, accessToken }) => {
         sku
         barcode
         price
+        compareAtPrice
         product { id title status }
       }
     }
@@ -5164,6 +5165,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
   const counts = { price: 0, sku: 0, barcode: 0 };
   let diffProducts = 0;
   let activePriceDiffs = 0;
+  let salePriceDiffs = 0;
   let skuEmptyInShopify = 0;
 
   linkedSnap.forEach((docSnap) => {
@@ -5196,12 +5198,14 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     const shopifyBarcode = String(variant.barcode || '').trim();
     // 全角/半角の違いだけ(例: Shopify側の ４５８９… )は同じ値として扱う。
     const sameCode = (a, b) => a.normalize('NFKC').toUpperCase() === b.normalize('NFKC').toUpperCase();
+    // UPC-12 と EAN-13(先頭0付き)は同じ商品コード。
+    const sameBarcode = (a, b) => sameCode(a, b) || (/^\d+$/.test(a) && /^\d+$/.test(b) && a.replace(/^0+/, '') === b.replace(/^0+/, ''));
 
     // POS側が空の項目は比較しない(自動反映でも空は送らない前提)。
     const diffs = [];
     if (Number.isFinite(posPrice) && posPrice > 0 && posPrice !== shopifyPrice) diffs.push('price');
     if (posSku && !sameCode(posSku, shopifySku)) diffs.push('sku');
-    if (posBarcode && !sameCode(posBarcode, shopifyBarcode)) diffs.push('barcode');
+    if (posBarcode && !sameBarcode(posBarcode, shopifyBarcode)) diffs.push('barcode');
 
     if (diffs.length === 0) {
       matched += 1;
@@ -5211,6 +5215,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     diffProducts += 1;
     diffs.forEach((kind) => { counts[kind] += 1; });
     if (diffs.includes('price') && variant.product?.status === 'ACTIVE') activePriceDiffs += 1;
+    if (diffs.includes('price') && variant.compareAtPrice != null && Number(variant.compareAtPrice) > shopifyPrice) salePriceDiffs += 1;
     if (diffs.includes('sku') && !shopifySku) skuEmptyInShopify += 1;
     {
       rows.push({
@@ -5223,6 +5228,8 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
         diffs,
         posPrice: Number.isFinite(posPrice) ? posPrice : null,
         shopifyPrice: Number.isFinite(shopifyPrice) ? shopifyPrice : null,
+        // Shopify側でセール中(通常価格=compareAtPriceあり)か。自動反映でセール価格を上書きしないための判断材料。
+        shopifyCompareAtPrice: variant.compareAtPrice != null ? Number(variant.compareAtPrice) : null,
         posSku,
         shopifySku,
         posBarcode,
@@ -5258,6 +5265,7 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     diffProducts,
     priceDiffs: counts.price,
     activePriceDiffs,
+    salePriceDiffs,
     skuEmptyInShopify,
     skuDiffs: counts.sku,
     barcodeDiffs: counts.barcode,

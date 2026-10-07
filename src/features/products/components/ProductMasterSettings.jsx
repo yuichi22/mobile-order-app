@@ -4599,7 +4599,7 @@ export const ShopifySettingsPanel = ({
   };
 
   const downloadVariantDiffCsv = () => {
-    const header = ['区分', '商品名(POS)', '商品名(Shopify)', 'Shopify公開状態', 'Shopify同期', '価格(POS)', '価格(Shopify)', 'SKU(POS)', 'SKU(Shopify)', 'JAN(POS)', 'JAN(Shopify)'];
+    const header = ['区分', '商品名(POS)', '商品名(Shopify)', 'Shopify公開状態', 'Shopify同期', '価格(POS)', '価格(Shopify)', '通常価格(Shopify・セール時)', 'SKU(POS)', 'SKU(Shopify)', 'JAN(POS)', 'JAN(Shopify)'];
     const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const lines = (variantDiffResult?.rows || []).map((row) => [
       row.reason === 'missingInShopify' ? 'Shopify側に無し' : (row.diffs || []).map((kind) => ({ price: '価格', sku: 'SKU', barcode: 'JAN' }[kind])).join('/'),
@@ -4609,6 +4609,7 @@ export const ShopifySettingsPanel = ({
       row.shopifyEnabled ? 'ON' : 'OFF',
       row.posPrice,
       row.shopifyPrice,
+      row.shopifyCompareAtPrice,
       row.posSku ?? row.sku,
       row.shopifySku,
       row.posBarcode ?? row.barcode,
@@ -5237,7 +5238,7 @@ export const ShopifySettingsPanel = ({
             }`}>
               突合完了：紐付け {Number(variantDiffResult.totalLinked || 0).toLocaleString()}件中、
               一致 {Number(variantDiffResult.matched || 0).toLocaleString()} /
-              食い違い {Number(variantDiffResult.diffProducts || 0).toLocaleString()}（価格 {Number(variantDiffResult.priceDiffs || 0).toLocaleString()}〔うち公開中 {Number(variantDiffResult.activePriceDiffs || 0).toLocaleString()}〕 ・
+              食い違い {Number(variantDiffResult.diffProducts || 0).toLocaleString()}（価格 {Number(variantDiffResult.priceDiffs || 0).toLocaleString()}〔うち公開中 {Number(variantDiffResult.activePriceDiffs || 0).toLocaleString()}・Shopifyでセール中 {Number(variantDiffResult.salePriceDiffs || 0).toLocaleString()}〕 ・
               SKU {Number(variantDiffResult.skuDiffs || 0).toLocaleString()}〔うちShopify側が空 {Number(variantDiffResult.skuEmptyInShopify || 0).toLocaleString()}〕 ・
               JAN {Number(variantDiffResult.barcodeDiffs || 0).toLocaleString()}）/
               Shopify側に無し {Number(variantDiffResult.missingInShopify || 0).toLocaleString()}。
