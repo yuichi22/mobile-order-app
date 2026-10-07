@@ -5163,6 +5163,8 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
   let missingInShopify = 0;
   const counts = { price: 0, sku: 0, barcode: 0 };
   let diffProducts = 0;
+  let activePriceDiffs = 0;
+  let skuEmptyInShopify = 0;
 
   linkedSnap.forEach((docSnap) => {
     const product = docSnap.data() || {};
@@ -5192,12 +5194,14 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     const shopifySku = String(variant.sku || '').trim();
     const posBarcode = String(product.barcode || '').trim();
     const shopifyBarcode = String(variant.barcode || '').trim();
+    // 全角/半角の違いだけ(例: Shopify側の ４５８９… )は同じ値として扱う。
+    const sameCode = (a, b) => a.normalize('NFKC').toUpperCase() === b.normalize('NFKC').toUpperCase();
 
     // POS側が空の項目は比較しない(自動反映でも空は送らない前提)。
     const diffs = [];
     if (Number.isFinite(posPrice) && posPrice > 0 && posPrice !== shopifyPrice) diffs.push('price');
-    if (posSku && posSku !== shopifySku) diffs.push('sku');
-    if (posBarcode && posBarcode !== shopifyBarcode) diffs.push('barcode');
+    if (posSku && !sameCode(posSku, shopifySku)) diffs.push('sku');
+    if (posBarcode && !sameCode(posBarcode, shopifyBarcode)) diffs.push('barcode');
 
     if (diffs.length === 0) {
       matched += 1;
@@ -5206,6 +5210,8 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
 
     diffProducts += 1;
     diffs.forEach((kind) => { counts[kind] += 1; });
+    if (diffs.includes('price') && variant.product?.status === 'ACTIVE') activePriceDiffs += 1;
+    if (diffs.includes('sku') && !shopifySku) skuEmptyInShopify += 1;
     if (rows.length < ROW_CAP) {
       rows.push({
         productId: docSnap.id,
@@ -5239,6 +5245,8 @@ const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
     matched,
     diffProducts,
     priceDiffs: counts.price,
+    activePriceDiffs,
+    skuEmptyInShopify,
     skuDiffs: counts.sku,
     barcodeDiffs: counts.barcode,
     missingInShopify,

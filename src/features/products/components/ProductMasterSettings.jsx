@@ -5237,8 +5237,8 @@ export const ShopifySettingsPanel = ({
             }`}>
               突合完了：紐付け {Number(variantDiffResult.totalLinked || 0).toLocaleString()}件中、
               一致 {Number(variantDiffResult.matched || 0).toLocaleString()} /
-              食い違い {Number(variantDiffResult.diffProducts || 0).toLocaleString()}（価格 {Number(variantDiffResult.priceDiffs || 0).toLocaleString()} ・
-              SKU {Number(variantDiffResult.skuDiffs || 0).toLocaleString()} ・
+              食い違い {Number(variantDiffResult.diffProducts || 0).toLocaleString()}（価格 {Number(variantDiffResult.priceDiffs || 0).toLocaleString()}〔うち公開中 {Number(variantDiffResult.activePriceDiffs || 0).toLocaleString()}〕 ・
+              SKU {Number(variantDiffResult.skuDiffs || 0).toLocaleString()}〔うちShopify側が空 {Number(variantDiffResult.skuEmptyInShopify || 0).toLocaleString()}〕 ・
               JAN {Number(variantDiffResult.barcodeDiffs || 0).toLocaleString()}）/
               Shopify側に無し {Number(variantDiffResult.missingInShopify || 0).toLocaleString()}。
               <br />Shopifyのバリアント {Number(variantDiffResult.shopifyVariantsScanned || 0).toLocaleString()}件のうち、POSと紐付いていないもの {Number(variantDiffResult.shopifyOnlyVariants || 0).toLocaleString()}件。
