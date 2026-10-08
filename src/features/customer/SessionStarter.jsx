@@ -48,7 +48,7 @@ const LoadingSurface = ({ children = null }) => (
 
 const StatusModal = ({ icon, title, children }) => (
   <div className="absolute inset-0 z-10 flex items-center justify-center bg-white p-6">
-    <div className="w-full max-w-sm rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-2xl animate-in zoom-in-95 duration-200">
       <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gray-50 shadow-sm ring-1 ring-gray-100">
         {icon}
       </div>

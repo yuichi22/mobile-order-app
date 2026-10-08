@@ -6,7 +6,7 @@ import { QrCode } from 'lucide-react';
 // ボタンをリングと吹き出しで強調する。文章で「画面右上の…」と説明するより早い。
 const InviteHintIllustration = ({ themeColor = '#16a34a', periodLabel = 'モーニング 07:00 - 11:30' }) => (
   <div className="mx-auto w-full max-w-xs">
-    <div className="overflow-hidden rounded-[1.75rem] border-[6px] border-gray-900 bg-white shadow-xl">
+    <div className="overflow-hidden rounded-3xl border-[6px] border-gray-900 bg-white shadow-xl">
       <div className="flex items-center justify-center bg-gray-900 pb-1.5 pt-1">
         <span className="h-1.5 w-16 rounded-full bg-gray-700" />
       </div>

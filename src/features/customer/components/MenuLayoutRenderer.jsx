@@ -83,7 +83,7 @@ const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
   const sizeClasses = {
     sm: 'h-11 w-11',
     md: 'h-12 w-12',
-    lg: 'h-[52px] w-[52px]'
+    lg: 'h-12 w-12'
   };
 
   const iconSizeMap = {
@@ -97,7 +97,7 @@ const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-lg ring-1 ring-black/10 transition-all active:scale-90 ${
+      className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-[0_2px_8px_rgba(15,23,42,0.18)] transition-all active:scale-90 ${
         disabled
           ? 'bg-white/70 text-gray-300 shadow-none'
           : themeColor
@@ -108,7 +108,7 @@ const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
       aria-label="カートに追加"
       title="カートに追加"
     >
-      <ShoppingCart size={iconSizeMap[size] || 20} strokeWidth={3} />
+      <ShoppingCart size={iconSizeMap[size] || 20} strokeWidth={2.25} />
     </button>
   );
 };
@@ -204,7 +204,7 @@ const resolveDisplayPrice = (item, priceMode = 'normal') => {
 
 const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
-    className={`flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)] animate-in fade-in duration-500 ${
+    className={`flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
     }`}
   >
@@ -257,7 +257,7 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
 
 const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
-    className={`flex items-center gap-4 rounded-[1.75rem] bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
+    className={`flex items-center gap-4 rounded-3xl bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
     }`}
   >
@@ -268,7 +268,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   labelText={item.photoLabelText}
   labelColor={item.photoLabelColor}
   labelSize="sm"
-  className="h-[104px] w-[104px] shrink-0 rounded-[1.35rem]"
+  className="h-[104px] w-[104px] shrink-0 rounded-xl"
 />
 
     <div className="min-w-0 flex-grow">
@@ -305,7 +305,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
 
 const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
-    className={`flex h-full flex-col overflow-hidden rounded-[1.6rem] bg-white shadow-[0_4px_16px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
+    className={`flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-[0_4px_16px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
     }`}
   >
@@ -359,7 +359,7 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
 
 const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
-    className={`overflow-hidden rounded-[2rem] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.08)] animate-in fade-in duration-500 ${
+    className={`overflow-hidden rounded-3xl bg-white shadow-[0_10px_34px_rgba(15,23,42,0.08)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
     }`}
   >

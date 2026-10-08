@@ -236,7 +236,7 @@ const visibleCategories = useMemo(() => (
   orderedCategories.filter((category) => visibleCategoryIds.has(category.id))
 ), [orderedCategories, visibleCategoryIds]);
 
-const customerThemeColor = basicSettings?.customerThemeColor || '#0f172a';
+const customerThemeColor = basicSettings?.customerThemeColor || '#3B6E8F';
 
 const menuScrollRef = useRef(null);
 const cartSheetDragControls = useDragControls();
@@ -1810,7 +1810,7 @@ const shouldCompactReceiptItems = (receipt) => (
 
   const receiptModalContent = showReceiptModal && selectedReceipt ? (
     <div className="receipt-print-layer fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-sm flex-col overflow-hidden rounded-[2rem] bg-white text-left shadow-2xl">
+      <div className="flex max-h-[88vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white text-left shadow-2xl">
         <div className="shrink-0 border-b border-gray-100 p-5 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1993,7 +1993,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   if (sessionStartTimedOut && storeId && entryTableId && !sessionId) {
     return (
       <div className="flex min-h-screen-safe items-center justify-center bg-white p-6 text-center">
-        <div className="w-full max-w-sm rounded-[2rem] border border-gray-100 bg-white p-8 shadow-2xl">
+        <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-8 shadow-2xl">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-50">
             <ShieldAlert className="h-8 w-8 text-gray-500" />
           </div>
@@ -2009,7 +2009,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-8 h-14 w-full rounded-[1.6rem] bg-gray-900 font-black text-white shadow-lg"
+            className="mt-8 h-14 w-full rounded-3xl bg-gray-900 font-black text-white shadow-lg"
           >
             もう一度読み込む
           </button>
@@ -2071,14 +2071,14 @@ if (shouldWaitForSessionBeforeWelcome) {
     return (
       <div className="flex min-h-screen-safe flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
-          <Lock className="h-12 w-12 text-orange-500" />
+          <Lock className="h-12 w-12 text-gray-400" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">このテーブルは利用中です</h2>
         <p className="mx-auto mb-6 max-w-sm text-sm leading-relaxed text-gray-500">
           注文が始まっているテーブルは、外部からの新規参加をロックしています。
         </p>
 
-        <div className="mx-auto mb-8 w-full max-w-sm rounded-[1.75rem] border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mx-auto mb-8 w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="mb-4 text-base font-black text-gray-900">同席者の方の参加方法</p>
           <InviteHintIllustration
             themeColor={customerThemeColor}
@@ -2103,7 +2103,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               window.location.reload();
             }
           }}
-          className="h-14 w-full max-w-sm rounded-[1.6rem] bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
+          className="h-14 w-full max-w-sm rounded-3xl bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
         >
           もう一度試す
         </button>
@@ -2129,8 +2129,8 @@ if (shouldWaitForSessionBeforeWelcome) {
   if (isSessionEnded || sessionStatus === 'invalid') {
     return (
       <div className="flex min-h-screen-safe flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
-        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 shadow-inner">
-          <CheckCircle className="h-12 w-12 text-green-600" />
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#0B1220]">
+          <CheckCircle className="h-12 w-12 text-[#D9C08A]" />
         </div>
 
         <div className="receipt-print-hidden">
@@ -2151,7 +2151,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               <button
                 type="button"
                 onClick={() => openReceiptSafely(customerReceipts[0])}
-                className="w-full rounded-2xl bg-blue-600 px-7 py-4 text-base font-black text-white shadow-lg shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
+                className="w-full rounded-2xl bg-gray-900 px-7 py-4 text-base font-black text-white shadow-sm transition-transform hover:bg-gray-800 active:scale-95"
               >
                 領収書を見る
               </button>
@@ -2163,7 +2163,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                     key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
                     type="button"
                     onClick={() => openReceiptSafely(receipt)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm font-black text-blue-700 transition-transform active:scale-95"
+                    className="flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-left text-sm font-black text-gray-900 transition-transform active:scale-95"
                   >
                     <span>
                       領収書 {customerReceipts.length - receiptIndex}
@@ -2199,7 +2199,7 @@ if (shouldWaitForSessionBeforeWelcome) {
     return (
       <div className="flex min-h-screen-safe flex-col items-center justify-center bg-gray-50 p-6 text-center animate-in fade-in">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
-          <Clock className="h-12 w-12" style={{ color: customerThemeColor }} />
+          <Clock className="h-12 w-12 text-gray-400" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">
           {businessStatus?.message || '営業時間外です'}
@@ -2283,11 +2283,11 @@ if (shouldWaitForSessionBeforeWelcome) {
         </button>
 
         <div className="shrink-0 border-b border-gray-100 px-6 pb-4 pt-3">
-          <div className="flex items-center gap-3 rounded-xl bg-orange-50 px-4 py-3">
-            <Barcode size={22} className="shrink-0 text-orange-600" />
-            <p className="text-lg font-black leading-snug text-orange-700">
+          <div className="flex items-center gap-3 rounded-xl bg-[#0B1220] px-4 py-3">
+            <Barcode size={22} className="shrink-0 text-[#D9C08A]" />
+            <p className="text-lg font-black leading-snug text-white">
               レジ会計で提示してください
-              <span className="mt-0.5 block text-sm font-bold text-orange-500">
+              <span className="mt-0.5 block text-sm font-bold text-white/70">
                 それまでアプリは閉じないでください
               </span>
             </p>
@@ -2298,7 +2298,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
-          <div className="mb-6 rounded-3xl border-b-4 border-orange-100 bg-white p-6 text-center shadow-sm">
+          <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
             <p className="mb-3 text-base font-black text-gray-900">
               お会計伝票
               {tableTitle && <span className="ml-2 text-gray-700">{tableTitle}</span>}
@@ -2323,7 +2323,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     type="button"
                     onClick={() => openReceiptSafely(customerReceipts[0])}
-                    className="flex h-14 w-full items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-sm shadow-blue-100 transition-transform hover:bg-blue-700 active:scale-95"
+                    className="flex h-14 w-full items-center justify-center rounded-2xl bg-gray-900 text-base font-black text-white shadow-sm transition-transform hover:bg-gray-800 active:scale-95"
                   >
                     領収書を見る
                   </button>
@@ -2335,7 +2335,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                         key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
                         type="button"
                         onClick={() => openReceiptSafely(receipt)}
-                        className="flex w-full items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-left text-sm font-black text-blue-700 transition-transform active:scale-95"
+                        className="flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-left text-sm font-black text-gray-900 transition-transform active:scale-95"
                       >
                         <span>
                           領収書 {customerReceipts.length - receiptIndex}
@@ -2393,14 +2393,14 @@ if (shouldWaitForSessionBeforeWelcome) {
               const statusClassName = isCancelledOrder
                 ? 'bg-gray-100 text-gray-500'
                 : order.status === 'pending'
-                  ? 'bg-orange-100 text-orange-600'
-                  : 'bg-green-100 text-green-600';
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-gray-900 text-white';
 
               return (
                 <div
                   key={order.id}
-                  className={`rounded-xl border-l-4 bg-white p-4 shadow-sm ${
-                    isCancelledOrder ? 'border-gray-300 opacity-70' : 'border-orange-500'
+                  className={`relative py-1 pl-4 before:absolute before:bottom-1 before:left-0 before:top-1 before:w-0.5 before:content-[''] ${
+                    isCancelledOrder ? 'opacity-70 before:bg-gray-300' : 'before:bg-gray-900'
                   }`}
                 >
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
@@ -2429,12 +2429,12 @@ if (shouldWaitForSessionBeforeWelcome) {
                           <span className={isCancelledItem ? 'text-gray-400' : 'text-gray-800'}>
                             {item.name} x{Number(item.quantity || 0)}
                             {item.serviceTimingLabel && (
-                              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                              <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">
                                 {item.serviceTimingLabel}
                               </span>
                             )}
                             {item.appliedPriceMode === 'crossSell' && (
-                              <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">
+                              <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">
                                 セット価格
                               </span>
                             )}
@@ -2492,13 +2492,14 @@ if (shouldWaitForSessionBeforeWelcome) {
         >
           <button
             onClick={() => handleChangeView('menu')}
-            className="h-14 w-full rounded-[1.6rem] bg-orange-500 font-bold text-white shadow-lg shadow-orange-100 transition-transform active:scale-95"
+            className="h-14 w-full rounded-3xl font-bold text-white shadow-sm transition-transform active:scale-95"
+            style={{ backgroundColor: customerThemeColor }}
           >
             メニューに戻る（追加注文）
           </button>
           <button
             onClick={() => handleCallStaff('accounting')}
-            className="h-12 w-full rounded-[1.4rem] border border-gray-200 bg-white text-sm font-bold text-gray-600 transition-transform active:scale-95"
+            className="h-12 w-full rounded-3xl border border-gray-200 bg-white text-sm font-bold text-gray-600 transition-transform active:scale-95"
           >
             スタッフにお会計を知らせる
           </button>
@@ -2509,9 +2510,9 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   const cancelDialogModal = cancelDialog ? (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
         <div className={`mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full ${
-          cancelDialog.type === 'alert' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'
+          cancelDialog.type === 'alert' ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-600'
         }`}>
           {cancelDialog.type === 'alert' ? (
             <ShieldAlert size={32} strokeWidth={2.8} />
@@ -2541,7 +2542,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             <button
               type="button"
               onClick={() => setCancelDialog(null)}
-              className="flex h-14 items-center justify-center rounded-[1.6rem] bg-gray-100 text-sm font-black text-gray-700 transition-transform active:scale-95"
+              className="flex h-14 items-center justify-center rounded-3xl bg-gray-100 text-sm font-black text-gray-700 transition-transform active:scale-95"
             >
               {cancelDialog.cancelLabel || '戻る'}
             </button>
@@ -2556,7 +2557,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   action();
                 }
               }}
-              className="flex h-14 items-center justify-center rounded-[1.6rem] bg-red-500 text-sm font-black text-white shadow-lg shadow-red-100 transition-transform active:scale-95"
+              className="flex h-14 items-center justify-center rounded-3xl bg-red-500 text-sm font-black text-white shadow-lg shadow-red-100 transition-transform active:scale-95"
             >
               {cancelDialog.confirmLabel || 'キャンセルする'}
             </button>
@@ -2565,7 +2566,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           <button
             type="button"
             onClick={() => setCancelDialog(null)}
-            className="mt-7 flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 text-sm font-black text-white shadow-lg transition-transform active:scale-95"
+            className="mt-7 flex h-14 w-full items-center justify-center rounded-3xl bg-gray-900 text-sm font-black text-white shadow-lg transition-transform active:scale-95"
           >
             {cancelDialog.confirmLabel || '閉じる'}
           </button>
@@ -2576,11 +2577,11 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   const actionModal = activeModal ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
         {activeModal === 'accounting_instruction' ? (
           <>
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-              <Store className="h-10 w-10 text-green-600" />
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+              <Store className="h-10 w-10 text-gray-900" />
             </div>
             <h3 className="mb-2 text-center text-xl font-bold leading-relaxed">
               画面を開いたまま、
@@ -2594,7 +2595,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             </p>
             <button
               onClick={() => setActiveModal(null)}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-[1.4rem] bg-green-600 px-6 text-base font-bold text-white shadow-lg"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-3xl bg-gray-900 px-6 text-base font-bold text-white shadow-sm"
             >
               <CheckCircle size={20} />
               OK
@@ -2609,13 +2610,13 @@ if (shouldWaitForSessionBeforeWelcome) {
             <div className="flex gap-4">
               <button
                 onClick={() => setActiveModal(null)}
-                className="flex-1 rounded-lg bg-gray-100 py-3 font-bold"
+                className="flex-1 rounded-xl bg-gray-100 py-3 font-bold"
               >
                 戻る
               </button>
               <button
                 onClick={() => handleCallStaff(activeModal)}
-                className="flex-1 rounded-lg bg-orange-500 py-3 font-bold text-white"
+                className="flex-1 rounded-xl bg-gray-900 py-3 font-bold text-white"
               >
                 送信する
               </button>
@@ -2651,7 +2652,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
   return (
     <div className={`min-h-screen-safe relative transition-colors duration-300 ${
-      isCrossSellActive ? 'bg-orange-50' : 'bg-gray-50'
+      isCrossSellActive ? 'bg-[#E9ECF2]' : 'bg-gray-50'
     }`}>
       {toast && (
         <NotificationToast
@@ -2666,7 +2667,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
       {isWelcomeOpen && (
         <div className="min-h-screen-safe relative z-[100] flex items-center justify-center bg-white p-6">
-          <div className="w-full max-w-sm rounded-[2rem] border border-gray-100 bg-white p-8 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-2xl">
             {basicSettings?.customerLogoUrl && (
               <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center">
                 <img
@@ -2699,21 +2700,10 @@ if (shouldWaitForSessionBeforeWelcome) {
                     }}
                     className={`h-14 rounded-2xl border-2 text-base font-black transition-all active:scale-[0.98] ${
                       isSelected
-                        ? 'text-white shadow-lg'
-                        : 'bg-white shadow-sm hover:scale-[1.02]'
+                        ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-900 shadow-sm hover:scale-[1.02]'
                     }`}
-                    style={
-                      isSelected
-                        ? {
-                            backgroundColor: customerThemeColor,
-                            borderColor: customerThemeColor
-                          }
-                        : {
-                            color: customerThemeColor,
-                            borderColor: customerThemeColor
-                          }
-                    }
-                  >
+                                      >
                     {count}人
                   </button>
                 );
@@ -2748,12 +2738,11 @@ if (shouldWaitForSessionBeforeWelcome) {
               type="button"
               disabled={Number(partySize || 0) < 1}
               onClick={handleWelcomeStart}
-              className={`mt-8 h-14 w-full rounded-[1.6rem] font-black transition-all ${
+              className={`mt-8 h-14 w-full rounded-3xl font-black transition-all ${
                 Number(partySize || 0) >= 1
-                  ? 'text-white shadow-lg active:scale-[0.98]'
+                  ? 'bg-gray-900 text-white shadow-sm active:scale-[0.98]'
                   : 'cursor-not-allowed bg-gray-200 text-gray-400'
               }`}
-              style={Number(partySize || 0) >= 1 ? { backgroundColor: customerThemeColor } : undefined}
             >
               メニューを見る
             </button>
@@ -2763,9 +2752,9 @@ if (shouldWaitForSessionBeforeWelcome) {
 
       {noOrderVacateWarning.open && !isSessionEnded && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-              <Clock size={30} strokeWidth={2.6} />
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl animate-in zoom-in duration-200">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+              <Clock size={30} strokeWidth={2.25} />
             </div>
 
             <h3 className="mb-2 text-xl font-bold leading-relaxed text-gray-900">
@@ -2785,8 +2774,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               <button
                 type="button"
                 onClick={handleKeepNoOrderSession}
-                className="h-14 w-full rounded-[1.6rem] font-black text-white shadow-lg transition-transform active:scale-95"
-                style={{ backgroundColor: customerThemeColor }}
+                className="h-14 w-full rounded-3xl bg-gray-900 font-black text-white shadow-sm transition-transform active:scale-95"
               >
                 注文を続ける
               </button>
@@ -2794,7 +2782,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 type="button"
                 onClick={handleLeaveNoOrderSession}
                 disabled={isLeavingNoOrderSession}
-                className="h-12 w-full rounded-[1.4rem] border border-gray-200 bg-white text-sm font-bold text-gray-500 transition-transform active:scale-95 disabled:opacity-50"
+                className="h-12 w-full rounded-3xl border border-gray-200 bg-white text-sm font-bold text-gray-500 transition-transform active:scale-95 disabled:opacity-50"
               >
                 {isLeavingNoOrderSession ? '退席処理中...' : '退席する'}
               </button>
@@ -2823,7 +2811,6 @@ if (shouldWaitForSessionBeforeWelcome) {
           isHost={canInviteFromCurrentScreen}
           onInvite={() => setIsInviteModalOpen(true)}
           statusNotice={statusNotice}
-          customerThemeColor={customerThemeColor}
           isCrossSellActive={isCrossSellActive && !hasInteractedWithCrossSellTab}
           allowedCrossSellCategoryIds={allowedCrossSellCategoryIds}
         />
@@ -2831,7 +2818,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
       {modalItem && (hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem)) && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-6">
-          <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
+          <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-3xl">
             <div className="shrink-0 border-b border-gray-100 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -2878,7 +2865,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                             onClick={() => setServiceTiming(option.id)}
                             className={`h-12 rounded-2xl border text-xs font-black transition-all ${
                               selected
-                                ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm'
+                                ? 'border-gray-900 bg-white text-gray-900 ring-1 ring-gray-900'
                                 : 'border-gray-100 bg-gray-50 text-gray-500'
                             }`}
                           >
@@ -2903,7 +2890,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                       </div>
 
                       {group.required === true && (
-                        <span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-600">
+                        <span className="rounded-full bg-gray-900 px-3 py-1 text-[10px] font-black text-white">
                           必須
                         </span>
                       )}
@@ -2920,7 +2907,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                             onClick={() => toggleOptionSelection(group, option)}
                             className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all ${
                               selected
-                                ? 'border-orange-300 bg-orange-50 text-orange-700'
+                                ? 'border-gray-900 bg-white text-gray-900 ring-1 ring-gray-900'
                                 : 'border-gray-100 bg-gray-50 text-gray-700'
                             }`}
                           >
@@ -2938,7 +2925,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                             <div
                               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
                                 selected
-                                  ? 'border-orange-500 bg-orange-500 text-white'
+                                  ? 'border-gray-900 bg-gray-900 text-white'
                                   : 'border-gray-300 bg-white text-transparent'
                               }`}
                             >
@@ -2964,7 +2951,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     type="button"
                     onClick={() => setOptionQuantity((current) => Math.max(1, Number(current || 1) - 1))}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-700"
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-gray-700"
                   >
                     −
                   </button>
@@ -2976,7 +2963,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     type="button"
                     onClick={() => setOptionQuantity((current) => Math.min(99, Number(current || 1) + 1))}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-white"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-white"
                   >
                     +
                   </button>
@@ -3002,7 +2989,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                     flattenSelectedOptions(optionSelections)
                   );
                 }}
-                className="flex h-14 w-full items-center justify-center rounded-[1.6rem] font-black text-white shadow-lg"
+                className="flex h-14 w-full items-center justify-center rounded-3xl font-black text-white shadow-lg"
                 style={{ backgroundColor: customerThemeColor }}
               >
                 カートに追加
@@ -3025,7 +3012,6 @@ if (shouldWaitForSessionBeforeWelcome) {
                 description={activeCrossSellPrompt.description}
                 skipLabel=""
                 cartItemCount={0}
-                customerThemeColor={customerThemeColor}
                 onSkip={undefined}
               />
             )}
@@ -3040,7 +3026,7 @@ if (shouldWaitForSessionBeforeWelcome) {
     <button
       type="button"
       onClick={() => window.location.reload()}
-      className="mt-6 h-12 w-full max-w-xs rounded-[1.4rem] bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
+      className="mt-6 h-12 w-full max-w-xs rounded-3xl bg-gray-900 font-black text-white shadow-lg active:scale-[0.98]"
     >
       再読み込み
     </button>
@@ -3093,7 +3079,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   ? handleBackCrossSellStep
                   : handleSkipCrossSellStep
               }
-              className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-orange-500 px-6 font-bold text-white shadow-lg shadow-orange-200 transition-transform active:scale-95"
+              className="relative flex h-14 w-full items-center justify-center rounded-3xl bg-[#0B1220] px-6 font-bold text-[#D9C08A] ring-2 ring-[#D9C08A] shadow-sm transition-transform active:scale-95"
             >
               <span className="text-base font-black">
                 {activeCrossSellPrompt?.skipMode === 'backOnly'
@@ -3113,7 +3099,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           ) : safeCart.length > 0 ? (
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 px-6 font-bold text-white shadow-lg"
+            className="relative flex h-14 w-full items-center justify-center rounded-3xl bg-gray-900 px-6 font-bold text-white shadow-lg"
           >
             {cartBubbleMessage && (
               <div className="absolute bottom-full left-5 mb-2 whitespace-nowrap rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg ring-2 ring-white">
@@ -3136,7 +3122,7 @@ if (shouldWaitForSessionBeforeWelcome) {
           ) : (
             <button
               onClick={() => handleChangeView('history')}
-              className="flex h-14 w-full items-center justify-center rounded-[1.6rem] bg-gray-900 px-6 font-bold text-white shadow-lg"
+              className="flex h-14 w-full items-center justify-center rounded-3xl bg-gray-900 px-6 font-bold text-white shadow-lg"
             >
               お会計画面を開く
             </button>
@@ -3195,7 +3181,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <button
                     type="button"
                     onClick={handleCloseCart}
-                    className="-mt-[6px] flex h-10 shrink-0 items-center gap-1 self-start rounded-full px-4 text-sm font-black text-white shadow-sm transition-transform active:scale-95"
+                    className="-mt-[6px] flex h-11 shrink-0 items-center gap-1 self-start rounded-full px-4 text-sm font-black text-white shadow-sm transition-transform active:scale-95"
                     style={{ backgroundColor: customerThemeColor }}
                     aria-label="カートを閉じてメニューに戻る"
                   >
@@ -3236,7 +3222,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                             )}
 
                             {item.serviceTimingLabel && (
-                              <div className="mt-1 text-xs font-black text-blue-600">
+                              <div className="mt-1 text-xs font-black text-gray-500">
                                 提供タイミング：{item.serviceTimingLabel}
                               </div>
                             )}
@@ -3257,7 +3243,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                           <button
                             type="button"
                             onClick={() => handleRemoveCartItem(item.cartId)}
-                            className="rounded-2xl border border-gray-100 p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-100 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -3269,7 +3255,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                             </span>
 
                             {isCrossSellCartItem ? (
-                              <div className="flex items-center gap-2 rounded-full bg-orange-50 px-3 py-2 text-xs font-black text-orange-600">
+                              <div className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-2 text-xs font-black text-gray-600">
                                 <span>セット追加分</span>
                                 <span>×{Number(item.quantity || 1)}</span>
                               </div>
@@ -3278,7 +3264,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                                 <button
                                   type="button"
                                   onClick={() => handleDecreaseCartItem(item.cartId)}
-                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50"
+                                  className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50"
                                 >
                                   <Minus size={16} />
                                 </button>
@@ -3293,7 +3279,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                                     confirmAddToCart(item, 1, selectedOptions);
                                   }}
                                   disabled={latestItem.isSoldOut}
-                                  className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 disabled:bg-gray-300"
+                                  className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 disabled:bg-gray-300"
                                 >
                                   <Plus size={16} />
                                 </button>
@@ -3321,7 +3307,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 <button
                   onClick={handlePlaceOrder}
                   disabled={isProcessing || !businessStatus?.isTakingOrders || safeCart.length === 0}
-                  className={`flex h-14 w-full items-center justify-center gap-2 rounded-[1.6rem] font-bold shadow-lg transition-transform active:scale-95 ${
+                  className={`flex h-14 w-full items-center justify-center gap-2 rounded-3xl font-bold shadow-lg transition-transform active:scale-95 ${
                     businessStatus?.isTakingOrders && safeCart.length > 0
                       ? 'bg-gray-900 text-white'
                       : 'bg-gray-300 text-gray-500 shadow-none'

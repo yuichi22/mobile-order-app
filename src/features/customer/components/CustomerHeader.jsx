@@ -10,7 +10,6 @@ const CustomerHeader = ({
   isHost,
   onInvite,
   statusNotice = null,
-  customerThemeColor = '#ea580c',
   isCrossSellActive = false,
   allowedCrossSellCategoryIds = []
 }) => {
@@ -60,8 +59,7 @@ const CustomerHeader = ({
                 className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-3.5 py-2 text-xs font-black text-gray-700 shadow-sm transition-all active:scale-95"
               >
             <span
-              className="flex h-6 w-6 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: customerThemeColor }}
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-white"
             >
               <QrCode size={14} strokeWidth={3} />
             </span>
@@ -95,15 +93,10 @@ const CustomerHeader = ({
                   onClick={() => setActiveCategory(category.id)}
                   className={`shrink-0 rounded-full px-4 py-2 text-sm font-black transition-all ${
                     isActive
-                      ? 'text-white shadow-md'
+                      ? 'bg-gray-900 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-500'
                   }`}
-                  style={
-                    isActive
-                      ? { backgroundColor: customerThemeColor }
-                      : undefined
-                  }
-                >
+                                  >
                   <span
                     className={`inline-flex items-center ${
                       shouldNudgeTab ? 'animate-cross-sell-tab-nudge' : ''

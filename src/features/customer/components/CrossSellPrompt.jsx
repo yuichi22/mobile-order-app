@@ -8,7 +8,6 @@ const CrossSellPrompt = ({
   description,
   skipLabel = 'おすすめを閉じる',
   cartItemCount = 0,
-  customerThemeColor = '#0f172a',
   onSkip
 }) => {
   return (
@@ -27,14 +26,14 @@ const CrossSellPrompt = ({
         scale: { duration: 0.8, ease: 'easeOut' },
         layout: { duration: 0.22, ease: 'easeOut' }
       }}
-      className="relative w-full overflow-hidden rounded-b-[1.6rem] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-orange-200"
+      className="relative w-full overflow-hidden rounded-b-3xl bg-[#0B1220] shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
     >
       <motion.div
         className="pointer-events-none absolute inset-0 z-0"
         initial={{ opacity: 0 }}
         animate={{ opacity: [0, 0.28, 0.14, 0] }}
         transition={{ duration: 1.35, ease: 'easeOut' }}
-        style={{ backgroundColor: customerThemeColor }}
+        style={{ backgroundColor: '#D9C08A' }}
       />
 
       <motion.div
@@ -42,25 +41,24 @@ const CrossSellPrompt = ({
         initial={{ opacity: 0, scaleX: 0.2 }}
         animate={{ opacity: [0, 1, 0.65, 0], scaleX: [0.15, 1, 1, 1] }}
         transition={{ duration: 1.25, ease: 'easeOut' }}
-        style={{ backgroundColor: customerThemeColor }}
+        style={{ backgroundColor: '#D9C08A' }}
       />
 
       <div className="relative z-10 px-4 pb-4 pt-6">
         <div className="mx-auto max-w-screen-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-black leading-snug tracking-tight text-slate-900">
+              <h2 className="text-base font-black leading-snug tracking-tight text-white">
                 {title || 'こちらもいかがですか？'}
               </h2>
 
                 {description && (
-                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold leading-relaxed text-slate-400">
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold leading-relaxed text-white/60">
                     <motion.span
                       initial={{ y: 2, opacity: 0 }}
                       animate={{ y: [2, -3, 0, -2, 0], opacity: 1 }}
                       transition={{ duration: 1.1, ease: 'easeOut', delay: 0.15 }}
-                      className="inline-flex shrink-0"
-                      style={{ color: customerThemeColor }}
+                      className="inline-flex shrink-0 text-[#D9C08A]"
                     >
                       <ArrowUp size={14} strokeWidth={3} />
                     </motion.span>
@@ -76,12 +74,12 @@ const CrossSellPrompt = ({
                 initial={{ scale: 0.86 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', stiffness: 420, damping: 18 }}
-                className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg"
+                className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white"
                 aria-label={`おすすめ中に追加済み ${cartItemCount} 点`}
               >
                 <ShoppingCart size={15} strokeWidth={3} />
 
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-black leading-none text-white ring-2 ring-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#D9C08A] px-1 text-[10px] font-black leading-none text-[#0B1220] ring-2 ring-[#0B1220]">
                   {cartItemCount}
                 </span>
               </motion.div>
@@ -92,7 +90,7 @@ const CrossSellPrompt = ({
             <button
               type="button"
               onClick={onSkip}
-              className="mt-3 flex h-11 w-full items-center justify-center rounded-[1.25rem] border border-orange-200 bg-orange-50 px-5 text-sm font-black text-orange-600 shadow-sm transition-all hover:bg-orange-100 active:scale-[0.98]"
+              className="mt-3 flex h-11 w-full items-center justify-center rounded-xl border border-[#D9C08A] bg-transparent px-5 text-sm font-black text-[#D9C08A] transition-all hover:bg-white/5 active:scale-[0.98]"
             >
               {skipLabel || 'おすすめを閉じる'}
             </button>
