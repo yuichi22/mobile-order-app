@@ -81,7 +81,8 @@ const AllergenChips = ({ allergens = [] }) => {
   );
 };
 
-// 写真の上に乗るカートボタンは白地に黒(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// 写真の上に乗るカートボタンは、すりガラス風の白に黒アイコン(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// カード全体のタップは確認シートを開くだけ。このボタンだけが「すぐカートに入れる」。
 // 店のテーマ色は「カートに追加」「追加注文」など大きい増やすボタン側に残す。
 const OrderButton = ({ onClick, disabled, size = 'md' }) => {
   const sizeClasses = {
@@ -99,12 +100,15 @@ const OrderButton = ({ onClick, disabled, size = 'md' }) => {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.();
+      }}
       disabled={disabled}
       className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none transition-all active:scale-90 ${
         disabled
           ? 'bg-gray-100 text-gray-300 ring-1 ring-[rgba(15,23,42,0.06)]'
-          : 'bg-white text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.18)] ring-1 ring-[rgba(15,23,42,0.06)]'
+          : 'bg-white/80 text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.12)] ring-1 ring-white/50 backdrop-blur-md backdrop-saturate-150'
       }`}
       aria-label="カートに追加"
       title="カートに追加"
@@ -203,8 +207,28 @@ const resolveDisplayPrice = (item, priceMode = 'normal') => {
   };
 };
 
-const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
+
+// カード全体のタップ: 確認シート(数量・オプション・カートに追加)を開く。
+// ⚠すぐカートに入れない(写真を見ようと触れただけで入る誤タップを防ぐ)。売り切れ・受付停止中は反応しない。
+const getCardTapProps = (item, onOpen, orderingDisabled) => {
+  if (!onOpen || item.isSoldOut || orderingDisabled) return {};
+  return {
+    role: 'button',
+    tabIndex: 0,
+    onClick: () => onOpen(item),
+    onKeyDown: (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onOpen(item);
+      }
+    },
+    'aria-label': `${item.name || '商品'}を選ぶ`
+  };
+};
+
+const WideCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
+    {...getCardTapProps(item, onOpen, orderingDisabled)}
     className={`flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
     }`}
@@ -256,8 +280,9 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   </div>
 );
 
-const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
+const ListCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
+    {...getCardTapProps(item, onOpen, orderingDisabled)}
     className={`flex items-center gap-4 rounded-3xl bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
     }`}
@@ -304,8 +329,9 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   </div>
 );
 
-const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
+const GridCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
+    {...getCardTapProps(item, onOpen, orderingDisabled)}
     className={`flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-[0_4px_16px_rgba(15,23,42,0.05)] animate-in fade-in duration-300 ${
       item.isSoldOut ? 'opacity-60' : ''
     }`}
@@ -358,8 +384,9 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   </div>
 );
 
-const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
+const LimitedCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeResolver, customerThemeColor }) => (
   <div
+    {...getCardTapProps(item, onOpen, orderingDisabled)}
     className={`overflow-hidden rounded-3xl bg-white shadow-[0_10px_34px_rgba(15,23,42,0.08)] animate-in fade-in duration-500 ${
       item.isSoldOut ? 'opacity-70 grayscale' : ''
     }`}
@@ -417,6 +444,7 @@ const MenuLayoutRenderer = ({
   layoutMode = 'grid',
   items = [],
   onAdd,
+  onOpen,
   orderingDisabled = false,
   priceMode = 'normal',
   priceModeResolver = null,
@@ -442,6 +470,7 @@ const MenuLayoutRenderer = ({
   key={item.id}
   item={item}
   onAdd={onAdd}
+  onOpen={onOpen}
   orderingDisabled={orderingDisabled}
   priceMode={priceMode}
   priceModeResolver={priceModeResolver}

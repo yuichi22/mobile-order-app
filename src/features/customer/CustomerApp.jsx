@@ -1306,6 +1306,23 @@ const handleAddToCartClick = (item) => {
   handleConfirmedCartAdd(orderItem, 1, []);
 };
 
+// 商品カードのタップ: オプションの有無にかかわらず確認シートを開く(すぐには入れない)
+const handleOpenItemSheet = (item) => {
+  if (!businessStatus?.isTakingOrders) {
+    setToast({
+      message: businessStatus?.message || 'ただいま注文を受け付けていません',
+      type: 'error'
+    });
+    return;
+  }
+
+  const orderItem = resolveOrderItemForCurrentMode(item);
+  setOptionSelections(buildDefaultOptionSelections(orderItem));
+  setOptionQuantity(1);
+  setServiceTiming(getServiceTimingDefaultForItem(orderItem));
+  setModalItem(orderItem);
+};
+
 const handleConfirmOptionsAddToCart = (item, quantity, selectedOptions) => {
   const orderItem = resolveOrderItemForCurrentMode(item);
   const shouldAttachServiceTiming = shouldShowServiceTimingForItem(orderItem);
@@ -2816,7 +2833,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         />
       )}
 
-      {modalItem && (hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem)) && (
+      {modalItem && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-6">
           <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-3xl">
             <div className="shrink-0 border-b border-gray-100 px-6 py-5">
@@ -2825,8 +2842,10 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <h3 className="truncate text-xl font-black text-gray-900">
                     {modalItem.name}
                   </h3>
-                  <p className="mt-1 text-sm font-bold text-gray-400">
-                    オプションを選択してください
+                  <p className="mt-1 line-clamp-2 text-sm font-bold text-gray-400">
+                    {hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem)
+                      ? 'オプションを選択してください'
+                      : (modalItem.description || '数量を選んでカートに追加してください')}
                   </p>
                 </div>
 
@@ -2841,7 +2860,9 @@ if (shouldWaitForSessionBeforeWelcome) {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${
+              hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem) ? '' : 'hidden'
+            }`}>
               <div className="space-y-6">
                 {shouldShowServiceTimingForItem(modalItem) && (
                   <section>
@@ -3036,6 +3057,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   layoutMode={layoutMode}
   items={sortedMenuItems}
   onAdd={handleAddToCartClick}
+  onOpen={handleOpenItemSheet}
   orderingDisabled={!businessStatus?.isTakingOrders}
   priceMode={isCrossSellActive ? 'crossSell' : 'normal'}
   priceModeResolver={(item) => (
