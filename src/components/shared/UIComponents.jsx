@@ -240,11 +240,11 @@ export const OptionsModal = ({
 const InviteQrContent = ({ inviteUrl }) => (
   // QRは外部サービス(api.qrserver.com)への画像リクエストをやめ、クライアント側で
   // 即時生成する。招待URLが用意できた瞬間に表示でき、第三者ネットワーク依存も無くなる。
-  <div className="mb-4 flex h-52 w-52 items-center justify-center rounded-xl border-2 border-orange-100 bg-white p-2">
+  <div className="mb-4 flex h-52 w-52 items-center justify-center rounded-xl border border-gray-100 bg-white p-2">
     {inviteUrl ? (
       <QRCodeSVG value={inviteUrl} size={192} level="M" />
     ) : (
-      <div className="flex h-48 w-48 items-center justify-center text-orange-600">
+      <div className="flex h-48 w-48 items-center justify-center text-gray-400">
         <LoadingSpinner size={32} />
       </div>
     )}
@@ -259,8 +259,8 @@ export const InviteModal = ({ inviteUrl, onClose }) => {
           <X size={20} className="text-gray-500" />
         </button>
         <div className="flex flex-col items-center p-8 text-center">
-          <h3 className="mb-2 flex items-center gap-2 text-xl font-bold text-orange-600">
-            <UserPlus size={24} /> 同席者用QRコード
+          <h3 className="mb-2 flex items-center gap-2 text-xl font-bold text-gray-900">
+            <UserPlus size={24} strokeWidth={2.25} /> 同席者用QRコード
           </h3>
           <p className="mb-6 text-sm text-gray-500">
             同席の方に読み取っていただくと、

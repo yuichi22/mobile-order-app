@@ -2,6 +2,7 @@ import React from 'react';
 import { ShoppingCart, Utensils } from 'lucide-react';
 
 import { getAllergenLabel } from '../../../shared/constants/menuMetadata';
+import { resolvePhotoLabelStyle } from '../../../shared/constants/photoLabelColors';
 
 const getPhotoLabelClassName = (labelSize = 'md') => {
   const sizeMap = {
@@ -21,7 +22,8 @@ const MenuImage = ({
   labelText,
   labelColor,
   labelSize = 'md',
-  className
+  className,
+  themeColor
 }) => (
   <div className={`relative overflow-hidden bg-gray-50 ${className}`}>
     {src ? (
@@ -41,8 +43,8 @@ const MenuImage = ({
 
     {labelText && (
       <div
-        className={`absolute left-0 top-0 z-20 font-black tracking-[0.08em] text-white shadow-md ${getPhotoLabelClassName(labelSize)}`}
-        style={{ backgroundColor: labelColor || '#F97316' }}
+        className={`absolute left-0 top-0 z-20 font-black tracking-[0.08em] shadow-sm ${getPhotoLabelClassName(labelSize)}`}
+        style={resolvePhotoLabelStyle(labelColor, themeColor)}
       >
         <span className="block truncate">
           {labelText}
@@ -145,8 +147,8 @@ const MetaChips = ({ item }) => {
         ? `残り ${Number(item.remainingQuantity)} 点`
         : '売り切れ',
       className: Number(item.remainingQuantity) > 0
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-red-50 text-red-600'
+        ? 'bg-[#D9C08A]/20 text-[#8A6D2F]'
+        : 'bg-gray-100 text-gray-500'
     });
   }
 
@@ -215,6 +217,7 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   isSoldOut={item.isSoldOut}
   labelText={item.photoLabelText}
   labelColor={item.photoLabelColor}
+  themeColor={customerThemeColor}
   labelSize="wide"
   className="h-56 w-full"
 />
@@ -267,6 +270,7 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
   isSoldOut={item.isSoldOut}
   labelText={item.photoLabelText}
   labelColor={item.photoLabelColor}
+  themeColor={customerThemeColor}
   labelSize="sm"
   className="h-[104px] w-[104px] shrink-0 rounded-xl"
 />
@@ -316,6 +320,7 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
         isSoldOut={item.isSoldOut}
         labelText={item.photoLabelText}
         labelColor={item.photoLabelColor}
+  themeColor={customerThemeColor}
         labelSize="sm"
         className="aspect-square w-full"
       />
@@ -370,6 +375,7 @@ const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolv
         isSoldOut={item.isSoldOut}
         labelText={item.photoLabelText}
         labelColor={item.photoLabelColor}
+  themeColor={customerThemeColor}
         labelSize="lg"
         className="h-[340px] w-full"
       />

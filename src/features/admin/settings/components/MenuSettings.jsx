@@ -28,7 +28,12 @@ import {
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import { useCategoryData, usePeriodData } from '../../../store/hooks';
 import { ALLERGEN_OPTIONS, getAllergenLabel } from '../../../../shared/constants/menuMetadata';
-import ColorPicker from '../../../../shared/components/inputs/ColorPicker';
+import {
+  PHOTO_LABEL_COLOR_OPTIONS,
+  PHOTO_LABEL_MIDNIGHT,
+  normalizePhotoLabelColor,
+  resolvePhotoLabelStyle
+} from '../../../../shared/constants/photoLabelColors';
 
 const getPhotoLabelClassName = (labelSize = 'md') => {
   const sizeMap = {
@@ -48,7 +53,8 @@ const PreviewImage = ({
   labelText,
   labelColor,
   labelSize = 'md',
-  className
+  className,
+  themeColor
 }) => (
   <div className={`relative overflow-hidden bg-gray-100 ${className}`}>
     {src ? (
@@ -61,8 +67,8 @@ const PreviewImage = ({
 
     {labelText && (
       <div
-        className={`absolute left-0 top-0 z-20 font-black tracking-[0.08em] text-white shadow-md ${getPhotoLabelClassName(labelSize)}`}
-        style={{ backgroundColor: labelColor || '#F97316' }}
+        className={`absolute left-0 top-0 z-20 font-black tracking-[0.08em] shadow-sm ${getPhotoLabelClassName(labelSize)}`}
+        style={resolvePhotoLabelStyle(labelColor, themeColor)}
       >
         <span className="block truncate">
           {labelText}
@@ -148,18 +154,6 @@ const toneClasses = {
   emerald: 'bg-emerald-50 text-emerald-700'
 };
 
-const DEFAULT_PRESET_COLORS = [
-  { id: 'blue', value: '#3b82f6' },
-  { id: 'red', value: '#ef4444' },
-  { id: 'green', value: '#22c55e' },
-  { id: 'yellow', value: '#facc15' },
-  { id: 'purple', value: '#a855f7' },
-  { id: 'pink', value: '#ec4899' },
-  { id: 'orange', value: '#f97316' },
-  { id: 'gray', value: '#64748b' },
-  { id: 'black', value: '#1f2937' }
-];
-
 const MetaChipList = ({ item, compact = false }) => {
   const chips = buildMenuMetaChips(item);
 
@@ -197,7 +191,7 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   description: '',
   image: '',
   photoLabelText: '',
-  photoLabelColor: '#F97316',
+  photoLabelColor: PHOTO_LABEL_MIDNIGHT,
   periods: periodIds,
   isSoldOut: false,
   allergens: [],
@@ -282,6 +276,8 @@ const MenuSettings = ({
     return mode === 'tax_excluded' ? '税抜価格' : '税込価格';
   })();
 
+  // 写真ラベルの「店のテーマ色」の実際の色
+  const labelThemeColor = basicSettings?.customerThemeColor || '#3B6E8F';
   const resolvedDefaultCostTaxModeLabel = basicSettings?.defaultCostTaxMode === 'tax_excluded'
     ? '税抜で入力'
     : '税込で入力';
@@ -437,7 +433,7 @@ const MenuSettings = ({
       allowsTakeout: item.allowsTakeout !== false,
       kitchenName: item.kitchenName || '',
       photoLabelText: item.photoLabelText || '',
-      photoLabelColor: item.photoLabelColor || '#F97316',
+      photoLabelColor: normalizePhotoLabelColor(item.photoLabelColor),
       priceLabelText: item.priceLabelText || '',
       takeoutPrice: item.takeoutPrice ?? '',
       webOrderEnabled: item.webOrderEnabled === true,
@@ -691,7 +687,7 @@ const MenuSettings = ({
         dailySoldDate: hasLimitedQuantity ? editingItem.dailySoldDate || null : null,
         allowsTakeout: editingItem.allowsTakeout !== false,
         photoLabelText: String(editingItem.photoLabelText || '').trim(),
-        photoLabelColor: editingItem.photoLabelColor || '#F97316',
+        photoLabelColor: normalizePhotoLabelColor(editingItem.photoLabelColor),
         priceLabelText: String(editingItem.priceLabelText || '').trim(),
         takeoutPrice: normalizedTakeoutPrice,
         webOrderEnabled: normalizedWebOrderEnabled,
@@ -1750,14 +1746,27 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ラベル色
                         </label>
                         <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
-                          <ColorPicker
-                            selectedColor={editingItem.photoLabelColor || '#F97316'}
-                            onChange={(hex) => setEditingItem({
-                              ...editingItem,
-                              photoLabelColor: hex
+                          <div className="grid grid-cols-3 gap-2">
+                            {PHOTO_LABEL_COLOR_OPTIONS.map((option) => {
+                              const selected = normalizePhotoLabelColor(editingItem.photoLabelColor) === option.value;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => setEditingItem({
+                                    ...editingItem,
+                                    photoLabelColor: option.value
+                                  })}
+                                  className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-black transition-all ${
+                                    selected ? 'border-gray-900 text-gray-900 ring-1 ring-gray-900' : 'border-gray-200 text-gray-500'
+                                  }`}
+                                >
+                                  <span className="h-4 w-4 rounded-full" style={{ backgroundColor: resolvePhotoLabelStyle(option.value, labelThemeColor).backgroundColor }} />
+                                  {option.label}
+                                </button>
+                              );
                             })}
-                            presetColors={DEFAULT_PRESET_COLORS}
-                          />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1795,6 +1804,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             isSoldOut={editingItem.isSoldOut}
                             labelText={editingItem.photoLabelText}
                             labelColor={editingItem.photoLabelColor}
+                            themeColor={labelThemeColor}
                             labelSize="wide"
                             className="h-48 w-full"
                           />
@@ -1825,6 +1835,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               isSoldOut={editingItem.isSoldOut}
                               labelText={editingItem.photoLabelText}
                               labelColor={editingItem.photoLabelColor}
+                            themeColor={labelThemeColor}
                               labelSize="sm"
                               className="aspect-square w-full"
                             />
@@ -1856,6 +1867,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           isSoldOut={editingItem.isSoldOut}
                           labelText={editingItem.photoLabelText}
                           labelColor={editingItem.photoLabelColor}
+                            themeColor={labelThemeColor}
                           labelSize="sm"
                           className="h-[104px] w-[104px] shrink-0 rounded-[1.35rem]"
                         />
@@ -2305,8 +2317,8 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                               {item.photoLabelText && (
                                 <span
-                                  className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black text-white"
-                                  style={{ backgroundColor: item.photoLabelColor || '#F97316' }}
+                                  className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black"
+                                  style={resolvePhotoLabelStyle(item.photoLabelColor, labelThemeColor)}
                                 >
                                   {item.photoLabelText}
                                 </span>
