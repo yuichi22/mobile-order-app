@@ -45,7 +45,7 @@ const CustomerHeader = ({
                 Menu
               </h1>
 
-              <p className="mt-0.5 text-[11px] font-bold tracking-wide text-gray-400">
+              <p className="mt-0.5 text-[11px] font-bold tracking-wide text-gray-500">
                 {currentPeriod?.name
                   ? `${currentPeriod.name} ${currentPeriod.start} - ${currentPeriod.end}`
                   : '提供時間外'}

@@ -14,7 +14,7 @@ const InviteHintIllustration = ({ themeColor = '#16a34a', periodLabel = 'モー�
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <div className="text-left">
           <p className="text-base font-black tracking-tight text-gray-900">Menu</p>
-          <p className="mt-0.5 text-[10px] font-bold tracking-wide text-gray-400">{periodLabel}</p>
+          <p className="mt-0.5 text-[10px] font-bold tracking-wide text-gray-500">{periodLabel}</p>
         </div>
 
         <div className="relative">

@@ -269,7 +269,7 @@ const WideCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeR
       </div>
 
       {item.description && (
-        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-400">
+        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-500">
           {item.description}
         </p>
       )}
@@ -304,7 +304,7 @@ const ListCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeR
       </h3>
 
       {item.description && (
-        <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-gray-400">
+        <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
           {item.description}
         </p>
       )}
@@ -363,7 +363,7 @@ const GridCard = ({ item, onAdd, onOpen, orderingDisabled, priceMode, priceModeR
       </h3>
 
       {item.description && (
-        <p className="mt-1.5 line-clamp-1 text-[10px] leading-relaxed text-gray-400">
+        <p className="mt-1.5 line-clamp-1 text-[10px] leading-relaxed text-gray-500">
           {item.description}
         </p>
       )}
@@ -451,7 +451,7 @@ const MenuLayoutRenderer = ({
   customerThemeColor = ''
 }) => {
   if (!items || items.length === 0) {
-    return <div className="py-10 text-center text-gray-400">メニューがありません。</div>;
+    return <div className="py-10 text-center text-gray-500">メニューがありません。</div>;
   }
 
   const configs = {

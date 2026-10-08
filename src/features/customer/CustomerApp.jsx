@@ -2006,7 +2006,7 @@ const shouldCompactReceiptItems = (receipt) => (
             PDF保存・共有
           </button>
 
-          <p className="mt-2 text-center text-[11px] leading-relaxed text-gray-400">
+          <p className="mt-2 text-center text-[11px] leading-relaxed text-gray-500">
             PDF保存やメモ保存をご利用いただけます。
           </p>
         </div>
@@ -2032,7 +2032,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             読み込みに時間がかかっています
           </h2>
 
-          <p className="mt-3 text-sm font-bold leading-relaxed text-gray-400">
+          <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
             通信状況を確認し、もう一度QRコードを読み直してください。
           </p>
 
@@ -2137,7 +2137,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         >
           もう一度試す
         </button>
-        <p className="mt-4 text-xs font-bold text-gray-400">
+        <p className="mt-4 text-xs font-bold text-gray-500">
           それでも入れない場合はスタッフにお声がけください
         </p>
       </div>
@@ -2187,7 +2187,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               </button>
             ) : (
               <>
-                <p className="text-xs font-bold text-gray-400">発行済み領収書</p>
+                <p className="text-xs font-bold text-gray-500">発行済み領収書</p>
                 {customerReceipts.map((receipt, receiptIndex) => (
                   <button
                     key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
@@ -2237,7 +2237,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         <p className="mx-auto max-w-sm leading-relaxed text-gray-600">
           {businessStatus?.detail || 'ただいま営業時間外です。営業時間内にあらためてご利用ください。'}
         </p>
-        <p className="mt-6 text-xs font-bold leading-relaxed text-gray-400">
+        <p className="mt-6 text-xs font-bold leading-relaxed text-gray-500">
           営業時間になりましたら、
           <br />
           もう一度QRコードを読み取ってください。
@@ -2306,7 +2306,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         <button
           type="button"
           onClick={() => handleChangeView('menu')}
-          className="absolute right-3 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full text-2xl font-semibold leading-none text-gray-400 transition-colors hover:bg-gray-50"
+          className="absolute right-3 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full text-2xl font-semibold leading-none text-gray-500 transition-colors hover:bg-gray-50"
           aria-label="閉じてメニューに戻る"
         >
           ×
@@ -2336,14 +2336,14 @@ if (shouldWaitForSessionBeforeWelcome) {
             <p className="mb-1 text-xs text-gray-500">あなたの注文金額</p>
             {historyLoading && filteredOrderHistory.length === 0 ? (
               // 読込中に「¥0」を確定値として見せない(二重注文の引き金になる)。
-              <p className="text-2xl font-bold text-gray-400">確認中…</p>
+              <p className="text-2xl font-bold text-gray-500">確認中…</p>
             ) : (
               <p className="text-3xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
             )}
 
             {Number(grandTotal || 0) > Number(myTotal || 0) && (
               <div className="mt-4 border-t border-gray-100 pt-4">
-                <p className="text-xs text-gray-400">テーブル合計</p>
+                <p className="text-xs text-gray-500">テーブル合計</p>
                 <p className="text-xl font-bold text-gray-600">¥{Number(grandTotal || 0).toLocaleString()}</p>
               </div>
             )}
@@ -2359,7 +2359,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   </button>
                 ) : (
                   <>
-                    <p className="text-xs font-bold text-gray-400">発行済み領収書</p>
+                    <p className="text-xs font-bold text-gray-500">発行済み領収書</p>
                     {customerReceipts.map((receipt, receiptIndex) => (
                       <button
                         key={receipt.receiptId || receipt.id || receipt.receiptNo || receiptIndex}
@@ -2381,7 +2381,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             )}
 
             <div className="mt-6 border-t border-dashed border-gray-200 pt-6">
-              <p className="mb-2 flex items-center justify-center gap-1 text-xs text-gray-400">
+              <p className="mb-2 flex items-center justify-center gap-1 text-xs text-gray-500">
                 <Barcode size={16} />
                 お会計用バーコード
               </p>
@@ -2398,7 +2398,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-center text-[10px] text-gray-400">
+              <p className="mt-2 text-center text-[10px] text-gray-500">
                 お会計の際は、この画面をレジでお見せください
               </p>
             </div>
@@ -2433,7 +2433,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                     isCancelledOrder ? 'opacity-70 before:bg-gray-300' : 'before:bg-gray-900'
                   }`}
                 >
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-400">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-gray-500">
                     <span>{formatOrderTime(order.timestamp)}</span>
                     <span className={`shrink-0 rounded px-2 py-0.5 font-bold ${statusClassName}`}>
                       {displayStatus}
@@ -2500,7 +2500,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   )}
 
                   {!isCancelledOrder && !isCancelable && order.status === 'pending' && (
-                    <p className="mt-3 text-center text-[10px] font-bold text-gray-400">
+                    <p className="mt-3 text-center text-[10px] font-bold text-gray-500">
                       調理開始後の変更・キャンセルはスタッフへお声がけください
                     </p>
                   )}
@@ -2509,7 +2509,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             })}
 
             {filteredOrderHistory.length === 0 && (
-              <div className="rounded-xl border border-dashed bg-white py-10 text-center text-gray-400">
+              <div className="rounded-xl border border-dashed bg-white py-10 text-center text-gray-500">
                 まだ注文履歴はありません
               </div>
             )}
@@ -2562,7 +2562,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         )}
 
         {cancelDialog.description && (
-          <p className="mt-3 text-center text-xs font-bold leading-relaxed text-gray-400">
+          <p className="mt-3 text-center text-xs font-bold leading-relaxed text-gray-500">
             {cancelDialog.description}
           </p>
         )}
@@ -2712,10 +2712,10 @@ if (shouldWaitForSessionBeforeWelcome) {
             )}
 
             <h2 className="text-2xl font-black text-gray-900">いらっしゃいませ</h2>
-            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-400">
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               ご利用人数を選択してください
             </p>
-            <p className="mt-2 text-[11px] font-bold leading-relaxed text-gray-400">
+            <p className="mt-2 text-[11px] font-bold leading-relaxed text-gray-500">
               お連れ様もテーブルのQRコードを読み取ると、同じ伝票で注文できます
             </p>
 
@@ -2748,7 +2748,7 @@ if (shouldWaitForSessionBeforeWelcome) {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="block text-center text-xs font-bold text-gray-400">
+              <label className="block text-center text-xs font-bold text-gray-500">
                 7人以上はこちら
               </label>
 
@@ -2862,7 +2862,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                   <h3 className="truncate text-xl font-black text-gray-900">
                     {modalItem.name}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm font-bold text-gray-400">
+                  <p className="mt-1 line-clamp-2 text-sm font-bold text-gray-500">
                     {hasSelectableOptionGroups(modalItem) || shouldShowServiceTimingForItem(modalItem)
                       ? 'オプションを選択してください'
                       : (modalItem.description || '数量を選んでカートに追加してください')}
@@ -2872,7 +2872,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 <button
                   type="button"
                   onClick={closeOptionModal}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500"
                   aria-label="閉じる"
                 >
                   ×
@@ -2890,7 +2890,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                       <h4 className="text-sm font-black text-gray-900">
                         ドリンクの提供タイミング
                       </h4>
-                      <p className="mt-0.5 text-[11px] font-bold text-gray-400">
+                      <p className="mt-0.5 text-[11px] font-bold text-gray-500">
                         食事に合わせたタイミングをお選びください
                       </p>
                     </div>
@@ -2925,7 +2925,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                         <h4 className="text-sm font-black text-gray-900">
                           {group.name || 'オプション'}
                         </h4>
-                        <p className="mt-0.5 text-[11px] font-bold text-gray-400">
+                        <p className="mt-0.5 text-[11px] font-bold text-gray-500">
                           {group.selectionType === 'multiple' ? '複数選択できます' : '1つ選択してください'}
                         </p>
                       </div>
@@ -2957,7 +2957,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                                 {option.name}
                               </div>
                               {Number(option.price || 0) > 0 && (
-                                <div className="mt-0.5 text-xs font-bold text-gray-400">
+                                <div className="mt-0.5 text-xs font-bold text-gray-500">
                                   +¥{Number(option.price || 0).toLocaleString()}
                                 </div>
                               )}
@@ -3061,7 +3061,7 @@ if (shouldWaitForSessionBeforeWelcome) {
   // 詰まって見える。エラーとして見せ、再読み込みの導線を出す。
   <div className="px-6 py-14 text-center">
     <p className="text-base font-black text-gray-800">メニューを読み込めませんでした</p>
-    <p className="mt-2 text-sm font-bold leading-relaxed text-gray-400">
+    <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
       通信状況をご確認のうえ、もう一度お試しください。
     </p>
     <button
@@ -3099,7 +3099,7 @@ if (shouldWaitForSessionBeforeWelcome) {
 
                 <div className="mt-4 h-px w-16 bg-gray-200" />
 
-                <p className="mt-3 text-[9px] font-semibold tracking-[0.18em] text-gray-400">
+                <p className="mt-3 text-[9px] font-semibold tracking-[0.18em] text-gray-500">
                   Connected by AKUTO
                 </p>
               </div>
@@ -3214,7 +3214,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-black text-gray-900">カートを確認</h2>
-                    <p className="mt-1 text-sm text-gray-400">
+                    <p className="mt-1 text-sm text-gray-500">
                       内容を確認して、そのまま注文できます。
                     </p>
                   </div>
@@ -3285,7 +3285,7 @@ if (shouldWaitForSessionBeforeWelcome) {
                           <button
                             type="button"
                             onClick={() => handleRemoveCartItem(item.cartId)}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-100 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-100 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500"
                           >
                             <Trash2 size={16} />
                           </button>
