@@ -81,7 +81,9 @@ const AllergenChips = ({ allergens = [] }) => {
   );
 };
 
-const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
+// 写真の上に乗るカートボタンは白地に黒(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// 店のテーマ色は「カートに追加」「追加注文」など大きい増やすボタン側に残す。
+const OrderButton = ({ onClick, disabled, size = 'md' }) => {
   const sizeClasses = {
     sm: 'h-11 w-11',
     md: 'h-12 w-12',
@@ -99,14 +101,11 @@ const OrderButton = ({ onClick, disabled, size = 'md', themeColor = '' }) => {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none shadow-[0_2px_8px_rgba(15,23,42,0.18)] transition-all active:scale-90 ${
+      className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none transition-all active:scale-90 ${
         disabled
-          ? 'bg-white/70 text-gray-300 shadow-none'
-          : themeColor
-            ? 'text-white'
-            : 'bg-white text-gray-900 hover:bg-white'
+          ? 'bg-gray-100 text-gray-300 ring-1 ring-[rgba(15,23,42,0.06)]'
+          : 'bg-white text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.18)] ring-1 ring-[rgba(15,23,42,0.06)]'
       }`}
-      style={!disabled && themeColor ? { backgroundColor: themeColor } : undefined}
       aria-label="カートに追加"
       title="カートに追加"
     >
@@ -226,7 +225,6 @@ const WideCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
         <OrderButton
           onClick={() => onAdd(item)}
           size="md"
-          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -299,7 +297,6 @@ const ListCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
         <OrderButton
           onClick={() => onAdd(item)}
           size="md"
-          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -329,7 +326,6 @@ const GridCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolver,
         <OrderButton
           onClick={() => onAdd(item)}
           size="sm"
-          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>
@@ -384,7 +380,6 @@ const LimitedCard = ({ item, onAdd, orderingDisabled, priceMode, priceModeResolv
         <OrderButton
           onClick={() => onAdd(item)}
           size="lg"
-          themeColor={customerThemeColor}
           disabled={item.isSoldOut || orderingDisabled}
         />
       </div>

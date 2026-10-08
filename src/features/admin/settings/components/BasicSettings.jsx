@@ -1268,7 +1268,7 @@ const confirmDeleteCookingCategory = () => {
           )}
 
           <p className="pl-1 text-[11px] font-medium text-gray-400">
-            商品をカートに入れる・追加するボタンに使われます。注文の確定や画面を進むボタンは黒で固定です。
+            「カートに追加」「追加注文」など、商品を増やす大きいボタンに使われます。写真の上のカートボタンは白地に黒、注文の確定や画面を進むボタンは黒で固定です。
           </p>
         </div>
       </div>
@@ -1299,12 +1299,16 @@ const confirmDeleteCookingCategory = () => {
           <div className="space-y-3 p-5">
             <div className="flex items-center justify-between rounded-3xl bg-gray-50 px-4 py-3">
               <span className="text-xs font-black text-gray-700">商品をカートへ</span>
-              <span
-                className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-[0_2px_8px_rgba(15,23,42,0.18)]"
-                style={{ backgroundColor: customerThemeColor }}
-              >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.18)] ring-1 ring-[rgba(15,23,42,0.06)]">
                 <ShoppingCart size={18} strokeWidth={2.25} />
               </span>
+            </div>
+
+            <div
+              className="flex h-12 items-center justify-center rounded-3xl text-sm font-black text-white shadow-sm"
+              style={{ backgroundColor: customerThemeColor }}
+            >
+              カートに追加
             </div>
 
             <div className="flex h-12 items-center justify-center rounded-3xl bg-gray-900 text-sm font-black text-white shadow-sm">
