@@ -94,7 +94,7 @@ const LauncherScreen = ({ onModeSelect }) => {
           <button
             type="button"
             onClick={() => onModeSelect('kitchen')}
-            className={`group flex flex-col items-center rounded-2xl border-b-4 border-slate-700 bg-white p-8 shadow-xl transition-all hover:-translate-y-1 ${kitchenCardLayout}`}
+            className={`group flex flex-col items-center rounded-3xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:-translate-y-1 ${kitchenCardLayout}`}
           >
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-colors">
               <ChefHat size={32} />
@@ -114,7 +114,7 @@ const LauncherScreen = ({ onModeSelect }) => {
           <button
             type="button"
             onClick={() => onModeSelect('platform')}
-            className={`group flex flex-col items-center rounded-2xl border-b-4 border-slate-900 bg-white p-8 shadow-xl transition-all hover:-translate-y-1 ${serveCardLayout}`}
+            className={`group flex flex-col items-center rounded-3xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:-translate-y-1 ${serveCardLayout}`}
           >
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-900/10 text-slate-900 transition-colors">
               <ShieldCheck size={32} />
@@ -134,7 +134,7 @@ const LauncherScreen = ({ onModeSelect }) => {
           <button
             type="button"
             onClick={() => onModeSelect('admin')}
-            className={`group flex flex-col items-center rounded-2xl border-b-4 border-orange-600 bg-white p-8 shadow-xl transition-all hover:-translate-y-1 ${adminCardLayout}`}
+            className={`group flex flex-col items-center rounded-3xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:-translate-y-1 ${adminCardLayout}`}
           >
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600 transition-colors">
               <AdminCardIcon size={32} />

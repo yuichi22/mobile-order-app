@@ -3516,7 +3516,7 @@ export const PosTransactionHistory = ({
               key={ticket.id}
               className={`relative overflow-hidden rounded-xl border bg-white ${
                 isExpanded ? 'z-10 border-gray-200 shadow-lg ring-1 ring-gray-200' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-              } ${isReversedOriginal ? 'border-l-4 border-l-red-400' : isReversalCancel ? 'border-l-4 border-l-amber-400' : ''}`}
+              } ${isReversedOriginal ? "before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:bg-red-400 before:content-['']" : isReversalCancel ? "before:absolute before:bottom-3 before:left-0 before:top-3 before:w-1 before:bg-amber-400 before:content-['']" : ''}`}
             >
               <div
                 className="group flex cursor-pointer select-none items-center justify-between p-4"

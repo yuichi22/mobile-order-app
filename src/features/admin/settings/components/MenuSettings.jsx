@@ -1746,7 +1746,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ラベル色
                         </label>
                         <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 gap-2">
                             {PHOTO_LABEL_COLOR_OPTIONS.map((option) => {
                               const selected = normalizePhotoLabelColor(editingItem.photoLabelColor) === option.value;
                               return (
@@ -1757,11 +1757,11 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     ...editingItem,
                                     photoLabelColor: option.value
                                   })}
-                                  className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-black transition-all ${
+                                  className={`flex h-11 items-center gap-2 rounded-xl border px-3 text-xs font-black transition-all ${
                                     selected ? 'border-gray-900 text-gray-900 ring-1 ring-gray-900' : 'border-gray-200 text-gray-500'
                                   }`}
                                 >
-                                  <span className="h-4 w-4 rounded-full" style={{ backgroundColor: resolvePhotoLabelStyle(option.value, labelThemeColor).backgroundColor }} />
+                                  <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: resolvePhotoLabelStyle(option.value, labelThemeColor).backgroundColor }} />
                                   {option.label}
                                 </button>
                               );

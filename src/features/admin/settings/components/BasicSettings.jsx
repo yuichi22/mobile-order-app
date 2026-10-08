@@ -21,7 +21,8 @@ import {
   Star,
   Store,
   Palette,
-  Layers
+  Layers,
+  ShoppingCart
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
@@ -81,17 +82,43 @@ const PAYMENT_METHOD_OPTIONS = [
   { id: 'qr', label: 'QR決済', icon: ScanQrCode }
 ];
 
+// 顧客画面のテーマ色の候補(AKUTOブランド基準・2026-10-08)。
+// テーマ色は「増やす」操作(カートボタン・カートに追加・追加注文)だけに使い、確定・進むは黒で固定。
+// 基準: 白文字のコントラスト4.5以上 / 黒の確定ボタン(#111827)との差3以上 / 赤(取消・エラー)と黒系は除外
+const DEFAULT_CUSTOMER_THEME_COLOR = '#3B6E8F';
 const CUSTOMER_THEME_COLORS = [
-  '#0f172a',
-  '#475569',
-  '#6a8ba2',
-  '#2563eb',
-  '#16a34a',
-  '#9333ea',
-  '#92400e',
-  '#dc2626',
-  '#ea580c'
+  { value: '#3B6E8F', label: 'スチールブルー' },
+  { value: '#15803D', label: 'グリーン' },
+  { value: '#0F766E', label: 'ティール' },
+  { value: '#2563EB', label: 'ブルー' },
+  { value: '#9333EA', label: 'パープル' },
+  { value: '#9A5B2E', label: 'ブロンズ' },
+  { value: '#C2410C', label: 'テラコッタ' }
 ];
+
+const relativeLuminance = (hex) => {
+  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+};
+
+const contrastRatio = (hexA, hexB) => {
+  const a = relativeLuminance(hexA);
+  const b = relativeLuminance(hexB);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+};
+
+// 自由入力された色が基準に合うか。合わなければ理由を返す(保存は止めない)
+const getThemeColorWarnings = (color) => {
+  const hex = String(color || '').trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return ['#から始まる6桁の色コードで入力してください。'];
+  const warnings = [];
+  if (contrastRatio(hex, '#FFFFFF') < 4.5) warnings.push('明るすぎて、ボタンの白い文字が読みにくくなります。');
+  if (contrastRatio(hex, '#111827') < 3) warnings.push('黒の「注文を確定」ボタンと見分けにくくなります。');
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  if (r > 150 && r > g * 1.8 && r > b * 1.8) warnings.push('取消・エラーの赤と紛らわしくなります。');
+  return warnings;
+};
 
 const BasicSettings = ({
   settings,
@@ -463,7 +490,7 @@ const BasicSettings = ({
   const [kitchenDraft, setKitchenDraft] = useState(null);
   const [kitchenDraftSourceKey, setKitchenDraftSourceKey] = useState(null);
   const [customerLogoPreview, setCustomerLogoPreview] = useState(null);
-  const [customerThemeColor, setCustomerThemeColor] = useState('#0f172a');
+  const [customerThemeColor, setCustomerThemeColor] = useState(DEFAULT_CUSTOMER_THEME_COLOR);
   const [noOrderAutoVacateMinutes, setNoOrderAutoVacateMinutes] = useState(0);
 
   const [newCookingCategoryName, setNewCookingCategoryName] = useState('');
@@ -536,7 +563,7 @@ const BasicSettings = ({
     setFieldValue('customerLogoUrl', settings.customerLogoUrl);
 
     setCustomerLogoPreview(null);
-    setCustomerThemeColor(settings.customerThemeColor || '#0f172a');
+    setCustomerThemeColor(settings.customerThemeColor || DEFAULT_CUSTOMER_THEME_COLOR);
     setEnabledPaymentMethods(
       Array.isArray(settings.acceptedPaymentMethods) && settings.acceptedPaymentMethods.length > 0
         ? settings.acceptedPaymentMethods
@@ -1209,29 +1236,39 @@ const confirmDeleteCookingCategory = () => {
               value={customerThemeColor}
               onChange={(event) => setCustomerThemeColor(event.target.value)}
               className="h-12 flex-1 rounded-lg border border-gray-300 bg-white px-4 font-mono text-sm outline-none transition-all focus:border-orange-500"
-              placeholder="#0f172a"
+              placeholder={DEFAULT_CUSTOMER_THEME_COLOR}
             />
           </div>
 
           <div className="flex flex-wrap gap-2">
             {CUSTOMER_THEME_COLORS.map((color) => (
               <button
-                key={color}
+                key={color.value}
                 type="button"
-                onClick={() => setCustomerThemeColor(color)}
-                className={`h-9 w-9 rounded-full border-2 transition-all ${
-                  customerThemeColor === color
+                onClick={() => setCustomerThemeColor(color.value)}
+                className={`h-11 w-11 rounded-full border-2 transition-all ${
+                  String(customerThemeColor).toLowerCase() === color.value.toLowerCase()
                     ? 'scale-110 border-gray-900'
-                    : 'border-white shadow'
+                    : 'border-white shadow-sm'
                 }`}
-                style={{ backgroundColor: color }}
-                aria-label={`テーマカラー ${color}`}
+                style={{ backgroundColor: color.value }}
+                aria-label={`テーマカラー ${color.label}`}
+                title={color.label}
               />
             ))}
           </div>
 
+          {getThemeColorWarnings(customerThemeColor).length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold leading-relaxed text-gray-700">
+              {getThemeColorWarnings(customerThemeColor).map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+              <p className="mt-1 font-medium text-gray-500">上の候補から選ぶと、読みやすさと見分けやすさが保たれます。</p>
+            </div>
+          )}
+
           <p className="pl-1 text-[11px] font-medium text-gray-400">
-            現時点では、カテゴリタブ・カート確認ボタン・注文確定ボタンなどの主要操作に反映されます。
+            商品をカートに入れる・追加するボタンに使われます。注文の確定や画面を進むボタンは黒で固定です。
           </p>
         </div>
       </div>
@@ -1260,19 +1297,18 @@ const confirmDeleteCookingCategory = () => {
           </div>
 
           <div className="space-y-3 p-5">
-            <div className="flex items-center gap-2">
-              <div
-                className="h-8 flex-1 rounded-full"
+            <div className="flex items-center justify-between rounded-3xl bg-gray-50 px-4 py-3">
+              <span className="text-xs font-black text-gray-700">商品をカートへ</span>
+              <span
+                className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-[0_2px_8px_rgba(15,23,42,0.18)]"
                 style={{ backgroundColor: customerThemeColor }}
-              />
-              <div className="h-8 flex-1 rounded-full bg-gray-100" />
+              >
+                <ShoppingCart size={18} strokeWidth={2.25} />
+              </span>
             </div>
 
-            <div
-              className="flex h-12 items-center justify-center rounded-[1.3rem] text-sm font-black text-white shadow-sm"
-              style={{ backgroundColor: customerThemeColor }}
-            >
-              メニューを見る
+            <div className="flex h-12 items-center justify-center rounded-3xl bg-gray-900 text-sm font-black text-white shadow-sm">
+              注文を確定する
             </div>
           </div>
         </div>
@@ -1716,7 +1752,7 @@ const confirmDeleteCookingCategory = () => {
             </div>
 
             <div className="w-64 shrink-0 rounded-xl border border-gray-200 bg-gray-100 p-4">
-              <div className="relative min-h-[150px] rounded border-t-4 border-gray-800 bg-white p-4 shadow-md">
+              <div className="relative min-h-[150px] border-t-4 border-gray-800 bg-white p-4 shadow-sm">
                 {previewImage ? (
                   <img
                     src={previewImage}
