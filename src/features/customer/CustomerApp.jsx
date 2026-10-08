@@ -2734,9 +2734,12 @@ if (shouldWaitForSessionBeforeWelcome) {
                     className={`h-14 rounded-2xl border-2 text-base font-black transition-all active:scale-[0.98] ${
                       isSelected
                         ? 'text-white shadow-sm'
-                        : 'border-gray-200 bg-white text-gray-900 shadow-sm hover:scale-[1.02]'
+                        : 'bg-white text-gray-900 shadow-sm hover:scale-[1.02]'
                     }`}
-                    style={isSelected ? { backgroundColor: customerThemeColor, borderColor: customerThemeColor } : undefined}
+                    // 選べる人数は枠だけ店の色(押す場所の合図)、選んだら塗りつぶし。数字は黒のまま
+                    style={isSelected
+                      ? { backgroundColor: customerThemeColor, borderColor: customerThemeColor }
+                      : { borderColor: customerThemeColor }}
                                       >
                     {count}人
                   </button>
