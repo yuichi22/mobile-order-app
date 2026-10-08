@@ -237,6 +237,13 @@ const visibleCategories = useMemo(() => (
 ), [orderedCategories, visibleCategoryIds]);
 
 const customerThemeColor = basicSettings?.customerThemeColor || '#3B6E8F';
+// 入店画面の背景: 店のテーマ色を白に12%だけ混ぜた色(お店の玄関で店の色に迎えられる。メニュー以降は使わない)
+const entryBackgroundColor = (() => {
+  const hex = String(customerThemeColor || '').trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return '#F3F4F6';
+  const mix = (i) => Math.round(255 * 0.88 + parseInt(hex.slice(i, i + 2), 16) * 0.12);
+  return `rgb(${mix(1)}, ${mix(3)}, ${mix(5)})`;
+})();
 
 const menuScrollRef = useRef(null);
 const cartSheetDragControls = useDragControls();
@@ -2689,14 +2696,17 @@ if (shouldWaitForSessionBeforeWelcome) {
       )}
 
       {isWelcomeOpen && (
-        <div className="min-h-screen-safe relative z-[100] flex items-center justify-center bg-white p-6">
+        <div
+          className="min-h-screen-safe relative z-[100] flex items-center justify-center p-6"
+          style={{ backgroundColor: entryBackgroundColor }}
+        >
           <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-2xl">
             {basicSettings?.customerLogoUrl && (
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center">
+              <div className="mx-auto mb-6 flex h-16 max-w-[180px] items-center justify-center">
                 <img
                   src={basicSettings.customerLogoUrl}
                   alt="店舗ロゴ"
-                  className="max-h-20 max-w-20 object-contain"
+                  className="max-h-16 max-w-full object-contain"
                 />
               </div>
             )}
@@ -2723,9 +2733,10 @@ if (shouldWaitForSessionBeforeWelcome) {
                     }}
                     className={`h-14 rounded-2xl border-2 text-base font-black transition-all active:scale-[0.98] ${
                       isSelected
-                        ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
+                        ? 'text-white shadow-sm'
                         : 'border-gray-200 bg-white text-gray-900 shadow-sm hover:scale-[1.02]'
                     }`}
+                    style={isSelected ? { backgroundColor: customerThemeColor, borderColor: customerThemeColor } : undefined}
                                       >
                     {count}人
                   </button>
