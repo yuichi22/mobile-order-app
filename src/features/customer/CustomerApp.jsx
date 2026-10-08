@@ -2702,11 +2702,11 @@ if (shouldWaitForSessionBeforeWelcome) {
         >
           <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-2xl">
             {basicSettings?.customerLogoUrl && (
-              <div className="mx-auto mb-6 flex h-16 max-w-[180px] items-center justify-center">
+              <div className="mx-auto mb-6 flex h-12 max-w-[120px] items-center justify-center">
                 <img
                   src={basicSettings.customerLogoUrl}
                   alt="店舗ロゴ"
-                  className="max-h-16 max-w-full object-contain"
+                  className="max-h-12 max-w-full object-contain"
                 />
               </div>
             )}
