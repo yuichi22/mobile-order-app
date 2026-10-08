@@ -809,8 +809,12 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
     };
   }, []);
 
+  // ⚠カートの画面は商品があるときだけ描画される。最後の1点を消すと画面は消えるのに isCartOpen が残り、
+  //   背景のスクロールが止まったままになっていた(2026-10-08 報告)。実際に表示中のときだけ止める。
+  const isCartSheetVisible = isCartOpen && safeCart.length > 0;
+
   useEffect(() => {
-    if (!isCartOpen && !isHistoryOpen) return undefined;
+    if (!isCartSheetVisible && !isHistoryOpen) return undefined;
 
     const scrollY = window.scrollY;
     const bodyStyle = document.body.style;
@@ -853,7 +857,7 @@ const layoutMode = headerCategories.find((category) => category.id === activeCat
       htmlStyle.overscrollBehavior = previousHtml.overscrollBehavior;
       window.scrollTo(0, scrollY);
     };
-  }, [isCartOpen, isHistoryOpen]);
+  }, [isCartSheetVisible, isHistoryOpen]);
 
   useEffect(() => {
     const canKeepVisibleSurface = !loading
@@ -1508,6 +1512,7 @@ const handleDecreaseCartItem = (cartId) => {
   }
 
   decreaseCartItem(cartId);
+  if (nextCart.length === 0) setIsCartOpen(false);
 };
 
 const handleRemoveCartItem = (cartId) => {
@@ -1527,6 +1532,7 @@ const handleRemoveCartItem = (cartId) => {
   }
 
   removeCartItem(cartId);
+  if (nextCart.length === 0) setIsCartOpen(false);
 };
 
 const isReceiptPrintable = (receipt) => (
