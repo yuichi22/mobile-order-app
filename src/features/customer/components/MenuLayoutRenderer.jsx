@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Utensils } from 'lucide-react';
+import { Plus, Utensils } from 'lucide-react';
 
 import { getAllergenLabel } from '../../../shared/constants/menuMetadata';
 import { resolvePhotoLabelStyle } from '../../../shared/constants/photoLabelColors';
@@ -81,7 +81,7 @@ const AllergenChips = ({ allergens = [] }) => {
   );
 };
 
-// 写真の上に乗るカートボタンは、すりガラス風の白に黒アイコン(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// 写真の上に乗る追加ボタンは、すりガラス風の白に黒の「＋」(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
 // カード全体のタップは確認シートを開くだけ。このボタンだけが「すぐカートに入れる」。
 // 店のテーマ色は「カートに追加」「追加注文」など大きい増やすボタン側に残す。
 const OrderButton = ({ onClick, disabled, size = 'md' }) => {
@@ -113,7 +113,7 @@ const OrderButton = ({ onClick, disabled, size = 'md' }) => {
       aria-label="カートに追加"
       title="カートに追加"
     >
-      <ShoppingCart size={iconSizeMap[size] || 20} strokeWidth={2.25} />
+      <Plus size={iconSizeMap[size] || 20} strokeWidth={2.5} />
     </button>
   );
 };

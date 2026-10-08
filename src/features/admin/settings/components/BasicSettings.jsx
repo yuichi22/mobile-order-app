@@ -21,8 +21,7 @@ import {
   Star,
   Store,
   Palette,
-  Layers,
-  ShoppingCart
+  Layers
 } from 'lucide-react';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
@@ -1300,7 +1299,7 @@ const confirmDeleteCookingCategory = () => {
             <div className="flex items-center justify-between rounded-3xl bg-gray-50 px-4 py-3">
               <span className="text-xs font-black text-gray-700">商品をカートへ</span>
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.18)] ring-1 ring-[rgba(15,23,42,0.06)]">
-                <ShoppingCart size={18} strokeWidth={2.25} />
+                <Plus size={18} strokeWidth={2.5} />
               </span>
             </div>
 
