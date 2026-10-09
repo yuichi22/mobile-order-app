@@ -4240,7 +4240,7 @@ const ProductMasterTable = ({
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           {newProductEntryMounted && (
             <div
-              className="overflow-hidden rounded-2xl border border-ui-100 bg-ui-50/60 p-2 shadow-sm"
+              className="overflow-hidden rounded-2xl border-2 border-ui bg-ui-50 p-2 shadow-sm" /* 新規=スチールブルーの枠＋見出しで既存の行と区別 */
               style={{
                 animation: newProductEntryExiting
                   ? 'productMasterNewEntrySlideUp 180ms ease-in forwards'
@@ -4274,6 +4274,10 @@ const ProductMasterTable = ({
                   }
                 }
               `}</style>
+              <div className="mb-2 flex items-center gap-2 px-1 pt-0.5">
+                <span className="inline-flex h-6 items-center rounded-full bg-ui px-3 text-[11px] font-black text-white">新規登録</span>
+                <span className="text-[11px] font-bold text-ui">ブランド → 商品名 → SKUの順に入力して登録します</span>
+              </div>
               {renderEditableRow(newRow, {
                 isNew: true,
                 embeddedNewGroup: true
