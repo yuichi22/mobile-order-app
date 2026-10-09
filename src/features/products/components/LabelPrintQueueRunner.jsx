@@ -147,14 +147,14 @@ export default function LabelPrintQueueRunner({ storeId, labelPrinterSettings })
   return (
     <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
       {lastPrinted && errorCount === 0 && (
-        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-bold text-emerald-700">
+        <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 font-bold text-gray-900">
           <Printer size={13} /> ラベル自動印刷: 「{lastPrinted.name}」×{lastPrinted.copies}
         </span>
       )}
       {errorCount > 0 && (
-        <span className="inline-flex items-center gap-2 rounded-md bg-rose-50 px-2 py-1 font-bold text-rose-700">
+        <span className="inline-flex items-center gap-2 rounded-md bg-red-50 px-2 py-1 font-bold text-red-700">
           <AlertTriangle size={13} /> ラベル印刷失敗 {errorCount}件（プリンタ接続を確認）
-          <button type="button" onClick={retryErrors} className="rounded bg-rose-600 px-2 py-0.5 text-white active:scale-95">
+          <button type="button" onClick={retryErrors} className="rounded bg-red-600 px-2 py-0.5 text-white active:scale-95">
             再印刷
           </button>
         </span>

@@ -73,17 +73,17 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
   };
 
   const numberInputClass =
-    'h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900';
+    'h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900';
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-900 text-white">
           <Barcode size={22} />
         </div>
         <div>
           <h3 className="text-lg font-black tracking-tight text-gray-900">ラベルプリンタ設定（バーコード）</h3>
-          <p className="mt-0.5 text-xs font-bold text-gray-400">
+          <p className="mt-0.5 text-xs font-bold text-gray-500">
             東芝テック B-EV4T（LAN）へ印刷ブリッジ経由でバーコードラベルを印刷します。上部またはフッターの「保存」で保存されます。
           </p>
         </div>
@@ -103,7 +103,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
         {/* 接続 */}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">印刷ブリッジURL</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">印刷ブリッジURL</span>
             <input
               value={draft.bridgeUrl || ''}
               onChange={(event) => update({ bridgeUrl: event.target.value })}
@@ -112,7 +112,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">プリンタIP（B-EV4T）</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">プリンタIP（B-EV4T）</span>
             <input
               value={draft.printerIp || ''}
               onChange={(event) => update({ printerIp: event.target.value })}
@@ -121,7 +121,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ポート</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ポート</span>
             <input
               type="number"
               value={draft.printerPort ?? 9100}
@@ -135,7 +135,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
         {/* 用紙・バーコード */}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ラベル幅 (mm)</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ラベル幅 (mm)</span>
             <input
               type="number"
               value={draft.labelWidthMm}
@@ -144,7 +144,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ラベル長 (mm)</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ラベル長 (mm)</span>
             <input
               type="number"
               value={draft.labelHeightMm}
@@ -153,7 +153,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ギャップ (mm)</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ギャップ (mm)</span>
             <input
               type="number"
               value={draft.gapMm}
@@ -165,7 +165,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
 
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">バーコード種別</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">バーコード種別</span>
             <select
               value={draft.symbology}
               onChange={(event) => update({ symbology: event.target.value })}
@@ -179,7 +179,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">モジュール幅 (dot)</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">モジュール幅 (dot)</span>
             <input
               type="number"
               min={1}
@@ -190,7 +190,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">バーコード高さ (mm)</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">バーコード高さ (mm)</span>
             <input
               type="number"
               value={draft.barcodeHeightMm}
@@ -202,7 +202,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">印字速度</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">印字速度</span>
             <input
               type="number"
               value={draft.printSpeed}
@@ -211,7 +211,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">印字濃度</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">印字濃度</span>
             <input
               type="number"
               value={draft.printDensity}
@@ -223,7 +223,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">用紙センサー</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">用紙センサー</span>
             <select
               value={draft.mediaSensor}
               onChange={(event) => update({ mediaSensor: event.target.value })}
@@ -240,7 +240,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
 
         {/* 印字項目 */}
         <div>
-          <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-gray-400">印字項目</span>
+          <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-gray-500">印字項目</span>
           <div className="grid gap-2 sm:grid-cols-3">
             {[
               { key: 'showName', label: '商品名' },
@@ -277,7 +277,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
             type="button"
             onClick={handleTestPrint}
             disabled={testing || checking}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
           >
             {testing ? <LoadingSpinner size={16} /> : <Printer size={16} />}
             テスト印刷
@@ -287,7 +287,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
         {status && (
           <div
             className={`rounded-xl px-3 py-2 text-xs font-bold leading-relaxed ${
-              status.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+              status.type === 'success' ? 'bg-gray-100 text-gray-900' : 'bg-red-50 text-red-600'
             }`}
           >
             {status.message}
@@ -296,7 +296,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
 
         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
           <div className="mb-1 text-xs font-black text-gray-700">印刷ブリッジをインストール</div>
-          <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-400">
+          <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-500">
             ラベル印刷も会計レシートと同じ印刷ブリッジを使います。店頭Windows端末でブリッジを起動してください（初回のみNode.jsが必要）。
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -317,7 +317,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-blue-700">
+        <div className="rounded-xl border border-ui-100 bg-ui-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-ui">
           プリンタIPはルーター側で固定割当してください。用紙サイズ・ギャップ・濃度・速度・モジュール幅は実機で1枚印刷しながら調整してください。
         </div>
       </div>

@@ -85,10 +85,10 @@ const PeriodButton = ({ active, icon: Icon, label, onClick, accentPos = false })
     onClick={onClick}
     className={`flex h-10 items-center gap-2 rounded-full px-4 text-sm font-black transition-colors ${
       active
-        ? (accentPos ? 'bg-blue-600 text-white shadow-sm' : 'bg-orange-500 text-white shadow-sm')
+        ? (accentPos ? 'bg-ui text-white shadow-sm' : 'bg-gray-900 text-white shadow-sm')
         : (accentPos
-            ? 'bg-white text-gray-500 shadow-sm hover:bg-blue-100 hover:text-blue-600'
-            : 'bg-white text-gray-500 shadow-sm hover:bg-orange-100 hover:text-orange-600')
+            ? 'bg-white text-gray-500 shadow-sm hover:bg-ui-50 hover:text-ui'
+            : 'bg-white text-gray-500 shadow-sm hover:bg-ui-50 hover:text-ui')
     }`}
   >
     <Icon size={15} strokeWidth={2.8} />
@@ -154,18 +154,18 @@ const AnalyticsToolbar = ({
   // 選択中部門が POS系なら青、ORDER系(および全体)ならオレンジでアクセントを切り替える。
   const selectedDepartment = departmentOptions.find((dept) => dept.id === selectedDepartmentId) || null;
   const accentPos = selectedDepartment?.registerMode === 'pos';
-  const periodCardClass = accentPos ? 'border-blue-100 bg-blue-50/40' : 'border-orange-100 bg-orange-50/40';
-  const periodLabelClass = accentPos ? 'text-blue-500' : 'text-orange-500';
-  const navHoverClass = accentPos ? 'hover:bg-blue-100 hover:text-blue-600' : 'hover:bg-orange-100 hover:text-orange-600';
-  const navHoverStrongClass = accentPos ? 'hover:bg-blue-100 hover:text-blue-700' : 'hover:bg-orange-100 hover:text-orange-700';
-  const dowActiveClass = accentPos ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white';
-  const dowIdleClass = accentPos ? 'bg-white text-gray-500 hover:bg-blue-50 hover:text-blue-600' : 'bg-white text-gray-500 hover:bg-orange-50 hover:text-orange-600';
+  const periodCardClass = accentPos ? 'border-ui-100 bg-ui-50/40' : 'border-ui-100 bg-ui-50/40';
+  const periodLabelClass = accentPos ? 'text-ui' : 'text-ui';
+  const navHoverClass = accentPos ? 'hover:bg-ui-50 hover:text-ui' : 'hover:bg-ui-50 hover:text-ui';
+  const navHoverStrongClass = accentPos ? 'hover:bg-ui-50 hover:text-ui' : 'hover:bg-ui-50 hover:text-ui';
+  const dowActiveClass = accentPos ? 'bg-ui text-white' : 'bg-gray-900 text-white';
+  const dowIdleClass = accentPos ? 'bg-white text-gray-500 hover:bg-ui-50 hover:text-ui' : 'bg-white text-gray-500 hover:bg-ui-50 hover:text-ui';
 
   return (
     <div className="mb-6 space-y-4 print:hidden">
       {/* 部門セレクタ（日計と同じ方式: 自部門を大きく、その他は小さく、全体を併設） */}
       {setSelectedDepartmentId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white/80 p-3">
           {/* 部門ボタン（自部門は大きく、その他は小さく。選択中は黒） */}
           {departmentOptions.map((dept) => {
             const isSelected = selectedDepartmentId === dept.id;
@@ -180,9 +180,9 @@ const AnalyticsToolbar = ({
                 } ${
                   isSelected
                     ? (dept.registerMode === 'pos'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-orange-500 text-white shadow-sm')
-                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                        ? 'bg-ui text-white shadow-sm'
+                        : 'bg-gray-900 text-white shadow-sm')
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 {dept.name}
@@ -196,8 +196,8 @@ const AnalyticsToolbar = ({
             onClick={() => setSelectedDepartmentId('all')}
             className={`rounded-xl px-3 py-2 text-xs font-black transition ${
               selectedDepartmentId === 'all'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
             全体
@@ -208,7 +208,7 @@ const AnalyticsToolbar = ({
             <button
               type="button"
               onClick={() => setSelectedDepartmentId(activeDepartment.id)}
-              className="ml-auto rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+              className="ml-auto rounded-xl bg-ui-50 px-3 py-2 text-xs font-black text-ui transition hover:bg-ui-50"
             >
               自部門に戻る
             </button>
@@ -218,12 +218,12 @@ const AnalyticsToolbar = ({
 
       {/* 販売チャネル切替（店舗 / EC / 全体）。EC売上が存在する時のみ表示。 */}
       {showEcChannel && setSelectedChannel && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
-          <span className="mr-1 text-xs font-black text-slate-400">販売チャネル</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white/80 p-3">
+          <span className="mr-1 text-xs font-black text-gray-500">販売チャネル</span>
           {[
-            { id: 'pos', label: '店舗', activeClass: 'bg-blue-600 text-white shadow-sm' },
-            { id: 'ec', label: 'EC', activeClass: 'bg-emerald-600 text-white shadow-sm' },
-            { id: 'all', label: '全体', activeClass: 'bg-slate-900 text-white shadow-sm' }
+            { id: 'pos', label: '店舗', activeClass: 'bg-gray-900 text-white shadow-sm' },
+            { id: 'ec', label: 'EC', activeClass: 'bg-gray-900 text-white shadow-sm' },
+            { id: 'all', label: '全体', activeClass: 'bg-gray-900 text-white shadow-sm' }
           ].map((channel) => (
             <button
               key={channel.id}
@@ -232,7 +232,7 @@ const AnalyticsToolbar = ({
               className={`rounded-xl px-4 py-2 text-xs font-black transition ${
                 selectedChannel === channel.id
                   ? channel.activeClass
-                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
             >
               {channel.label}
@@ -240,7 +240,7 @@ const AnalyticsToolbar = ({
           ))}
           {/* ECサイトは店舗ではなく販売チャネル。同じECを複数店舗で共有している場合、
               店舗ごとの数字を足すと二重計上になるため明示する。 */}
-          <span className="ml-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-600">
+          <span className="ml-1 rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-900">
             ECは全店共通（店舗別に合算しない）
           </span>
         </div>
@@ -252,7 +252,7 @@ const AnalyticsToolbar = ({
             <CalendarDays size={15} />
             分析対象期間
           </div>
-          <p className="mt-1 text-xs font-bold text-gray-400">
+          <p className="mt-1 text-xs font-bold text-gray-500">
             日次・月次・任意期間を切り替えて売上を確認できます。
           </p>
         </div>

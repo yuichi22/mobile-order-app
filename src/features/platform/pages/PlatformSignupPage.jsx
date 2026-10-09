@@ -78,10 +78,10 @@ const PlatformSignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-gray-950 text-white">
       <div className="mx-auto grid min-h-screen max-w-6xl gap-10 px-6 py-10 lg:grid-cols-[1fr_460px] lg:items-center">
         <section>
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-black text-emerald-200">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-black text-gray-300">
             <Sparkles size={15} strokeWidth={3} />
             Akuto Mobile Order
           </div>
@@ -91,7 +91,7 @@ const PlatformSignupPage = () => {
             もっとスマートに。
           </h1>
 
-          <p className="mt-6 max-w-2xl text-base font-bold leading-8 text-slate-300 md:text-lg">
+          <p className="mt-6 max-w-2xl text-base font-bold leading-8 text-gray-300 md:text-lg">
             固定QR注文、スマートメニュー、キッチンモニター、売上分析まで。
             省人化と売上アップを、ひとつのシンプルな店舗システムで支えます。
           </p>
@@ -105,39 +105,39 @@ const PlatformSignupPage = () => {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="rounded-3xl border border-white/10 bg-white/10 p-5">
-                  <Icon className="h-7 w-7 text-emerald-300" strokeWidth={3} />
+                  <Icon className="h-7 w-7 text-gray-300" strokeWidth={3} />
                   <h3 className="mt-4 text-sm font-black">{item.title}</h3>
-                  <p className="mt-2 text-xs font-bold leading-5 text-slate-400">{item.text}</p>
+                  <p className="mt-2 text-xs font-bold leading-5 text-gray-500">{item.text}</p>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-8 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
-            <p className="text-sm font-black text-emerald-200">
+          <div className="mt-8 rounded-3xl border border-gray-900/20 bg-gray-100/10 p-5">
+            <p className="text-sm font-black text-gray-300">
               Standard 月額 14,800円 / 店舗
             </p>
-            <p className="mt-2 text-xs font-bold leading-6 text-slate-300">
+            <p className="mt-2 text-xs font-bold leading-6 text-gray-300">
               固定QR、POS、キッチン表示、売上分析に対応。SNS画像URLを活用したメニュー登録や、売り上げUPに直結する、ビジュアルを使ったスタイリッシュなおすすめ機能。
             </p>
           </div>
         </section>
 
-        <section className="rounded-[2rem] bg-white p-6 text-slate-900 shadow-2xl">
+        <section className="rounded-[2rem] bg-white p-6 text-gray-900 shadow-2xl">
           {submitted ? (
             <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-100 text-gray-900">
                 <CheckCircle2 size={34} strokeWidth={3} />
               </div>
               <h2 className="text-2xl font-black">送信しました</h2>
-              <p className="mt-3 text-sm font-bold leading-7 text-slate-500">
+              <p className="mt-3 text-sm font-bold leading-7 text-gray-500">
                 お申し込み内容を確認のうえ、Akuto担当者よりご連絡します。
                 デモ画面、初期設定、メニュー登録、プリンター接続など、店舗の状況に合わせてご案内します。
               </p>
               <button
                 type="button"
                 onClick={() => setSubmitted(false)}
-                className="mt-8 h-12 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white"
+                className="mt-8 h-12 rounded-2xl bg-gray-900 px-6 text-sm font-black text-white"
               >
                 もう一度入力する
               </button>
@@ -145,70 +145,70 @@ const PlatformSignupPage = () => {
           ) : (
             <>
               <h2 className="text-2xl font-black">無料デモ・導入相談</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              <p className="mt-2 text-sm font-bold leading-6 text-gray-500">
                 店舗情報を入力してください。担当者より、デモのご案内と導入方法についてご連絡します。
               </p>
 
               <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">会社名・運営名</span>
+                  <span className="text-xs font-black text-gray-500">会社名・運営名</span>
                   <input
                     value={form.companyName}
                     onChange={(event) => updateField('companyName', event.target.value)}
-                    className="h-12 rounded-2xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
                     placeholder="例：株式会社〇〇"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">店舗名 *</span>
+                  <span className="text-xs font-black text-gray-500">店舗名 *</span>
                   <input
                     value={form.storeName}
                     onChange={(event) => updateField('storeName', event.target.value)}
-                    className="h-12 rounded-2xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
                     placeholder="例：TABLE HAUS"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">担当者名 *</span>
+                  <span className="text-xs font-black text-gray-500">担当者名 *</span>
                   <input
                     value={form.contactName}
                     onChange={(event) => updateField('contactName', event.target.value)}
-                    className="h-12 rounded-2xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
                     placeholder="例：山田 太郎"
                   />
                 </label>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="text-xs font-black text-slate-400">メール *</span>
+                    <span className="text-xs font-black text-gray-500">メール *</span>
                     <input
                       type="email"
                       value={form.email}
                       onChange={(event) => updateField('email', event.target.value)}
-                      className="h-12 rounded-2xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-slate-900"
+                      className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
                       placeholder="owner@example.com"
                     />
                   </label>
 
                   <label className="grid gap-2">
-                    <span className="text-xs font-black text-slate-400">電話番号</span>
+                    <span className="text-xs font-black text-gray-500">電話番号</span>
                     <input
                       value={form.tel}
                       onChange={(event) => updateField('tel', event.target.value)}
-                      className="h-12 rounded-2xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-slate-900"
+                      className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
                       placeholder="090-0000-0000"
                     />
                   </label>
                 </div>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">ご相談内容</span>
+                  <span className="text-xs font-black text-gray-500">ご相談内容</span>
                   <textarea
                     value={form.message}
                     onChange={(event) => updateField('message', event.target.value)}
-                    className="min-h-28 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-slate-900"
+                    className="min-h-28 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold outline-none focus:border-gray-900"
                     placeholder="例：QR注文を試したい、SNS画像URLからメニュー登録したい、レシートプリンター接続も確認したい"
                   />
                 </label>
@@ -222,7 +222,7 @@ const PlatformSignupPage = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-2 inline-flex h-13 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-4 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-2 inline-flex h-13 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-6 py-4 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
                     <>

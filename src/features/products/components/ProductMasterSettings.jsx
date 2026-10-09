@@ -379,15 +379,15 @@ const formatProductMasterDateTimeText = (value) => {
 // 入出庫履歴(stockMovements)の種別表示。quantity は符号つきdelta(入庫=+ / 販売=-)。
 // 販売は increment 減算のため beforeQuantity/afterQuantity を持たない(伝票・レジで追跡する)。
 const STOCK_MOVEMENT_TYPE_META = {
-  stock_in: { label: '入庫', badgeClass: 'bg-blue-100 text-blue-700', amountClass: 'text-blue-700' },
-  sale: { label: '販売', badgeClass: 'bg-rose-100 text-rose-700', amountClass: 'text-rose-600' },
+  stock_in: { label: '入庫', badgeClass: 'bg-ui-50 text-ui', amountClass: 'text-ui' },
+  sale: { label: '販売', badgeClass: 'bg-red-100 text-red-700', amountClass: 'text-red-600' },
   adjustment: { label: '在庫調整', badgeClass: 'bg-amber-100 text-amber-700', amountClass: 'text-amber-700' },
-  shopify_reconcile: { label: 'Shopify補正', badgeClass: 'bg-slate-200 text-slate-600', amountClass: 'text-slate-600' }
+  shopify_reconcile: { label: 'Shopify補正', badgeClass: 'bg-gray-200 text-gray-600', amountClass: 'text-gray-600' }
 };
 
 const getStockMovementTypeMeta = (type) => (
   STOCK_MOVEMENT_TYPE_META[String(type || '')]
-  || { label: String(type || 'その他'), badgeClass: 'bg-slate-100 text-slate-500', amountClass: 'text-slate-600' }
+  || { label: String(type || 'その他'), badgeClass: 'bg-gray-100 text-gray-500', amountClass: 'text-gray-600' }
 );
 
 const formatSignedQuantityText = (value) => {
@@ -914,7 +914,7 @@ const TableTextInput = forwardRef(({ value, onChange, type = 'text', className =
       autoCorrect={inputMode ? 'off' : undefined}
       spellCheck={inputMode ? false : undefined}
       className={classNames(
-        'h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-900 shadow-sm outline-none transition [appearance:textfield] focus:border-orange-400 focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+        'h-9 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-sm font-bold text-gray-900 shadow-sm outline-none transition [appearance:textfield] focus:border-ui focus:ring-2 focus:ring-ui-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
         leftButton ? 'pl-14' : '',
         className
       )}
@@ -937,10 +937,10 @@ const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty
       value={value || ''}
       onChange={(event) => onChange(event.target.value)}
       className={classNames(
-        'h-9 w-full rounded-lg border px-2.5 text-sm font-black shadow-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
+        'h-9 w-full rounded-lg border px-2.5 text-sm font-black shadow-sm outline-none transition focus:border-ui focus:ring-2 focus:ring-ui-100',
         alertWhenEmpty && isEmpty
-          ? 'border-orange-200 bg-orange-50 text-orange-700'
-          : 'border-slate-200 bg-white text-slate-800',
+          ? 'border-ui-100 bg-ui-50 text-ui'
+          : 'border-gray-200 bg-white text-gray-800',
         className
       )}
     >
@@ -950,12 +950,12 @@ const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty
 };
 
 const MiniRadio = ({ label, checked, onChange }) => (
-  <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-slate-600">
+  <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-gray-600">
     <input
       type="radio"
       checked={checked}
       onChange={onChange}
-      className="h-3.5 w-3.5 accent-orange-500"
+      className="h-3.5 w-3.5 accent-ui"
     />
     {label}
   </label>
@@ -966,8 +966,8 @@ const PillToggle = ({
   onChange,
   onLabel = 'あり',
   offLabel = 'なし',
-  activeClassName = 'bg-blue-600 text-white shadow-sm shadow-blue-200',
-  inactiveClassName = 'bg-slate-200 text-slate-500',
+  activeClassName = 'bg-gray-900 text-white shadow-sm shadow-gray-200',
+  inactiveClassName = 'bg-gray-200 text-gray-500',
   className = ''
 }) => (
   <button
@@ -992,16 +992,16 @@ const SHOPIFY_STATUS_LABEL = {
 };
 
 const SHOPIFY_BUTTON_CLASS = {
-  ACTIVE: 'bg-emerald-600 text-white shadow-sm shadow-emerald-200',
+  ACTIVE: 'bg-gray-900 text-white shadow-sm shadow-gray-200',
   DRAFT: 'bg-amber-500 text-white shadow-sm shadow-amber-200',
-  ARCHIVED: 'bg-slate-500 text-white shadow-sm shadow-slate-200'
+  ARCHIVED: 'bg-gray-500 text-white shadow-sm shadow-gray-200'
 };
 
 const FieldLabel = () => null;
 
 // SKU行で各入力の「下」に、何のフィールドかを税込表示と同じ体裁(グレー小)で補足する。
 const FieldHint = ({ children, align = 'center' }) => (
-  <div className={`mt-1 truncate text-[10px] font-bold text-slate-400 ${align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : 'text-center'}`}>
+  <div className={`mt-1 truncate text-[10px] font-bold text-gray-500 ${align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : 'text-center'}`}>
     {children}
   </div>
 );
@@ -3264,17 +3264,17 @@ const ProductMasterTable = ({
             : 'rounded-xl border p-2 shadow-sm',
           !options.embeddedNewGroup && (
             isNew
-              ? 'border-orange-200 bg-orange-50/60 shadow-sm'
+              ? 'border-ui-100 bg-ui-50/60 shadow-sm'
               // 検索一致行は黄枠＋薄黄背景でハイライトする。
               : options.highlighted
                 ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-300'
-                : 'border-slate-200 bg-white'
+                : 'border-gray-200 bg-white'
           )
         )}
       >
         {isNew && options.showNewHeader !== false && (
-          <div className="mb-2 rounded-lg border border-orange-200 bg-white/95 px-3 py-2 shadow-sm">
-            <div className="mb-2 border-b border-dashed border-orange-200 pb-2">
+          <div className="mb-2 rounded-lg border border-ui-100 bg-white/95 px-3 py-2 shadow-sm">
+            <div className="mb-2 border-b border-dashed border-ui-100 pb-2">
               <div className="flex flex-wrap items-start gap-2">
               <HangTagScanButton
                 storeId={storeId}
@@ -3369,12 +3369,12 @@ const ProductMasterTable = ({
                     <button
                       type="button"
                       onClick={addNewSkuRow}
-                      className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-slate-900 px-2 text-xs font-black text-white transition hover:bg-slate-700"
+                      className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-gray-900 px-2 text-xs font-black text-white transition hover:bg-gray-700"
                     >
                       +SKU追加
                     </button>
 
-                    <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
+                    <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-ui-50 px-2 text-xs font-black text-ui">
                       {newProductEntryCount.toLocaleString()} SKU
                     </div>
                   </div>
@@ -3387,7 +3387,7 @@ const ProductMasterTable = ({
                       offLabel="ラベル"
                       className="!h-8 !min-w-[72px] !px-3 text-[11px]"
                     />
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-400">
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-500">
                       登録 {isNew ? '未登録' : registeredAtText}
                     </span>
                   </div>
@@ -3423,14 +3423,14 @@ const ProductMasterTable = ({
                   onLabel="Shopify"
                   offLabel="Shopify"
                   className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
-                  activeClassName="border border-slate-600 bg-slate-600 text-white shadow-sm shadow-slate-200"
-                  inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
+                  activeClassName="border border-gray-600 bg-gray-600 text-white shadow-sm shadow-gray-200"
+                  inactiveClassName="border border-gray-300 bg-gray-200 text-gray-600 shadow-sm"
                 />
 
                 {['BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
                   <div
                     key={`new-ec-placeholder-${label}`}
-                    className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black text-slate-300"
+                    className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-gray-200 bg-white/60 px-2 text-[10px] font-black text-gray-300"
                     title={`${label}連携は保存後に利用できます`}
                   >
                     {label}
@@ -3440,7 +3440,7 @@ const ProductMasterTable = ({
                 <button
                   type="button"
                   onClick={clearNewProductEntry}
-                  className="inline-flex h-8 w-full items-center justify-center rounded-full bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                  className="inline-flex h-8 w-full items-center justify-center rounded-full bg-red-50 text-red-500 transition hover:bg-red-100"
                   title="新規入力をクリア"
                 >
                   <Trash2 size={13} />
@@ -3500,7 +3500,7 @@ const ProductMasterTable = ({
                       alert(`インストアコードの発行に失敗しました: ${error?.message || error}`);
                     }
                   }}
-                  className="h-7 rounded-md bg-indigo-600 px-2 text-[11px] font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+                  className="h-7 rounded-md bg-gray-900 px-2 text-[11px] font-black text-white shadow-sm transition hover:bg-gray-800 active:scale-95"
                 >
                   発行
                 </button>
@@ -3547,7 +3547,7 @@ const ProductMasterTable = ({
               placeholder="税抜売価"
               className="text-right"
             />
-            <div className="mt-1 text-right text-[11px] font-bold text-slate-400">
+            <div className="mt-1 text-right text-[11px] font-bold text-gray-500">
               税込 {Number(calculateProductMasterTaxIncludedPrice(row.priceTaxExcluded, effectiveTaxRate) || 0).toLocaleString()}
             </div>
           </div>
@@ -3603,10 +3603,10 @@ const ProductMasterTable = ({
               type="button"
               onClick={() => openInventoryAdjustModal(row)}
               disabled={isNew}
-              className={`flex h-9 w-full items-center justify-end rounded-lg border border-slate-200 px-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`flex h-9 w-full items-center justify-end rounded-lg border border-gray-200 px-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 row.inventoryUnmanaged
-                  ? 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  : 'bg-ui-50 text-ui hover:bg-ui-50'
               }`}
               title={row.inventoryUnmanaged ? '在庫管理をしない(調整で変更可)' : '在庫調整'}
             >
@@ -3621,7 +3621,7 @@ const ProductMasterTable = ({
               type="button"
               onClick={() => openStockInHistoryModal(row)}
               disabled={isNew}
-              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-gray-100 px-2 text-[11px] font-black text-gray-600 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
               title="入出庫履歴を表示"
             >
               {Number(row.lastStockInQuantity || 0) > 0
@@ -3653,7 +3653,7 @@ const ProductMasterTable = ({
                 type="button"
                 onClick={() => openLabelQtyModal(row)}
                 disabled={isNew}
-                className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-slate-100 px-2 text-[11px] font-black text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-gray-100 px-2 text-[11px] font-black text-gray-600 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
                 title="バーコードラベルを印刷"
               >
                 <Barcode size={13} />
@@ -3669,7 +3669,7 @@ const ProductMasterTable = ({
               <button
                 type="button"
                 onClick={options.onRemoveNewSku || clearNewProductEntry}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-500 transition hover:bg-red-100"
                 title={options.onRemoveNewSku ? 'この新規SKU行を削除' : '新規入力をクリア'}
               >
                 <Trash2 size={13} />
@@ -3678,7 +3678,7 @@ const ProductMasterTable = ({
               <button
                 type="button"
                 onClick={() => deleteProduct(row)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-500 transition hover:bg-red-100"
                 title="削除"
               >
                 <Trash2 size={13} />
@@ -3751,7 +3751,7 @@ const ProductMasterTable = ({
             }
           `}</style>
           <div
-            className="fixed bottom-0 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-t-2xl rounded-b-none border border-b-0 border-slate-200 bg-white/95 px-5 pt-4 pb-7 shadow-2xl shadow-slate-300/60 backdrop-blur"
+            className="fixed bottom-0 right-6 z-[9999] flex max-w-[calc(100vw-3rem)] items-center gap-3 rounded-t-2xl rounded-b-none border border-b-0 border-gray-200 bg-white/95 px-5 pt-4 pb-7 shadow-2xl shadow-gray-300/60 backdrop-blur"
             style={{
               animation: productMasterActionToastExiting
                 ? 'productMasterActionToastSlideDown 180ms ease-in forwards'
@@ -3759,10 +3759,10 @@ const ProductMasterTable = ({
             }}
           >
           <div className="min-w-0 pr-2">
-            <div className="text-sm font-black text-slate-900">
+            <div className="text-sm font-black text-gray-900">
               {hasNewProductDraft || editedProductRowCount > 0 ? '未保存の変更があります' : 'Shopify同期対象があります'}
             </div>
-            <div className="mt-1 text-xs font-bold text-slate-500">
+            <div className="mt-1 text-xs font-bold text-gray-500">
               {hasNewProductDraft || editedProductRowCount > 0
                 ? `新規 ${newProductEntryCount}件 / 更新 ${productFieldEditedRowCount}件 / 入庫 ${stockInTargetRows.length}件`
                 : `Shopify同期 ${shopifySyncTargetGroupCount}件`}
@@ -3774,7 +3774,7 @@ const ProductMasterTable = ({
               type="button"
               onClick={saveProductMasterChanges}
               disabled={productMasterBulkSaving || shopifyBulkSyncing || shopifySyncingGroupId !== null}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               title={`新規 ${newProductEntryCount}件 / 更新 ${productFieldEditedRowCount}件 / 入庫 ${stockInTargetRows.length}件`}
             >
               {productMasterBulkSaving ? <LoadingSpinner size={14} /> : null}
@@ -3787,7 +3787,7 @@ const ProductMasterTable = ({
               type="button"
               onClick={syncEditedShopifyGroups}
               disabled={shopifyBulkSyncing || shopifySyncingGroupId !== null}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
               title={`Shopify同期対象 ${shopifySyncTargetGroupCount}件 / 下書き作成 ${editedShopifyGroups.length}件 / 更新 ${editedSyncedShopifyGroups.length}件`}
             >
               {shopifyBulkSyncing ? <LoadingSpinner size={14} /> : null}
@@ -3804,25 +3804,25 @@ const ProductMasterTable = ({
   const stockInHistoryModalNode = (
     typeof document !== 'undefined' && stockInHistoryModalRow
       ? createPortal((
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-gray-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
           <div className="flex h-[min(640px,calc(100vh-7rem))] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-            <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
+            <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
                     Stock Movements
                   </p>
-                  <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                  <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">
                     入出庫履歴
                   </h3>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="mt-1 text-xs font-bold text-gray-500">
                     {stockInHistoryModalRow.name || stockInHistoryModalRow.productGroupName || stockInHistoryModalRow.sku || stockInHistoryModalRow.id}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={closeStockInHistoryModal}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition hover:text-slate-700"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-gray-500 shadow-sm transition hover:text-gray-700"
                   aria-label="閉じる"
                 >
                   <X size={18} />
@@ -3836,9 +3836,9 @@ const ProductMasterTable = ({
                   <LoadingSpinner size={20} />
                 </div>
               ) : stockInHistoryError ? (
-                <p className="py-10 text-center text-sm font-bold text-rose-500">{stockInHistoryError}</p>
+                <p className="py-10 text-center text-sm font-bold text-red-500">{stockInHistoryError}</p>
               ) : stockInHistoryRecords.length === 0 ? (
-                <p className="py-10 text-center text-sm font-bold text-slate-400">入出庫履歴はありません</p>
+                <p className="py-10 text-center text-sm font-bold text-gray-500">入出庫履歴はありません</p>
               ) : (
                 <div className="space-y-2">
                   {stockInHistoryRecords.map((record) => {
@@ -3848,13 +3848,13 @@ const ProductMasterTable = ({
                       && record.afterQuantity !== undefined && record.afterQuantity !== null;
 
                     return (
-                      <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div key={record.id} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2">
                             <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-black ${typeMeta.badgeClass}`}>
                               {typeMeta.label}
                             </span>
-                            <span className="truncate text-sm font-black text-slate-900">
+                            <span className="truncate text-sm font-black text-gray-900">
                               {formatProductMasterDateTimeText(record.createdAt)}
                             </span>
                           </div>
@@ -3862,7 +3862,7 @@ const ProductMasterTable = ({
                             {formatSignedQuantityText(record.quantity)}
                           </span>
                         </div>
-                        <div className="mt-1 text-xs font-bold text-slate-500">
+                        <div className="mt-1 text-xs font-bold text-gray-500">
                           {hasBeforeAfter
                             ? `在庫: ${Number(record.beforeQuantity).toLocaleString()} → ${Number(record.afterQuantity).toLocaleString()}`
                             : (record.registerId ? `レジ: ${record.registerId}` : '')}
@@ -3883,18 +3883,18 @@ const ProductMasterTable = ({
   const inventoryAdjustModalNode = (
     typeof document !== 'undefined' && inventoryAdjustModalRow
       ? createPortal((
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-gray-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
           <div className="flex h-[min(720px,calc(100vh-7rem))] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-            <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
+            <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
                     Inventory Adjustment
                   </p>
-                  <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                  <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">
                     在庫調整
                   </h3>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="mt-1 text-xs font-bold text-gray-500">
                     {inventoryAdjustModalRow.name || inventoryAdjustModalRow.productGroupName || inventoryAdjustModalRow.sku || inventoryAdjustModalRow.id}
                   </p>
                 </div>
@@ -3902,7 +3902,7 @@ const ProductMasterTable = ({
                   type="button"
                   onClick={closeInventoryAdjustModal}
                   disabled={inventoryAdjustSaving}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-gray-500 shadow-sm transition hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="閉じる"
                 >
                   <X size={18} />
@@ -3911,54 +3911,54 @@ const ProductMasterTable = ({
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold text-slate-500">現在の在庫数</p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">
+                    <p className="text-xs font-bold text-gray-500">現在の在庫数</p>
+                    <p className="mt-1 text-2xl font-black text-gray-900">
                       {inventoryAdjustUnmanaged
-                        ? <span className="text-slate-400">管理外</span>
+                        ? <span className="text-gray-500">管理外</span>
                         : Number(inventoryAdjustModalRow.inventoryQuantity ?? inventoryAdjustModalRow.quantity ?? 0).toLocaleString()}
                     </p>
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
-                    <label className="text-xs font-bold text-slate-500">修正後の在庫数</label>
+                    <label className="text-xs font-bold text-gray-500">修正後の在庫数</label>
                     <input
                       type="number"
                       value={inventoryAdjustUnmanaged ? '' : inventoryAdjustValue}
                       onChange={(event) => setInventoryAdjustValue(event.target.value)}
                       disabled={inventoryAdjustUnmanaged}
                       placeholder={inventoryAdjustUnmanaged ? '管理外' : ''}
-                      className="h-11 w-32 rounded-xl border-2 border-slate-200 bg-white px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-orange-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      className="h-11 w-32 rounded-xl border-2 border-gray-200 bg-white px-3 text-right text-lg font-black text-gray-900 outline-none focus:border-ui disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                     />
                   </div>
                 </div>
 
                 {/* 在庫管理をしない: サービス/手数料等。ON=販売しても在庫を減らさず固定。 */}
-                <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
                   <input
                     type="checkbox"
                     checked={inventoryAdjustUnmanaged}
                     onChange={(event) => setInventoryAdjustUnmanaged(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-ui"
                   />
                   <span className="min-w-0">
-                    <span className="block text-sm font-black text-slate-800">在庫管理をしない</span>
-                    <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                    <span className="block text-sm font-black text-gray-800">在庫管理をしない</span>
+                    <span className="mt-0.5 block text-[11px] font-bold text-gray-500">
                       サービス・ラッピング手数料など。販売しても在庫が減りません（在庫は固定）。
                     </span>
                   </span>
                 </label>
 
                 <div className="mt-3">
-                  <label className="text-xs font-bold text-slate-500">メモ(任意)</label>
+                  <label className="text-xs font-bold text-gray-500">メモ(任意)</label>
                   <input
                     type="text"
                     value={inventoryAdjustNote}
                     onChange={(event) => setInventoryAdjustNote(event.target.value)}
                     placeholder="調整理由など"
-                    className="mt-1 h-10 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
+                    className="mt-1 h-10 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </div>
 
@@ -3967,7 +3967,7 @@ const ProductMasterTable = ({
                     type="button"
                     onClick={saveInventoryAdjustment}
                     disabled={inventoryAdjustSaving}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {inventoryAdjustSaving ? <LoadingSpinner size={14} /> : null}
                     保存
@@ -3976,30 +3976,30 @@ const ProductMasterTable = ({
               </div>
 
               <div className="mt-5">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">履歴</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">履歴</p>
 
                 {inventoryAdjustHistoryLoading ? (
                   <div className="flex items-center justify-center py-10">
                     <LoadingSpinner size={20} />
                   </div>
                 ) : inventoryAdjustHistoryError ? (
-                  <p className="py-10 text-center text-sm font-bold text-rose-500">{inventoryAdjustHistoryError}</p>
+                  <p className="py-10 text-center text-sm font-bold text-red-500">{inventoryAdjustHistoryError}</p>
                 ) : inventoryAdjustHistoryRecords.length === 0 ? (
-                  <p className="py-10 text-center text-sm font-bold text-slate-400">在庫調整履歴はありません</p>
+                  <p className="py-10 text-center text-sm font-bold text-gray-500">在庫調整履歴はありません</p>
                 ) : (
                   <div className="mt-2 space-y-2">
                     {inventoryAdjustHistoryRecords.map((record) => (
-                      <div key={record.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div key={record.id} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-black text-slate-900">
+                          <span className="text-sm font-black text-gray-900">
                             {formatProductMasterDateTimeText(record.createdAt)}
                           </span>
-                          <span className="text-sm font-black text-slate-700">
+                          <span className="text-sm font-black text-gray-700">
                             {Number(record.beforeQuantity || 0).toLocaleString()} → {Number(record.afterQuantity || 0).toLocaleString()}
                           </span>
                         </div>
                         {record.note ? (
-                          <div className="mt-1 text-xs font-bold text-slate-500">{record.note}</div>
+                          <div className="mt-1 text-xs font-bold text-gray-500">{record.note}</div>
                         ) : null}
                       </div>
                     ))}
@@ -4017,28 +4017,28 @@ const ProductMasterTable = ({
   const labelQtyModalNode = (
     typeof document !== 'undefined' && labelQtyModalProduct
       ? createPortal((
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 px-5 py-10 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/55 px-5 py-10 backdrop-blur-sm">
           <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-slate-50 px-6 py-5">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Label Print</p>
-              <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">ラベル印刷</h3>
-              <p className="mt-1 truncate text-xs font-bold text-slate-500">
+            <div className="border-b border-gray-100 bg-gray-50 px-6 py-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Label Print</p>
+              <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">ラベル印刷</h3>
+              <p className="mt-1 truncate text-xs font-bold text-gray-500">
                 {labelQtyModalProduct.name || labelQtyModalProduct.productGroupName || labelQtyModalProduct.sku || labelQtyModalProduct.id}
               </p>
-              <p className="mt-0.5 font-mono text-[11px] font-bold text-slate-400">
+              <p className="mt-0.5 font-mono text-[11px] font-bold text-gray-500">
                 {String(resolveBarcodeData(labelQtyModalProduct) || '')}
               </p>
             </div>
 
             <div className="px-6 py-6">
               <label className="block text-center">
-                <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-400">印刷枚数</span>
+                <span className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">印刷枚数</span>
                 <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
                     onClick={() => setLabelQtyValue((value) => Math.max(1, Number(value || 1) - 1))}
                     disabled={labelBusy}
-                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-600 transition hover:bg-gray-200 disabled:opacity-50"
                   >
                     −
                   </button>
@@ -4049,13 +4049,13 @@ const ProductMasterTable = ({
                     value={labelQtyValue}
                     onChange={(event) => setLabelQtyValue(event.target.value)}
                     disabled={labelBusy}
-                    className="h-14 w-24 rounded-2xl border-2 border-slate-200 bg-white text-center text-2xl font-black text-slate-900 outline-none focus:border-orange-400 disabled:opacity-50"
+                    className="h-14 w-24 rounded-2xl border-2 border-gray-200 bg-white text-center text-2xl font-black text-gray-900 outline-none focus:border-ui disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={() => setLabelQtyValue((value) => Math.min(999, Number(value || 1) + 1))}
                     disabled={labelBusy}
-                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-600 transition hover:bg-gray-200 disabled:opacity-50"
                   >
                     ＋
                   </button>
@@ -4063,12 +4063,12 @@ const ProductMasterTable = ({
               </label>
             </div>
 
-            <div className="flex gap-2 border-t border-slate-100 px-6 py-4">
+            <div className="flex gap-2 border-t border-gray-100 px-6 py-4">
               <button
                 type="button"
                 onClick={closeLabelQtyModal}
                 disabled={labelBusy}
-                className="h-12 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-sm font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                className="h-12 flex-1 rounded-2xl border-2 border-gray-200 bg-white text-sm font-black text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 キャンセル
               </button>
@@ -4076,7 +4076,7 @@ const ProductMasterTable = ({
                 type="button"
                 onClick={confirmLabelQtyPrint}
                 disabled={labelBusy}
-                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
               >
                 {labelBusy ? <LoadingSpinner size={16} /> : <Barcode size={16} />}
                 印刷する
@@ -4092,26 +4092,26 @@ const ProductMasterTable = ({
   const labelErrorModalNode = (
     typeof document !== 'undefined' && labelErrorItems
       ? createPortal((
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 px-5 py-10 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/60 px-5 py-10 backdrop-blur-sm">
           <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl">
             <div className="px-6 py-6 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-500">
                 <Barcode size={22} />
               </div>
-              <h3 className="text-lg font-black tracking-tight text-slate-900">プリンターを接続してください</h3>
-              <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+              <h3 className="text-lg font-black tracking-tight text-gray-900">プリンターを接続してください</h3>
+              <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
                 ラベルプリンターに接続できませんでした。プリンターの電源・LAN接続・印刷ブリッジ・IP設定を確認してから、もう一度印刷してください。
               </p>
-              <p className="mt-2 text-xs font-bold text-slate-400">
+              <p className="mt-2 text-xs font-bold text-gray-500">
                 対象: {labelErrorItems.reduce((sum, item) => sum + Number(item.copies || 1), 0)} 枚
               </p>
             </div>
-            <div className="flex gap-2 border-t border-slate-100 px-6 py-4">
+            <div className="flex gap-2 border-t border-gray-100 px-6 py-4">
               <button
                 type="button"
                 onClick={cancelLabelError}
                 disabled={labelBusy}
-                className="h-12 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-sm font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                className="h-12 flex-1 rounded-2xl border-2 border-gray-200 bg-white text-sm font-black text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 キャンセル
               </button>
@@ -4119,7 +4119,7 @@ const ProductMasterTable = ({
                 type="button"
                 onClick={retryLabelPrint}
                 disabled={labelBusy}
-                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
               >
                 {labelBusy ? <LoadingSpinner size={16} /> : <Barcode size={16} />}
                 印刷する
@@ -4132,22 +4132,22 @@ const ProductMasterTable = ({
   );
 
   return (
-    <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
+    <section className="rounded-[2rem] border border-gray-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
       {stockInHistoryModalNode}
       {inventoryAdjustModalNode}
       {labelQtyModalNode}
       {labelErrorModalNode}
       <LabelPrintQueueRunner storeId={storeId} labelPrinterSettings={labelPrinterSettings} />
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-white/95 px-5 py-3 backdrop-blur">
         <div>
-          <h3 className="text-sm font-black text-slate-900">商品マスター</h3>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-slate-500">
+          <h3 className="text-sm font-black text-gray-900">商品マスター</h3>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-gray-500">
             <span>商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。</span>
             <span className="inline-flex items-center gap-1">
-              <span className="text-[10px] font-black text-slate-400">カーソル移動</span>
-              <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-600">Tab →</span>
-              <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-600">Enter ↓</span>
+              <span className="text-[10px] font-black text-gray-500">カーソル移動</span>
+              <span className="rounded-md border border-ui-100 bg-ui-50 px-1.5 py-0.5 text-[10px] font-black text-ui">Tab →</span>
+              <span className="rounded-md border border-ui-100 bg-ui-50 px-1.5 py-0.5 text-[10px] font-black text-ui">Enter ↓</span>
             </span>
           </p>
         </div>
@@ -4161,8 +4161,8 @@ const ProductMasterTable = ({
               className={classNames(
                 'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
                 deficiencyMode
-                  ? 'bg-rose-700 text-white shadow-rose-200/70 hover:bg-rose-800'
-                  : 'bg-rose-600 text-white shadow-rose-200/70 hover:bg-rose-700'
+                  ? 'bg-amber-600 text-white hover:bg-amber-700' // 要修正=注意(アンバー)。赤は取り消せない操作だけ
+                  : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
               )}
             >
               <AlertTriangle size={16} strokeWidth={2.6} />
@@ -4180,8 +4180,8 @@ const ProductMasterTable = ({
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
               showNewProductEntry
-                ? 'bg-orange-700 text-white shadow-orange-200/70 hover:bg-orange-800'
-                : 'bg-orange-600 text-white shadow-orange-200/70 hover:bg-orange-700'
+                ? 'bg-ui text-white shadow-gray-200/70 hover:bg-ui'
+                : 'bg-gray-900 text-white shadow-gray-200/70 hover:bg-gray-800'
             )}
           >
             {showNewProductEntry ? <ChevronUp size={17} strokeWidth={2.6} /> : <ChevronDown size={17} strokeWidth={2.6} />}
@@ -4226,11 +4226,11 @@ const ProductMasterTable = ({
           })()}
         </div>
       )}
-      <div className="overflow-x-auto bg-sky-100/60 px-4 py-3 xl:px-5">
+      <div className="overflow-x-auto bg-ui-50/60 px-4 py-3 xl:px-5">
         <div className="min-w-[1420px] space-y-3 2xl:min-w-0">
           {newProductEntryMounted && (
             <div
-              className="overflow-hidden rounded-2xl border border-orange-200 bg-orange-50/60 p-2 shadow-sm"
+              className="overflow-hidden rounded-2xl border border-ui-100 bg-ui-50/60 p-2 shadow-sm"
               style={{
                 animation: newProductEntryExiting
                   ? 'productMasterNewEntrySlideUp 180ms ease-in forwards'
@@ -4270,7 +4270,7 @@ const ProductMasterTable = ({
               })}
 
             {newSkuRows.length > 0 && (
-              <div className="mt-2 space-y-2 border-t border-orange-100 pt-2">
+              <div className="mt-2 space-y-2 border-t border-ui-100 pt-2">
                 {newSkuRows.map((row, index) => renderEditableRow(
                   {
                     ...newRow,
@@ -4300,17 +4300,17 @@ const ProductMasterTable = ({
           )}
 
           {effectiveProducts.length > 0 && visibleProductGroups.map((group) => (
-            <div key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+            <div key={group.key} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="border-b border-gray-100 bg-gray-50 px-3 py-2">
                 {deficiencyMode && (() => {
                   const primary = group.products.find((product) => product.productGroupRole === 'primary') || group.products[0];
                   const defs = getProductDeficiencies(getDraft(primary) || primary || {});
                   if (defs.length === 0) return null;
                   return (
                     <div className="mb-2 flex flex-wrap items-center gap-1">
-                      <span className="text-[10px] font-black text-rose-500">要修正:</span>
+                      <span className="text-[10px] font-black text-red-500">要修正:</span>
                       {defs.map((d) => (
-                        <span key={d} className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600 ring-1 ring-rose-200">{d}未設定</span>
+                        <span key={d} className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600 ring-1 ring-red-200">{d}未設定</span>
                       ))}
                     </div>
                   );
@@ -4355,12 +4355,12 @@ const ProductMasterTable = ({
                               type="button"
                               onClick={() => addSkuToProductGroup(group)}
                               disabled={!primaryProduct}
-                              className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-slate-900 px-2 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                              className="inline-flex h-8 min-w-[96px] flex-1 items-center justify-center rounded-lg bg-gray-900 px-2 text-xs font-black text-white transition hover:bg-gray-700 disabled:bg-gray-200 disabled:text-gray-400"
                             >
                               +SKU追加
                             </button>
 
-                            <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-blue-50 px-2 text-xs font-black text-blue-600">
+                            <div className="flex h-8 min-w-[58px] items-center justify-center rounded-lg bg-ui-50 px-2 text-xs font-black text-ui">
                               {group.products.length.toLocaleString()} SKU
                             </div>
                           </div>
@@ -4374,7 +4374,7 @@ const ProductMasterTable = ({
                               offLabel="ラベル"
                               className="!h-8 !min-w-[72px] !px-3 text-[11px]"
                             />
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-400">
+                            <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-500">
                               登録 {groupRegisteredAtText}
                             </span>
                           </div>
@@ -4468,11 +4468,11 @@ const ProductMasterTable = ({
                               activeClassName={
                                 isShopifyLinked
                                   ? (inventorySyncDisabled
-                                    ? 'bg-rose-500 text-white shadow-sm shadow-rose-200'
+                                    ? 'bg-red-500 text-white shadow-sm shadow-red-200'
                                     : (SHOPIFY_BUTTON_CLASS[groupShopifyStatus] || SHOPIFY_BUTTON_CLASS.ACTIVE))
-                                  : 'bg-slate-600 text-white shadow-sm shadow-slate-200'
+                                  : 'bg-gray-600 text-white shadow-sm shadow-gray-200'
                               }
-                              inactiveClassName="border border-slate-300 bg-slate-200 text-slate-600 shadow-sm"
+                              inactiveClassName="border border-gray-300 bg-gray-200 text-gray-600 shadow-sm"
                               className="!h-8 !min-w-0 !w-full !px-2 text-[10px]"
                               title={
                                 isShopifyLinked
@@ -4490,7 +4490,7 @@ const ProductMasterTable = ({
                         {['BASE', 'STORES', '楽天', 'Amazon'].map((label) => (
                           <div
                             key={`${group.key}-ec-placeholder-${label}`}
-                            className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-slate-200 bg-white/60 px-2 text-[10px] font-black text-slate-300"
+                            className="flex h-8 w-full min-w-0 cursor-default items-center justify-center truncate rounded-full border border-dashed border-gray-200 bg-white/60 px-2 text-[10px] font-black text-gray-300"
                             title={`${label}連携は今後追加予定です`}
                           >
                             {label}
@@ -4503,7 +4503,7 @@ const ProductMasterTable = ({
                 })()}
               </div>
 
-              <div className="space-y-2 bg-slate-50/60 p-2.5">
+              <div className="space-y-2 bg-gray-50/60 p-2.5">
                 {group.products.map((product, productIndex) => {
                   const isHighlighted = Boolean(highlightedProductIds && highlightedProductIds.has(product.id));
                   return renderEditableRow(getDraft(product), {
@@ -4523,7 +4523,7 @@ const ProductMasterTable = ({
               <button
                 type="button"
                 onClick={() => setVisibleProductGroupLimit((current) => current + PRODUCT_MASTER_GROUP_LIMIT_STEP)}
-                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-black text-white shadow-sm transition hover:bg-slate-700"
+                className="inline-flex items-center justify-center rounded-full bg-gray-900 px-5 py-2 text-sm font-black text-white shadow-sm transition hover:bg-gray-700"
               >
                 さらに表示（{Math.min(visibleProductGroupLimit, groupedProducts.length).toLocaleString()} / {groupedProducts.length.toLocaleString()}）
               </button>
@@ -4533,7 +4533,7 @@ const ProductMasterTable = ({
       </div>
 
       {effectiveProducts.length === 0 && (
-        <div className="border-t border-slate-100 px-5 py-4 text-sm font-bold text-slate-400">
+        <div className="border-t border-gray-100 px-5 py-4 text-sm font-bold text-gray-500">
           まずは最上段の新規行に商品名を入力して保存してください。
         </div>
       )}
@@ -4880,13 +4880,13 @@ export const ShopifySettingsPanel = ({
   };
 
   return (
-    <section className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+    <section className="rounded-[2rem] border border-gray-100 bg-white shadow-sm">
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Price Sync</p>
-          <h4 className="mt-2 text-lg font-black text-slate-900">Shopifyへ同期する価格</h4>
-          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">Price Sync</p>
+          <h4 className="mt-2 text-lg font-black text-gray-900">Shopifyへ同期する価格</h4>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             Akuto POSの税抜価格を基準に、Shopifyへ送る価格を税込・税抜のどちらにするかを設定します。
           </p>
         </div>
@@ -4896,7 +4896,7 @@ export const ShopifySettingsPanel = ({
             value={shopifyPriceSyncMode}
             onChange={(event) => setShopifyPriceSyncMode(event.target.value)}
             disabled={shopifyPriceSyncLoading || shopifyPriceSyncSaving}
-            className="h-12 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+            className="h-12 rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="taxIncluded">税込価格を同期する</option>
             <option value="taxExcluded">税抜価格を同期する</option>
@@ -4906,26 +4906,26 @@ export const ShopifySettingsPanel = ({
             type="button"
             onClick={saveShopifyPriceSyncMode}
             disabled={shopifyPriceSyncLoading || shopifyPriceSyncSaving}
-            className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 items-center justify-center rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {shopifyPriceSyncSaving ? '保存中...' : '保存する'}
           </button>
         </div>
       </div>
 
-      <div className="border-b border-slate-100 px-5 py-4">
+      <div className="border-b border-gray-100 px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-black text-slate-900">Shopify連携設定</h3>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+            <h3 className="text-base font-black text-gray-900">Shopify連携設定</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               Shopify Dev Dashboardで作成したAkuto POS用アプリの資格情報を保存します。このSTEPでは保存のみ行い、商品同期の実通信はまだ行いません。
             </p>
           </div>
           <span className={classNames(
             'rounded-full px-3 py-1 text-xs font-black',
             draft.syncEnabled
-              ? 'bg-emerald-50 text-emerald-600'
-              : 'bg-slate-100 text-slate-500'
+              ? 'bg-gray-100 text-gray-900'
+              : 'bg-gray-100 text-gray-500'
           )}>
             {draft.syncEnabled ? '同期ON' : '同期OFF'}
           </span>
@@ -4935,41 +4935,41 @@ export const ShopifySettingsPanel = ({
       <div className="space-y-4 p-5">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_1.35fr_1.35fr]">
           <label className="block">
-            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">Shopifyストアドメイン</span>
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">Shopifyストアドメイン</span>
             <input
               value={draft.shopDomain}
               onChange={(event) => update({ shopDomain: event.target.value })}
               placeholder="your-store.myshopify.com"
-              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
             />
-            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+            <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               メールアドレスではなく、xxxx.myshopify.com の形式で入力します。
             </span>
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">クライアントID</span>
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">クライアントID</span>
             <input
               value={draft.clientId}
               onChange={(event) => update({ clientId: event.target.value })}
               placeholder="Dev DashboardのクライアントID"
-              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
             />
-            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+            <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               Dev Dashboard &gt; 設定 &gt; 資格情報 のクライアントIDです。
             </span>
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">シークレット</span>
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">シークレット</span>
             <input
               type="password"
               value={draft.clientSecret}
               onChange={(event) => update({ clientSecret: event.target.value })}
               placeholder="Dev Dashboardのシークレット"
-              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
             />
-            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+            <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               パスワード相当の情報です。ログやスクリーンショットに出さないように扱います。
             </span>
           </label>
@@ -4977,74 +4977,74 @@ export const ShopifySettingsPanel = ({
 
         <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
           <label className="block">
-            <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">Shopify Location ID</span>
+            <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">Shopify Location ID</span>
             <input
               value={draft.locationId}
               onChange={(event) => update({ locationId: event.target.value })}
               placeholder="未取得なら空欄でOK"
-              className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
             />
-            <span className="mt-1.5 block text-[11px] font-bold text-slate-400">
+            <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               次STEPでShopify APIからロケーション一覧を取得して設定します。
             </span>
           </label>
 
           <div className="flex min-w-[180px] flex-col justify-end gap-2">
-            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
                 checked={draft.syncEnabled}
                 onChange={(event) => update({ syncEnabled: event.target.checked })}
-                className="h-5 w-5 rounded border-slate-300"
+                className="h-5 w-5 rounded border-gray-300"
               />
-              <span className="text-sm font-black text-slate-700">商品同期を有効にする</span>
+              <span className="text-sm font-black text-gray-700">商品同期を有効にする</span>
             </label>
-            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
                 checked={draft.inventorySyncEnabled}
                 onChange={(event) => update({ inventorySyncEnabled: event.target.checked })}
-                className="h-5 w-5 rounded border-slate-300"
+                className="h-5 w-5 rounded border-gray-300"
               />
-              <span className="text-sm font-black text-slate-700">在庫連携を有効にする</span>
+              <span className="text-sm font-black text-gray-700">在庫連携を有効にする</span>
             </label>
-            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
                 checked={draft.ecSalesSyncEnabled}
                 onChange={(event) => update({ ecSalesSyncEnabled: event.target.checked })}
-                className="h-5 w-5 rounded border-slate-300"
+                className="h-5 w-5 rounded border-gray-300"
               />
-              <span className="text-sm font-black text-slate-700">EC売上の取込を有効にする</span>
+              <span className="text-sm font-black text-gray-700">EC売上の取込を有効にする</span>
             </label>
           </div>
         </div>
 
-        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
-          <div className="text-sm font-black text-slate-700">商品マスターの変更をShopifyへ自動反映</div>
-          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
-            商品マスターで保存すると、1分ほどでShopifyの<span className="text-slate-500">同じバリアント</span>に反映します（Shopifyに紐付いた商品のみ）。
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+          <div className="text-sm font-black text-gray-700">商品マスターの変更をShopifyへ自動反映</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
+            商品マスターで保存すると、1分ほどでShopifyの<span className="text-gray-500">同じバリアント</span>に反映します（Shopifyに紐付いた商品のみ）。
             <br />商品名・説明・画像・バリエーション構成には触りません。POS側が空の項目は送りません。
             <br />Shopifyでセール中（割引前価格が価格より高い）の商品には、価格を送りません。
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
                 checked={draft.autoSyncVariantCodes}
                 onChange={(event) => update({ autoSyncVariantCodes: event.target.checked })}
-                className="h-5 w-5 rounded border-slate-300"
+                className="h-5 w-5 rounded border-gray-300"
               />
-              <span className="text-sm font-black text-slate-700">SKU・JANを自動反映する</span>
+              <span className="text-sm font-black text-gray-700">SKU・JANを自動反映する</span>
             </label>
-            <label className="flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3">
+            <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
                 checked={draft.autoSyncVariantPrice}
                 onChange={(event) => update({ autoSyncVariantPrice: event.target.checked })}
-                className="h-5 w-5 rounded border-slate-300"
+                className="h-5 w-5 rounded border-gray-300"
               />
-              <span className="text-sm font-black text-slate-700">価格を自動反映する</span>
+              <span className="text-sm font-black text-gray-700">価格を自動反映する</span>
             </label>
           </div>
           <p className="mt-2 text-[11px] font-bold leading-relaxed text-amber-600">
@@ -5052,7 +5052,7 @@ export const ShopifySettingsPanel = ({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-700">
+        <div className="rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3 text-xs font-bold leading-relaxed text-ui">
           現在の方式はShopify Dev DashboardのクライアントID/シークレットを保存する方式です。商品作成・在庫同期の実通信はCloud Functions側で追加します。
         </div>
 
@@ -5061,16 +5061,16 @@ export const ShopifySettingsPanel = ({
             type="button"
             onClick={save}
             disabled={saving}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:opacity-60"
           >
             {saving ? <LoadingSpinner size={14} /> : <Save size={16} />}
             Shopify設定を保存
           </button>
         </div>
 
-        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
-          <div className="text-sm font-black text-slate-700">Shopify掲載商品と同期</div>
-          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+          <div className="text-sm font-black text-gray-700">Shopify掲載商品と同期</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
             CSV取込後などに実行します。Shopify上の商品を取得し、バーコードで商品マスターに突合して
             Shopify商品ID・在庫アイテムID（在庫連携の基盤）を紐付けます。商品マスターの分類やブランド/仕入先は変更しません。
           </p>
@@ -5085,15 +5085,15 @@ export const ShopifySettingsPanel = ({
                 key={option.id}
                 className={`inline-flex cursor-pointer items-center gap-2 rounded-full border-2 px-3 py-1.5 text-xs font-black transition ${
                   syncStatuses.includes(option.id)
-                    ? 'border-orange-400 bg-orange-50 text-orange-700'
-                    : 'border-slate-100 bg-slate-50 text-slate-500'
+                    ? 'border-ui bg-ui-50 text-ui'
+                    : 'border-gray-100 bg-gray-50 text-gray-500'
                 }`}
               >
                 <input
                   type="checkbox"
                   checked={syncStatuses.includes(option.id)}
                   onChange={() => toggleSyncStatus(option.id)}
-                  className="h-4 w-4 rounded border-slate-300"
+                  className="h-4 w-4 rounded border-gray-300"
                 />
                 {option.label}
               </label>
@@ -5105,7 +5105,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runShopifyProductLinkSync}
               disabled={syncRunning || !onSyncProductLinks}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:opacity-60"
             >
               {syncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {syncRunning ? '同期中…（数十秒かかります）' : 'Shopifyと同期する'}
@@ -5113,12 +5113,12 @@ export const ShopifySettingsPanel = ({
           </div>
 
           {syncError && (
-            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+            <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
               {syncError}
             </div>
           )}
           {syncResult?.ok && (
-            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold leading-relaxed text-emerald-700">
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-bold leading-relaxed text-gray-900">
               同期完了：紐付け {Number(syncResult.linked || 0).toLocaleString()}件
               （バーコード一致 {Number(syncResult.linkedByBarcode || 0).toLocaleString()} / variantId経由 {Number(syncResult.linkedByVariant || 0).toLocaleString()}）。
               Shopify商品バーコード {Number(syncResult.shopifyBarcodeCount || 0).toLocaleString()}件 / 商品マスター走査 {Number(syncResult.scannedProducts || 0).toLocaleString()}件。
@@ -5126,12 +5126,12 @@ export const ShopifySettingsPanel = ({
           )}
         </div>
 
-        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
-          <div className="text-sm font-black text-slate-700">在庫の差分を確認（リコンサイル）</div>
-          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+          <div className="text-sm font-black text-gray-700">在庫の差分を確認（リコンサイル）</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
             紐付け済み商品について、POSの在庫数とShopifyのon_handを突合します。
-            <br />この<span className="text-slate-500">手動ボタンは読み取りのみ</span>で在庫は修正しません（差分レポートを作成し、人が確認）。go-live前の初期確認や臨時点検にお使いください。
-            <br />※<span className="text-slate-500">毎日深夜03:00に自動リコンサイル</span>が走り、この店舗は差分を<span className="text-slate-500">自動補正します（POSをShopify on_handに合わせる＝Shopifyで売れた分をPOSへ反映）</span>。webフック取りこぼしの追いつき用です。
+            <br />この<span className="text-gray-500">手動ボタンは読み取りのみ</span>で在庫は修正しません（差分レポートを作成し、人が確認）。go-live前の初期確認や臨時点検にお使いください。
+            <br />※<span className="text-gray-500">毎日深夜03:00に自動リコンサイル</span>が走り、この店舗は差分を<span className="text-gray-500">自動補正します（POSをShopify on_handに合わせる＝Shopifyで売れた分をPOSへ反映）</span>。webフック取りこぼしの追いつき用です。
           </p>
 
           <div className="mt-3 flex items-center gap-3">
@@ -5139,7 +5139,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runInventoryReconcile}
               disabled={reconcileRunning || !onReconcileInventory}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
             >
               {reconcileRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {reconcileRunning ? '突合中…（数十秒〜数分かかります）' : '在庫の差分を確認する'}
@@ -5147,7 +5147,7 @@ export const ShopifySettingsPanel = ({
           </div>
 
           {reconcileError && (
-            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+            <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
               {reconcileError}
             </div>
           )}
@@ -5155,7 +5155,7 @@ export const ShopifySettingsPanel = ({
             <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-relaxed ${
               Number(reconcileResult.mismatched || 0) + Number(reconcileResult.missingInShopify || 0) > 0
                 ? 'border-amber-200 bg-amber-50 text-amber-700'
-                : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 bg-gray-100 text-gray-900'
             }`}>
               突合完了：紐付け {Number(reconcileResult.totalLinked || 0).toLocaleString()}件中、
               一致 {Number(reconcileResult.matched || 0).toLocaleString()} /
@@ -5171,23 +5171,23 @@ export const ShopifySettingsPanel = ({
               <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">
                 不一致 {reconcileMismatchRows.length.toLocaleString()}件 — POS在庫を手入力で修正できます
               </div>
-              <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+              <div className="max-h-96 divide-y divide-gray-100 overflow-y-auto">
                 {reconcileMismatchRows.map((row) => {
                   const resolved = mismatchResolved[row.productId];
                   return (
                     <div key={row.productId} className="flex items-center gap-3 px-3 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-slate-800">{row.name || '(名称未設定)'}</div>
-                        <div className="truncate text-[11px] font-bold text-slate-400">
+                        <div className="truncate text-sm font-black text-gray-800">{row.name || '(名称未設定)'}</div>
+                        <div className="truncate text-[11px] font-bold text-gray-500">
                           {[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right text-[11px] font-bold text-slate-500">
-                        <div>POS <span className="font-black text-slate-800">{Number(row.pos || 0).toLocaleString()}</span> / Shopify <span className="font-black text-slate-800">{Number(row.shopify || 0).toLocaleString()}</span></div>
-                        <div className={Number(row.diff || 0) > 0 ? 'text-rose-500' : 'text-blue-500'}>差分 {Number(row.diff || 0) > 0 ? '+' : ''}{Number(row.diff || 0).toLocaleString()}</div>
+                      <div className="shrink-0 text-right text-[11px] font-bold text-gray-500">
+                        <div>POS <span className="font-black text-gray-800">{Number(row.pos || 0).toLocaleString()}</span> / Shopify <span className="font-black text-gray-800">{Number(row.shopify || 0).toLocaleString()}</span></div>
+                        <div className={Number(row.diff || 0) > 0 ? 'text-red-500' : 'text-ui'}>差分 {Number(row.diff || 0) > 0 ? '+' : ''}{Number(row.diff || 0).toLocaleString()}</div>
                       </div>
                       {resolved !== undefined ? (
-                        <span className="shrink-0 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-600">→ {Number(resolved).toLocaleString()} 反映済</span>
+                        <span className="shrink-0 rounded-lg bg-gray-100 px-3 py-2 text-xs font-black text-gray-900">→ {Number(resolved).toLocaleString()} 反映済</span>
                       ) : (
                         <div className="flex shrink-0 items-center gap-1">
                           <input
@@ -5195,13 +5195,13 @@ export const ShopifySettingsPanel = ({
                             value={mismatchDrafts[row.productId] ?? ''}
                             onChange={(event) => setMismatchDrafts((current) => ({ ...current, [row.productId]: event.target.value }))}
                             placeholder={String(row.pos ?? '')}
-                            className="h-9 w-20 rounded-lg border-2 border-slate-200 px-2 text-right text-sm font-bold outline-none focus:border-orange-400"
+                            className="h-9 w-20 rounded-lg border-2 border-gray-200 px-2 text-right text-sm font-bold outline-none focus:border-ui"
                           />
                           <button
                             type="button"
                             disabled={mismatchSavingId === row.productId || (mismatchDrafts[row.productId] ?? '') === ''}
                             onClick={() => saveMismatchInventory(row)}
-                            className="inline-flex h-9 items-center rounded-lg bg-slate-700 px-3 text-xs font-black text-white transition hover:bg-slate-900 disabled:opacity-40"
+                            className="inline-flex h-9 items-center rounded-lg bg-gray-700 px-3 text-xs font-black text-white transition hover:bg-gray-900 disabled:opacity-40"
                           >
                             {mismatchSavingId === row.productId ? '…' : '保存'}
                           </button>
@@ -5215,18 +5215,18 @@ export const ShopifySettingsPanel = ({
           )}
 
           {reconcileResult?.ok && reconcileMissingRows.length > 0 && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              <div className="border-b border-slate-200 px-3 py-2 text-[11px] font-black leading-relaxed text-slate-500">
+            <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+              <div className="border-b border-gray-200 px-3 py-2 text-[11px] font-black leading-relaxed text-gray-500">
                 Shopify側に無し（要確認）{reconcileMissingRows.length.toLocaleString()}件 — 紐付けは有るがShopifyに在庫データが無い（幽霊リンク/削除済み等）。在庫合わせでは直せません。
               </div>
-              <div className="max-h-60 divide-y divide-slate-100 overflow-y-auto">
+              <div className="max-h-60 divide-y divide-gray-100 overflow-y-auto">
                 {reconcileMissingRows.map((row) => (
                   <div key={row.productId} className="flex items-center justify-between gap-3 px-3 py-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-bold text-slate-700">{row.name || '(名称未設定)'}</div>
-                      <div className="truncate text-[11px] font-bold text-slate-400">{[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}</div>
+                      <div className="truncate text-sm font-bold text-gray-700">{row.name || '(名称未設定)'}</div>
+                      <div className="truncate text-[11px] font-bold text-gray-500">{[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}</div>
                     </div>
-                    <div className="shrink-0 text-[11px] font-bold text-slate-500">POS {Number(row.pos || 0).toLocaleString()}</div>
+                    <div className="shrink-0 text-[11px] font-bold text-gray-500">POS {Number(row.pos || 0).toLocaleString()}</div>
                   </div>
                 ))}
               </div>
@@ -5234,11 +5234,11 @@ export const ShopifySettingsPanel = ({
           )}
         </div>
 
-        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
-          <div className="text-sm font-black text-slate-700">価格・SKU・JANの差分を確認</div>
-          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
-            紐付け済み商品について、POSとShopifyの<span className="text-slate-500">価格・SKU・JAN</span>を突合します。
-            <span className="text-slate-500">読み取りのみ</span>で、POSにもShopifyにも書き込みません。
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+          <div className="text-sm font-black text-gray-700">価格・SKU・JANの差分を確認</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
+            紐付け済み商品について、POSとShopifyの<span className="text-gray-500">価格・SKU・JAN</span>を突合します。
+            <span className="text-gray-500">読み取りのみ</span>で、POSにもShopifyにも書き込みません。
             <br />価格はShopifyへ送るときと同じ計算（税・価格設定の「Shopify価格」）でPOS側の値を出しています。POS側が空の項目は比べません。
           </p>
 
@@ -5247,7 +5247,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runVariantDiffReport}
               disabled={variantDiffRunning || !onReportVariantDiff}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
             >
               {variantDiffRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {variantDiffRunning ? '突合中…（数十秒〜数分かかります）' : '価格・SKU・JANの差分を確認する'}
@@ -5256,7 +5256,7 @@ export const ShopifySettingsPanel = ({
               <button
                 type="button"
                 onClick={downloadVariantDiffCsv}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:border-slate-300"
+                className="inline-flex h-11 items-center justify-center rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-600 transition hover:border-gray-300"
               >
                 CSVで保存
               </button>
@@ -5264,7 +5264,7 @@ export const ShopifySettingsPanel = ({
           </div>
 
           {variantDiffError && (
-            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+            <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
               {variantDiffError}
             </div>
           )}
@@ -5272,7 +5272,7 @@ export const ShopifySettingsPanel = ({
             <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-relaxed ${
               Number(variantDiffResult.diffProducts || 0) + Number(variantDiffResult.missingInShopify || 0) > 0
                 ? 'border-amber-200 bg-amber-50 text-amber-700'
-                : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 bg-gray-100 text-gray-900'
             }`}>
               突合完了：紐付け {Number(variantDiffResult.totalLinked || 0).toLocaleString()}件中、
               一致 {Number(variantDiffResult.matched || 0).toLocaleString()} /
@@ -5286,8 +5286,8 @@ export const ShopifySettingsPanel = ({
           )}
 
           {variantDiffResult?.ok && (variantDiffResult.rows || []).length > 0 && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <div className="flex flex-wrap gap-1 border-b border-slate-100 bg-slate-50 px-2 py-2">
+            <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="flex flex-wrap gap-1 border-b border-gray-100 bg-gray-50 px-2 py-2">
                 {[
                   ['price', '価格'],
                   ['sku', 'SKU'],
@@ -5299,19 +5299,19 @@ export const ShopifySettingsPanel = ({
                     type="button"
                     onClick={() => setVariantDiffFilter(key)}
                     className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${
-                      variantDiffFilter === key ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:text-slate-800'
+                      variantDiffFilter === key ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 hover:text-gray-800'
                     }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-              <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+              <div className="max-h-96 divide-y divide-gray-100 overflow-y-auto">
                 {variantDiffRows.length === 0 && (
-                  <div className="px-3 py-4 text-center text-xs font-bold text-slate-400">該当なし</div>
+                  <div className="px-3 py-4 text-center text-xs font-bold text-gray-500">該当なし</div>
                 )}
                 {variantDiffRows.length > 300 && (
-                  <div className="px-3 py-2 text-[11px] font-bold text-slate-400">
+                  <div className="px-3 py-2 text-[11px] font-bold text-gray-500">
                     {variantDiffRows.length.toLocaleString()}件のうち先頭300件を表示しています。全件は「CSVで保存」で確認できます。
                   </div>
                 )}
@@ -5324,16 +5324,16 @@ export const ShopifySettingsPanel = ({
                   return (
                     <div key={row.productId} className="flex items-center gap-3 px-3 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-slate-800">{row.name || '(名称未設定)'}</div>
-                        <div className="truncate text-[11px] font-bold text-slate-400">
+                        <div className="truncate text-sm font-black text-gray-800">{row.name || '(名称未設定)'}</div>
+                        <div className="truncate text-[11px] font-bold text-gray-500">
                           {row.reason === 'missingInShopify'
                             ? ([row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし')
                             : [row.shopifyTitle, row.shopifyStatus, row.shopifyEnabled ? 'Shopify同期ON' : 'Shopify同期OFF'].filter(Boolean).join(' / ')}
                         </div>
                       </div>
                       {pair && (
-                        <div className="shrink-0 text-right text-[11px] font-bold text-slate-500">
-                          POS <span className="font-black text-slate-800">{pair[0]}</span> / Shopify <span className="font-black text-slate-800">{pair[1]}</span>
+                        <div className="shrink-0 text-right text-[11px] font-bold text-gray-500">
+                          POS <span className="font-black text-gray-800">{pair[0]}</span> / Shopify <span className="font-black text-gray-800">{pair[1]}</span>
                         </div>
                       )}
                     </div>
@@ -5344,13 +5344,13 @@ export const ShopifySettingsPanel = ({
           )}
         </div>
 
-        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4">
-          <div className="text-sm font-black text-slate-700">EC売上の取り込み（分析用）</div>
-          <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
-            Shopify（EC）の注文を取り込み、分析ダッシュボードの<span className="text-slate-500">「EC / 全体」</span>で見られるようにします。
-            税抜（純売上）も店頭と同じ基準で集計します。<span className="text-slate-500">レジ締め・POS履歴には一切混ざりません</span>（分析専用の別データ）。
-            <br />※<span className="text-slate-500">毎時自動</span>で取り込まれます（「EC売上の取込を有効にする」ONの店舗のみ）。下のボタンは手動実行/初回のバックフィル用です。
-            <br />※<span className="text-slate-500">read_orders スコープ</span>がShopify側に必要です（未設定だと認証エラー）。取込対象は直近60日。
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+          <div className="text-sm font-black text-gray-700">EC売上の取り込み（分析用）</div>
+          <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
+            Shopify（EC）の注文を取り込み、分析ダッシュボードの<span className="text-gray-500">「EC / 全体」</span>で見られるようにします。
+            税抜（純売上）も店頭と同じ基準で集計します。<span className="text-gray-500">レジ締め・POS履歴には一切混ざりません</span>（分析専用の別データ）。
+            <br />※<span className="text-gray-500">毎時自動</span>で取り込まれます（「EC売上の取込を有効にする」ONの店舗のみ）。下のボタンは手動実行/初回のバックフィル用です。
+            <br />※<span className="text-gray-500">read_orders スコープ</span>がShopify側に必要です（未設定だと認証エラー）。取込対象は直近60日。
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -5358,7 +5358,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={() => runEcOrdersSync(false)}
               disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
             >
               {ecSyncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {ecSyncRunning ? '取り込み中…' : '今すぐ取り込む'}
@@ -5367,24 +5367,24 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={() => runEcOrdersSync(true)}
               disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 text-sm font-black text-gray-900 transition hover:bg-gray-100 disabled:opacity-60"
             >
               直近60日をバックフィル
             </button>
           </div>
 
           {!draft.ecSalesSyncEnabled && (
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500">
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
               「EC売上の取込を有効にする」をONにして保存してから実行してください。
             </div>
           )}
           {ecSyncError && (
-            <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+            <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
               {ecSyncError}
             </div>
           )}
           {ecSyncResult?.ok && (
-            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold leading-relaxed text-emerald-700">
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-bold leading-relaxed text-gray-900">
               {ecSyncResult.skipped
                 ? 'EC売上の取込が無効のためスキップしました（設定をONにして保存してください）。'
                 : `取り込み完了：注文 ${Number(ecSyncResult.upserted || 0).toLocaleString()}件 / 明細マッチ ${Number(ecSyncResult.matchedItems || 0).toLocaleString()} ・未マッチ ${Number(ecSyncResult.unmatchedItems || 0).toLocaleString()}。分析の「EC/全体」で確認できます。`}
@@ -5399,21 +5399,21 @@ export const ShopifySettingsPanel = ({
 
 const SimpleTextInput = ({ label, value, onChange, type = 'text', disabled = false, helpText = '' }) => (
   <label className="block">
-    <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+    <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{label}</span>
     <input
       type={type}
       value={value ?? ''}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       className={classNames(
-        'h-12 w-full rounded-2xl border-2 px-4 text-sm font-bold outline-none transition focus:border-orange-400',
+        'h-12 w-full rounded-2xl border-2 px-4 text-sm font-bold outline-none transition focus:border-ui',
         disabled
-          ? 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
-          : 'border-slate-100 bg-white text-slate-700'
+          ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
+          : 'border-gray-100 bg-white text-gray-700'
       )}
     />
     {helpText && (
-      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-slate-400">
+      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-gray-500">
         {helpText}
       </span>
     )}
@@ -5431,14 +5431,14 @@ const SimpleOptionSelectInput = ({
   helpText = ''
 }) => (
   <label className="block">
-    <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+    <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{label}</span>
     <select
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
       className={classNames(
-        'h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-400',
-        disabled ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''
+        'h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui',
+        disabled ? 'cursor-not-allowed bg-gray-50 text-gray-500' : ''
       )}
     >
       <option value="">{placeholder}</option>
@@ -5447,7 +5447,7 @@ const SimpleOptionSelectInput = ({
       ))}
     </select>
     {helpText && (
-      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-slate-400">
+      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-gray-500">
         {helpText}
       </span>
     )}
@@ -5456,19 +5456,19 @@ const SimpleOptionSelectInput = ({
 
 const SimpleDisplayField = ({ label, value, muted = false, helpText = '' }) => (
   <div className="block">
-    <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+    <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{label}</span>
     <div
       className={classNames(
         'flex min-h-12 w-full items-center rounded-2xl border-2 px-4 text-sm font-black',
         muted
-          ? 'border-orange-100 bg-orange-50 text-orange-600'
-          : 'border-slate-100 bg-slate-50 text-slate-700'
+          ? 'border-ui-100 bg-ui-50 text-ui'
+          : 'border-gray-100 bg-gray-50 text-gray-700'
       )}
     >
       {value || '未設定'}
     </div>
     {helpText && (
-      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-slate-400">
+      <span className="mt-1.5 block text-[11px] font-bold leading-relaxed text-gray-500">
         {helpText}
       </span>
     )}
@@ -5477,17 +5477,17 @@ const SimpleDisplayField = ({ label, value, muted = false, helpText = '' }) => (
 
 const SimpleTextareaInput = ({ label, value, onChange, rows = 6, disabled = false }) => (
   <label className="block">
-    <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+    <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{label}</span>
     <textarea
       value={value ?? ''}
       rows={rows}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       className={classNames(
-        'w-full resize-y rounded-2xl border-2 px-4 py-3 text-sm font-bold leading-relaxed outline-none transition focus:border-orange-400',
+        'w-full resize-y rounded-2xl border-2 px-4 py-3 text-sm font-bold leading-relaxed outline-none transition focus:border-ui',
         disabled
-          ? 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
-          : 'border-slate-100 bg-white text-slate-700'
+          ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
+          : 'border-gray-100 bg-white text-gray-700'
       )}
     />
   </label>
@@ -5642,11 +5642,11 @@ const PosModalSelect = ({
     if (field.type === 'select') {
       return (
         <label key={field.id} className="block">
-          <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{field.label}</span>
+          <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{field.label}</span>
           <select
             value={createDraft[field.id] ?? ''}
             onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-            className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
+            className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
           >
             <option value="">{field.placeholder || '選択してください'}</option>
             {(field.options || []).map((option) => (
@@ -5660,12 +5660,12 @@ const PosModalSelect = ({
     if (field.type === 'textarea') {
       return (
         <label key={field.id} className="block">
-          <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{field.label}</span>
+          <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{field.label}</span>
           <textarea
             value={createDraft[field.id] ?? ''}
             rows={field.rows || 5}
             onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-            className="w-full resize-y rounded-2xl border-2 border-slate-100 bg-white px-4 py-3 text-sm font-bold leading-relaxed text-slate-700 outline-none focus:border-orange-400"
+            className="w-full resize-y rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-bold leading-relaxed text-gray-700 outline-none focus:border-ui"
           />
         </label>
       );
@@ -5673,35 +5673,35 @@ const PosModalSelect = ({
 
     return (
       <label key={field.id} className="block">
-        <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{field.label}</span>
+        <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{field.label}</span>
         <input
           type={field.type || 'text'}
           inputMode={field.type === 'number' ? 'decimal' : undefined}
           value={createDraft[field.id] ?? ''}
           onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-          className="h-12 w-full rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
+          className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
         />
       </label>
     );
   };
 
   const modalNode = open ? (
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-gray-900/55 px-5 pb-5 pt-20 backdrop-blur-sm">
       <div className="flex h-[min(760px,calc(100vh-7rem))] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
+        <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
                 {createMode ? 'Create' : 'Select'}
               </p>
-              <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+              <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">
                 {createMode ? createLabel : label}
               </h3>
             </div>
             <button
               type="button"
               onClick={closeModal}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm transition hover:text-slate-700"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-gray-500 shadow-sm transition hover:text-gray-700"
               aria-label="閉じる"
             >
               <X size={18} />
@@ -5715,13 +5715,13 @@ const PosModalSelect = ({
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder={searchPlaceholder}
                 autoFocus
-                className="h-12 min-w-0 flex-1 rounded-2xl border-2 border-slate-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400"
+                className="h-12 min-w-0 flex-1 rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               {(onCreate || onCreateSave) && (
                 <button
                   type="button"
                   onClick={handleCreate}
-                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-lg shadow-orange-500/20"
+                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg shadow-gray-200/20"
                 >
                   <Plus size={16} />
                   {createLabel}
@@ -5742,14 +5742,14 @@ const PosModalSelect = ({
             <button
               type="button"
               onClick={clearSelection}
-              className="mb-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-black text-slate-400 transition hover:bg-slate-50"
+              className="mb-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-black text-gray-500 transition hover:bg-gray-50"
             >
               <span>未選択にする</span>
-              {!value && <Check size={16} className="text-orange-500" />}
+              {!value && <Check size={16} className="text-ui" />}
             </button>
 
             {filteredOptions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-400">
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm font-bold text-gray-500">
                 該当する項目がありません。
               </div>
             ) : (
@@ -5763,14 +5763,14 @@ const PosModalSelect = ({
                       onClick={() => selectOption(option)}
                       className={classNames(
                         'flex w-full items-center justify-between gap-4 rounded-2xl px-4 py-3 text-left transition',
-                        isSelected ? 'bg-orange-50 text-orange-700' : 'hover:bg-slate-50 text-slate-700'
+                        isSelected ? 'bg-ui-50 text-ui' : 'hover:bg-gray-50 text-gray-700'
                       )}
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-black">{getOptionLabel(option)}</span>
-                        <span className="mt-1 block truncate text-xs font-bold text-slate-400">{getOptionSubLabel(option)}</span>
+                        <span className="mt-1 block truncate text-xs font-bold text-gray-500">{getOptionSubLabel(option)}</span>
                       </span>
-                      {isSelected && <Check size={17} className="shrink-0 text-orange-500" />}
+                      {isSelected && <Check size={17} className="shrink-0 text-ui" />}
                     </button>
                   );
                 })}
@@ -5779,14 +5779,14 @@ const PosModalSelect = ({
           </div>
         )}
 
-        <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-4">
+        <div className="shrink-0 border-t border-gray-100 bg-white px-6 py-4">
           {createMode ? (
             <div className="flex justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setCreateMode(false)}
                 disabled={creating}
-                className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-500 disabled:opacity-60"
+                className="rounded-2xl bg-gray-100 px-5 py-3 text-sm font-black text-gray-500 disabled:opacity-60"
               >
                 戻る
               </button>
@@ -5794,7 +5794,7 @@ const PosModalSelect = ({
                 type="button"
                 onClick={saveCreatedItem}
                 disabled={creating}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 py-3 text-sm font-black text-white shadow-lg shadow-gray-200/20 disabled:opacity-60"
               >
                 {creating ? <LoadingSpinner size={16} /> : <Save size={14} />}
                 保存して選択
@@ -5805,7 +5805,7 @@ const PosModalSelect = ({
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-500"
+                className="rounded-2xl bg-gray-100 px-5 py-3 text-sm font-black text-gray-500"
               >
                 閉じる
               </button>
@@ -5819,7 +5819,7 @@ const PosModalSelect = ({
   return (
     <div className="block">
       {!compact && (
-        <span className="mb-2 block text-[11px] font-black tracking-widest text-slate-400">{label}</span>
+        <span className="mb-2 block text-[11px] font-black tracking-widest text-gray-500">{label}</span>
       )}
       <button
         type="button"
@@ -5827,21 +5827,21 @@ const PosModalSelect = ({
         onClick={() => setOpen(true)}
         className={classNames(
           compact
-            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-2.5 text-left text-sm font-black shadow-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
-            : 'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left text-sm font-bold outline-none transition focus:border-orange-400',
+            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-2.5 text-left text-sm font-black shadow-sm outline-none transition focus:border-ui focus:ring-2 focus:ring-ui-100'
+            : 'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left text-sm font-bold outline-none transition focus:border-ui',
           disabled
             ? compact
-              ? 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
-              : 'cursor-default border-slate-100 bg-slate-50 text-slate-500'
+              ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
+              : 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
             : compact
-              ? 'border-slate-200 bg-white text-slate-800 hover:border-orange-200'
-              : 'border-slate-100 bg-white text-slate-700 hover:border-orange-200'
+              ? 'border-gray-200 bg-white text-gray-800 hover:border-ui-100'
+              : 'border-gray-100 bg-white text-gray-700 hover:border-ui-100'
         )}
       >
-        <span className={selectedOption ? 'truncate text-slate-800' : 'truncate text-slate-400'}>
+        <span className={selectedOption ? 'truncate text-gray-800' : 'truncate text-gray-500'}>
           {selectedOption ? getOptionLabel(selectedOption) : placeholder}
         </span>
-        <ChevronDown size={compact ? 14 : 16} className="shrink-0 text-slate-400" />
+        <ChevronDown size={compact ? 14 : 16} className="shrink-0 text-gray-500" />
       </button>
 
       {modalNode && createPortal(modalNode, document.body)}
@@ -5929,7 +5929,7 @@ const SimpleToggle = ({ label, checked, onChange, disabled = false }) => (
     className={classNames(
       'flex h-12 items-center justify-between rounded-2xl border-2 px-4 text-sm font-black transition',
       disabled ? 'cursor-default opacity-70' : '',
-      checked ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-100 bg-slate-50 text-slate-400'
+      checked ? 'border-gray-200 bg-gray-100 text-gray-900' : 'border-gray-100 bg-gray-50 text-gray-500'
     )}
   >
     <span>{label}</span>
@@ -5978,15 +5978,15 @@ const ClassificationChoiceButton = ({
     disabled={disabled}
     onClick={onClick}
     className={classNames(
-      'group rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-orange-200',
+      'group rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-ui-100',
       disabled
-        ? 'cursor-default border-slate-200 bg-white text-slate-500 opacity-45'
+        ? 'cursor-default border-gray-200 bg-white text-gray-500 opacity-45'
         : active
-          ? 'hover:border-slate-900 hover:bg-slate-900 hover:text-white'
-          : 'hover:border-orange-300 hover:bg-orange-50 hover:text-slate-950',
+          ? 'hover:border-gray-900 hover:bg-gray-900 hover:text-white'
+          : 'hover:border-ui-100 hover:bg-ui-50 hover:text-gray-950',
       active
-        ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10'
-        : 'border-slate-200 bg-white text-slate-800'
+        ? 'border-gray-900 bg-gray-900 text-white shadow-lg shadow-gray-900/10'
+        : 'border-gray-200 bg-white text-gray-800'
     )}
   >
     <div className="text-sm font-black">{label}</div>
@@ -5994,8 +5994,8 @@ const ClassificationChoiceButton = ({
       <div
         className={classNames(
           'mt-0.5 text-[11px] font-bold transition',
-          active ? 'text-slate-200 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-700',
-          disabled ? 'group-hover:text-slate-500' : ''
+          active ? 'text-gray-200 group-hover:text-gray-200' : 'text-gray-500 group-hover:text-gray-700',
+          disabled ? 'group-hover:text-gray-500' : ''
         )}
       >
         {subLabel}
@@ -6150,29 +6150,29 @@ const ProductClassificationControl = forwardRef(({
   const inheritedGenderLabel = GENDER_OPTIONS.find((option) => option.value === inheritedGender)?.label || '性別なし';
 
   const modalNode = open ? (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-950/50 px-4 py-6 backdrop-blur-sm">
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Product Classification</p>
-            <h3 className="mt-1 text-xl font-black text-slate-900">商品分類を選択</h3>
-            <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Product Classification</p>
+            <h3 className="mt-1 text-xl font-black text-gray-900">商品分類を選択</h3>
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               売場から順番に選ぶと、候補が自動で絞り込まれます。
             </p>
           </div>
           <button
             type="button"
             onClick={closeModal}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-xl font-black text-gray-500 transition hover:bg-gray-200"
             aria-label="閉じる"
           >
             ×
           </button>
         </div>
 
-        <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
-          <div className="text-xs font-black text-slate-400">現在の分類</div>
-          <div className="mt-1 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-800 shadow-sm">
+        <div className="border-b border-gray-100 bg-gray-50 px-6 py-4">
+          <div className="text-xs font-black text-gray-500">現在の分類</div>
+          <div className="mt-1 rounded-2xl bg-white px-4 py-3 text-sm font-black text-gray-800 shadow-sm">
             {breadcrumb}
           </div>
         </div>
@@ -6181,8 +6181,8 @@ const ProductClassificationControl = forwardRef(({
           <div className="grid gap-5 lg:grid-cols-4">
             <section className="space-y-3">
               <div>
-                <div className="text-sm font-black text-slate-900">1. 売場</div>
-                <div className="mt-1 text-xs font-bold text-slate-400">最初に店頭の売場を選びます。</div>
+                <div className="text-sm font-black text-gray-900">1. 売場</div>
+                <div className="mt-1 text-xs font-bold text-gray-500">最初に店頭の売場を選びます。</div>
               </div>
               <div className="space-y-2">
                 {productSalesAreas.map((salesArea) => (
@@ -6199,8 +6199,8 @@ const ProductClassificationControl = forwardRef(({
 
             <section className="space-y-3">
               <div>
-                <div className="text-sm font-black text-slate-900">2. カテゴリーグループ</div>
-                <div className="mt-1 text-xs font-bold text-slate-400">売場に紐付いたグループだけ表示します。</div>
+                <div className="text-sm font-black text-gray-900">2. カテゴリーグループ</div>
+                <div className="mt-1 text-xs font-bold text-gray-500">売場に紐付いたグループだけ表示します。</div>
               </div>
               <div className="space-y-2">
                 {groupOptions.map((group) => (
@@ -6213,7 +6213,7 @@ const ProductClassificationControl = forwardRef(({
                   />
                 ))}
                 {activeValue?.salesAreaName && groupOptions.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-xs font-bold leading-relaxed text-gray-500">
                     この売場に紐付いたカテゴリーグループがありません。
                   </div>
                 )}
@@ -6222,8 +6222,8 @@ const ProductClassificationControl = forwardRef(({
 
             <section className="space-y-3">
               <div>
-                <div className="text-sm font-black text-slate-900">3. カテゴリー</div>
-                <div className="mt-1 text-xs font-bold text-slate-400">グループ配下のカテゴリーを選びます。</div>
+                <div className="text-sm font-black text-gray-900">3. カテゴリー</div>
+                <div className="mt-1 text-xs font-bold text-gray-500">グループ配下のカテゴリーを選びます。</div>
               </div>
               <div className="space-y-2">
                 {categoryOptions.map((category) => (
@@ -6236,7 +6236,7 @@ const ProductClassificationControl = forwardRef(({
                   />
                 ))}
                 {selectedGroup && categoryOptions.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-xs font-bold leading-relaxed text-gray-500">
                     このグループにカテゴリーがありません。
                   </div>
                 )}
@@ -6245,8 +6245,8 @@ const ProductClassificationControl = forwardRef(({
 
             <section className="space-y-3">
               <div>
-                <div className="text-sm font-black text-slate-900">4. サブカテゴリー</div>
-                <div className="mt-1 text-xs font-bold text-slate-400">必要な場合だけ選択します。</div>
+                <div className="text-sm font-black text-gray-900">4. サブカテゴリー</div>
+                <div className="mt-1 text-xs font-bold text-gray-500">必要な場合だけ選択します。</div>
               </div>
               <div className="space-y-2">
                 <ClassificationChoiceButton
@@ -6265,7 +6265,7 @@ const ProductClassificationControl = forwardRef(({
                   />
                 ))}
                 {selectedCategory && subCategoryOptions.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-xs font-bold leading-relaxed text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-xs font-bold leading-relaxed text-gray-500">
                     このカテゴリーにサブカテゴリーはありません。
                   </div>
                 )}
@@ -6275,17 +6275,17 @@ const ProductClassificationControl = forwardRef(({
             {genderConfig.mode && (
               <section className="space-y-3">
                 <div>
-                  <div className="text-sm font-black text-slate-900">5. 性別</div>
-                  <div className="mt-1 text-xs font-bold text-slate-400">
+                  <div className="text-sm font-black text-gray-900">5. 性別</div>
+                  <div className="mt-1 text-xs font-bold text-gray-500">
                     {genderConfig.mode === 'fixed'
                       ? 'このカテゴリーは性別が固定されています。'
                       : `空欄（自動）の場合：${inheritedGenderLabel} が適用されます。個別に変えたい商品だけ選んでください。`}
                   </div>
                 </div>
                 {genderConfig.mode === 'fixed' ? (
-                  <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-black text-gray-700">
                     {GENDER_OPTIONS.find((option) => option.value === genderConfig.fixed)?.label || genderConfig.fixed || '—'}
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-500">固定</span>
+                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-black text-gray-500">固定</span>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -6310,22 +6310,22 @@ const ProductClassificationControl = forwardRef(({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
-          <div className="min-w-0 text-sm font-black text-slate-700">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-white px-6 py-4">
+          <div className="min-w-0 text-sm font-black text-gray-700">
             {breadcrumb}
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={closeModal}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-100 px-5 text-sm font-black text-slate-500 transition hover:bg-slate-200"
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-gray-100 px-5 text-sm font-black text-gray-500 transition hover:bg-gray-200"
             >
               キャンセル
             </button>
             <button
               type="button"
               onClick={applyModalDraft}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg shadow-gray-200/20 transition hover:bg-gray-800"
             >
               決定
             </button>
@@ -6338,14 +6338,14 @@ const ProductClassificationControl = forwardRef(({
   return (
     <div className="space-y-1.5">
       <FieldLabel>分類</FieldLabel>
-      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-        <div className="line-clamp-2 text-xs font-black leading-relaxed text-slate-700">
+      <div className="rounded-2xl border border-gray-200 bg-white px-3 py-2">
+        <div className="line-clamp-2 text-xs font-black leading-relaxed text-gray-700">
           {breadcrumb}
         </div>
         <button
           type="button"
           onClick={openModal}
-          className="mt-2 inline-flex h-8 items-center justify-center rounded-xl bg-slate-900 px-3 text-[11px] font-black text-white transition hover:bg-slate-700"
+          className="mt-2 inline-flex h-8 items-center justify-center rounded-xl bg-gray-900 px-3 text-[11px] font-black text-white transition hover:bg-gray-700"
         >
           分類を変更
         </button>
@@ -6685,7 +6685,7 @@ export const SimpleMasterPanel = ({
       return (
         <div className="mt-2 space-y-2">
           {displayName && displayName !== item.name && (
-            <div className="text-xs font-bold text-slate-400">
+            <div className="text-xs font-bold text-gray-500">
               表示名：{displayName}
             </div>
           )}
@@ -6695,14 +6695,14 @@ export const SimpleMasterPanel = ({
               {allowedNames.map((name) => (
                 <span
                   key={name}
-                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600"
+                  className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-black text-gray-600"
                 >
                   {name}
                 </span>
               ))}
             </div>
           ) : (
-            <div className="text-xs font-bold text-orange-500">
+            <div className="text-xs font-bold text-ui">
               カテゴリーグループ未紐付け
             </div>
           )}
@@ -6717,10 +6717,10 @@ export const SimpleMasterPanel = ({
 
       return (
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold leading-relaxed">
-          <span className={hasCostRate ? 'text-slate-400' : 'text-orange-500'}>
+          <span className={hasCostRate ? 'text-gray-500' : 'text-ui'}>
             標準掛け率：{hasCostRate ? `${item.defaultCostRate}%` : '未設定'}
           </span>
-          <span className={hasPaymentTerms ? 'text-slate-400' : 'text-orange-500'}>
+          <span className={hasPaymentTerms ? 'text-gray-500' : 'text-ui'}>
             支払いサイト：{hasPaymentTerms ? item.paymentTerms : '未設定'}
           </span>
         </div>
@@ -6736,10 +6736,10 @@ export const SimpleMasterPanel = ({
       if (supplierName || item.note || item.id) {
         return (
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold leading-relaxed">
-            <span className={supplierName ? 'text-slate-400' : 'text-orange-500'}>
+            <span className={supplierName ? 'text-gray-500' : 'text-ui'}>
               仕入先：{supplierName || '未設定'}
             </span>
-            <span className={hasSupplierCostRate ? 'text-slate-400' : 'text-orange-500'}>
+            <span className={hasSupplierCostRate ? 'text-gray-500' : 'text-ui'}>
               標準掛け率：{hasSupplierCostRate ? `${supplier.defaultCostRate}%` : '未設定'}
             </span>
           </div>
@@ -6759,16 +6759,16 @@ export const SimpleMasterPanel = ({
 
       return (
         <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed">
-          <span className={categoryName ? 'text-slate-400' : 'text-orange-500'}>
+          <span className={categoryName ? 'text-gray-500' : 'text-ui'}>
             親カテゴリー：{categoryName ? path : '未設定'}
           </span>
-          {taxLabel && <span className="text-slate-400"> / {taxLabel}</span>}
+          {taxLabel && <span className="text-gray-500"> / {taxLabel}</span>}
         </div>
       );
     }
 
     return (
-      <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-slate-400">
+      <div className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-gray-500">
         {[
           item.groupName || productCategoryGroups.find((group) => group.id === item.groupId)?.name || item.supplierName || item.kana || item.contactName || item.paymentTerms || item.brandProfile || item.note || item.id,
           item.taxRateType !== undefined ? `税率: ${formatMasterTaxRateLabel(item, defaultTaxRate)}` : ''
@@ -7334,19 +7334,19 @@ export const SimpleMasterPanel = ({
   };
 
   const brandMergeModalNode = brandMergeOpen ? createPortal((
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-950/50 px-4 py-6 backdrop-blur-sm">
       <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
           <div className="min-w-0">
-            <h3 className="text-xl font-black text-slate-900">ブランドの重複統合</h3>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+            <h3 className="text-xl font-black text-gray-900">ブランドの重複統合</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               同じ名前のブランドを1つに統合します。統合先を選んで実行すると、商品の紐付けが統合先へ移り、残りのブランドは削除されます。
             </p>
           </div>
           <button
             type="button"
             onClick={() => setBrandMergeOpen(false)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-xl font-black text-gray-500 transition hover:bg-gray-200"
             aria-label="閉じる"
           >
             ×
@@ -7355,7 +7355,7 @@ export const SimpleMasterPanel = ({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {duplicateBrandGroups.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-400">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm font-bold text-gray-500">
               重複しているブランドはありません。
             </div>
           ) : (
@@ -7363,9 +7363,9 @@ export const SimpleMasterPanel = ({
               const selectedTargetId = brandMergeTargets[group.key] || '';
 
               return (
-                <div key={group.key} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div key={group.key} className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 truncate text-sm font-black text-slate-900">
+                    <div className="min-w-0 truncate text-sm font-black text-gray-900">
                       「{group.label}」 × {group.members.length.toLocaleString()}件
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -7373,7 +7373,7 @@ export const SimpleMasterPanel = ({
                         type="button"
                         disabled={brandMergeBusy}
                         onClick={() => dismissBrandGroup(group)}
-                        className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
+                        className="inline-flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-xs font-black text-gray-500 transition hover:border-gray-300 hover:text-gray-700 disabled:opacity-40"
                         title="重複ではない組み合わせを候補から外します（保存され、次回以降も表示されません）"
                       >
                         重複ではない
@@ -7382,7 +7382,7 @@ export const SimpleMasterPanel = ({
                         type="button"
                         disabled={brandMergeBusy || !selectedTargetId}
                         onClick={() => executeBrandMerge(group)}
-                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-gray-900 px-4 text-xs font-black text-white transition hover:bg-gray-700 disabled:bg-gray-200 disabled:text-gray-400"
                       >
                         {brandMergeBusy ? '統合中...' : 'このグループを統合'}
                       </button>
@@ -7396,8 +7396,8 @@ export const SimpleMasterPanel = ({
                         className={classNames(
                           'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition',
                           selectedTargetId === member.id
-                            ? 'border-orange-400 bg-orange-50/70'
-                            : 'border-slate-200 bg-white hover:border-orange-200'
+                            ? 'border-ui bg-ui-50/70'
+                            : 'border-gray-200 bg-white hover:border-ui-100'
                         )}
                       >
                         <input
@@ -7405,21 +7405,21 @@ export const SimpleMasterPanel = ({
                           name={`brand-merge-${group.key}`}
                           checked={selectedTargetId === member.id}
                           onChange={() => setBrandMergeTargets((current) => ({ ...current, [group.key]: member.id }))}
-                          className="h-4 w-4 accent-orange-500"
+                          className="h-4 w-4 accent-ui"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-black text-slate-800">{member.name}</span>
+                            <span className="truncate text-sm font-black text-gray-800">{member.name}</span>
                             {selectedTargetId === member.id && (
-                              <span className="shrink-0 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
+                              <span className="shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
                             )}
                           </div>
-                          <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                          <div className="mt-0.5 text-[11px] font-bold text-gray-500">
                             仕入先: {member.supplierName || '未設定'}
                             {member.defaultSalesAreaName ? ` ・既定売場: ${member.defaultSalesAreaName}` : ''}
                           </div>
                         </div>
-                        <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                        <div className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-500">
                           商品 {brandProductCounts[member.id] === undefined ? '…' : Number(brandProductCounts[member.id]).toLocaleString()}件
                         </div>
                       </label>
@@ -7436,9 +7436,9 @@ export const SimpleMasterPanel = ({
               : (manualBrandSelection[0]?.id || '');
 
             return (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
-                <div className="text-sm font-black text-slate-900">手動で選んで統合</div>
-                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-4">
+                <div className="text-sm font-black text-gray-900">手動で選んで統合</div>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
                   表記が違って候補に出ない重複（例: goodyear と グッドイヤー）は、ここで2つ以上選んで統合できます。
                 </p>
 
@@ -7446,26 +7446,26 @@ export const SimpleMasterPanel = ({
                   value={manualBrandKeyword}
                   onChange={(event) => setManualBrandKeyword(event.target.value)}
                   placeholder="ブランド名・かなで検索して追加"
-                  className="mt-3 h-11 w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white"
                 />
 
                 {manualBrandKeyword.trim() !== '' && (
-                  <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+                  <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/60 p-2">
                     {manualBrandMatches.length === 0 ? (
-                      <div className="px-2 py-3 text-xs font-bold text-slate-400">一致するブランドがありません。</div>
+                      <div className="px-2 py-3 text-xs font-bold text-gray-500">一致するブランドがありません。</div>
                     ) : (
                       manualBrandMatches.map((item) => (
                         <button
                           key={item.id}
                           type="button"
                           onClick={() => addManualBrand(item)}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-left transition hover:bg-orange-50"
+                          className="flex w-full items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-left transition hover:bg-ui-50"
                         >
                           <span className="min-w-0">
-                            <span className="block truncate text-sm font-black text-slate-800">{item.name}</span>
-                            <span className="block truncate text-[11px] font-bold text-slate-400">仕入先: {item.supplierName || '未設定'}</span>
+                            <span className="block truncate text-sm font-black text-gray-800">{item.name}</span>
+                            <span className="block truncate text-[11px] font-bold text-gray-500">仕入先: {item.supplierName || '未設定'}</span>
                           </span>
-                          <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black text-white">追加</span>
+                          <span className="shrink-0 rounded-full bg-gray-900 px-2.5 py-1 text-[10px] font-black text-white">追加</span>
                         </button>
                       ))
                     )}
@@ -7480,8 +7480,8 @@ export const SimpleMasterPanel = ({
                         className={classNames(
                           'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition',
                           effectiveManualTargetId === member.id
-                            ? 'border-orange-400 bg-orange-50/70'
-                            : 'border-slate-200 bg-white hover:border-orange-200'
+                            ? 'border-ui bg-ui-50/70'
+                            : 'border-gray-200 bg-white hover:border-ui-100'
                         )}
                       >
                         <input
@@ -7489,21 +7489,21 @@ export const SimpleMasterPanel = ({
                           name="brand-merge-manual"
                           checked={effectiveManualTargetId === member.id}
                           onChange={() => setManualBrandTargetId(member.id)}
-                          className="h-4 w-4 accent-orange-500"
+                          className="h-4 w-4 accent-ui"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-black text-slate-800">{member.name}</span>
+                            <span className="truncate text-sm font-black text-gray-800">{member.name}</span>
                             {effectiveManualTargetId === member.id && (
-                              <span className="shrink-0 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
+                              <span className="shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-black text-white">統合先</span>
                             )}
                           </div>
-                          <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                          <div className="mt-0.5 text-[11px] font-bold text-gray-500">
                             仕入先: {member.supplierName || '未設定'}
                             {member.defaultSalesAreaName ? ` ・既定売場: ${member.defaultSalesAreaName}` : ''}
                           </div>
                         </div>
-                        <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                        <div className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-500">
                           商品 {brandProductCounts[member.id] === undefined ? '…' : Number(brandProductCounts[member.id]).toLocaleString()}件
                         </div>
                         <button
@@ -7512,7 +7512,7 @@ export const SimpleMasterPanel = ({
                             event.preventDefault();
                             removeManualBrand(member.id);
                           }}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-500"
                           title="選択から外す"
                           aria-label={`${member.name}を選択から外す`}
                         >
@@ -7525,7 +7525,7 @@ export const SimpleMasterPanel = ({
                       <button
                         type="button"
                         onClick={() => setManualBrandSelection([])}
-                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-500 transition hover:bg-slate-200"
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-gray-100 px-4 text-xs font-black text-gray-500 transition hover:bg-gray-200"
                       >
                         選択をクリア
                       </button>
@@ -7536,7 +7536,7 @@ export const SimpleMasterPanel = ({
                           { key: '__manual__', label: '手動選択', members: manualBrandSelection },
                           effectiveManualTargetId
                         )}
-                        className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                        className="inline-flex h-9 items-center justify-center rounded-xl bg-gray-900 px-4 text-xs font-black text-white transition hover:bg-gray-700 disabled:bg-gray-200 disabled:text-gray-400"
                       >
                         {brandMergeBusy ? '統合中...' : '選択したブランドを統合'}
                       </button>
@@ -7548,15 +7548,15 @@ export const SimpleMasterPanel = ({
           })()}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
-          <div className="min-w-0 text-[11px] font-bold text-slate-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-white px-6 py-4">
+          <div className="min-w-0 text-[11px] font-bold text-gray-500">
             {brandMergeExclusions.size > 0 ? (
               <span className="inline-flex flex-wrap items-center gap-2">
                 <span>「重複ではない」として除外中: {brandMergeExclusions.size.toLocaleString()}ペア</span>
                 <button
                   type="button"
                   onClick={resetBrandMergeExclusions}
-                  className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500 transition hover:bg-slate-200"
+                  className="rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-500 transition hover:bg-gray-200"
                 >
                   すべて解除
                 </button>
@@ -7566,7 +7566,7 @@ export const SimpleMasterPanel = ({
           <button
             type="button"
             onClick={() => setBrandMergeOpen(false)}
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-100 px-5 text-sm font-black text-slate-500 transition hover:bg-slate-200"
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-gray-100 px-5 text-sm font-black text-gray-500 transition hover:bg-gray-200"
           >
             閉じる
           </button>
@@ -7577,11 +7577,11 @@ export const SimpleMasterPanel = ({
 
   return (
     <div className="grid min-h-0 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-      <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
+      <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-lg font-black text-slate-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
-            <p className="mt-0.5 text-[11px] font-bold text-slate-400">左フォームは新規作成が基本です。右の一覧から選択するとそのまま編集でき、変更すると保存できます。</p>
+            <div className="text-lg font-black text-gray-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
+            <p className="mt-0.5 text-[11px] font-bold text-gray-500">左フォームは新規作成が基本です。右の一覧から選択するとそのまま編集でき、変更すると保存できます。</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {editingId ? (
@@ -7593,8 +7593,8 @@ export const SimpleMasterPanel = ({
                   className={classNames(
                     'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black text-white shadow-lg transition',
                     isDirty
-                      ? 'bg-orange-500 shadow-orange-500/20 disabled:opacity-60'
-                      : 'cursor-not-allowed bg-slate-300 shadow-none'
+                      ? 'bg-ui shadow-gray-200/20 disabled:opacity-60'
+                      : 'cursor-not-allowed bg-gray-300 shadow-none'
                   )}
                 >
                   {saving ? <LoadingSpinner size={16} /> : isDirty ? <Save size={13} /> : <Check size={14} />}
@@ -7604,7 +7604,7 @@ export const SimpleMasterPanel = ({
                   type="button"
                   onClick={isDirty ? cancelEdit : clearSelection}
                   disabled={saving}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 px-4 text-sm font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-60"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 px-4 text-sm font-black text-gray-500 transition hover:bg-gray-200 disabled:opacity-60"
                 >
                   {isDirty ? 'キャンセル' : '選択解除'}
                 </button>
@@ -7614,7 +7614,7 @@ export const SimpleMasterPanel = ({
                 type="button"
                 onClick={save}
                 disabled={saving}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition disabled:opacity-60"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-lg shadow-gray-200/20 transition disabled:opacity-60"
               >
                 {saving ? <LoadingSpinner size={16} /> : <Save size={13} />}
                 新規保存
@@ -7640,13 +7640,13 @@ export const SimpleMasterPanel = ({
                     }));
                     onSaved?.();
                   }}
-                  className="mt-1 h-11 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none transition focus:border-orange-300 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-1 h-11 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none transition focus:border-ui-100 disabled:bg-gray-50 disabled:text-gray-400"
                 >
                   {getMasterTaxRateOptions(defaultTaxRate).map((option) => (
                     <option key={option.id} value={option.id}>{option.label}</option>
                   ))}
                 </select>
-                <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
                   標準税率を使用する場合は、税・価格設定の標準税率に追従します。例外だけ 8% / 10% / 0% を指定します。
                 </p>
               </label>
@@ -7666,8 +7666,8 @@ export const SimpleMasterPanel = ({
                           'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition',
                           !canEdit ? 'cursor-default opacity-70' : 'cursor-pointer',
                           checked
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:border-orange-200'
+                            ? 'border-gray-900 bg-gray-900 text-white'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-ui-100'
                         )}
                       >
                         <input
@@ -7683,7 +7683,7 @@ export const SimpleMasterPanel = ({
                   })}
                 </div>
                 {(productCategoryGroups || []).length === 0 && (
-                  <div className="text-xs font-bold text-slate-400">
+                  <div className="text-xs font-bold text-gray-500">
                     先にカテゴリーグループを登録してください。
                   </div>
                 )}
@@ -7814,7 +7814,7 @@ export const SimpleMasterPanel = ({
                   }}
                 />
                 {field.helpText && (
-                  <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">
+                  <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
                     {field.helpText}
                   </p>
                 )}
@@ -7861,16 +7861,16 @@ export const SimpleMasterPanel = ({
           ))}
 
           {label === 'カテゴリーグループ' && editingId && (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs font-black text-slate-500">含まれるカテゴリー</div>
-                  <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                  <div className="text-xs font-black text-gray-500">含まれるカテゴリー</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">
                     このグループ配下のカテゴリーとサブカテゴリーを確認できます。
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-gray-500 shadow-sm">
                     {getChildCategoriesForDraft().length}件
                   </span>
                   {canEdit && renderChildAddControl()}
@@ -7885,21 +7885,21 @@ export const SimpleMasterPanel = ({
                     return (
                       <div
                         key={category.id || category.name}
-                        className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
+                        className="rounded-2xl border border-gray-200 bg-white px-3 py-3"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-black text-slate-700">
+                          <div className="text-sm font-black text-gray-700">
                             {category.name}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-400">
+                            <span className="rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-black text-gray-500">
                               {childSubCategories.length}件
                             </span>
                             {canEdit && category.id && (
                               <button
                                 type="button"
                                 onClick={() => handleUnlinkChild(category)}
-                                className="flex h-6 w-6 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-500"
                                 title="このグループから外す"
                                 aria-label={`${category.name}をグループから外す`}
                               >
@@ -7914,14 +7914,14 @@ export const SimpleMasterPanel = ({
                             {childSubCategories.map((subCategory) => (
                               <span
                                 key={subCategory.id || `${category.id || category.name}:${subCategory.name}`}
-                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600"
+                                className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-black text-gray-600"
                               >
                                 {subCategory.name}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <div className="mt-2 text-[11px] font-bold text-slate-400">
+                          <div className="mt-2 text-[11px] font-bold text-gray-500">
                             サブカテゴリーなし
                           </div>
                         )}
@@ -7930,7 +7930,7 @@ export const SimpleMasterPanel = ({
                   })}
                 </div>
               ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-400">
+                <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500">
                   まだカテゴリーが紐付いていません。
                 </div>
               )}
@@ -7938,16 +7938,16 @@ export const SimpleMasterPanel = ({
           )}
 
           {label === 'カテゴリー' && editingId && (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs font-black text-slate-500">含まれるサブカテゴリー</div>
-                  <div className="mt-0.5 text-[11px] font-bold text-slate-400">
+                  <div className="text-xs font-black text-gray-500">含まれるサブカテゴリー</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">
                     このカテゴリー配下のサブカテゴリーを確認できます。
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-gray-500 shadow-sm">
                     {getChildSubCategoriesForDraft().length}件
                   </span>
                   {canEdit && renderChildAddControl()}
@@ -7959,14 +7959,14 @@ export const SimpleMasterPanel = ({
                   {getChildSubCategoriesForDraft().map((subCategory) => (
                     <span
                       key={subCategory.id || subCategory.name}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-2.5 pr-1 text-[11px] font-black text-slate-600"
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white py-1 pl-2.5 pr-1 text-[11px] font-black text-gray-600"
                     >
                       {subCategory.name}
                       {canEdit && subCategory.id && (
                         <button
                           type="button"
                           onClick={() => handleUnlinkChild(subCategory)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-500"
                           title="このカテゴリーから外す"
                           aria-label={`${subCategory.name}をカテゴリーから外す`}
                         >
@@ -7977,7 +7977,7 @@ export const SimpleMasterPanel = ({
                   ))}
                 </div>
               ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-400">
+                <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500">
                   まだサブカテゴリーが紐付いていません。
                 </div>
               )}
@@ -7994,11 +7994,11 @@ export const SimpleMasterPanel = ({
 
       </div>
 
-      <div className="min-h-0 min-w-0 overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm">
-        <div className="sticky top-0 z-10 space-y-3 border-b border-slate-100 bg-white px-5 py-4">
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
+        <div className="sticky top-0 z-10 space-y-3 border-b border-gray-100 bg-white px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-base font-black text-slate-900">{label}一覧</div>
-            <div className="rounded-2xl bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-500">
+            <div className="text-base font-black text-gray-900">{label}一覧</div>
+            <div className="rounded-2xl bg-gray-50 px-3 py-1.5 text-xs font-black text-gray-500">
               {filteredItems.length.toLocaleString()} / {items.length.toLocaleString()}件
             </div>
           </div>
@@ -8007,13 +8007,13 @@ export const SimpleMasterPanel = ({
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               placeholder={`${label}を検索`}
-              className="h-11 min-w-0 flex-1 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
+              className="h-11 min-w-0 flex-1 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white"
             />
             {label === 'ブランド' && productSalesAreas.length > 0 && (
               <select
                 value={salesAreaFilter}
                 onChange={(event) => setSalesAreaFilter(event.target.value)}
-                className="h-11 shrink-0 rounded-2xl border-2 border-slate-100 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-orange-400 focus:bg-white sm:w-52"
+                className="h-11 shrink-0 rounded-2xl border-2 border-gray-100 bg-gray-50 px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white sm:w-52"
               >
                 <option value="">売り場で絞り込む</option>
                 {[...productSalesAreas]
@@ -8041,8 +8041,8 @@ export const SimpleMasterPanel = ({
                 className={classNames(
                   'inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-lg transition',
                   sortEditMode
-                    ? 'bg-blue-600 text-white shadow-blue-500/20'
-                    : 'bg-slate-900 text-white shadow-slate-900/10'
+                    ? 'bg-ui text-white shadow-gray-200/20'
+                    : 'bg-gray-900 text-white shadow-gray-900/10'
                 )}
               >
                 {sortEditMode ? '保存' : '並び替え'}
@@ -8051,9 +8051,9 @@ export const SimpleMasterPanel = ({
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-15rem)] divide-y divide-slate-100 overflow-y-auto">
+        <div className="max-h-[calc(100vh-15rem)] divide-y divide-gray-100 overflow-y-auto">
           {displayItems.length === 0 ? (
-            <div className="p-8 text-sm font-bold text-slate-400">
+            <div className="p-8 text-sm font-bold text-gray-500">
               {items.length === 0 ? 'まだ登録されていません。' : '検索条件に一致するデータがありません。'}
             </div>
           ) : (
@@ -8070,12 +8070,12 @@ export const SimpleMasterPanel = ({
                   }
                 }}
                 className={classNames(
-                  'flex min-w-0 cursor-pointer items-center justify-between gap-4 px-5 py-4 transition hover:bg-orange-50/40',
-                  editingId === item.id ? 'bg-orange-50/70' : 'bg-white'
+                  'flex min-w-0 cursor-pointer items-center justify-between gap-4 px-5 py-4 transition hover:bg-ui-50/40',
+                  editingId === item.id ? 'bg-ui-50/70' : 'bg-white'
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-black text-slate-900">{item.name}</div>
+                  <div className="truncate text-sm font-black text-gray-900">{item.name}</div>
                   {renderListSubInfo(item)}
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -8088,7 +8088,7 @@ export const SimpleMasterPanel = ({
                           moveItem(item, -1);
                         }}
                         disabled={saving || itemIndex === 0}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 disabled:opacity-30"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition hover:bg-gray-200 disabled:opacity-30"
                         aria-label="上へ"
                         title="上へ"
                       >
@@ -8101,7 +8101,7 @@ export const SimpleMasterPanel = ({
                           moveItem(item, 1);
                         }}
                         disabled={saving || itemIndex === displayItems.length - 1}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 disabled:opacity-30"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition hover:bg-gray-200 disabled:opacity-30"
                         aria-label="下へ"
                         title="下へ"
                       >
@@ -8115,7 +8115,7 @@ export const SimpleMasterPanel = ({
                       event.stopPropagation();
                       remove(item);
                     }}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-500"
                     aria-label="削除"
                   >
                     <Trash2 size={14} />
@@ -8344,11 +8344,11 @@ const ProductMasterSettings = ({
           {activeTab === 'products' && (
             <>
               {isHeaderProductSearchActive && (
-                <div className="mb-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm font-bold text-slate-600">
+                <div className="mb-3 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3 text-sm font-bold text-gray-600">
                   {headerSearchLoading ? (
                     <span>全商品から検索中...</span>
                   ) : headerSearchError ? (
-                    <span className="text-rose-600">全商品検索エラー: {headerSearchError}</span>
+                    <span className="text-red-600">全商品検索エラー: {headerSearchError}</span>
                   ) : (
                     <span>
                       全商品検索: 「{headerSearchKeyword}」 / {displayedProducts.length.toLocaleString()}件表示

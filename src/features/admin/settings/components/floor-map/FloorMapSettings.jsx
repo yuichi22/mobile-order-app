@@ -57,7 +57,7 @@ const MotionAside = motion.aside;
 
 const ResizeHandle = () => (
   <div className="pointer-events-none relative h-full w-full">
-    <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-orange-500 shadow-[0_4px_12px_rgba(249,115,22,0.35)]" />
+    <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-gray-900 shadow-[0_4px_12px_rgba(249,115,22,0.35)]" />
   </div>
 );
 
@@ -66,7 +66,7 @@ const OverlayIconButton = ({ children, disabled, onClick }) => (
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/80 bg-white/95 text-slate-500 shadow-lg shadow-slate-200/70 backdrop-blur transition-colors hover:border-orange-100 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-35"
+    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/80 bg-white/95 text-gray-500 shadow-lg shadow-gray-200/70 backdrop-blur transition-colors hover:border-ui-100 hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-35"
   >
     {children}
   </button>
@@ -721,7 +721,7 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
 
         <div
           ref={canvasRef}
-          className="relative flex-grow overflow-hidden bg-slate-100 cursor-crosshair"
+          className="relative flex-grow overflow-hidden bg-gray-100 cursor-crosshair"
           onMouseDown={(event) => handleMouseDown(event, null)}
           style={{
             backgroundImage: 'radial-gradient(#cbd5e1 2px, transparent 2px)',
@@ -730,7 +730,7 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
           }}
         >
           <div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex justify-end gap-4">
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 py-2 shadow-xl shadow-slate-200/70 backdrop-blur">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 py-2 shadow-xl shadow-gray-200/70 backdrop-blur">
               <OverlayIconButton onClick={handleUndo} disabled={historyIndex <= 0}>
                 <Undo2 size={18} />
               </OverlayIconButton>
@@ -741,7 +741,7 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
               <OverlayIconButton onClick={handleZoomIn}>
                 <ZoomIn size={18} />
               </OverlayIconButton>
-              <span className="w-12 text-center font-mono text-xs font-black text-slate-500">
+              <span className="w-12 text-center font-mono text-xs font-black text-gray-500">
                 {Math.round(scale * 100)}%
               </span>
               <OverlayIconButton onClick={handleZoomOut}>
@@ -750,7 +750,7 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
               <button
                 type="button"
                 onClick={handleResetView}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/80 bg-white px-4 text-xs font-black text-slate-500 shadow-lg shadow-slate-200/70 transition-colors hover:border-orange-100 hover:bg-orange-50 hover:text-orange-600"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/80 bg-white px-4 text-xs font-black text-gray-500 shadow-lg shadow-gray-200/70 transition-colors hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
               >
                 <ScanSearch size={16} />
                 全体表示
@@ -776,12 +776,12 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
                   item.type === 'wall'
                     ? (
                       selectedIds.includes(item.id)
-                        ? 'z-50 border-orange-500 bg-slate-300 ring-4 ring-orange-200 shadow-xl'
-                        : 'border-transparent bg-slate-300'
+                        ? 'z-50 border-ui bg-gray-300 ring-4 ring-ui-100 shadow-xl'
+                        : 'border-transparent bg-gray-300'
                     )
                     : (
                       selectedIds.includes(item.id)
-                        ? 'z-50 border-orange-500 bg-orange-50 ring-4 ring-orange-200 shadow-xl'
+                        ? 'z-50 border-ui bg-ui-50 ring-4 ring-ui-100 shadow-xl'
                         : 'border-gray-300 bg-white'
                     )
                 } ${item.shape === 'circle' ? 'rounded-full' : 'rounded-lg'}`}
@@ -815,7 +815,7 @@ const FloorMapEditor = ({ layoutItems, onSave }) => {
 </span>
 
                     {item.displayName && (
-                      <span className="mt-0.5 max-w-full truncate px-1 text-[8px] font-bold leading-tight text-gray-400">
+                      <span className="mt-0.5 max-w-full truncate px-1 text-[8px] font-bold leading-tight text-gray-500">
                         ID: {item.label}
                       </span>
                     )}

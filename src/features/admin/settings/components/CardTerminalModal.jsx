@@ -107,25 +107,25 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-black text-slate-900">カード決済端末連携</h2>
+          <h2 className="text-lg font-black text-gray-900">カード決済端末連携</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full px-3 py-1 text-sm font-black text-slate-400 hover:bg-slate-100"
+            className="rounded-full px-3 py-1 text-sm font-black text-gray-500 hover:bg-gray-100"
           >
             閉じる
           </button>
         </div>
 
         {/* 連携状態 */}
-        <div className="mb-5 rounded-2xl bg-slate-50 p-4">
+        <div className="mb-5 rounded-2xl bg-gray-50 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-black uppercase tracking-wider text-gray-500">
               端末決済の状態
             </span>
             <span
               className={`rounded-full px-3 py-1 text-xs font-black ${
-                canRegister ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                canRegister ? 'bg-gray-100 text-gray-900' : 'bg-amber-100 text-amber-700'
               }`}
             >
               {state === 'loading'
@@ -140,12 +140,12 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
             </span>
           </div>
           {state === 'unlinked' && (
-            <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+            <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
               この店舗の端末決済はまだ準備中です。運営側の初期設定が完了すると、ここで端末を登録できます。
             </p>
           )}
           {needsLocation && (
-            <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+            <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
               最初に、この店舗（拠点）の住所を登録してください。登録後に端末を追加できます。
             </p>
           )}
@@ -154,8 +154,8 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
         {/* 拠点住所の登録(Location 未作成時のみ) */}
         {needsLocation && (
           <div className="mb-5 rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-4">
-            <h3 className="mb-2 text-sm font-black text-slate-800">店舗（拠点）の住所を登録</h3>
-            <p className="mb-3 text-xs font-bold leading-relaxed text-slate-400">
+            <h3 className="mb-2 text-sm font-black text-gray-800">店舗（拠点）の住所を登録</h3>
+            <p className="mb-3 text-xs font-bold leading-relaxed text-gray-500">
               カード決済端末を使う拠点の住所です。売上・端末はこの拠点ごとに分かれます。
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -163,43 +163,43 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
                 value={addr.postalCode}
                 onChange={(e) => setAddr((s) => ({ ...s, postalCode: e.target.value }))}
                 placeholder="郵便番号（例: 1500001）"
-                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
               <input
                 value={addr.state}
                 onChange={(e) => setAddr((s) => ({ ...s, state: e.target.value }))}
                 placeholder="都道府県（例: 東京都）"
-                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
               <input
                 value={addr.city}
                 onChange={(e) => setAddr((s) => ({ ...s, city: e.target.value }))}
                 placeholder="市区町村（例: 渋谷区神南）"
-                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
               <input
                 value={addr.line1}
                 onChange={(e) => setAddr((s) => ({ ...s, line1: e.target.value }))}
                 placeholder="番地（例: 1-2-3）"
-                className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
               <input
                 value={addr.line2}
                 onChange={(e) => setAddr((s) => ({ ...s, line2: e.target.value }))}
                 placeholder="建物名など（任意）"
-                className="col-span-2 h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="col-span-2 h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </div>
             <button
               type="button"
               onClick={handleEnsureLocation}
               disabled={locSubmitting}
-              className="mt-2 h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
+              className="mt-2 h-11 w-full rounded-xl bg-gray-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
             >
               {locSubmitting ? '登録中…' : '拠点を登録'}
             </button>
             {locMessage && (
-              <p className={`mt-2 text-xs font-bold ${locMessage.type === 'error' ? 'text-red-500' : 'text-emerald-600'}`}>
+              <p className={`mt-2 text-xs font-bold ${locMessage.type === 'error' ? 'text-red-500' : 'text-gray-900'}`}>
                 {locMessage.text}
               </p>
             )}
@@ -208,10 +208,10 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
 
         {/* 端末登録 */}
         <div className="mb-5">
-          <h3 className="mb-2 text-sm font-black text-slate-800">端末を登録</h3>
-          <p className="mb-3 text-xs font-bold leading-relaxed text-slate-400">
+          <h3 className="mb-2 text-sm font-black text-gray-800">端末を登録</h3>
+          <p className="mb-3 text-xs font-bold leading-relaxed text-gray-500">
             端末の画面に表示される登録コードを入力します。テスト環境では
-            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 text-slate-600">simulated-wpe</code>
+            <code className="mx-1 rounded bg-gray-100 px-1 py-0.5 text-gray-600">simulated-wpe</code>
             でシミュレーター端末を追加できます。
           </p>
           <div className="space-y-2">
@@ -220,20 +220,20 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
               onChange={(e) => setRegistrationCode(e.target.value)}
               placeholder="登録コード（例: simulated-wpe）"
               disabled={submitting || !canRegister}
-              className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
+              className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
             />
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="端末名（任意・例: レジ横S700）"
               disabled={submitting || !canRegister}
-              className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
+              className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
             />
             <button
               type="button"
               onClick={handleRegister}
               disabled={submitting || !canRegister}
-              className="h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
+              className="h-11 w-full rounded-xl bg-gray-900 text-sm font-black text-white transition active:scale-95 disabled:opacity-50"
             >
               {submitting ? '登録中…' : '端末を登録'}
             </button>
@@ -241,7 +241,7 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
           {message && (
             <p
               className={`mt-2 text-xs font-bold ${
-                message.type === 'error' ? 'text-red-500' : 'text-emerald-600'
+                message.type === 'error' ? 'text-red-500' : 'text-gray-900'
               }`}
             >
               {message.text}
@@ -251,11 +251,11 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
 
         {/* 登録済み端末 */}
         <div className="mb-5">
-          <h3 className="mb-2 text-sm font-black text-slate-800">
+          <h3 className="mb-2 text-sm font-black text-gray-800">
             登録済みの端末（{readers.length}）
           </h3>
           {readers.length === 0 ? (
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-400">
+            <p className="rounded-2xl bg-gray-50 px-4 py-3 text-xs font-bold text-gray-500">
               まだ登録された端末はありません。
             </p>
           ) : (
@@ -263,21 +263,21 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
               {readers.map((reader) => (
                 <li
                   key={reader.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3"
+                  className="flex items-center justify-between rounded-2xl border border-gray-100 px-4 py-3"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-slate-800">
+                    <div className="truncate text-sm font-black text-gray-800">
                       {reader.label || reader.id}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] font-bold text-slate-400">
+                    <div className="mt-0.5 truncate text-[11px] font-bold text-gray-500">
                       {reader.deviceType || '端末'} / {reader.id}
                     </div>
                   </div>
                   <span
                     className={`ml-3 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
                       reader.status === 'online'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-slate-200 text-slate-500'
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'bg-gray-200 text-gray-500'
                     }`}
                   >
                     {STATUS_LABEL[reader.status] || reader.status || '不明'}
@@ -286,20 +286,20 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[11px] font-bold text-slate-400">
+          <p className="mt-2 text-[11px] font-bold text-gray-500">
             登録した端末は、各レジの「STRIPE リーダー」で割り当てられます。
           </p>
         </div>
 
         {/* 将来: リース/購入 */}
-        <div className="rounded-2xl border border-dashed border-slate-200 p-4">
+        <div className="rounded-2xl border border-dashed border-gray-200 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-slate-500">端末を用意する</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">
+            <span className="text-xs font-black text-gray-500">端末を用意する</span>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">
               近日対応
             </span>
           </div>
-          <p className="mt-1 text-[11px] font-bold text-slate-400">
+          <p className="mt-1 text-[11px] font-bold text-gray-500">
             将来的に、この画面から決済端末のリース／購入を申し込めるようにする予定です。
           </p>
         </div>

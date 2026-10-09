@@ -76,20 +76,20 @@ const getRoleMeta = (role) => {
   if (role === USER_ROLES.MANAGER) {
     return {
       Icon: UserCog,
-      className: 'bg-orange-50 text-orange-700 border border-orange-100'
+      className: 'bg-ui-50 text-ui border border-ui-100'
     };
   }
 
   if (role === USER_ROLES.STAFF) {
     return {
       Icon: Users,
-      className: 'bg-slate-100 text-slate-700 border border-slate-200'
+      className: 'bg-gray-100 text-gray-700 border border-gray-200'
     };
   }
 
   return {
     Icon: Shield,
-    className: 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+    className: 'bg-gray-100 text-gray-900 border border-gray-200'
   };
 };
 
@@ -204,14 +204,14 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
   return (
     <div className="w-full animate-in fade-in duration-300 pb-20">
       <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex h-24 items-center justify-between border-b bg-orange-50/50 px-8 transition-none">
+        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none">
           <div className="flex min-w-0 items-center gap-5">
-            <div className="shrink-0 rounded-2xl bg-orange-500 p-3 text-white shadow-xl shadow-orange-200">
+            <div className="shrink-0 rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
               <Shield size={24} strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xl font-black leading-tight tracking-tight text-orange-600">スタッフ招待</h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-orange-300">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-ui">スタッフ招待</h3>
+              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
                 招待管理 / 有効な招待 {activeInviteCount} 件 / 登録人数 {teamMembers.length} 人
               </p>
             </div>
@@ -221,7 +221,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
             type="button"
             onClick={createInvite}
             disabled={creatingInvite}
-            className="inline-flex items-center gap-3 rounded-xl bg-orange-500 px-6 py-3.5 font-black text-white shadow-xl shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95 disabled:bg-orange-300 disabled:shadow-none"
+            className="inline-flex items-center gap-3 rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 disabled:bg-ui-100 disabled:shadow-none"
           >
             {creatingInvite ? <LoadingSpinner size={18} /> : <MailPlus size={20} strokeWidth={2.6} />}
             招待リンクを発行
@@ -244,8 +244,8 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                   onClick={() => setSelectedRole(option.value)}
                   className={`rounded-3xl border-2 px-5 py-5 text-left transition-all ${
                     isActive
-                      ? 'border-orange-500 bg-orange-50 shadow-xl shadow-orange-100'
-                      : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-gray-50'
+                      ? 'border-ui bg-ui-50 shadow-xl shadow-gray-200'
+                      : 'border-gray-100 bg-white hover:border-ui-100 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -255,7 +255,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                     </div>
                     <div
                       className={`h-6 w-6 shrink-0 rounded-full border-2 transition-all ${
-                        isActive ? 'border-orange-500 bg-orange-500' : 'border-gray-200 bg-white'
+                        isActive ? 'border-ui bg-ui' : 'border-gray-200 bg-white'
                       }`}
                     >
                       {isActive && <div className="h-full w-full scale-50 rounded-full bg-white" />}
@@ -266,7 +266,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
             })}
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-2xl">
+          <div className="rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 text-white shadow-2xl">
             <div className="text-[11px] font-black tracking-[0.18em] text-white/45">選択中の招待ロール</div>
             <div className="mt-2 text-2xl font-black">{selectedRoleMeta.label}</div>
             <div className="mt-2 text-sm text-white/60">{selectedRoleMeta.desc}</div>
@@ -280,12 +280,12 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
       <section className="mt-6 grid items-start gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="min-h-[200px] w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="flex h-24 items-center gap-3 border-b bg-gray-50/70 px-8 transition-none">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg">
               <RefreshCw size={18} />
             </div>
             <div className="min-w-0">
               <h3 className="text-xl font-black tracking-tight text-gray-900">発行済み招待</h3>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 リンクは表示せず、必要なときだけコピーして共有できます。
               </p>
             </div>
@@ -294,7 +294,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
           <div className="space-y-4 p-6">
             {invites.length === 0 && (
               <div className="flex min-h-[78px] items-center justify-center rounded-[1.35rem] border border-dashed border-gray-200 bg-gray-50/70 p-4 text-center shadow-sm">
-                <div className="text-sm font-bold text-gray-400">まだ招待リンクは発行されていません</div>
+                <div className="text-sm font-bold text-gray-500">まだ招待リンクは発行されていません</div>
               </div>
             )}
 
@@ -325,12 +325,12 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
 
                         <div className="min-w-0 space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex rounded-full bg-slate-900 px-3 py-1.5 text-xs font-black tracking-[0.12em] text-white">
+                            <span className="inline-flex rounded-full bg-gray-900 px-3 py-1.5 text-xs font-black tracking-[0.12em] text-white">
                               {formatRoleLabel(invite.role)}
                             </span>
                             <span
                               className={`inline-flex rounded-full px-3 py-1.5 text-xs font-black tracking-[0.12em] ${
-                                !isUnavailable ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                                !isUnavailable ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-500'
                               }`}
                             >
                               {statusLabel}
@@ -339,11 +339,11 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
 
                           <div className="grid gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl bg-gray-50 px-3 py-2.5">
-                              <div className="text-[10px] font-black tracking-[0.18em] text-gray-400">有効期限</div>
+                              <div className="text-[10px] font-black tracking-[0.18em] text-gray-500">有効期限</div>
                               <div className="mt-1 text-sm font-bold text-gray-700">{formatDate(invite.expiresAt)}</div>
                             </div>
                             <div className="rounded-2xl bg-gray-50 px-3 py-2.5">
-                              <div className="text-[10px] font-black tracking-[0.18em] text-gray-400">発行日時</div>
+                              <div className="text-[10px] font-black tracking-[0.18em] text-gray-500">発行日時</div>
                               <div className="mt-1 text-sm font-bold text-gray-700">{formatDate(invite.createdAt)}</div>
                             </div>
                           </div>
@@ -358,8 +358,8 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                         disabled={isUnavailable}
                         className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-xs font-black ${
                           isUnavailable
-                            ? 'cursor-not-allowed bg-gray-100 text-gray-400'
-                            : 'bg-slate-100 text-slate-700'
+                            ? 'cursor-not-allowed bg-gray-100 text-gray-500'
+                            : 'bg-gray-100 text-gray-700'
                         }`}
                       >
                         <Copy size={14} />
@@ -388,12 +388,12 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
 
         <div className="min-h-[200px] w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="flex h-24 items-center gap-3 border-b bg-gray-50/70 px-8 transition-none">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-200">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg shadow-gray-200">
               <Users size={18} />
             </div>
             <div className="min-w-0">
               <h3 className="text-xl font-black tracking-tight text-gray-900">登録メンバー</h3>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 現在この店舗に登録されているユーザー一覧です。
               </p>
             </div>
@@ -402,7 +402,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
           <div className="space-y-3 p-6">
             {teamMembers.length === 0 && (
               <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 p-8 text-center">
-                <div className="text-sm font-bold text-gray-400">登録メンバーはまだ追加されていません</div>
+                <div className="text-sm font-bold text-gray-500">登録メンバーはまだ追加されていません</div>
               </div>
             )}
 
@@ -416,7 +416,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="truncate text-base font-black text-gray-900">{member.name || '名前未設定'}</div>
-                      <div className="mt-1 truncate text-xs text-gray-400">{member.email || member.uid}</div>
+                      <div className="mt-1 truncate text-xs text-gray-500">{member.email || member.uid}</div>
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -445,7 +445,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
       </section>
 
       {deletingMember && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 shadow-inner">
               <AlertTriangle size={40} className="text-red-500" />
@@ -459,7 +459,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
             </p>
 
             <div className="mb-8 space-y-3 text-left">
-              <label className="block px-1 text-xs font-black uppercase tracking-[0.18em] text-gray-400">
+              <label className="block px-1 text-xs font-black uppercase tracking-[0.18em] text-gray-500">
                 確認用メールアドレス
               </label>
               <input
@@ -483,7 +483,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                 type="button"
                 onClick={closeDeleteModal}
                 disabled={deletingMemberNow}
-                className="w-full rounded-2xl py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50"
+                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
               >
                 キャンセル
               </button>

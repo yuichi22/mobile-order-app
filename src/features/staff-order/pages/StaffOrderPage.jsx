@@ -1729,7 +1729,7 @@ const StaffOrderPage = ({ storeId }) => {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <LoadingSpinner size={32} className="m-auto" />
       </div>
     );
@@ -1737,12 +1737,12 @@ const StaffOrderPage = ({ storeId }) => {
 
   if (!currentUser || currentUser.isAnonymous || !canUseStaffOrder) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6 text-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 p-6 text-center">
         <div className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-xl">
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-2xl font-black text-gray-900">
             スタッフ注文
           </h1>
-          <p className="mt-4 text-sm font-bold leading-relaxed text-slate-500">
+          <p className="mt-4 text-sm font-bold leading-relaxed text-gray-500">
             この画面を利用するには、店舗スタッフアカウントでログインしてください。
           </p>
         </div>
@@ -1752,12 +1752,12 @@ const StaffOrderPage = ({ storeId }) => {
 
   if (!storeId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6 text-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 p-6 text-center">
         <div className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-xl">
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-2xl font-black text-gray-900">
             店舗情報が見つかりません
           </h1>
-          <p className="mt-4 text-sm font-bold leading-relaxed text-slate-500">
+          <p className="mt-4 text-sm font-bold leading-relaxed text-gray-500">
             レジ画面の「スタッフ注文」から開き直してください。
           </p>
         </div>
@@ -1768,17 +1768,17 @@ const StaffOrderPage = ({ storeId }) => {
   const isLoadingData = layoutLoading || menuLoading || categoryLoading || periodsLoading;
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+    <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
+      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ui">
               Staff Order
             </p>
-            <h1 className="truncate text-xl font-black text-slate-900">
+            <h1 className="truncate text-xl font-black text-gray-900">
               スタッフ注文
             </h1>
-            <p className="truncate text-xs font-bold text-slate-500">
+            <p className="truncate text-xs font-bold text-gray-500">
               {storeName}
             </p>
           </div>
@@ -1787,7 +1787,7 @@ const StaffOrderPage = ({ storeId }) => {
             <button
               type="button"
               onClick={clearTableSelection}
-              className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm active:scale-95"
+              className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm active:scale-95"
             >
               <ArrowLeft size={18} />
               テーブル選択
@@ -1798,7 +1798,7 @@ const StaffOrderPage = ({ storeId }) => {
 
       <main className="mx-auto max-w-6xl px-4 py-5">
         {message && (
-          <div className="mb-4 rounded-2xl bg-green-50 px-4 py-3 text-sm font-black text-green-700">
+          <div className="mb-4 rounded-2xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-900">
             {message}
           </div>
         )}
@@ -1817,10 +1817,10 @@ const StaffOrderPage = ({ storeId }) => {
           <section>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-slate-900">
+                <h2 className="text-lg font-black text-gray-900">
                   テーブルを選択
                 </h2>
-                <p className="text-xs font-bold text-slate-500">
+                <p className="text-xs font-bold text-gray-500">
                   マップ、またはスマホ用ボタンからテーブルを選びます。
                 </p>
               </div>
@@ -1828,7 +1828,7 @@ const StaffOrderPage = ({ storeId }) => {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="flex h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-black text-slate-600 shadow-sm active:scale-95"
+                className="flex h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-black text-gray-600 shadow-sm active:scale-95"
               >
                 <RefreshCw size={15} />
                 更新
@@ -1837,8 +1837,8 @@ const StaffOrderPage = ({ storeId }) => {
 
             {tableItems.length === 0 ? (
               <div className="rounded-[1.5rem] bg-white p-8 text-center shadow-sm">
-                <Table2 className="mx-auto mb-4 text-slate-300" size={44} />
-                <p className="text-sm font-black text-slate-500">
+                <Table2 className="mx-auto mb-4 text-gray-300" size={44} />
+                <p className="text-sm font-black text-gray-500">
                   テーブル設定が見つかりません。管理画面のフロアマップを確認してください。
                 </p>
               </div>
@@ -1847,20 +1847,20 @@ const StaffOrderPage = ({ storeId }) => {
                 <div className="mb-4 rounded-[1.5rem] bg-white p-3 shadow-sm">
                   <div className="mb-2 flex items-center justify-between gap-3 px-1">
                     <div>
-                      <p className="text-xs font-black text-slate-500">
+                      <p className="text-xs font-black text-gray-500">
                         フロアマップ
                       </p>
-                      <p className="text-[11px] font-bold text-slate-400">
+                      <p className="text-[11px] font-bold text-gray-500">
                         マップ上のテーブルもタップできます
                       </p>
                     </div>
 
-                    <p className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black text-slate-500">
+                    <p className="rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-black text-gray-500">
                       {layoutItems.length}要素 / {tableItems.length}卓
                     </p>
                   </div>
 
-                  <div className="w-full rounded-[1.25rem] bg-slate-100">
+                  <div className="w-full rounded-[1.25rem] bg-gray-100">
                     {layoutItems.length > 0 ? (
                       <div
                         className={`${isWideMapViewport ? 'overflow-hidden' : 'overflow-auto'} rounded-[1.25rem]`}
@@ -1906,7 +1906,7 @@ const StaffOrderPage = ({ storeId }) => {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex h-44 items-center justify-center px-4 text-center text-xs font-bold text-slate-400">
+                      <div className="flex h-44 items-center justify-center px-4 text-center text-xs font-bold text-gray-500">
                         フロアマップ設定が見つかりません。下のテーブルボタンから選択してください。
                       </div>
                     )}
@@ -1927,21 +1927,21 @@ const StaffOrderPage = ({ storeId }) => {
                         disabled={Boolean(bootstrappingTableId)}
                         className={`flex min-h-[92px] flex-col items-center justify-center rounded-[1.35rem] border px-2 py-4 text-center shadow-sm transition-all active:scale-[0.98] disabled:opacity-60 ${
                           isActiveTable
-                            ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100'
-                            : 'border-slate-200 bg-white'
+                            ? 'border-ui-100 bg-ui-50 ring-2 ring-ui-100'
+                            : 'border-gray-200 bg-white'
                         }`}
                       >
                         {isBootstrapping ? (
-                          <Loader2 className="animate-spin text-blue-600" size={24} />
+                          <Loader2 className="animate-spin text-ui" size={24} />
                         ) : (
                           <>
                             <span className={`line-clamp-2 text-xl font-black leading-tight sm:text-2xl ${
-                              isActiveTable ? 'text-blue-900' : 'text-slate-900'
+                              isActiveTable ? 'text-ui' : 'text-gray-900'
                             }`}>
                               {table.tableName || getTableDisplayName(table)}
                             </span>
                             {isActiveTable && (
-                              <span className="mt-2 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-black text-white">
+                              <span className="mt-2 rounded-full bg-gray-900 px-2.5 py-1 text-[10px] font-black text-white">
                                 利用中
                               </span>
                             )}
@@ -1954,14 +1954,14 @@ const StaffOrderPage = ({ storeId }) => {
 
                 {staffOrderUrl && (
                   <div className="mt-4 hidden rounded-[1.5rem] bg-white p-6 text-center shadow-sm md:block">
-                    <p className="text-sm font-black text-slate-900">
+                    <p className="text-sm font-black text-gray-900">
                       スマホ注文端末で開く
                     </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       スタッフのスマホで読み込んでください
                     </p>
 
-                    <div className="mx-auto mt-5 flex w-fit rounded-[1.25rem] bg-white p-4 shadow-inner ring-1 ring-slate-100">
+                    <div className="mx-auto mt-5 flex w-fit rounded-[1.25rem] bg-white p-4 shadow-inner ring-1 ring-gray-100">
                       <QRCodeSVG
                         value={staffOrderUrl}
                         size={180}
@@ -1970,7 +1970,7 @@ const StaffOrderPage = ({ storeId }) => {
                       />
                     </div>
 
-                    <p className="mx-auto mt-4 max-w-md break-all rounded-2xl bg-slate-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-slate-500">
+                    <p className="mx-auto mt-4 max-w-md break-all rounded-2xl bg-gray-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-gray-500">
                       {staffOrderUrl}
                     </p>
                   </div>
@@ -1982,38 +1982,38 @@ const StaffOrderPage = ({ storeId }) => {
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
             <div className="min-w-0">
               {toastMessage && (
-                <div className="sticky top-[76px] z-30 mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 shadow-sm">
+                <div className="sticky top-[76px] z-30 mb-3 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3 text-sm font-black text-ui shadow-sm">
                   {toastMessage}
                 </div>
               )}
 
               <div className="mb-3 rounded-[1.5rem] bg-white p-4 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-ui">
                   選択中テーブル
                 </p>
                 <h2 className="mt-1 text-2xl font-black">
                   {selectedTable.tableName || selectedTable.tableId}
                 </h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">
+                <p className="mt-1 text-xs font-bold text-gray-500">
                   Session: {sessionInfo?.sessionId?.slice(0, 8) || '-'}
                 </p>
               </div>
 
               {isReplaceMode && (
-                <div className="sticky top-[76px] z-30 mb-3 rounded-[1.25rem] border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                <div className="sticky top-[76px] z-30 mb-3 rounded-[1.25rem] border border-ui-100 bg-ui-50 p-4 shadow-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-black text-blue-700">
+                      <p className="text-sm font-black text-ui">
                         セット商品を変更中
                       </p>
-                      <p className="mt-1 text-xs font-bold text-blue-600">
+                      <p className="mt-1 text-xs font-bold text-ui">
                         {replaceSetPriceTarget?.name || 'セット商品'} の差し替え先を選んでください。
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={closeReplaceSetPriceModal}
-                      className="h-10 rounded-2xl bg-white px-4 text-xs font-black text-blue-700 shadow-sm"
+                      className="h-10 rounded-2xl bg-white px-4 text-xs font-black text-ui shadow-sm"
                     >
                       変更をやめる
                     </button>
@@ -2022,7 +2022,7 @@ const StaffOrderPage = ({ storeId }) => {
               )}
 
               <div className={`sticky z-20 mb-3 overflow-x-auto rounded-[1.25rem] bg-white p-2 shadow-sm ${
-                isReplaceMode ? 'top-[152px] ring-2 ring-blue-100' : 'top-[76px]'
+                isReplaceMode ? 'top-[152px] ring-2 ring-ui-100' : 'top-[76px]'
               }`}>
                 <div className="flex gap-2">
                   {activeCategories.map((category) => (
@@ -2032,8 +2032,8 @@ const StaffOrderPage = ({ storeId }) => {
                       onClick={() => setSelectedCategoryId(category.id)}
                       className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
                         selectedCategoryId === category.id
-                          ? (isReplaceMode ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white')
-                          : (isReplaceMode ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : 'bg-slate-100 text-slate-600')
+                          ? (isReplaceMode ? 'bg-ui text-white' : 'bg-gray-900 text-white')
+                          : (isReplaceMode ? 'bg-ui-50 text-ui ring-1 ring-ui-100' : 'bg-gray-100 text-gray-600')
                       }`}
                     >
                       {category.name}
@@ -2045,8 +2045,8 @@ const StaffOrderPage = ({ storeId }) => {
                       onClick={() => setSelectedCategoryId('all')}
                       className={`h-11 shrink-0 rounded-2xl px-4 text-sm font-black ${
                         selectedCategoryId === 'all'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-100 text-gray-600'
                       }`}
                     >
                       すべて
@@ -2091,43 +2091,43 @@ const StaffOrderPage = ({ storeId }) => {
                       }}
                       className={`rounded-[1.5rem] border p-5 text-left shadow-sm transition-all active:scale-[0.98] ${
                         isReplaceMode
-                          ? 'border-blue-200 bg-white ring-1 ring-blue-100'
-                          : 'border-slate-200 bg-white'
+                          ? 'border-ui-100 bg-white ring-1 ring-ui-100'
+                          : 'border-gray-200 bg-white'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-lg font-black leading-snug text-slate-900">
+                          <p className="text-lg font-black leading-snug text-gray-900">
                             {item.name || '商品'}
                           </p>
 
                           {isReplaceMode ? (
                             <div className="mt-2 space-y-1">
-                              <p className="inline-flex rounded-full bg-blue-100 px-3 py-1.5 text-sm font-black text-blue-700">
+                              <p className="inline-flex rounded-full bg-ui-50 px-3 py-1.5 text-sm font-black text-ui">
                                 セット価格 {formatMoney(Number(item.crossSellPrice))}
                               </p>
                               {item.kitchenName && (
-                                <p className="text-[11px] font-bold text-slate-400">
+                                <p className="text-[11px] font-bold text-gray-500">
                                   {item.kitchenName}
                                 </p>
                               )}
                             </div>
                           ) : shouldUseSetPriceAsMain ? (
                             <div className="mt-2 space-y-1">
-                              <p className="text-sm font-black text-slate-400 line-through">
+                              <p className="text-sm font-black text-gray-500 line-through">
                                 通常価格 {formatMoney(normalPrice)}
                               </p>
-                              <p className="inline-flex rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">
+                              <p className="inline-flex rounded-full bg-ui-50 px-3 py-1.5 text-sm font-black text-ui">
                                 セット価格 {formatMoney(Number(item.crossSellPrice))}
                               </p>
                             </div>
                           ) : (
                             <div className="mt-2 space-y-1">
-                              <p className="text-xl font-black text-blue-600">
+                              <p className="text-xl font-black text-ui">
                                 {formatMoney(normalPrice)}
                               </p>
                               {item.kitchenName && (
-                                <p className="text-[11px] font-bold text-slate-400">
+                                <p className="text-[11px] font-bold text-gray-500">
                                   {item.kitchenName}
                                 </p>
                               )}
@@ -2160,7 +2160,7 @@ const StaffOrderPage = ({ storeId }) => {
                                 <Minus size={18} />
                               </div>
 
-                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
+                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-gray-900 px-3 text-white shadow-sm">
                                 <ShoppingCart size={16} />
                                 <span className="text-sm font-black">
                                   {activeCartQuantity}
@@ -2197,10 +2197,10 @@ const StaffOrderPage = ({ storeId }) => {
                             }}
                             className={`flex h-11 items-center justify-center rounded-2xl text-white shadow-sm active:scale-95 ${
                               isReplaceMode
-                                ? 'bg-blue-600 px-4 text-sm font-black'
+                                ? 'bg-ui px-4 text-sm font-black'
                                 : shouldUseSetPriceAsMain
-                                  ? 'w-11 bg-orange-500'
-                                  : 'w-11 bg-blue-600'
+                                  ? 'w-11 bg-ui'
+                                  : 'w-11 bg-gray-900'
                             }`}
                             aria-label={isReplaceMode ? 'この商品に変更' : shouldUseSetPriceAsMain ? 'セット価格で追加' : '通常価格で追加'}
                           >
@@ -2217,14 +2217,14 @@ const StaffOrderPage = ({ storeId }) => {
                             event.preventDefault();
                             event.stopPropagation();
                           }}
-                          className="mt-4 rounded-[1.25rem] border border-orange-200 bg-orange-50 p-4"
+                          className="mt-4 rounded-[1.25rem] border border-ui-100 bg-ui-50 p-4"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-xs font-black text-orange-700">
+                              <p className="text-xs font-black text-ui">
                                 セット価格分
                               </p>
-                              <p className="mt-1 text-2xl font-black text-orange-700">
+                              <p className="mt-1 text-2xl font-black text-ui">
                                 {formatMoney(Number(item.crossSellPrice))}
                               </p>
                             </div>
@@ -2243,7 +2243,7 @@ const StaffOrderPage = ({ storeId }) => {
                                 <Minus size={18} />
                               </button>
 
-                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-slate-900 px-3 text-white shadow-sm">
+                              <div className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl bg-gray-900 px-3 text-white shadow-sm">
                                 <ShoppingCart size={16} />
                                 <span className="text-sm font-black">
                                   {setPriceCartQuantity}
@@ -2253,7 +2253,7 @@ const StaffOrderPage = ({ storeId }) => {
                               <button
                                 type="button"
                                 disabled
-                                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-300 shadow-none"
+                                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ui-50 text-gray-300 shadow-none"
                                 aria-label="セット価格分は追加できません"
                               >
                                 <Plus size={22} />
@@ -2269,19 +2269,19 @@ const StaffOrderPage = ({ storeId }) => {
             </div>
 
             <aside className="lg:sticky lg:top-[92px] lg:self-start">
-              <div className="rounded-[1.75rem] border-2 border-blue-200 bg-blue-100 p-4 shadow-md">
+              <div className="rounded-[1.75rem] border-2 border-ui-100 bg-ui-50 p-4 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 text-lg font-black">
                     <ShoppingCart size={20} />
                     カート
                   </h2>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-600">
                     {cartCount}点
                   </span>
                 </div>
 
                 {cart.length === 0 ? (
-                  <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400">
+                  <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-gray-500">
                     商品を選択してください。
                   </p>
                 ) : (
@@ -2289,29 +2289,29 @@ const StaffOrderPage = ({ storeId }) => {
                     {cart.map((item) => (
                       <div
                         key={getCartLineKey(item)}
-                        className="rounded-2xl border border-blue-100 bg-white p-3"
+                        className="rounded-2xl border border-ui-100 bg-white p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-black text-slate-900">
+                            <p className="font-black text-gray-900">
                               {item.name}
                             </p>
-                            <p className="mt-1 text-sm font-bold text-slate-500">
+                            <p className="mt-1 text-sm font-bold text-gray-500">
                               {formatMoney(item.unitPrice)} × {item.quantity}
                             </p>
                             {Array.isArray(item.selectedOptions) && item.selectedOptions.length > 0 && (
-                              <p className="mt-1 text-[11px] font-bold text-slate-400">
+                              <p className="mt-1 text-[11px] font-bold text-gray-500">
                                 {item.selectedOptions.map((option) => option.name).join(' / ')}
                               </p>
                             )}
                             {item.appliedPriceMode === 'crossSell' && (
-                              <p className="mt-1 inline-flex rounded-full bg-orange-100 px-2 py-1 text-[11px] font-black text-orange-700">
+                              <p className="mt-1 inline-flex rounded-full bg-ui-50 px-2 py-1 text-[11px] font-black text-ui">
                                 {item.priceLabelText || 'セット価格'}
                               </p>
                             )}
                           </div>
 
-                          <p className="shrink-0 font-black text-slate-900">
+                          <p className="shrink-0 font-black text-gray-900">
                             {formatMoney(Number(item.unitPrice || 0) * Number(item.quantity || 0))}
                           </p>
                         </div>
@@ -2320,7 +2320,7 @@ const StaffOrderPage = ({ storeId }) => {
                           <button
                             type="button"
                             onClick={() => changeQuantity(getCartLineKey(item), -1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-700 shadow-sm"
                           >
                             <Minus size={16} />
                           </button>
@@ -2333,7 +2333,7 @@ const StaffOrderPage = ({ storeId }) => {
                             type="button"
                             onClick={() => changeQuantity(getCartLineKey(item), 1)}
                             disabled={item.appliedPriceMode === 'crossSell' && !canIncreaseCartLineQuantity(item, cart)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm disabled:opacity-40"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-700 shadow-sm disabled:opacity-40"
                           >
                             <Plus size={16} />
                           </button>
@@ -2342,7 +2342,7 @@ const StaffOrderPage = ({ storeId }) => {
                             <button
                               type="button"
                               onClick={() => openReplaceSetPriceModal(item)}
-                              className="flex h-9 items-center gap-1 rounded-xl bg-blue-600 px-3 text-xs font-black text-white shadow-sm"
+                              className="flex h-9 items-center gap-1 rounded-xl bg-gray-900 px-3 text-xs font-black text-white shadow-sm"
                             >
                               <Repeat2 size={15} />
                               変更
@@ -2354,12 +2354,12 @@ const StaffOrderPage = ({ storeId }) => {
                   </div>
                 )}
 
-                <div className="mt-5 border-t border-slate-100 pt-4">
+                <div className="mt-5 border-t border-gray-100 pt-4">
                   <div className="flex items-end justify-between">
-                    <span className="text-sm font-black text-slate-500">
+                    <span className="text-sm font-black text-gray-500">
                       合計
                     </span>
-                    <span className="text-3xl font-black text-slate-900">
+                    <span className="text-3xl font-black text-gray-900">
                       {formatMoney(cartTotal)}
                     </span>
                   </div>
@@ -2368,14 +2368,14 @@ const StaffOrderPage = ({ storeId }) => {
                     type="button"
                     onClick={handleSubmitOrder}
                     disabled={cart.length === 0 || submitting}
-                    className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-base font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:bg-slate-300 disabled:shadow-none"
+                    className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-base font-black text-white shadow-lg shadow-gray-200 transition-all active:scale-95 disabled:bg-gray-300 disabled:shadow-none"
                   >
                     {submitting ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
                     注文を送信
                   </button>
 
                   {completedOrderId && (
-                    <div className="mt-4 rounded-2xl bg-green-50 p-4 text-center text-sm font-black text-green-700">
+                    <div className="mt-4 rounded-2xl bg-gray-100 p-4 text-center text-sm font-black text-gray-900">
                       <CheckCircle2 className="mx-auto mb-2" size={24} />
                       注文を送信しました
                     </div>
@@ -2388,7 +2388,7 @@ const StaffOrderPage = ({ storeId }) => {
                         onClick={() => {
                           setCompletedOrderId('');
                         }}
-                        className="h-12 rounded-2xl bg-slate-900 text-sm font-black text-white"
+                        className="h-12 rounded-2xl bg-gray-900 text-sm font-black text-white"
                       >
                         続けて注文
                       </button>
@@ -2396,7 +2396,7 @@ const StaffOrderPage = ({ storeId }) => {
                       <button
                         type="button"
                         onClick={clearTableSelection}
-                        className="h-12 rounded-2xl bg-slate-100 text-sm font-black text-slate-700"
+                        className="h-12 rounded-2xl bg-gray-100 text-sm font-black text-gray-700"
                       >
                         テーブル選択へ戻る
                       </button>
@@ -2422,18 +2422,18 @@ const StaffOrderPage = ({ storeId }) => {
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
             <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] bg-white shadow-2xl sm:rounded-[1.75rem]">
-              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-6 py-5">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-6 py-5">
                 <div className="min-w-0">
-                  <p className="text-lg font-black leading-snug text-slate-900">
+                  <p className="text-lg font-black leading-snug text-gray-900">
                     {optionModalItem.name || '商品'}
                   </p>
                   <div className="mt-2">
                     {isSetPriceModal ? (
-                      <span className="inline-flex rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">
+                      <span className="inline-flex rounded-full bg-ui-50 px-3 py-1.5 text-sm font-black text-ui">
                         セット価格 {formatMoney(modalBasePrice)}
                       </span>
                     ) : (
-                      <span className="text-xl font-black text-blue-600">
+                      <span className="text-xl font-black text-ui">
                         {formatMoney(modalBasePrice)}
                       </span>
                     )}
@@ -2443,7 +2443,7 @@ const StaffOrderPage = ({ storeId }) => {
                 <button
                   type="button"
                   onClick={closeMenuOptionModal}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-400"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xl text-gray-500"
                   aria-label="閉じる"
                 >
                   ×
@@ -2456,16 +2456,16 @@ const StaffOrderPage = ({ storeId }) => {
                     <section key={group.id || group.name}>
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <h4 className="text-sm font-black text-slate-900">
+                          <h4 className="text-sm font-black text-gray-900">
                             {group.name || 'オプション'}
                           </h4>
-                          <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+                          <p className="mt-0.5 text-[11px] font-bold text-gray-500">
                             {group.selectionType === 'multiple' ? '複数選択できます' : '1つ選択してください'}
                           </p>
                         </div>
 
                         {group.required === true && (
-                          <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-600">
+                          <span className="shrink-0 rounded-full bg-ui-50 px-3 py-1 text-[10px] font-black text-ui">
                             必須
                           </span>
                         )}
@@ -2482,8 +2482,8 @@ const StaffOrderPage = ({ storeId }) => {
                               onClick={() => toggleOptionSelection(group, option)}
                               className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition-all active:scale-[0.99] ${
                                 selected
-                                  ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                  : 'border-slate-100 bg-slate-50 text-slate-700'
+                                  ? 'border-ui-100 bg-ui-50 text-ui'
+                                  : 'border-gray-100 bg-gray-50 text-gray-700'
                               }`}
                             >
                               <div className="min-w-0">
@@ -2491,7 +2491,7 @@ const StaffOrderPage = ({ storeId }) => {
                                   {option.name}
                                 </div>
                                 {Number(option.price || 0) > 0 && (
-                                  <div className="mt-0.5 text-xs font-bold text-slate-400">
+                                  <div className="mt-0.5 text-xs font-bold text-gray-500">
                                     +{formatMoney(Number(option.price || 0))}
                                   </div>
                                 )}
@@ -2500,8 +2500,8 @@ const StaffOrderPage = ({ storeId }) => {
                               <div
                                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
                                   selected
-                                    ? 'border-blue-500 bg-blue-500 text-white'
-                                    : 'border-slate-300 bg-white text-transparent'
+                                    ? 'border-ui bg-ui text-white'
+                                    : 'border-gray-300 bg-white text-transparent'
                                 }`}
                               >
                                 ✓
@@ -2516,12 +2516,12 @@ const StaffOrderPage = ({ storeId }) => {
               </div>
 
               <div
-                className="shrink-0 border-t border-slate-100 bg-white px-6 pt-4"
+                className="shrink-0 border-t border-gray-100 bg-white px-6 pt-4"
                 style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
               >
                 <div className="mb-4 flex items-end justify-between">
-                  <span className="text-sm font-black text-slate-500">合計</span>
-                  <span className="text-2xl font-black text-slate-900">
+                  <span className="text-sm font-black text-gray-500">合計</span>
+                  <span className="text-2xl font-black text-gray-900">
                     {formatMoney(modalTotalPrice)}
                   </span>
                 </div>
@@ -2530,7 +2530,7 @@ const StaffOrderPage = ({ storeId }) => {
                   <button
                     type="button"
                     onClick={closeMenuOptionModal}
-                    className="flex h-14 items-center justify-center rounded-2xl bg-slate-100 text-base font-black text-slate-700 active:scale-95"
+                    className="flex h-14 items-center justify-center rounded-2xl bg-gray-100 text-base font-black text-gray-700 active:scale-95"
                   >
                     キャンセル
                   </button>
@@ -2539,14 +2539,14 @@ const StaffOrderPage = ({ storeId }) => {
                     type="button"
                     onClick={confirmMenuOptionModal}
                     disabled={hasMissingRequired}
-                    className="flex h-14 items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:bg-slate-300 disabled:shadow-none"
+                    className="flex h-14 items-center justify-center rounded-2xl bg-gray-900 text-base font-black text-white shadow-lg shadow-gray-200 transition-all active:scale-95 disabled:bg-gray-300 disabled:shadow-none"
                   >
                     カートに追加
                   </button>
                 </div>
 
                 {hasMissingRequired && (
-                  <p className="mt-3 text-center text-xs font-bold text-orange-600">
+                  <p className="mt-3 text-center text-xs font-bold text-ui">
                     必須オプションを選択してください
                   </p>
                 )}

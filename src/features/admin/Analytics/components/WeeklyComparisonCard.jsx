@@ -27,14 +27,14 @@ const WeeklyComparisonCard = ({ comparison }) => {
   const differenceText = `${isPositive ? '+' : ''}${formatCurrency(difference)}`;
 
   return (
-    <div className="mb-8 rounded-2xl border border-orange-100 bg-orange-50/40 p-4 print:border-gray-300">
+    <div className="mb-8 rounded-2xl border border-ui-100 bg-ui-50/40 p-4 print:border-gray-300">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-xs font-black text-orange-500">
+          <div className="flex items-center gap-2 text-xs font-black text-ui">
             <CalendarClock size={15} />
             前年同週比較
           </div>
-          <p className="mt-1 text-xs font-bold text-gray-400">
+          <p className="mt-1 text-xs font-bold text-gray-500">
             最新の締め済み日を基準に、直近7日間と52週前の同じ曜日並びを比較します。
           </p>
         </div>
@@ -46,8 +46,8 @@ const WeeklyComparisonCard = ({ comparison }) => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="text-xs font-black text-gray-400">直近7日間</div>
-          <div className="mt-1 text-[11px] font-bold text-gray-400">
+          <div className="text-xs font-black text-gray-500">直近7日間</div>
+          <div className="mt-1 text-[11px] font-bold text-gray-500">
             {comparison.currentRangeLabel}
           </div>
           <div className="mt-2 text-2xl font-black text-gray-900">
@@ -56,8 +56,8 @@ const WeeklyComparisonCard = ({ comparison }) => {
         </div>
 
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="text-xs font-black text-gray-400">前年同週</div>
-          <div className="mt-1 text-[11px] font-bold text-gray-400">
+          <div className="text-xs font-black text-gray-500">前年同週</div>
+          <div className="mt-1 text-[11px] font-bold text-gray-500">
             {comparison.previousRangeLabel}
           </div>
           <div className="mt-2 text-2xl font-black text-gray-900">
@@ -66,12 +66,12 @@ const WeeklyComparisonCard = ({ comparison }) => {
         </div>
 
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="text-xs font-black text-gray-400">前年差</div>
+          <div className="text-xs font-black text-gray-500">前年差</div>
           <div className={`mt-2 flex items-center gap-1 text-2xl font-black ${
             isPositive
-              ? 'text-orange-600'
+              ? 'text-ui'
               : isNegative
-                ? 'text-blue-600'
+                ? 'text-ui'
                 : 'text-gray-900'
           }`}
           >
@@ -81,18 +81,18 @@ const WeeklyComparisonCard = ({ comparison }) => {
         </div>
 
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="text-xs font-black text-gray-400">前年比</div>
+          <div className="text-xs font-black text-gray-500">前年比</div>
           <div className={`mt-2 text-2xl font-black ${
             isPositive
-              ? 'text-orange-600'
+              ? 'text-ui'
               : isNegative
-                ? 'text-blue-600'
+                ? 'text-ui'
                 : 'text-gray-900'
           }`}
           >
             {formatRate(comparison.rate)}
           </div>
-          <div className="mt-1 text-[11px] font-bold text-gray-400">
+          <div className="mt-1 text-[11px] font-bold text-gray-500">
             前年売上が0円の場合は算出なし
           </div>
         </div>

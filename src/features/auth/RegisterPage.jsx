@@ -77,7 +77,7 @@ const RegisterPage = () => {
         </Link>
 
         <div className="mb-6 flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ui-50 text-ui">
             <ShieldCheck size={22} />
           </div>
           <div>
@@ -107,7 +107,7 @@ const RegisterPage = () => {
             <input
               type="text"
               required
-              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-ui"
               placeholder={isAdminInvite ? '例）山田 太郎（店長・オーナー名でも可）' : '氏名を入力'}
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -119,7 +119,7 @@ const RegisterPage = () => {
             <input
               type="email"
               required
-              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-ui"
               placeholder="staff@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -131,7 +131,7 @@ const RegisterPage = () => {
             <input
               type="password"
               required
-              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-ui"
               placeholder="6文字以上で入力"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -142,7 +142,7 @@ const RegisterPage = () => {
             <label className="mb-2 block text-xs font-black text-gray-500">招待コード</label>
             <input
               type="text"
-              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border-2 border-gray-100 px-4 py-3 outline-none focus:border-ui"
               placeholder="招待コードを入力"
               value={inviteCode}
               onChange={(event) => setInviteCode(event.target.value)}

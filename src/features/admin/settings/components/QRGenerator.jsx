@@ -296,22 +296,22 @@ const QRGenerator = ({ storeId }) => {
   };
 
   if (!storeId) {
-    return <div className="p-8 text-center text-gray-400">店舗IDを読み込み中...</div>;
+    return <div className="p-8 text-center text-gray-500">店舗IDを読み込み中...</div>;
   }
 
   return (
     <div className="w-full animate-in fade-in duration-300 pb-20">
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
-        <div className="flex h-24 items-center justify-between border-b bg-orange-50/50 px-8 transition-none print:hidden">
+        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none print:hidden">
           <div className="flex items-center gap-5">
-            <div className="rounded-2xl bg-orange-500 p-3 text-white shadow-xl shadow-orange-200">
+            <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
               <QrCode size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-orange-600">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-ui">
                 QRコード発行
               </h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-orange-300">
+              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
                 テーブル選択 / 共有URL / 印刷
               </p>
             </div>
@@ -325,16 +325,16 @@ const QRGenerator = ({ storeId }) => {
               <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm print:hidden">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-black tracking-[0.18em] text-orange-400">
+                    <div className="text-xs font-black tracking-[0.18em] text-ui">
                       発行するテーブル
                     </div>
-                    <p className="mt-1 text-xs font-bold text-gray-400">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       レイアウト上のテーブルを選択してください。
                     </p>
                   </div>
 
                   {tablesLoading || layoutLoading ? (
-                    <span className="inline-flex items-center gap-2 text-xs font-bold text-gray-400">
+                    <span className="inline-flex items-center gap-2 text-xs font-bold text-gray-500">
                       <LoadingSpinner size={12} />
                       読み込み中
                     </span>
@@ -342,7 +342,7 @@ const QRGenerator = ({ storeId }) => {
                 </div>
 
                 {layoutItems.length > 0 ? (
-                  <div className="max-h-[520px] overflow-auto rounded-3xl border border-gray-100 bg-slate-100 shadow-inner">
+                  <div className="max-h-[520px] overflow-auto rounded-3xl border border-gray-100 bg-gray-100 shadow-inner">
                     <div className="h-[420px] min-w-[820px]">
                       <FloorMapCanvas
                         mode="view"
@@ -362,18 +362,18 @@ const QRGenerator = ({ storeId }) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm font-bold text-gray-400">
+                  <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm font-bold text-gray-500">
                     テーブルレイアウトが登録されていません。
                   </div>
                 )}
 
-                <p className="mt-4 text-xs font-medium leading-relaxed text-gray-400">
+                <p className="mt-4 text-xs font-medium leading-relaxed text-gray-500">
                   テーブル名が設定されている場合は名前を表示します。QRコードには内部IDとしてテーブル番号を使用します。
                 </p>
               </section>
 
               <section className="rounded-[2rem] border-2 border-dashed border-gray-200 bg-gray-50/60 p-5 shadow-sm print:fixed print:inset-0 print:z-50 print:flex print:flex-col print:items-center print:justify-center print:border-none print:bg-white print:p-0 print:shadow-none">
-                <div className="mb-4 text-xs font-black tracking-[0.18em] text-orange-400 print:hidden">
+                <div className="mb-4 text-xs font-black tracking-[0.18em] text-ui print:hidden">
                   プレビュー
                 </div>
 
@@ -402,7 +402,7 @@ const QRGenerator = ({ storeId }) => {
                   </p>
 
                   {selectedTableLabel !== normalizedTableId && (
-                    <p className="mt-1 text-center font-mono text-[11px] font-bold text-gray-400 print:text-[9pt] print:text-black">
+                    <p className="mt-1 text-center font-mono text-[11px] font-bold text-gray-500 print:text-[9pt] print:text-black">
                       テーブル {normalizedTableId}
                     </p>
                   )}
@@ -413,7 +413,7 @@ const QRGenerator = ({ storeId }) => {
             <section className="rounded-[2rem] border border-gray-100 bg-white p-5 shadow-sm print:hidden">
               <div className="grid items-end gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
                 <div>
-                  <label className="mb-2 block text-xs font-black tracking-[0.18em] text-orange-400">
+                  <label className="mb-2 block text-xs font-black tracking-[0.18em] text-ui">
                     共有用URL
                   </label>
 
@@ -421,7 +421,7 @@ const QRGenerator = ({ storeId }) => {
                     {loadingToken ? (
                       <LoadingSpinner size={16} className="shrink-0" />
                     ) : (
-                      <QrCode size={16} className="shrink-0 text-gray-400" />
+                      <QrCode size={16} className="shrink-0 text-gray-500" />
                     )}
 
                     <p className={`flex-1 truncate text-[11px] font-mono ${loadError ? 'text-red-500' : 'text-gray-500'}`}>
@@ -445,7 +445,7 @@ const QRGenerator = ({ storeId }) => {
                     type="button"
                     onClick={handleDownloadPng}
                     disabled={!qrApiUrl || !imgLoaded || loadingToken || Boolean(loadError)}
-                    className="inline-flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-3 text-[11px] font-black text-white shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none disabled:active:scale-100"
+                    className="inline-flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-gray-900 px-3 text-[11px] font-black text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none disabled:active:scale-100"
                   >
                     <Download size={16} />
                     PNG
@@ -467,7 +467,7 @@ const QRGenerator = ({ storeId }) => {
         </div>
       </div>
       <div className="px-2 pt-3 text-right print:hidden">
-        <p className="text-[11px] leading-relaxed text-gray-400">
+        <p className="text-[11px] leading-relaxed text-gray-500">
           QRコードは株式会社デンソーウェーブの登録商標です。
         </p>
       </div>

@@ -22,11 +22,11 @@ const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, cancelReturn
   return (
     <div
       className={`rounded-2xl p-4 text-left transition-all print:border print:border-gray-300 ${
-        active ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-orange-50 text-gray-900'
+        active ? 'bg-ui text-white shadow-lg shadow-gray-200' : 'bg-ui-50 text-gray-900'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className={`flex items-center gap-2 text-xs font-black ${active ? 'text-white/90' : 'text-orange-500'}`}>
+        <div className={`flex items-center gap-2 text-xs font-black ${active ? 'text-white/90' : 'text-ui'}`}>
           <TrendingUp size={15} />
           売上合計 {label}
         </div>
@@ -34,14 +34,14 @@ const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, cancelReturn
           <button
             type="button"
             onClick={(event) => { event.stopPropagation(); onTaxModeChange('tax_excluded'); }}
-            className={`rounded-full px-2 py-0.5 transition-colors ${isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+            className={`rounded-full px-2 py-0.5 transition-colors ${isExcl ? 'bg-ui text-white' : 'text-ui'}`}
           >
             税抜
           </button>
           <button
             type="button"
             onClick={(event) => { event.stopPropagation(); onTaxModeChange('tax_included'); }}
-            className={`rounded-full px-2 py-0.5 transition-colors ${!isExcl ? 'bg-orange-500 text-white' : 'text-orange-500'}`}
+            className={`rounded-full px-2 py-0.5 transition-colors ${!isExcl ? 'bg-ui text-white' : 'text-ui'}`}
           >
             税込
           </button>
@@ -50,7 +50,7 @@ const SalesSummaryCard = ({ active, salesIncl, salesExcl, totalTax, cancelReturn
       <button type="button" onClick={onClick} className="mt-2 block w-full text-left text-2xl font-black active:scale-[0.99]">
         {formatCurrency(main)}
       </button>
-      <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/70' : 'text-gray-400'}`}>
+      <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/70' : 'text-gray-500'}`}>
         {isExcl ? '税込' : '税抜'} {formatCurrency(sub)}
         <span className="mx-1 opacity-50">/</span>
         内税 {formatCurrency(totalTax)}
@@ -81,18 +81,18 @@ const SummaryCard = ({
     onClick={onClick}
     className={`rounded-2xl p-4 text-left transition-all active:scale-[0.99] print:border print:border-gray-300 ${
       active
-        ? 'bg-orange-500 text-white shadow-lg shadow-orange-100'
+        ? 'bg-ui text-white shadow-lg shadow-gray-200'
         : accent
-          ? 'bg-orange-50 text-gray-900 hover:bg-orange-100'
-          : 'bg-gray-50 text-gray-900 hover:bg-orange-50'
+          ? 'bg-ui-50 text-gray-900 hover:bg-ui-50'
+          : 'bg-gray-50 text-gray-900 hover:bg-ui-50'
     }`}
   >
     <div className={`flex items-center gap-2 text-xs font-black ${
       active
         ? 'text-white/90'
         : accent
-          ? 'text-orange-500'
-          : 'text-gray-400'
+          ? 'text-ui'
+          : 'text-gray-500'
     }`}
     >
       <Icon size={15} />
@@ -102,14 +102,14 @@ const SummaryCard = ({
     <div className="mt-2 text-2xl font-black">
       {value}
       {suffix && (
-        <span className={`ml-1 text-sm font-bold ${active ? 'text-white/80' : 'text-gray-400'}`}>
+        <span className={`ml-1 text-sm font-bold ${active ? 'text-white/80' : 'text-gray-500'}`}>
           {suffix}
         </span>
       )}
     </div>
 
     {subText && (
-      <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/70' : 'text-gray-400'}`}>
+      <div className={`mt-1 text-[11px] font-bold ${active ? 'text-white/70' : 'text-gray-500'}`}>
         {subText}
       </div>
     )}
@@ -122,7 +122,7 @@ const TimePeriodFilterCard = ({
   onSelectedPeriodChange
 }) => (
   <div className="rounded-2xl bg-gray-50 p-4 text-left print:border print:border-gray-300">
-    <div className="flex items-center gap-2 text-xs font-black text-gray-400">
+    <div className="flex items-center gap-2 text-xs font-black text-gray-500">
       <ReceiptText size={15} />
       時間帯
     </div>
@@ -130,7 +130,7 @@ const TimePeriodFilterCard = ({
     <select
       value={selectedPeriodId}
       onChange={(event) => onSelectedPeriodChange?.(event.target.value)}
-      className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-900 outline-none transition-colors focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+      className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-900 outline-none transition-colors focus:border-ui focus:ring-2 focus:ring-ui-100"
     >
       <option value="all">全時間帯</option>
       {periodOptions.map((periodOption) => (
@@ -140,7 +140,7 @@ const TimePeriodFilterCard = ({
       ))}
     </select>
 
-    <div className="mt-1 text-[11px] font-bold text-gray-400">
+    <div className="mt-1 text-[11px] font-bold text-gray-500">
       注文時刻ベースで絞り込み（時間帯選択時はテイクアウトを除外）
     </div>
   </div>

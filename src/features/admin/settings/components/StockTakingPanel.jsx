@@ -246,7 +246,7 @@ const StockTakingPanel = ({ storeId }) => {
 
   if (activeStocktake === undefined) {
     return (
-      <div className="mt-5 flex items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-10">
+      <div className="mt-5 flex items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10">
         <LoadingSpinner />
       </div>
     );
@@ -254,9 +254,9 @@ const StockTakingPanel = ({ storeId }) => {
 
   return (
     <div className="mt-5 space-y-5">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6">
-        <h3 className="text-lg font-black text-slate-900">棚卸しの進め方</h3>
-        <ol className="mt-3 space-y-2 text-sm font-bold leading-relaxed text-slate-600">
+      <div className="rounded-3xl border border-gray-200 bg-white p-6">
+        <h3 className="text-lg font-black text-gray-900">棚卸しの進め方</h3>
+        <ol className="mt-3 space-y-2 text-sm font-bold leading-relaxed text-gray-600">
           <li>1. まず倉庫の在庫をスキャンしてカウントします。</li>
           <li>2. 売場の在庫もスキャンしてカウントします。カウントしてから1時間、その商品が売れなければそのまま確定します。</li>
           <li>3. カウントから確定までの1時間以内にその商品が売れた場合は「数え直しリスト」に入るので、もう一度数えてください。</li>
@@ -266,13 +266,13 @@ const StockTakingPanel = ({ storeId }) => {
         </ol>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6">
+      <div className="rounded-3xl border border-gray-200 bg-white p-6">
         {activeStocktake ? (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">進行中</p>
-                <p className="mt-1 text-sm font-bold text-slate-500">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-900">進行中</p>
+                <p className="mt-1 text-sm font-bold text-gray-500">
                   開始: {formatDateTimeText(activeStocktake.startedAt)}
                 </p>
               </div>
@@ -280,7 +280,7 @@ const StockTakingPanel = ({ storeId }) => {
                 type="button"
                 onClick={handleFinalize}
                 disabled={finalizing}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {finalizing ? <LoadingSpinner size={16} /> : null}
                 棚卸し終了
@@ -288,57 +288,57 @@ const StockTakingPanel = ({ storeId }) => {
             </div>
 
             {finalizing && finalizeProgress ? (
-              <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
+              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/60 p-4">
                 {finalizeProgress.total > 0 ? (
                   <>
-                    <div className="flex items-center justify-between text-xs font-black text-rose-600">
+                    <div className="flex items-center justify-between text-xs font-black text-red-600">
                       <span>在庫を反映中…</span>
                       <span>
                         {finalizeProgress.done.toLocaleString()} / {finalizeProgress.total.toLocaleString()}
                         （{Math.round((finalizeProgress.done / finalizeProgress.total) * 100)}%）
                       </span>
                     </div>
-                    <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-rose-100">
+                    <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-red-100">
                       <div
-                        className="h-full rounded-full bg-rose-500 transition-all duration-300"
+                        className="h-full rounded-full bg-red-500 transition-all duration-300"
                         style={{ width: `${Math.round((finalizeProgress.done / finalizeProgress.total) * 100)}%` }}
                       />
                     </div>
                   </>
                 ) : (
-                  <p className="text-xs font-black text-rose-600">準備中…（商品データを取得しています）</p>
+                  <p className="text-xs font-black text-red-600">準備中…（商品データを取得しています）</p>
                 )}
-                <p className="mt-2 text-[11px] font-bold text-rose-400">この画面を閉じずにお待ちください。</p>
+                <p className="mt-2 text-[11px] font-bold text-red-400">この画面を閉じずにお待ちください。</p>
               </div>
             ) : null}
 
             <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-2xl font-black text-slate-900">{warehouseCountedCount}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">倉庫カウント済み</p>
+              <div className="rounded-2xl bg-gray-50 p-4">
+                <p className="text-2xl font-black text-gray-900">{warehouseCountedCount}</p>
+                <p className="mt-1 text-xs font-bold text-gray-500">倉庫カウント済み</p>
               </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-2xl font-black text-slate-900">{storefrontCountedCount}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">店頭確定済み</p>
+              <div className="rounded-2xl bg-gray-50 p-4">
+                <p className="text-2xl font-black text-gray-900">{storefrontCountedCount}</p>
+                <p className="mt-1 text-xs font-bold text-gray-500">店頭確定済み</p>
               </div>
-              <div className="rounded-2xl bg-orange-50 p-4">
-                <p className="text-2xl font-black text-orange-600">{recountCount}</p>
-                <p className="mt-1 text-xs font-bold text-orange-500">数え直し対象</p>
+              <div className="rounded-2xl bg-ui-50 p-4">
+                <p className="text-2xl font-black text-ui">{recountCount}</p>
+                <p className="mt-1 text-xs font-bold text-ui">数え直し対象</p>
               </div>
             </div>
 
             {finalizeError ? (
-              <p className="mt-4 text-sm font-bold text-rose-500">{finalizeError}</p>
+              <p className="mt-4 text-sm font-bold text-red-500">{finalizeError}</p>
             ) : null}
           </>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold text-slate-500">現在進行中の棚卸しはありません。</p>
+            <p className="text-sm font-bold text-gray-500">現在進行中の棚卸しはありません。</p>
             <button
               type="button"
               onClick={handleStart}
               disabled={starting}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {starting ? <LoadingSpinner size={16} /> : <Archive size={16} />}
               棚卸し開始
@@ -347,9 +347,9 @@ const StockTakingPanel = ({ storeId }) => {
         )}
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6">
-        <p className="text-sm font-black text-slate-900">棚卸し 在高レポート（売り場別・税抜）</p>
-        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+      <div className="rounded-3xl border border-gray-200 bg-white p-6">
+        <p className="text-sm font-black text-gray-900">棚卸し 在高レポート（売り場別・税抜）</p>
+        <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
           過去の棚卸しを選ぶと、完了日時点の在庫で売り場別の上代合計・原価合計を集計します。
         </p>
 
@@ -357,7 +357,7 @@ const StockTakingPanel = ({ storeId }) => {
           <select
             value={valuationStocktakeId}
             onChange={(event) => { setValuationStocktakeId(event.target.value); setValuation(null); }}
-            className="h-11 flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-blue-400"
+            className="h-11 flex-1 rounded-2xl border-2 border-gray-200 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-ui"
           >
             {completedStocktakes.length === 0 ? (
               <option value="">完了した棚卸しがありません</option>
@@ -373,21 +373,21 @@ const StockTakingPanel = ({ storeId }) => {
             type="button"
             onClick={handleShowValuation}
             disabled={valuationLoading || !valuationStocktakeId}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {valuationLoading ? <LoadingSpinner size={16} /> : null}
             集計する
           </button>
         </div>
 
-        {valuationError ? <p className="mt-3 text-xs font-bold text-rose-500">{valuationError}</p> : null}
+        {valuationError ? <p className="mt-3 text-xs font-bold text-red-500">{valuationError}</p> : null}
 
         {valuation ? (
           <div className="mt-4">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-sm">
                 <thead>
-                  <tr className="border-b-2 border-slate-100 text-xs font-black text-slate-400">
+                  <tr className="border-b-2 border-gray-100 text-xs font-black text-gray-500">
                     <th className="py-2 text-left">売り場</th>
                     <th className="py-2 text-right">点数</th>
                     <th className="py-2 text-right">上代合計</th>
@@ -397,26 +397,26 @@ const StockTakingPanel = ({ storeId }) => {
                 </thead>
                 <tbody>
                   {valuation.areas.map((a) => (
-                    <tr key={a.areaId} className="border-b border-slate-50 font-bold text-slate-700">
+                    <tr key={a.areaId} className="border-b border-gray-50 font-bold text-gray-700">
                       <td className="py-2 text-left">{a.name}</td>
                       <td className="py-2 text-right tabular-nums">{a.qty.toLocaleString()}</td>
                       <td className="py-2 text-right tabular-nums">{yen(a.retail)}</td>
                       <td className="py-2 text-right tabular-nums">{yen(a.cost)}</td>
-                      <td className="py-2 text-right tabular-nums text-orange-500">{a.noCostItems ? `${a.noCostItems}件` : '-'}</td>
+                      <td className="py-2 text-right tabular-nums text-ui">{a.noCostItems ? `${a.noCostItems}件` : '-'}</td>
                     </tr>
                   ))}
-                  <tr className="border-t-2 border-slate-200 font-black text-slate-900">
+                  <tr className="border-t-2 border-gray-200 font-black text-gray-900">
                     <td className="py-2 text-left">合計</td>
                     <td className="py-2 text-right tabular-nums">{valuation.total.qty.toLocaleString()}</td>
                     <td className="py-2 text-right tabular-nums">{yen(valuation.total.retail)}</td>
                     <td className="py-2 text-right tabular-nums">{yen(valuation.total.cost)}</td>
-                    <td className="py-2 text-right tabular-nums text-orange-500">{valuation.total.noCostItems ? `${valuation.total.noCostItems}件` : '-'}</td>
+                    <td className="py-2 text-right tabular-nums text-ui">{valuation.total.noCostItems ? `${valuation.total.noCostItems}件` : '-'}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             {valuation.total.noCostItems > 0 ? (
-              <p className="mt-2 text-[11px] font-bold leading-relaxed text-orange-500">
+              <p className="mt-2 text-[11px] font-bold leading-relaxed text-ui">
                 ※ 原価（掛け率）が未設定の商品が {valuation.total.noCostItems.toLocaleString()} 件あり、その分の原価は0で集計しています。掛け率を入力すると原価合計が正確になります。
               </p>
             ) : null}
@@ -427,7 +427,7 @@ const StockTakingPanel = ({ storeId }) => {
                   buildValuationCsv(valuation, '税抜'),
                   `stocktake_valuation_${storeId}_${valuationStocktakeId}.csv`
                 )}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-700"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 text-xs font-black text-white shadow-sm transition hover:bg-gray-700"
               >
                 CSVを保存
               </button>
@@ -436,11 +436,11 @@ const StockTakingPanel = ({ storeId }) => {
         ) : null}
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6">
+      <div className="rounded-3xl border border-gray-200 bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-slate-900">マイナス在庫の修正</p>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+            <p className="text-sm font-black text-gray-900">マイナス在庫の修正</p>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               売り越しなどで在庫がマイナスになった商品を、まとめて0に修正します。
             </p>
           </div>
@@ -448,23 +448,23 @@ const StockTakingPanel = ({ storeId }) => {
             type="button"
             onClick={handleFixNegatives}
             disabled={fixingNegatives}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {fixingNegatives ? <LoadingSpinner size={16} /> : null}
             マイナス在庫を0に修正
           </button>
         </div>
         {negativeMessage ? (
-          <p className="mt-3 text-xs font-bold text-slate-600">{negativeMessage}</p>
+          <p className="mt-3 text-xs font-bold text-gray-600">{negativeMessage}</p>
         ) : null}
       </div>
 
       {finalizeResults ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-black text-slate-900">棚卸し結果</p>
-              <p className="mt-1 text-xs font-bold text-slate-500">
+              <p className="text-sm font-black text-gray-900">棚卸し結果</p>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 {finalizeResults.length.toLocaleString()}件の在庫を更新しました。確認のためCSVを保存できます。
               </p>
             </div>
@@ -474,7 +474,7 @@ const StockTakingPanel = ({ storeId }) => {
                 buildCsvContent(finalizeResults),
                 `stocktake_${storeId}_${new Date().toISOString().slice(0, 10)}.csv`
               )}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-700"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700"
             >
               CSVを保存
             </button>
@@ -483,15 +483,15 @@ const StockTakingPanel = ({ storeId }) => {
       ) : null}
 
       {stocktakeUrl ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center">
-          <p className="text-sm font-black text-slate-900">スマホでスキャン画面を開く</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 text-center">
+          <p className="text-sm font-black text-gray-900">スマホでスキャン画面を開く</p>
+          <p className="mt-1 text-xs font-bold text-gray-500">
             スタッフのスマホでこのQRコードを読み込んでください
           </p>
-          <div className="mx-auto mt-5 flex w-fit rounded-[1.25rem] bg-white p-4 shadow-inner ring-1 ring-slate-100">
+          <div className="mx-auto mt-5 flex w-fit rounded-[1.25rem] bg-white p-4 shadow-inner ring-1 ring-gray-100">
             <QRCodeSVG value={stocktakeUrl} size={180} level="M" includeMargin />
           </div>
-          <p className="mx-auto mt-4 max-w-md break-all rounded-2xl bg-slate-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-slate-500">
+          <p className="mx-auto mt-4 max-w-md break-all rounded-2xl bg-gray-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-gray-500">
             {stocktakeUrl}
           </p>
         </div>

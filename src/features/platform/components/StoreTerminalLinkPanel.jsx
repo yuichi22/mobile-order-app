@@ -61,14 +61,14 @@ const StoreTerminalLinkPanel = ({ storeId }) => {
   const linked = str(coreTenantId) && str(coreSpaceId);
 
   return (
-    <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+    <div className="mt-3 rounded-2xl border border-gray-100 bg-gray-50 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+        <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">
           Stripe端末連携（Core tenant/space）
         </span>
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            linked ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+            linked ? 'bg-gray-100 text-gray-900' : 'bg-gray-200 text-gray-500'
           }`}
         >
           {linked ? '連携済み' : '未連携'}
@@ -81,14 +81,14 @@ const StoreTerminalLinkPanel = ({ storeId }) => {
           onChange={(e) => setCoreTenantId(e.target.value)}
           placeholder="coreTenantId（例: suomi）"
           disabled={state === 'loading'}
-          className="h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
+          className="h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
         />
         <input
           value={coreSpaceId}
           onChange={(e) => setCoreSpaceId(e.target.value)}
           placeholder="coreSpaceId（Core上の拠点ID）"
           disabled={state === 'loading'}
-          className="h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
+          className="h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
         />
       </div>
 
@@ -97,13 +97,13 @@ const StoreTerminalLinkPanel = ({ storeId }) => {
           type="button"
           onClick={handleSave}
           disabled={state === 'loading' || state === 'saving'}
-          className="h-9 rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition active:scale-95 disabled:opacity-50"
+          className="h-9 rounded-xl bg-gray-900 px-4 text-xs font-black text-white transition active:scale-95 disabled:opacity-50"
         >
           {state === 'saving' ? '保存中…' : '保存'}
         </button>
         {message && (
           <span
-            className={`text-xs font-bold ${state === 'error' ? 'text-red-500' : 'text-emerald-600'}`}
+            className={`text-xs font-bold ${state === 'error' ? 'text-red-500' : 'text-gray-900'}`}
           >
             {message}
           </span>

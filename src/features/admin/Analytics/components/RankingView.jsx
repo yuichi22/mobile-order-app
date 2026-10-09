@@ -13,7 +13,7 @@ const RankingView = ({ ranking }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {ranking.length === 0 && <tr><td colSpan="4" className="p-4 text-center text-gray-400">対象データがありません</td></tr>}
+          {ranking.length === 0 && <tr><td colSpan="4" className="p-4 text-center text-gray-500">対象データがありません</td></tr>}
           {ranking.map((item, idx) => (
             <tr key={idx} className="hover:bg-gray-50">
               <td className="w-16 p-3 font-bold text-gray-500">{idx + 1}</td>

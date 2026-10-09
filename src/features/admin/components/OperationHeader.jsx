@@ -43,7 +43,7 @@ const OperationHeader = ({
           <button
             type="button"
             onClick={goToSalesAnalysis}
-            className="flex h-11 items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+            className="flex h-11 items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-ui-50 hover:text-ui active:scale-95"
           >
             <BarChart3 size={17} strokeWidth={2.7} />
             売上・分析
@@ -52,7 +52,7 @@ const OperationHeader = ({
           <button
             type="button"
             onClick={goToStoreSettings}
-            className="flex h-11 items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+            className="flex h-11 items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 text-sm font-black text-gray-700 shadow-sm transition-all hover:bg-ui-50 hover:text-ui active:scale-95"
           >
             <Settings size={17} strokeWidth={2.7} />
             店舗設定

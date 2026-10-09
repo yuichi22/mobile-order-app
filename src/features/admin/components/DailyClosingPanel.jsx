@@ -88,11 +88,11 @@ const registerButtonColorClass = ({ closed, hasDifference, isSelf }) => {
   if (!closed) {
     return isSelf
       ? 'bg-gray-900 text-white hover:bg-black'
-      : 'bg-slate-100 text-slate-400 hover:bg-slate-200';
+      : 'bg-gray-100 text-gray-500 hover:bg-gray-200';
   }
   return hasDifference
     ? 'bg-red-50 text-red-700 hover:bg-red-100'
-    : 'bg-green-50 text-green-700 hover:bg-green-100';
+    : 'bg-gray-100 text-gray-900 hover:bg-gray-100';
 };
 
 const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
@@ -474,13 +474,13 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
 
   // 物販(POS系部門)選択時は売上合計カード等のアクセントを青に、それ以外はオレンジに。
   const accentPos = Boolean(selectedDepartment && selectedDepartment.registerMode === 'pos');
-  const salesCardBg = accentPos ? 'bg-blue-50' : 'bg-orange-50';
-  const salesCardLabel = accentPos ? 'text-blue-600' : 'text-orange-500';
-  const salesToggleActive = accentPos ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white';
-  const salesToggleIdle = accentPos ? 'text-blue-600' : 'text-orange-500';
-  const salesSubText = accentPos ? 'text-blue-600/80' : 'text-orange-500/80';
-  const salesDivider = accentPos ? 'text-blue-300' : 'text-orange-300';
-  const salesBorder = accentPos ? 'border-blue-200/60' : 'border-orange-200/60';
+  const salesCardBg = accentPos ? 'bg-ui-50' : 'bg-ui-50';
+  const salesCardLabel = accentPos ? 'text-ui' : 'text-ui';
+  const salesToggleActive = accentPos ? 'bg-ui text-white' : 'bg-gray-900 text-white';
+  const salesToggleIdle = accentPos ? 'text-ui' : 'text-ui';
+  const salesSubText = accentPos ? 'text-ui/80' : 'text-ui/80';
+  const salesDivider = accentPos ? 'text-gray-300' : 'text-gray-300';
+  const salesBorder = accentPos ? 'border-ui-100/60' : 'border-ui-100/60';
 
   const categoryList = Array.isArray(summary?.categoryList)
     ? summary.categoryList
@@ -730,7 +730,7 @@ const handleCloseDay = async (closingCheck = {}) => {
           <button
             type="button"
             onClick={() => shiftDailyClosingDate(-1)}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-600"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui"
             aria-label="前の日"
           >
             <ChevronLeft size={20} strokeWidth={3} />
@@ -739,7 +739,7 @@ const handleCloseDay = async (closingCheck = {}) => {
           <button
             type="button"
             onClick={openDatePicker}
-            className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-700"
+            className="min-w-[180px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui"
           >
             {dateKey}（{dateWeekLabel}）
           </button>
@@ -748,7 +748,7 @@ const handleCloseDay = async (closingCheck = {}) => {
             type="button"
             onClick={() => shiftDailyClosingDate(1)}
             disabled={isTargetDateToday}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-orange-100 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="次の日"
           >
             <ChevronRight size={20} strokeWidth={3} />
@@ -761,11 +761,11 @@ const handleCloseDay = async (closingCheck = {}) => {
             className={`rounded-full px-4 py-3 text-sm font-black shadow-sm ring-1 transition-colors ${
               isTargetDateToday
                 ? (selectedDepartment?.registerMode === 'pos'
-                    ? 'bg-blue-600 text-white ring-blue-600'
-                    : 'bg-orange-500 text-white ring-orange-500')
+                    ? 'bg-ui text-white ring-ui-100'
+                    : 'bg-gray-900 text-white ring-ui-100')
                 : (selectedDepartment?.registerMode === 'pos'
-                    ? 'bg-white text-gray-600 ring-gray-100 hover:bg-blue-100 hover:text-blue-700'
-                    : 'bg-white text-gray-600 ring-gray-100 hover:bg-orange-100 hover:text-orange-700')
+                    ? 'bg-white text-gray-600 ring-gray-100 hover:bg-ui-50 hover:text-ui'
+                    : 'bg-white text-gray-600 ring-gray-100 hover:bg-ui-50 hover:text-ui')
             }`}
           >
             今日
@@ -786,16 +786,16 @@ const handleCloseDay = async (closingCheck = {}) => {
         <div
           className={`flex flex-col gap-3 rounded-2xl border p-4 ${
             !isSelectedClosed
-              ? 'border-orange-100 bg-orange-50/40'
+              ? 'border-ui-100 bg-ui-50/40'
               : hasAnyRegisterDifference
                 ? 'border-red-200 bg-red-50/50'
-                : 'border-green-200 bg-green-50/50'
+                : 'border-gray-200 bg-gray-100/50'
           }`}
         >
           {/* 対象レジ（部門名＋レジ名のテキスト表示） */}
-          <div className="text-sm font-black text-slate-900">
+          <div className="text-sm font-black text-gray-900">
             {activeDepartment?.name ? (
-              <span className="text-slate-500">{activeDepartment.name}　</span>
+              <span className="text-gray-500">{activeDepartment.name}　</span>
             ) : null}
             {activeRegister?.name || 'レジ'}
           </div>
@@ -805,13 +805,13 @@ const handleCloseDay = async (closingCheck = {}) => {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="mr-1 flex items-center gap-2">
               <div className="flex flex-col leading-tight">
-                <span className="text-[10px] font-black text-slate-400">このレジの売上</span>
-                <span className="text-lg font-black text-slate-900">
+                <span className="text-[10px] font-black text-gray-500">このレジの売上</span>
+                <span className="text-lg font-black text-gray-900">
                   {formatCurrency(registerSalesTotal)}
                 </span>
               </div>
               {!isSelectedClosed ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-black text-slate-500">
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2.5 py-1 text-[11px] font-black text-gray-500">
                   <LockKeyhole size={12} />
                   未締め
                 </span>
@@ -821,7 +821,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                   差額あり
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-black text-green-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-900">
                   <CheckCircle2 size={12} />
                   差額なし
                 </span>
@@ -839,13 +839,13 @@ const handleCloseDay = async (closingCheck = {}) => {
                     isMismatched
                       ? 'bg-red-50 ring-red-200'
                       : isMatched
-                        ? 'bg-green-50 ring-green-100'
-                        : 'bg-white ring-slate-100'
+                        ? 'bg-gray-100 ring-gray-200'
+                        : 'bg-white ring-gray-100'
                   }`}
                 >
                   <div className="flex flex-col leading-tight">
-                    <span className="text-[10px] font-black text-slate-400">{item.label}</span>
-                    <span className="text-sm font-black text-slate-900">
+                    <span className="text-[10px] font-black text-gray-500">{item.label}</span>
+                    <span className="text-sm font-black text-gray-900">
                       {formatCurrency(item.amount)}
                     </span>
                   </div>
@@ -855,11 +855,11 @@ const handleCloseDay = async (closingCheck = {}) => {
                       {item.difference > 0 ? '+' : ''}{formatCurrency(item.difference)}
                     </span>
                   ) : isMatched ? (
-                    <span className="inline-flex items-center rounded-md bg-green-100 px-1 py-0.5 text-green-600">
+                    <span className="inline-flex items-center rounded-md bg-gray-100 px-1 py-0.5 text-gray-900">
                       <CheckCircle2 size={13} />
                     </span>
                   ) : (
-                    <span className="text-[10px] font-black text-slate-300">—</span>
+                    <span className="text-[10px] font-black text-gray-300">—</span>
                   )}
                 </div>
               );
@@ -877,7 +877,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                   const md = String(adj.originalBusinessDate || '').split('-');
                   const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
                   return (
-                    <span key={`radj-${i}`} className="text-indigo-500">
+                    <span key={`radj-${i}`} className="text-ui">
                       付替 {dateLabel}{ml(adj.from)}→{ml(adj.to)} {formatCurrency(adj.amount)}
                     </span>
                   );
@@ -903,7 +903,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                     disabled={loading || isClosing}
                     className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-black shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                       registerButtonColorClass({ closed, hasDifference, isSelf: false })
-                    } ${isSelected ? 'ring-2 ring-offset-1 ring-slate-900' : ''}`}
+                    } ${isSelected ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
                   >
                     {closed ? <CheckCircle2 size={14} /> : <LockKeyhole size={14} />}
                     {register.name}{closed ? '締め済み' : '未締め'}
@@ -922,7 +922,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                     hasDifference: Boolean(activeRegister?.id && registerDiffMap[activeRegister.id]),
                     isSelf: true
                   })
-                } ${isSelectedOwnRegister ? 'ring-2 ring-offset-1 ring-slate-900' : ''}`}
+                } ${isSelectedOwnRegister ? 'ring-2 ring-offset-1 ring-gray-900' : ''}`}
               >
                 {isClosing || isLoadingClosedDaily ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -950,9 +950,9 @@ const handleCloseDay = async (closingCheck = {}) => {
         </div>
 
         {/* 集計(部門)セレクター: 集計(テキスト) + 部門ボタン + 表示中件数。 */}
-        <div className="mb-5 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 p-3">
+        <div className="mb-5 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white/80 p-3">
           {/* 集計（テキスト表示） */}
-          <span className="mr-1 text-sm font-black text-slate-500">集計</span>
+          <span className="mr-1 text-sm font-black text-gray-500">集計</span>
 
           {/* 部門ボタン（配置・名称は固定。自部門は大きく、その他は小さく。選択中は黒） */}
           {departmentOptions.map((dept) => {
@@ -968,9 +968,9 @@ const handleCloseDay = async (closingCheck = {}) => {
                 } ${
                   isSelected
                     ? (dept.registerMode === 'pos'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-orange-500 text-white shadow-sm')
-                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                        ? 'bg-ui text-white shadow-sm'
+                        : 'bg-gray-900 text-white shadow-sm')
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 {dept.name}
@@ -984,14 +984,14 @@ const handleCloseDay = async (closingCheck = {}) => {
             onClick={() => setSelectedDepartmentId('all')}
             className={`rounded-xl px-3 py-2 text-xs font-black transition ${
               selectedDepartmentId === 'all'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
             全体
           </button>
 
-          <div className="ml-auto rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+          <div className="ml-auto rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">
             表示中: {filteredTransactionCount}件 / 全{transactions.length}件
           </div>
 
@@ -1000,7 +1000,7 @@ const handleCloseDay = async (closingCheck = {}) => {
             <button
               type="button"
               onClick={() => setSelectedDepartmentId(activeDepartment?.id || 'all')}
-              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+              className="rounded-xl bg-ui-50 px-3 py-2 text-xs font-black text-ui transition hover:bg-ui-50"
             >
               自部門に戻る
             </button>
@@ -1009,7 +1009,7 @@ const handleCloseDay = async (closingCheck = {}) => {
 
 
       {loading ? (
-        <div className="flex h-40 items-center justify-center text-sm font-bold text-gray-400">
+        <div className="flex h-40 items-center justify-center text-sm font-bold text-gray-500">
           <Loader2 size={18} className="mr-2 animate-spin" />
           読み込み中
         </div>
@@ -1058,14 +1058,14 @@ const handleCloseDay = async (closingCheck = {}) => {
                 </div>
               )}
               {Array.isArray(summary?.methodAdjustments) && summary.methodAdjustments.length > 0 && (
-                <div className="mt-1 border-t border-orange-200/60 pt-1 text-[11px] font-black text-indigo-500">
+                <div className="mt-1 border-t border-ui-100/60 pt-1 text-[11px] font-black text-ui">
                   <div className="mb-0.5">支払方法訂正（付替え）</div>
                   {summary.methodAdjustments.map((adj, i) => {
                     const ml = (m) => (m === 'cash' ? '現金' : m === 'card' ? 'カード' : m === 'qr' ? 'QR' : m || '—');
                     const md = String(adj.originalBusinessDate || '').split('-');
                     const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
                     return (
-                      <div key={`madj-${i}`} className="font-bold text-indigo-600">
+                      <div key={`madj-${i}`} className="font-bold text-ui">
                         {dateLabel}{ml(adj.from)}→{ml(adj.to)} {formatCurrency(adj.amount)}
                       </div>
                     );
@@ -1075,7 +1075,7 @@ const handleCloseDay = async (closingCheck = {}) => {
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="flex items-center gap-1 text-xs font-black text-gray-400">
+              <div className="flex items-center gap-1 text-xs font-black text-gray-500">
                 <Users size={14} />
                 来客数
               </div>
@@ -1085,24 +1085,24 @@ const handleCloseDay = async (closingCheck = {}) => {
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="text-xs font-black text-gray-400">客単価 {amountDisplayLabel}</div>
+              <div className="text-xs font-black text-gray-500">客単価 {amountDisplayLabel}</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {formatCurrency(averageSpendPerCustomer)}
               </div>
-              <div className="mt-1 text-[11px] font-bold text-gray-400">
+              <div className="mt-1 text-[11px] font-bold text-gray-500">
                 {resolveSubAmount(averageSpendPerCustomerTaxIncluded, averageSpendPerCustomerTaxExcluded)}
               </div>
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="text-xs font-black text-gray-400">会計件数</div>
+              <div className="text-xs font-black text-gray-500">会計件数</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {Number(summary?.transactionCount || 0)}
               </div>
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="text-xs font-black text-gray-400">販売点数</div>
+              <div className="text-xs font-black text-gray-500">販売点数</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {Number(summary?.itemCount || 0)}
               </div>
@@ -1112,49 +1112,49 @@ const handleCloseDay = async (closingCheck = {}) => {
 
           </div>
 
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-100/40 p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-black text-emerald-900">
+              <div className="text-sm font-black text-gray-900">
                 粗利・原価
               </div>
-              <div className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
+              <div className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-gray-900 shadow-sm">
                 原価登録済み {Number(summary?.costConfiguredItemCount || 0)}点
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">原価設定済み売上 税抜</div>
+                <div className="text-xs font-black text-gray-900">原価設定済み売上 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
                   {formatCurrency(summary?.costConfiguredSalesTaxExcluded)}
                 </div>
-                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                <div className="mt-1 text-[11px] font-bold text-gray-500">
                   税込 {formatCurrency(summary?.costConfiguredSalesTaxIncluded)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-gray-400">原価 税抜</div>
+                <div className="text-xs font-black text-gray-500">原価 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
                   {formatCurrency(summary?.costTaxExcludedTotal)}
                 </div>
-                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                <div className="mt-1 text-[11px] font-bold text-gray-500">
                   税込 {formatCurrency(summary?.costTaxIncludedTotal)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-emerald-500">粗利 税抜</div>
+                <div className="text-xs font-black text-gray-900">粗利 税抜</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
                   {formatCurrency(summary?.grossProfitTaxExcluded)}
                 </div>
-                <div className="mt-1 text-[11px] font-bold text-gray-400">
+                <div className="mt-1 text-[11px] font-bold text-gray-500">
                   税込 {formatCurrency(summary?.grossProfitTaxIncluded)}
                 </div>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <div className="text-xs font-black text-gray-400">粗利率</div>
+                <div className="text-xs font-black text-gray-500">粗利率</div>
                 <div className="mt-2 text-2xl font-black text-gray-900">
                   {summary?.grossProfitRate === null || summary?.grossProfitRate === undefined
                     ? '-'
@@ -1180,7 +1180,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                     <div className="mt-1 text-lg font-black text-gray-900">
                       {formatCurrency(summary?.costMissingSalesTaxExcluded)}
                     </div>
-                    <div className="mt-1 text-[11px] font-bold text-gray-400">
+                    <div className="mt-1 text-[11px] font-bold text-gray-500">
                       税込 {formatCurrency(summary?.costMissingSalesTaxIncluded)}
                     </div>
                   </div>
@@ -1203,12 +1203,12 @@ const handleCloseDay = async (closingCheck = {}) => {
             )}
 
             {Number(summary?.estimatedCostItemCount || 0) > 0 && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5">
-                <div className="text-xs font-bold text-sky-700">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ui-100 bg-ui-50 px-4 py-2.5">
+                <div className="text-xs font-bold text-ui">
                   この粗利には、売り場原価率/掛け率で推計した粗利を含みます
-                  <span className="ml-1 font-black text-sky-500">（{Number(summary?.estimatedCostItemCount || 0)}点 / 売上 {formatCurrency(summary?.estimatedCostSalesTaxExcluded)}）</span>
+                  <span className="ml-1 font-black text-ui">（{Number(summary?.estimatedCostItemCount || 0)}点 / 売上 {formatCurrency(summary?.estimatedCostSalesTaxExcluded)}）</span>
                 </div>
-                <div className="text-sm font-black text-sky-800">
+                <div className="text-sm font-black text-ui">
                   推計粗利 {formatCurrency(Number(summary?.estimatedCostSalesTaxExcluded || 0) - Number(summary?.estimatedCostTaxExcluded || 0))}
                 </div>
               </div>
@@ -1220,12 +1220,12 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <ReceiptText size={16} />
                 支払い方法別
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込（受領額）</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込（受領額）</span>
               </div>
 
               <div className="space-y-2">
                 {paymentMethodList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     会計データがありません
                   </div>
                 ) : (
@@ -1238,7 +1238,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                         <div className="text-sm font-black text-gray-800">
                           {entry.label || getPaymentMethodLabel(entry.method)}
                         </div>
-                        <div className="text-[11px] font-bold text-gray-400">
+                        <div className="text-[11px] font-bold text-gray-500">
                           {Number(entry.count || 0)}件
                         </div>
                       </div>
@@ -1255,12 +1255,12 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <BadgeJapaneseYen size={16} />
                 税率別売上
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込／税抜内訳</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込／税抜内訳</span>
               </div>
 
               <div className="space-y-2">
                 {taxBreakdownList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     税率別データがありません
                   </div>
                 ) : (
@@ -1276,7 +1276,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                             : entry.key === 'standard'
                               ? '標準税率'
                               : '税率未設定'}
-                          <span className="ml-2 text-xs font-black text-gray-400">
+                          <span className="ml-2 text-xs font-black text-gray-500">
                             {Number(entry.rate || 0)}%
                           </span>
                         </div>
@@ -1285,12 +1285,12 @@ const handleCloseDay = async (closingCheck = {}) => {
                         </div>
                       </div>
 
-                      <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-gray-400">
+                      <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-gray-500">
                         <span>税抜対象額</span>
                         <span>{formatCurrency(entry.baseAmount)}</span>
                       </div>
 
-                      <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-gray-400">
+                      <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-gray-500">
                         <span>内消費税</span>
                         <span>{formatCurrency(entry.tax)}</span>
                       </div>
@@ -1306,15 +1306,15 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <TicketPercent size={16} />
                 割引/金券
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
               </div>
 
-              <div className="mb-3 rounded-xl bg-orange-50 px-4 py-3">
+              <div className="mb-3 rounded-xl bg-ui-50 px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black text-orange-500">
+                  <div className="text-xs font-black text-ui">
                     売上値引合計
                   </div>
-                  <div className="text-[11px] font-black text-orange-500">
+                  <div className="text-[11px] font-black text-ui">
                     {Number(summary?.discountCount || 0)}件
                   </div>
                 </div>
@@ -1325,7 +1325,7 @@ const handleCloseDay = async (closingCheck = {}) => {
 
               <div className="space-y-2">
                 {discountList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     売上値引の利用はありません
                   </div>
                 ) : (
@@ -1338,7 +1338,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                         <div className="truncate text-sm font-black text-gray-800">
                           {discount.name || '値引き'}
                         </div>
-                          <div className="text-[11px] font-bold text-gray-400">
+                          <div className="text-[11px] font-bold text-gray-500">
                             {Number(discount.quantity || discount.count || 0)}枚
                             <span className="mx-1 text-gray-300">/</span>
                             {Number(discount.count || 0)}会計
@@ -1353,10 +1353,10 @@ const handleCloseDay = async (closingCheck = {}) => {
                 )}
               </div>
 
-              <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3">
+              <div className="mt-4 rounded-xl bg-gray-100 px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black text-emerald-600">販促費合計</div>
-                  <div className="text-[11px] font-black text-emerald-600">
+                  <div className="text-xs font-black text-gray-900">販促費合計</div>
+                  <div className="text-[11px] font-black text-gray-900">
                     {Number(summary?.promoExpenseCount || 0)}件
                   </div>
                 </div>
@@ -1367,30 +1367,30 @@ const handleCloseDay = async (closingCheck = {}) => {
 
               <div className="mt-3 space-y-2">
                 {promoExpenseList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     販促費の利用はありません
                   </div>
                 ) : (
                   promoExpenseList.map((entry) => (
-                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
+                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-gray-100 px-4 py-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-emerald-900">{entry.name || '販促費'}</div>
-                        <div className="text-[11px] font-bold text-emerald-500">
+                        <div className="truncate text-sm font-black text-gray-900">{entry.name || '販促費'}</div>
+                        <div className="text-[11px] font-bold text-gray-900">
                           {Number(entry.quantity || entry.count || 0)}枚
-                          <span className="mx-1 text-emerald-200">/</span>
+                          <span className="mx-1 text-gray-300">/</span>
                           {Number(entry.count || 0)}会計
                         </div>
                       </div>
-                      <div className="ml-3 shrink-0 text-sm font-black text-emerald-900">{formatCurrency(entry.amount)}</div>
+                      <div className="ml-3 shrink-0 text-sm font-black text-gray-900">{formatCurrency(entry.amount)}</div>
                     </div>
                   ))
                 )}
               </div>
 
-              <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3">
+              <div className="mt-4 rounded-xl bg-ui-50 px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black text-sky-600">金券/売掛合計</div>
-                  <div className="text-[11px] font-black text-sky-600">
+                  <div className="text-xs font-black text-ui">金券/売掛合計</div>
+                  <div className="text-[11px] font-black text-ui">
                     {Number(summary?.voucherCount || 0)}件
                   </div>
                 </div>
@@ -1401,21 +1401,21 @@ const handleCloseDay = async (closingCheck = {}) => {
 
               <div className="mt-3 space-y-2">
                 {voucherList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     金券/売掛の利用はありません
                   </div>
                 ) : (
                   voucherList.map((entry) => (
-                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-sky-50 px-4 py-3">
+                    <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-ui-50 px-4 py-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-sky-900">{entry.name || '金券/売掛'}</div>
-                        <div className="text-[11px] font-bold text-sky-500">
+                        <div className="truncate text-sm font-black text-ui">{entry.name || '金券/売掛'}</div>
+                        <div className="text-[11px] font-bold text-ui">
                           {Number(entry.quantity || entry.count || 0)}枚
-                          <span className="mx-1 text-sky-200">/</span>
+                          <span className="mx-1 text-gray-300">/</span>
                           {Number(entry.count || 0)}会計
                         </div>
                       </div>
-                      <div className="ml-3 shrink-0 text-sm font-black text-sky-900">{formatCurrency(entry.amount)}</div>
+                      <div className="ml-3 shrink-0 text-sm font-black text-ui">{formatCurrency(entry.amount)}</div>
                     </div>
                   ))
                 )}
@@ -1427,12 +1427,12 @@ const handleCloseDay = async (closingCheck = {}) => {
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
                 <Clock3 size={16} />
                 時間帯別売上
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
               </div>
 
               <div className="space-y-2">
                 {timeSlotList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                     時間帯別データがありません
                   </div>
                 ) : (
@@ -1445,7 +1445,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                         <div className="truncate text-sm font-black text-gray-800">
                           {slot.name || '時間帯未設定'}
                         </div>
-                        <div className="text-[11px] font-bold text-gray-400">
+                        <div className="text-[11px] font-bold text-gray-500">
                           {Number(slot.count || 0)}件
                         </div>
                       </div>
@@ -1463,12 +1463,12 @@ const handleCloseDay = async (closingCheck = {}) => {
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
               部門別売上
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
               {departmentList.length === 0 ? (
-                <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400 md:col-span-2">
+                <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500 md:col-span-2">
                   部門別データがありません
                 </div>
               ) : (
@@ -1481,7 +1481,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                       <div className="truncate text-sm font-black text-gray-800">
                         {department.name || department.departmentName || '部門未設定'}
                       </div>
-                      <div className="text-[11px] font-bold text-gray-400">
+                      <div className="text-[11px] font-bold text-gray-500">
                         {Number(department.count || 0)}件
                       </div>
                     </div>
@@ -1497,12 +1497,12 @@ const handleCloseDay = async (closingCheck = {}) => {
           <div className="mt-6 rounded-2xl border border-gray-100 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
               売り場別売上
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               {salesAreaList.length === 0 ? (
-                <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400 md:col-span-2">
+                <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500 md:col-span-2">
                   売り場別データがありません
                 </div>
               ) : (
@@ -1516,7 +1516,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                         <div className="truncate text-sm font-black text-gray-800">
                           {area.name || '売り場未設定'}
                         </div>
-                        <div className="text-[11px] font-bold text-gray-400">
+                        <div className="text-[11px] font-bold text-gray-500">
                           {Number(area.quantity || 0)}点
                         </div>
                       </div>
@@ -1537,7 +1537,7 @@ const handleCloseDay = async (closingCheck = {}) => {
                               <span className="truncate text-xs font-bold text-gray-600">
                                 {group.name || 'グループ未設定'}
                               </span>
-                              <span className="shrink-0 text-[10px] font-bold text-gray-400">
+                              <span className="shrink-0 text-[10px] font-bold text-gray-500">
                                 {Number(group.quantity || 0)}点
                               </span>
                             </div>

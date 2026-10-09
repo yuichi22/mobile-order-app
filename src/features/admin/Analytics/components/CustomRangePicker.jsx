@@ -162,16 +162,16 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
       const end = toDate(endDate);
       const inRange = start && end && date > start && date < end;
       const isToday = isSameDay(date, new Date());
-      let bgClass = 'hover:bg-blue-50 text-gray-700';
+      let bgClass = 'hover:bg-ui-50 text-gray-700';
       let textClass = '';
       if (isStart || isEnd) {
-        bgClass = 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm';
+        bgClass = 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm';
         textClass = 'font-bold';
       } else if (inRange) {
-        bgClass = 'bg-blue-100 text-blue-800';
+        bgClass = 'bg-ui-50 text-ui';
       } else if (isToday) {
-        textClass = 'font-bold text-blue-600';
-        bgClass = 'border border-blue-200 hover:bg-blue-50';
+        textClass = 'font-bold text-ui';
+        bgClass = 'border border-ui-100 hover:bg-ui-50';
       }
       days.push(
         <button
@@ -188,7 +188,7 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
       <>
         <div className="mb-2 grid grid-cols-7 border-b pb-2">
           {WEEKDAYS.map((day, index) => (
-            <div key={day} className={`text-center text-[10px] font-bold ${index === 0 ? 'text-red-400' : index === 6 ? 'text-blue-400' : 'text-gray-400'}`}>
+            <div key={day} className={`text-center text-[10px] font-bold ${index === 0 ? 'text-red-400' : index === 6 ? 'text-ui' : 'text-gray-500'}`}>
               {day}
             </div>
           ))}
@@ -213,11 +213,11 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
           const inRange = start && end ? week.start > start && week.end < end : false;
           const isSelected = isStartWeek || isEndWeek;
 
-          let bgClass = 'bg-white border-gray-200 hover:bg-blue-50 text-gray-700';
+          let bgClass = 'bg-white border-gray-200 hover:bg-ui-50 text-gray-700';
           if (isSelected) {
-            bgClass = 'bg-blue-600 text-white border-blue-600 shadow-md';
+            bgClass = 'bg-gray-900 text-white border-ui shadow-md';
           } else if (inRange) {
-            bgClass = 'bg-blue-50 border-blue-200 text-blue-800';
+            bgClass = 'bg-ui-50 border-ui-100 text-ui';
           }
 
           return (
@@ -230,11 +230,11 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
                 <span className={`block text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-800'}`}>
                   {week.label}
                 </span>
-                <span className={`text-xs ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                <span className={`text-xs ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>
                   {week.start.getMonth() + 1}/{week.start.getDate()} - {week.end.getMonth() + 1}/{week.end.getDate()}
                 </span>
               </div>
-              <ChevronRight size={16} className={`${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-blue-400'}`} />
+              <ChevronRight size={16} className={`${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-ui'}`} />
             </button>
           );
         })}
@@ -249,13 +249,13 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
         <div className="flex gap-1">
           <button
             onClick={(event) => { event.stopPropagation(); setCalendarView('years'); }}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'years' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}
+            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'years' ? 'bg-ui-50 text-ui' : 'hover:bg-gray-100'}`}
           >
             {safeViewDate.getFullYear()}年 <ChevronDown size={12} />
           </button>
           <button
             onClick={(event) => { event.stopPropagation(); setCalendarView('months'); }}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'months' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}
+            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'months' ? 'bg-ui-50 text-ui' : 'hover:bg-gray-100'}`}
           >
             {safeViewDate.getMonth() + 1}月 <ChevronDown size={12} />
           </button>
@@ -272,7 +272,7 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
                 event.stopPropagation();
                 setViewDate(new Date(safeViewDate.getFullYear(), month, 1));
                 setCalendarView(isWeekMode ? 'weeks' : 'days');
-              }} className={`rounded py-2 text-sm ${safeViewDate.getMonth() === month ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>{month + 1}月</button>
+              }} className={`rounded py-2 text-sm ${safeViewDate.getMonth() === month ? 'bg-ui text-white' : 'hover:bg-gray-100'}`}>{month + 1}月</button>
             ))}
           </div>
         )}
@@ -283,7 +283,7 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
                 event.stopPropagation();
                 setViewDate(new Date(year, safeViewDate.getMonth(), 1));
                 setCalendarView('months');
-              }} className={`rounded py-2 text-sm ${safeViewDate.getFullYear() === year ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>{year}</button>
+              }} className={`rounded py-2 text-sm ${safeViewDate.getFullYear() === year ? 'bg-ui text-white' : 'hover:bg-gray-100'}`}>{year}</button>
             ))}
           </div>
         )}
@@ -298,14 +298,14 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
           onClick={() => (activeInput === 'start' ? setActiveInput(null) : openCalendar('start'))}
           className={`flex w-48 items-center justify-between rounded-lg border px-4 py-2 transition-all ${
             activeInput === 'start'
-              ? 'border-blue-500 bg-white ring-2 ring-blue-100'
+              ? 'border-ui bg-white ring-2 ring-ui-100'
               : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
           }`}
         >
-          <span className={`text-lg font-bold ${startDate ? 'text-gray-800' : 'text-gray-400'}`}>
+          <span className={`text-lg font-bold ${startDate ? 'text-gray-800' : 'text-gray-500'}`}>
             {formatDateDisplay(startDate) || '開始日'}
           </span>
-          <CalendarIcon size={18} className={activeInput === 'start' ? 'text-blue-500' : 'text-gray-400'} />
+          <CalendarIcon size={18} className={activeInput === 'start' ? 'text-ui' : 'text-gray-500'} />
         </button>
         {activeInput === 'start' && <div className="absolute top-full left-0 mt-2 z-50">{renderCalendarContent()}</div>}
       </div>
@@ -315,14 +315,14 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
           onClick={() => (activeInput === 'end' ? setActiveInput(null) : openCalendar('end'))}
           className={`flex w-48 items-center justify-between rounded-lg border px-4 py-2 transition-all ${
             activeInput === 'end'
-              ? 'border-blue-500 bg-white ring-2 ring-blue-100'
+              ? 'border-ui bg-white ring-2 ring-ui-100'
               : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
           }`}
         >
-          <span className={`text-lg font-bold ${endDate ? 'text-gray-800' : 'text-gray-400'}`}>
+          <span className={`text-lg font-bold ${endDate ? 'text-gray-800' : 'text-gray-500'}`}>
             {formatDateDisplay(endDate) || '終了日'}
           </span>
-          <CalendarIcon size={18} className={activeInput === 'end' ? 'text-blue-500' : 'text-gray-400'} />
+          <CalendarIcon size={18} className={activeInput === 'end' ? 'text-ui' : 'text-gray-500'} />
         </button>
         {activeInput === 'end' && <div className="absolute top-full right-0 mt-2 z-50">{renderCalendarContent()}</div>}
       </div>

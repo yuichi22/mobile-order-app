@@ -156,7 +156,7 @@ const BarcodeScanner = ({ active, onDetected, onError }) => {
       )}
 
       {cameraError ? (
-        <p className="p-4 text-center text-sm font-bold text-rose-400">{cameraError}</p>
+        <p className="p-4 text-center text-sm font-bold text-red-400">{cameraError}</p>
       ) : null}
     </div>
   );

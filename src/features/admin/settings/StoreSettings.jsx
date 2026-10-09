@@ -337,26 +337,26 @@ const CsvImportStepCard = ({
   status = '',
   children
 }) => (
-  <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-6 py-5">
+  <section className="overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/70 px-6 py-5">
       <div className="flex min-w-0 items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-500/20">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-900 text-sm font-black text-white shadow-lg shadow-gray-200/20">
           {number}
         </div>
         <div className="min-w-0">
-          <h3 className="text-lg font-black tracking-tight text-slate-900">{title}</h3>
-          <p className="mt-1 text-sm font-bold leading-relaxed text-slate-500">{description}</p>
+          <h3 className="text-lg font-black tracking-tight text-gray-900">{title}</h3>
+          <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">{description}</p>
         </div>
       </div>
       {status ? (
-      <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+      <span className="rounded-full border border-ui-100 bg-ui-50 px-3 py-1 text-xs font-black text-ui">
         {status}
       </span>
       ) : null}
     </div>
     <div className="p-5">
       {children || (
-        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm font-bold leading-relaxed text-slate-400">
+        <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-5 py-6 text-sm font-bold leading-relaxed text-gray-500">
           この取込ロジックは次フェーズで実装します。先に読み込むCSVの雛形を確認してから、ヘッダー対応・プレビュー・保存処理を追加します。
         </div>
       )}
@@ -366,11 +366,11 @@ const CsvImportStepCard = ({
 
 
 const EcIntegrationComingSoonPanel = ({ title }) => (
-  <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Coming Soon</p>
-      <h3 className="mt-2 text-xl font-black text-slate-900">{title}連携</h3>
-      <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+  <section className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center">
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Coming Soon</p>
+      <h3 className="mt-2 text-xl font-black text-gray-900">{title}連携</h3>
+      <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
         このEC連携は今後の拡張用タブです。まずはShopify連携を完成させてから、同じproductGroup / SKU構造を使って順番に対応します。
       </p>
     </div>
@@ -836,21 +836,21 @@ const CategoryTaxRulePanel = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+    <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Tax Rule</p>
-        <h4 className="mt-2 text-lg font-black text-slate-900">{title}</h4>
-        <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">{description}</p>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Tax Rule</p>
+        <h4 className="mt-2 text-lg font-black text-gray-900">{title}</h4>
+        <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">{description}</p>
       </div>
 
       <div className="mt-5 space-y-4">
         <label className="block">
-          <span className="text-xs font-black text-slate-500">対象</span>
+          <span className="text-xs font-black text-gray-500">対象</span>
           <select
             value={selectedId}
             onChange={(event) => handleSelect(event.target.value)}
             disabled={disabled || activeItems.length === 0 || Boolean(savingKey)}
-            className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+            className="mt-1 h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="">選択してください</option>
             {activeItems.length === 0 ? (
@@ -868,12 +868,12 @@ const CategoryTaxRulePanel = ({
         </label>
 
         <label className="block">
-          <span className="text-xs font-black text-slate-500">個別税率</span>
+          <span className="text-xs font-black text-gray-500">個別税率</span>
           <select
             value={taxRateType}
             onChange={(event) => setTaxRateType(event.target.value)}
             disabled={disabled || !selectedItem || Boolean(savingKey)}
-            className="mt-1 h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+            className="mt-1 h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="">選択してください</option>
             {CATEGORY_TAX_OPTIONS.map((option) => (
@@ -886,40 +886,40 @@ const CategoryTaxRulePanel = ({
           type="button"
           onClick={applyRule}
           disabled={disabled || !selectedItem || !taxRateType || Boolean(savingKey)}
-          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {savingKey.startsWith('apply:') ? '適用中...' : '適用する'}
         </button>
       </div>
 
       <div className="mt-6">
-        <p className="text-xs font-black text-slate-500">設定済み</p>
+        <p className="text-xs font-black text-gray-500">設定済み</p>
         <div className="mt-2 space-y-2">
           {configuredItems.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-400">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-3 text-xs font-bold text-gray-500">
               個別税率は未設定です。
             </div>
           ) : (
             configuredItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-slate-800">{getOptionLabel(item)}</div>
-                  <div className="mt-0.5 text-xs font-bold text-slate-400">
+                  <div className="truncate text-sm font-black text-gray-800">{getOptionLabel(item)}</div>
+                  <div className="mt-0.5 text-xs font-bold text-gray-500">
                     {getOptionSubLabel(item) || item.id}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+                  <span className="rounded-full bg-ui-50 px-3 py-1 text-xs font-black text-ui">
                     {getCategoryTaxRuleLabel(item, defaultTaxRate)}
                   </span>
                   <button
                     type="button"
                     onClick={() => resetRule(item)}
                     disabled={Boolean(savingKey)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                     title="個別税率を解除"
                   >
                     <Trash2 size={14} />
@@ -1098,9 +1098,9 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
   if (loading) {
     return (
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="rounded-3xl border border-slate-100 bg-slate-50 px-5 py-8 text-center">
-          <p className="text-sm font-black text-slate-500">税・価格設定を読み込み中...</p>
+      <section className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-gray-100 bg-gray-50 px-5 py-8 text-center">
+          <p className="text-sm font-black text-gray-500">税・価格設定を読み込み中...</p>
         </div>
       </section>
     );
@@ -1108,12 +1108,12 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax / Price</p>
-            <h3 className="mt-2 text-2xl font-black text-slate-900">税・価格設定</h3>
-            <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Tax / Price</p>
+            <h3 className="mt-2 text-2xl font-black text-gray-900">税・価格設定</h3>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
               Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
             </p>
           </div>
@@ -1122,7 +1122,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-2xl bg-gray-900 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? '保存中...' : '保存する'}
           </button>
@@ -1130,11 +1130,11 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Tax Rates</p>
-          <h3 className="mt-2 text-xl font-black text-slate-900">使用する税率</h3>
-          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Tax Rates</p>
+          <h3 className="mt-2 text-xl font-black text-gray-900">使用する税率</h3>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             ここで決めた税率を、会計・レシート・粗利計算・商品マスタのすべてで使います。
             税率が改定されたときはこの値を変更してください（酒税などの個別税は商品価格に含めて扱います）。
           </p>
@@ -1142,19 +1142,19 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
           {settings.taxRates.map((taxRate) => (
-            <div key={taxRate.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <div key={taxRate.id} className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-lg font-black text-slate-900">{taxRate.label}</p>
-                  <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">{taxRate.description}</p>
+                  <p className="text-lg font-black text-gray-900">{taxRate.label}</p>
+                  <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">{taxRate.description}</p>
                 </div>
                 {taxRate.isDefault ? (
-                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-600">標準</span>
+                  <span className="rounded-full bg-ui-50 px-3 py-1 text-xs font-black text-ui">標準</span>
                 ) : null}
               </div>
 
               <label className="mt-4 block">
-                <span className="text-xs font-black text-slate-500">税率</span>
+                <span className="text-xs font-black text-gray-500">税率</span>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="number"
@@ -1163,9 +1163,9 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
                     max="100"
                     step="0.1"
                     onChange={(event) => updateTaxRate(taxRate.id, { rate: Number(event.target.value) })}
-                    className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                    className="h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                   />
-                  <span className="text-sm font-black text-slate-500">%</span>
+                  <span className="text-sm font-black text-gray-500">%</span>
                 </div>
               </label>
 
@@ -1174,8 +1174,8 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
                 onClick={() => updateTaxRate(taxRate.id, { isActive: !taxRate.isActive })}
                 className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm font-black transition ${
                   taxRate.isActive
-                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                    ? 'bg-gray-100 text-gray-900 hover:bg-gray-100'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 {taxRate.isActive ? '使用する' : '使用しない'}
@@ -1186,10 +1186,10 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       </div>
 
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Rounding</p>
-        <h3 className="mt-2 text-xl font-black text-slate-900">消費税の端数処理</h3>
-        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Rounding</p>
+        <h3 className="mt-2 text-xl font-black text-gray-900">消費税の端数処理</h3>
+        <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
           1円未満の消費税の扱いです。会計・レシート・日計はこのルールで計算します。
           商品・メニューの登録価格は税込として扱います（表示は総額表示に合わせています）。
         </p>
@@ -1198,7 +1198,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
           <select
             value={storeTax.rounding}
             onChange={(event) => updateStoreTax({ rounding: event.target.value })}
-            className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+            className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-black text-gray-700 outline-none focus:border-ui"
           >
             <option value="floor">切り捨て（一般的）</option>
             <option value="round">四捨五入</option>
@@ -1210,11 +1210,11 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
 
       {showPos && (
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Category Tax Rules</p>
-          <h3 className="mt-2 text-xl font-black text-slate-900">カテゴリー別税率</h3>
-          <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Category Tax Rules</p>
+          <h3 className="mt-2 text-xl font-black text-gray-900">カテゴリー別税率</h3>
+          <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             カテゴリーグループ、カテゴリー、サブカテゴリーごとに税率を設定します。保存すると、対象配下の商品 taxRate と参考税込価格を全上書きします。
           </p>
         </div>
@@ -1285,12 +1285,12 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       )}
 
       {showOrder && (
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Cost Default</p>
-        <h3 className="mt-2 text-xl font-black text-slate-900">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Cost Default</p>
+        <h3 className="mt-2 text-xl font-black text-gray-900">
           {bothModes ? '原価の既定（ORDERメニュー）' : '原価の既定'}
         </h3>
-        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+        <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
           メニューに原価を登録するときの既定です。粗利の計算に使われ、メニュー品目ごとに上書きできます。
           仕入は税抜・軽減税率になることが多く、売値と異なるのが普通です。
           {bothModes
@@ -1299,22 +1299,22 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
           <div>
-            <span className="mb-1 block text-xs font-black text-slate-500">入力方式</span>
+            <span className="mb-1 block text-xs font-black text-gray-500">入力方式</span>
             <select
               value={storeTax.defaultCostTaxMode}
               onChange={(event) => updateStoreTax({ defaultCostTaxMode: event.target.value })}
-              className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+              className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-black text-gray-700 outline-none focus:border-ui"
             >
               <option value="tax_excluded">税抜で入力（一般的）</option>
               <option value="tax_included">税込で入力</option>
             </select>
           </div>
           <div>
-            <span className="mb-1 block text-xs font-black text-slate-500">税率区分</span>
+            <span className="mb-1 block text-xs font-black text-gray-500">税率区分</span>
             <select
               value={storeTax.defaultCostTaxRateType}
               onChange={(event) => updateStoreTax({ defaultCostTaxRateType: event.target.value })}
-              className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+              className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-black text-gray-700 outline-none focus:border-ui"
             >
               <option value="standard">
                 標準税率（{settings.taxRates?.find((r) => r.id === 'standard')?.rate ?? storeTax.standardRate}%）
@@ -1329,20 +1329,20 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       </div>
       )}
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Invoice</p>
-        <h3 className="mt-2 text-xl font-black text-slate-900">インボイス登録番号</h3>
-        <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Invoice</p>
+        <h3 className="mt-2 text-xl font-black text-gray-900">インボイス登録番号</h3>
+        <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
           レシートに「登録番号 T…」として印字されます。
         </p>
         <div className="mt-5 max-w-sm">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none font-black text-slate-400">T</span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none font-black text-gray-500">T</span>
             <input
               value={storeTax.invoiceNumber}
               onChange={(event) => updateStoreTax({ invoiceNumber: event.target.value })}
               placeholder="1234567890123"
-              className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white pl-7 pr-3 text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+              className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white pl-7 pr-3 text-sm font-black text-gray-700 outline-none focus:border-ui"
             />
           </div>
         </div>
@@ -1794,38 +1794,38 @@ const downloadCsvTemplate = (template, withSampleRows = false) => {
 
 const CsvTemplateWorkflowPanel = () => (
   <div className="space-y-4">
-    <div className="rounded-[2rem] border border-blue-100 bg-blue-50 px-5 py-4">
-      <p className="text-sm font-black text-blue-700">CSVテンプレート</p>
-      <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+    <div className="rounded-[2rem] border border-ui-100 bg-ui-50 px-5 py-4">
+      <p className="text-sm font-black text-ui">CSVテンプレート</p>
+      <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
         取込用CSVのヘッダーをダウンロードできます。初回作成時はサンプル付き、実運用では空テンプレートを使ってください。
       </p>
     </div>
 
     <div className="grid gap-4 lg:grid-cols-2">
       {CSV_TEMPLATE_DEFINITIONS.map((template) => (
-        <div key={template.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div key={template.id} className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h4 className="text-base font-black text-slate-900">{template.title}</h4>
-              <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">{template.description}</p>
+              <h4 className="text-base font-black text-gray-900">{template.title}</h4>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">{template.description}</p>
             </div>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
             {template.id === 'products' && (
               <>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">新規追加・既存更新</span>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">バーコード優先</span>
+                <span className="rounded-full bg-ui-50 px-2 py-1 text-xs font-black text-ui">新規追加・既存更新</span>
+                <span className="rounded-full bg-ui-50 px-2 py-1 text-xs font-black text-ui">バーコード優先</span>
               </>
             )}
             {template.id !== 'products' && (
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">新規のみ追加 / 新規追加・既存更新</span>
+              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-black text-gray-600">新規のみ追加 / 新規追加・既存更新</span>
             )}
           </div>
 
-          <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs font-black text-slate-500">列項目</p>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+          <div className="mt-4 rounded-2xl bg-gray-50 px-4 py-3">
+            <p className="text-xs font-black text-gray-500">列項目</p>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               {template.columns.map((column) => column.label).join(' / ')}
             </p>
           </div>
@@ -1834,14 +1834,14 @@ const CsvTemplateWorkflowPanel = () => (
             <button
               type="button"
               onClick={() => downloadCsvTemplate(template, false)}
-              className="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-700"
+              className="rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-gray-700"
             >
               空テンプレート
             </button>
             <button
               type="button"
               onClick={() => downloadCsvTemplate(template, true)}
-              className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-blue-500"
+              className="rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-gray-800"
             >
               サンプル付き
             </button>
@@ -1860,10 +1860,10 @@ const CsvImportWorkflowPanel = ({
   onSaved
 }) => (
   <div className="space-y-5">
-    <div className="rounded-[2rem] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Import Workflow</p>
-      <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">CSV取込の順番</h2>
-      <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+    <div className="rounded-[2rem] border border-ui-100 bg-gradient-to-br from-ui to-white p-6 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">CSV Import Workflow</p>
+      <h2 className="mt-2 text-2xl font-black tracking-tight text-gray-900">CSV取込の順番</h2>
+      <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
         商品CSVを正しく紐づけるために、先に補助マスターを登録します。推奨順は、仕入先 → ブランド → カテゴリーグループ/カテゴリー/サブカテゴリー → 商品です。
       </p>
     </div>
@@ -1936,7 +1936,7 @@ const CsvImportWorkflowPanel = ({
       title="商品CSV取込"
       description="補助マスター登録後に商品を取り込みます。バーコード一致は既存更新し、未登録の商品は新規追加します。"
     >
-      <div data-ui-id="PRODUCT_CSV_FIXED_MODE_CARD_NOTICE" className="mb-4 flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
+      <div data-ui-id="PRODUCT_CSV_FIXED_MODE_CARD_NOTICE" className="mb-4 flex flex-wrap items-center gap-2 text-xs font-black text-ui">
         <span className="rounded-full bg-white px-2 py-1 shadow-sm">取込モード：新規追加・既存更新</span>
         <span className="rounded-full bg-white px-2 py-1 shadow-sm">判定キー：バーコード優先</span>
       </div>
@@ -2251,20 +2251,20 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-30 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
+      <div className="sticky top-0 z-30 rounded-[2rem] border border-gray-200 bg-white p-8 shadow-sm shadow-gray-200/50">
         <div className="flex items-start gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-blue-50 text-blue-600">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-ui-50 text-ui">
             <Icon size={30} strokeWidth={2.5} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">
               {page.eyebrow}
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900">
               {page.title}
             </h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-slate-500">
+            <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
               {page.description}
             </p>
           </div>
@@ -2272,8 +2272,8 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         </div>
       </div>
 
-      <div className="sticky top-[8.5rem] z-30 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/50">
-        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1.5">
+      <div className="sticky top-[8.5rem] z-30 rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm shadow-gray-200/50">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-gray-100 p-1.5">
           {page.tabs.map((tab) => {
             const isActive = activeTab?.id === tab.id;
 
@@ -2284,8 +2284,8 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
                 onClick={() => selectDummyTab(tab.id)}
                 className={`rounded-xl px-4 py-3 text-sm font-black transition-all ${
                   isActive
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                    ? 'bg-white text-ui shadow-sm'
+                    : 'text-gray-500 hover:bg-white/70 hover:text-gray-800'
                 }`}
               >
                 {tab.label}
@@ -2295,17 +2295,17 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
         </div>
 
         {productManagementPanel || (
-          <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-7">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+          <div className="mt-5 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-7">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
               {activeTab?.label}
             </p>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-gray-900">
               {activeTab?.label}
             </h2>
-            <p className="mt-3 text-sm font-bold leading-relaxed text-slate-500">
+            <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
               {activeTab?.description}
             </p>
-            <p className="mt-5 text-xs font-bold text-slate-400">
+            <p className="mt-5 text-xs font-bold text-gray-500">
               この機能は準備中です。
             </p>
           </div>
@@ -2341,15 +2341,15 @@ const TimeSettings = ({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl border border-orange-100 bg-white p-4 shadow-sm">
+      <div className="rounded-3xl border border-ui-100 bg-white p-4 shadow-sm">
         <div className="mb-4">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
             Time Settings
           </p>
           <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-900">
             時間帯設定
           </h2>
-          <p className="mt-1 text-sm font-bold leading-relaxed text-gray-400">
+          <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">
             提供時間帯と営業時間をまとめて管理します。
           </p>
         </div>
@@ -2365,8 +2365,8 @@ const TimeSettings = ({
                 onClick={() => setActiveTimeTab(tab.id)}
                 className={`rounded-xl px-4 py-3 text-left transition-all ${
                   active
-                    ? 'bg-white text-orange-600 shadow-sm'
-                    : 'text-gray-400 hover:bg-white/60 hover:text-gray-600'
+                    ? 'bg-white text-ui shadow-sm'
+                    : 'text-gray-500 hover:bg-white/60 hover:text-gray-600'
                 }`}
               >
                 <div className="text-sm font-black">
@@ -2842,11 +2842,11 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   ];
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">CSV Export</p>
-        <h2 className="text-2xl font-black tracking-tight text-slate-900">CSV出力</h2>
-        <p className="text-sm leading-relaxed text-slate-500">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">CSV Export</p>
+        <h2 className="text-2xl font-black tracking-tight text-gray-900">CSV出力</h2>
+        <p className="text-sm leading-relaxed text-gray-500">
           取込と同じ項目で現在のマスターをCSV出力します。カテゴリー階層CSVはカテゴリーグループ・カテゴリー・サブカテゴリーを1本にまとめ、商品CSVは仕入先が商品側に無い場合にブランド側の仕入先名を補完します。
         </p>
       </div>
@@ -2861,18 +2861,18 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
             className={[
               'rounded-2xl border p-4 text-left transition',
               card.primary
-                ? 'border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                ? 'border-ui-100 bg-ui-50 hover:border-ui-100 hover:bg-ui-50'
+                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
             ].join(' ')}
           >
-            <div className={card.primary ? 'text-sm font-black text-blue-700' : 'text-sm font-black text-slate-800'}>
+            <div className={card.primary ? 'text-sm font-black text-ui' : 'text-sm font-black text-gray-800'}>
               {card.id === 'products' && productCsvExporting ? '商品CSV出力中...' : card.title}
             </div>
-            <div className={card.primary ? 'mt-1 text-xs text-blue-500' : 'mt-1 text-xs text-slate-400'}>
+            <div className={card.primary ? 'mt-1 text-xs text-ui' : 'mt-1 text-xs text-gray-500'}>
               {card.meta}
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-slate-500">{card.description}</p>
-            <div className="mt-3 text-xs font-bold text-slate-400">
+            <p className="mt-3 text-xs leading-relaxed text-gray-500">{card.description}</p>
+            <div className="mt-3 text-xs font-bold text-gray-500">
               {card.countLoading
                 ? `${card.countLabel || '現在'} 読み込み中...`
                 : `${card.countLabel || '現在'} ${Number(card.count || 0).toLocaleString()} 件`}
@@ -3099,11 +3099,11 @@ export const StoreSettings = ({
   // 画面本体は deferredSubTab 基準で描画するため、メニュー項目の解決も deferred 側で行う。
   const deferredMenuItem = availableMenuItems.find((item) => item.id === deferredSubTab);
   const settingsActiveClassName = settingsMode === 'pos'
-    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-    : 'bg-orange-500 text-white shadow-lg shadow-orange-500/20';
+    ? 'bg-ui text-white shadow-lg shadow-gray-200/20'
+    : 'bg-gray-900 text-white shadow-lg shadow-gray-200/20';
   const settingsActiveTextClassName = settingsMode === 'pos'
-    ? 'text-blue-400'
-    : 'text-orange-400';
+    ? 'text-ui'
+    : 'text-ui';
 
   useEffect(() => {
     if (!activeSubTab && availableMenuItems[0]?.id) {
@@ -3186,25 +3186,25 @@ export const StoreSettings = ({
         />
       )}
 
-      <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-white shadow-2xl">
+      <aside className="settings-sidebar flex h-full flex-shrink-0 flex-col overflow-hidden bg-[#0B1220] text-white">
         <div className="settings-sidebar-inner flex h-full w-56 min-w-[14rem] flex-col">
-        <div className="h-[1.8cm] w-full flex-shrink-0 bg-slate-900" />
+        <div className="h-[1.8cm] w-full flex-shrink-0 bg-[#0B1220]" />
 
-        <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-slate-800/50 px-4 py-5">
-          <div className="mb-4 rounded-[1.35rem] border border-slate-800 bg-slate-950/40 p-4">
-            <div className="text-[10px] font-black tracking-widest text-slate-500">使用レジ</div>
+        <nav className="scrollbar-none flex-1 space-y-2 overflow-y-auto border-t border-gray-800/50 px-4 py-5">
+          <div className="mb-4 rounded-[1.35rem] border border-gray-800 bg-gray-950/40 p-4">
+            <div className="text-[10px] font-black tracking-widest text-gray-500">使用レジ</div>
             <div className="mt-2 truncate text-lg font-black tracking-tight text-white">
               {activeRegisterContext?.name || 'レジ1'}
             </div>
-            <div className="mt-1 text-[10px] font-bold leading-relaxed text-slate-500">
+            <div className="mt-1 text-[10px] font-bold leading-relaxed text-gray-500">
               基本設定で変更できます。
             </div>
           </div>
 
           {false && settingsMode === 'pos' && (
             <div className="mb-3 px-2">
-              <span className="text-[10px] font-black tracking-widest text-slate-500">{activeSettingsModeMeta.title}</span>
-              <div className="mt-1 text-xs font-bold text-slate-600">{activeSettingsModeMeta.desc}</div>
+              <span className="text-[10px] font-black tracking-widest text-gray-500">{activeSettingsModeMeta.title}</span>
+              <div className="mt-1 text-xs font-bold text-gray-600">{activeSettingsModeMeta.desc}</div>
             </div>
           )}
 
@@ -3218,7 +3218,7 @@ export const StoreSettings = ({
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    isActive ? settingsActiveClassName : 'text-gray-500 hover:bg-gray-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
@@ -3238,7 +3238,7 @@ export const StoreSettings = ({
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
                   className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    isActive ? settingsActiveClassName : 'text-gray-500 hover:bg-gray-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
@@ -3251,11 +3251,11 @@ export const StoreSettings = ({
           )}
         </nav>
 
-        <div className="mt-auto flex-shrink-0 border-t border-slate-800/50 bg-slate-900 p-4">
+        <div className="mt-auto flex-shrink-0 border-t border-gray-800/50 bg-gray-900 p-4">
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
-            className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-4 text-slate-400 transition-all duration-300 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
+            className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-4 text-gray-500 transition-all duration-300 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
             <span className="text-sm font-bold">ログアウト</span>
@@ -3267,7 +3267,7 @@ export const StoreSettings = ({
       <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-gray-50/50">
         {/* メニュー切替中の軽いローディング。ボタンの点灯を先に描画し、本体は遅れて出る */}
         {isSubTabSwitching && (
-          <div className="pointer-events-none fixed left-1/2 top-8 z-[90] -translate-x-1/2 rounded-full bg-slate-900/80 px-5 py-2.5 text-xs font-black text-white shadow-lg backdrop-blur">
+          <div className="pointer-events-none fixed left-1/2 top-8 z-[90] -translate-x-1/2 rounded-full bg-gray-900/80 px-5 py-2.5 text-xs font-black text-white shadow-lg backdrop-blur">
             読み込み中…
           </div>
         )}
@@ -3432,7 +3432,7 @@ export const StoreSettings = ({
       </main>
 
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-[2rem] bg-white p-10 text-center shadow-2xl animate-in zoom-in-95">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 shadow-inner">
               <AlertCircle size={40} className="text-red-500" />
@@ -3452,7 +3452,7 @@ export const StoreSettings = ({
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="w-full rounded-2xl py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50"
+                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
               >
                 キャンセル
               </button>

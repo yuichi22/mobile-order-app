@@ -89,7 +89,7 @@ const AnalyticsChartSection = ({
         <BarChart2 size={20} />
         {isDayOfWeekMode ? '曜日別' : config.title}
         {hasTakeoutStack && (
-          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-600">
+          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-ui-50 px-2.5 py-1 text-[11px] font-black text-ui">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#f97316' }} />
             テイクアウト（バー最上段に別掲）
           </span>
@@ -97,7 +97,7 @@ const AnalyticsChartSection = ({
       </h3>
 
       <div className="flex h-80 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-        <div className="relative mt-8 mr-2 h-[80%] w-16 shrink-0 border-r border-gray-200 pr-2 font-mono text-xs text-gray-400">
+        <div className="relative mt-8 mr-2 h-[80%] w-16 shrink-0 border-r border-gray-200 pr-2 font-mono text-xs text-gray-500">
           {yAxisTicks.map((tick, index) => (
             tick !== 0 && (
               <span
@@ -167,7 +167,7 @@ const AnalyticsChartSection = ({
                       </div>
                     ) : (
                       <div
-                        className="w-full max-w-[28px] rounded-t-md bg-orange-500"
+                        className="w-full max-w-[28px] rounded-t-md bg-gray-900"
                         style={{
                           height: `${Math.max(totalHeightPercent, metricValue > 0 ? 2 : 0)}%`
                         }}

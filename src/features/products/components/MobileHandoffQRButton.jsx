@@ -38,7 +38,7 @@ export default function MobileHandoffQRButton({ storeId }) {
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-slate-400 bg-white px-3 text-sm font-black text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
+        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition hover:bg-gray-50 active:scale-95"
       >
         <QrCode size={16} />
         モバイル用QRを表示
@@ -48,21 +48,21 @@ export default function MobileHandoffQRButton({ storeId }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-base font-black text-slate-800">スマホで続ける</div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
+              <div className="text-base font-black text-gray-800">スマホで続ける</div>
+              <button type="button" onClick={() => setOpen(false)} className="rounded-full p-1 text-gray-500 hover:bg-gray-100">
                 <X size={18} />
               </button>
             </div>
 
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-3">
-              {loading && <div className="text-sm text-slate-400">QRを発行しています…</div>}
-              {error && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm font-bold text-rose-600">{error}</div>}
+              {loading && <div className="text-sm text-gray-500">QRを発行しています…</div>}
+              {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm font-bold text-red-600">{error}</div>}
               {url && !loading && (
                 <>
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
                     <QRCodeSVG value={url} size={200} level="M" includeMargin />
                   </div>
-                  <div className="text-center text-xs text-slate-500">
+                  <div className="text-center text-xs text-gray-500">
                     スマホのカメラでこのQRを読み取ってください。<br />
                     下げ札の撮影・登録がスマホでできます（有効期限5分・一度きり）。
                   </div>
@@ -74,7 +74,7 @@ export default function MobileHandoffQRButton({ storeId }) {
               type="button"
               onClick={issue}
               disabled={loading}
-              className="mt-3 h-10 w-full rounded-lg bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+              className="mt-3 h-10 w-full rounded-lg bg-gray-100 text-sm font-bold text-gray-700 hover:bg-gray-200 disabled:opacity-60"
             >
               QRを再発行
             </button>

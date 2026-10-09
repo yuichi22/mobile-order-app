@@ -93,33 +93,33 @@ export default function HangTagScanButton({ storeId, onExtracted }) {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-blue-600 bg-white px-3 text-sm font-black text-blue-600 shadow-sm transition hover:bg-blue-50 active:scale-95 disabled:opacity-60"
+        className="inline-flex h-9 items-center gap-2 rounded-lg border-2 border-ui bg-white px-3 text-sm font-black text-ui shadow-sm transition hover:bg-ui-50 active:scale-95 disabled:opacity-60"
       >
         <Camera size={16} />
         {loading ? '読み取り中…' : '下げ札を撮影して読み取る'}
       </button>
 
       {error && (
-        <div className="rounded-md bg-rose-50 px-2 py-1 text-xs font-bold text-rose-600">{error}</div>
+        <div className="rounded-md bg-red-50 px-2 py-1 text-xs font-bold text-red-600">{error}</div>
       )}
 
       {result && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2 text-xs">
-          <div className="font-bold text-emerald-800">
+        <div className="rounded-md border border-gray-200 bg-gray-100/60 p-2 text-xs">
+          <div className="font-bold text-gray-900">
             {applied?.filled?.length ? `空欄に反映: ${applied.filled.join('・')}` : '反映できる空欄がありませんでした（既に入力済み）'}
           </div>
           {applied?.brand && (
             applied.brand.matched
-              ? <div className="mt-0.5 text-emerald-700">ブランド「{applied.brand.name}」を選択しました</div>
+              ? <div className="mt-0.5 text-gray-900">ブランド「{applied.brand.name}」を選択しました</div>
               : <div className="mt-0.5 font-bold text-amber-600">ブランド「{applied.brand.name}」は未登録 → 「ブランドを選択」から新規作成してください</div>
           )}
           <details className="mt-1">
-            <summary className="cursor-pointer text-[10px] text-slate-500">読み取り内容 / 使用量</summary>
-            <div className="mt-1 space-y-0.5 text-[11px] text-slate-700">
+            <summary className="cursor-pointer text-[10px] text-gray-500">読み取り内容 / 使用量</summary>
+            <div className="mt-1 space-y-0.5 text-[11px] text-gray-700">
               {readValues.length
-                ? readValues.map(([label, val]) => <div key={label}><span className="text-slate-400">{label}:</span> {String(val)}</div>)
-                : <div className="text-slate-400">読み取れた項目がありませんでした</div>}
-              <div className="pt-1 text-[10px] text-slate-400">
+                ? readValues.map(([label, val]) => <div key={label}><span className="text-gray-500">{label}:</span> {String(val)}</div>)
+                : <div className="text-gray-500">読み取れた項目がありませんでした</div>}
+              <div className="pt-1 text-[10px] text-gray-500">
                 使用: 入力{result.usage?.inputTokens}tok / 出力{result.usage?.outputTokens}tok / 約${result.usage?.estimatedUsd}
               </div>
             </div>

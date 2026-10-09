@@ -150,7 +150,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
 
   if (loading) {
     return (
-      <div className="p-16 text-center text-orange-500">
+      <div className="p-16 text-center text-ui">
         <LoadingSpinner size={32} className="mx-auto" />
       </div>
     );
@@ -160,7 +160,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
     <div className="w-full animate-in fade-in duration-300 pb-20">
       {editingDiscount ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="flex h-24 items-center justify-between border-b bg-orange-500 px-8 text-white transition-none">
+          <div className="flex h-24 items-center justify-between border-b bg-gray-900 px-8 text-white transition-none">
             <div className="flex items-center gap-5">
               <div className="rounded-2xl bg-white/20 p-3 shadow-inner">
                 <Percent size={24} strokeWidth={2.5} />
@@ -198,7 +198,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       defaultValue={editingDiscount.name}
                       required
                       placeholder="例: ランチ値引き"
-                      className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
+                      className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-ui focus:ring-4 focus:ring-ui-100"
                     />
                   </div>
 
@@ -228,7 +228,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         <div key={group.title}>
                           <div className="mb-2 flex items-baseline gap-2 px-1">
                             <span className="text-xs font-black uppercase tracking-widest text-gray-500">{group.title}</span>
-                            <span className="text-[11px] font-bold text-gray-400">{group.hint}</span>
+                            <span className="text-[11px] font-bold text-gray-500">{group.hint}</span>
                           </div>
                           <div className="flex gap-4">
                             {group.types.map((type) => {
@@ -241,13 +241,13 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                                   onClick={() => setDiscountType(type.id)}
                                   className={`relative flex min-h-[120px] flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 px-6 py-6 text-center transition-all ${
                                     isSelected
-                                      ? 'border-orange-500 bg-orange-50/50 shadow-xl shadow-orange-100 ring-1 ring-orange-500'
-                                      : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-gray-50/30'
+                                      ? 'border-ui bg-ui-50/50 shadow-xl shadow-gray-200 ring-1 ring-ui-100'
+                                      : 'border-gray-100 bg-white hover:border-ui-100 hover:bg-gray-50/30'
                                   }`}
                                 >
                                   <div
                                     className={`absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full transition-all ${
-                                      isSelected ? 'scale-100 bg-orange-500 text-white' : 'scale-50 bg-gray-100 text-transparent'
+                                      isSelected ? 'scale-100 bg-ui text-white' : 'scale-50 bg-gray-100 text-transparent'
                                     }`}
                                   >
                                     <Check size={12} strokeWidth={4} />
@@ -255,13 +255,13 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                                   <div
                                     className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all ${
                                       isSelected
-                                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-                                        : 'bg-gray-50 text-gray-400'
+                                        ? 'bg-ui text-white shadow-lg shadow-gray-200'
+                                        : 'bg-gray-50 text-gray-500'
                                     }`}
                                   >
                                     {type.icon}
                                   </div>
-                                  <span className={`text-lg font-black leading-tight ${isSelected ? 'text-orange-950' : 'text-gray-500'}`}>
+                                  <span className={`text-lg font-black leading-tight ${isSelected ? 'text-ui' : 'text-gray-500'}`}>
                                     {type.label}
                                   </span>
                                 </button>
@@ -281,7 +281,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         割引内容
                       </label>
                       <div className="flex items-start gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-5 text-sm font-bold leading-relaxed text-gray-500">
-                        <Keyboard size={20} className="mt-0.5 shrink-0 text-orange-500" />
+                        <Keyboard size={20} className="mt-0.5 shrink-0 text-ui" />
                         <span>
                           {discountType === 'manual_percent'
                             ? '割引率(％)は会計時にテンキーで入力します。会計画面の「割引・売掛を適用」に表示され、指定した％分を値引きします。'
@@ -300,7 +300,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                           name="value"
                           defaultValue={editingDiscount.value}
                           required
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-6 pr-14 text-3xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-6 pr-14 text-3xl font-black text-gray-800 outline-none transition-all focus:border-ui focus:ring-4 focus:ring-ui-100"
                         />
                         <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-black text-gray-300">
                           {discountType === 'percent' ? '%' : '円'}
@@ -317,7 +317,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       {ACCOUNTING_CATEGORY_OPTIONS.map((option) => (
                         <label
                           key={option.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-gray-100 bg-white p-4 transition-all hover:border-orange-200 hover:bg-orange-50/30"
+                          className="flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-gray-100 bg-white p-4 transition-all hover:border-ui-100 hover:bg-ui-50/30"
                         >
                           <input
                             type="radio"
@@ -325,11 +325,11 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                             value={option.id}
                             checked={accountingCategory === option.id}
                             onChange={() => setAccountingCategory(option.id)}
-                            className="mt-1 h-4 w-4 accent-orange-500"
+                            className="mt-1 h-4 w-4 accent-ui"
                           />
                           <span className="min-w-0">
                             <span className="block text-sm font-black text-gray-800">{option.label}</span>
-                            <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-400">{option.desc}</span>
+                            <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-500">{option.desc}</span>
                           </span>
                         </label>
                       ))}
@@ -341,13 +341,13 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         onClick={() => setAllowsChange((previous) => !previous)}
                         className={`mt-3 flex w-full cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
                           allowsChange
-                            ? 'border-orange-500 bg-orange-50/50 ring-1 ring-orange-500'
-                            : 'border-gray-100 bg-white hover:border-orange-200'
+                            ? 'border-ui bg-ui-50/50 ring-1 ring-ui-100'
+                            : 'border-gray-100 bg-white hover:border-ui-100'
                         }`}
                       >
                         <span
                           className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                            allowsChange ? 'bg-orange-500' : 'bg-gray-200'
+                            allowsChange ? 'bg-ui' : 'bg-gray-200'
                           }`}
                         >
                           <span
@@ -358,7 +358,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         </span>
                         <span className="min-w-0">
                           <span className="block text-sm font-black text-gray-800">お釣りを出す</span>
-                          <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-400">
+                          <span className="mt-1 block text-xs font-bold leading-relaxed text-gray-500">
                             会計で金券の額面が支払額を超えたとき、超過分を現金のお釣りとして出します。
                             日計では金券回収を額面で計上し、お釣りは現金内訳のマイナスになります。
                           </span>
@@ -375,7 +375,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       name="note"
                       defaultValue={editingDiscount.note}
                       placeholder="適用条件や補足など"
-                      className="h-32 w-full resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none transition-all focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
+                      className="h-32 w-full resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none transition-all focus:border-ui focus:ring-4 focus:ring-ui-100"
                     />
                   </div>
                 </div>
@@ -386,14 +386,14 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
               <button
                 type="button"
                 onClick={cancelEditing}
-                className="rounded-xl px-8 py-4 font-bold text-gray-400 transition-colors hover:bg-gray-100 outline-none"
+                className="rounded-xl px-8 py-4 font-bold text-gray-500 transition-colors hover:bg-gray-100 outline-none"
               >
                 キャンセル
               </button>
               <button
                 type="submit"
                 disabled={isProcessing}
-                className="flex items-center gap-3 rounded-xl bg-orange-500 px-12 py-4 font-black text-white shadow-xl shadow-orange-200 transition-all hover:bg-orange-600 active:scale-95"
+                className="flex items-center gap-3 rounded-xl bg-gray-900 px-12 py-4 font-black text-white shadow-xl shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
               >
               {isProcessing ? <LoadingSpinner size={24} /> : <Save size={20} />}
                 保存する
@@ -403,14 +403,14 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
         </div>
       ) : (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="flex h-24 items-center justify-between border-b bg-orange-50/50 px-8 transition-none">
+          <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none">
             <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-orange-500 p-3 text-white shadow-xl shadow-orange-200">
+              <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
                 <Percent size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-orange-600">登録済み割引</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済み割引</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
                   現在の登録数 / {discounts.length}件
                 </p>
               </div>
@@ -418,7 +418,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
             <button
               type="button"
               onClick={startCreating}
-              className="flex items-center gap-3 rounded-xl bg-orange-500 px-6 py-3.5 font-black text-white shadow-xl shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95 outline-none"
+              className="flex items-center gap-3 rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 outline-none"
             >
               <Plus size={20} strokeWidth={3} />
               新しい割引を追加
@@ -427,7 +427,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
 
           <div className="w-full overflow-x-auto">
             <table className="w-full table-fixed border-collapse text-left">
-              <thead className="bg-gray-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+              <thead className="bg-gray-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                 <tr>
                   <th className="w-28 px-4 py-5 text-center">並び順</th>
                   <th className="w-24 px-4 py-5 text-center">形式</th>
@@ -459,7 +459,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                         startEditing(discount);
                       }
                     }}
-                    className="group cursor-pointer transition-colors hover:bg-orange-50/30"
+                    className="group cursor-pointer transition-colors hover:bg-ui-50/30"
                   >
                     <td className="px-2 py-5">
                       <div className="flex items-center justify-center gap-2" onClick={(event) => event.stopPropagation()}>
@@ -468,7 +468,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                             type="button"
                             disabled={index === 0 || isReordering}
                             onClick={() => moveDiscount(index, -1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-ui-50 hover:text-ui active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
                             aria-label="上へ移動"
                           >
                             <ChevronUp size={15} />
@@ -477,7 +477,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                             type="button"
                             disabled={index === discounts.length - 1 || isReordering}
                             onClick={() => moveDiscount(index, 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-orange-50 hover:text-orange-600 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-500 shadow-sm transition-all hover:bg-ui-50 hover:text-ui active:scale-90 disabled:cursor-not-allowed disabled:opacity-30"
                             aria-label="下へ移動"
                           >
                             <ChevronDown size={15} />
@@ -513,30 +513,30 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                     </td>
 
                     <td className="px-4 py-5">
-                      <div className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-100/50 bg-orange-50 px-4 leading-none">
+                      <div className="inline-flex h-10 items-center justify-center rounded-xl border border-ui-100/50 bg-ui-50 px-4 leading-none">
                         {discount.type === 'manual_percent' ? (
-                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-orange-700">
+                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-ui">
                             ％指定（手入力）
                           </span>
                         ) : discount.type === 'manual' ? (
-                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-orange-700">
+                          <span className="inline-flex items-center text-[14px] font-bold leading-none text-ui">
                             金額指定（手入力）
                           </span>
                         ) : discount.type === 'percent' ? (
                           <span className="inline-flex items-center gap-0 leading-none">
-                            <span className="inline-flex items-center text-[16px] font-bold leading-none text-orange-700">
+                            <span className="inline-flex items-center text-[16px] font-bold leading-none text-ui">
                               {discount.value}%
                             </span>
-                            <span className="inline-flex items-center text-[16px] font-bold uppercase leading-none text-orange-700">
+                            <span className="inline-flex items-center text-[16px] font-bold uppercase leading-none text-ui">
                               OFF
                             </span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-[1px] leading-none">
-                            <span className="-translate-y-px inline-flex items-center text-[16px] font-bold leading-none text-orange-700">
+                            <span className="-translate-y-px inline-flex items-center text-[16px] font-bold leading-none text-ui">
                               ¥{Number(discount.value || 0).toLocaleString()}
                             </span>
-                            <span className="inline-flex items-center text-[12px] font-semibold tracking-[-0.015em] leading-none text-orange-700">
+                            <span className="inline-flex items-center text-[12px] font-semibold tracking-[-0.015em] leading-none text-ui">
                               値引き
                             </span>
                           </span>
@@ -546,11 +546,11 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
 
                     <td className="px-4 py-5">
                       <span className="inline-flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                        <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-600">
                           {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
                         </span>
                         {discount.allowsChange === true && (
-                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+                          <span className="inline-flex rounded-full bg-ui-50 px-3 py-1 text-xs font-black text-ui">
                             お釣り可
                           </span>
                         )}
@@ -559,7 +559,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
 
                     <td className="px-4 py-5">
                       <div className="flex items-center justify-start leading-none">
-                        <span className="max-w-[150px] truncate text-xs font-bold text-gray-400">
+                        <span className="max-w-[150px] truncate text-xs font-bold text-gray-500">
                           {discount.note || '-'}
                         </span>
                       </div>
@@ -573,7 +573,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                             event.stopPropagation();
                             startEditing(discount);
                           }}
-                          className="rounded-2xl border border-gray-100 bg-white p-2.5 text-blue-500 shadow-md transition-all hover:bg-blue-50 active:scale-90 outline-none"
+                          className="rounded-2xl border border-gray-100 bg-white p-2.5 text-ui shadow-md transition-all hover:bg-ui-50 active:scale-90 outline-none"
                         >
                           <Edit size={17} />
                         </button>
@@ -598,7 +598,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
       )}
 
       {deletingDiscount && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 shadow-inner">
               <AlertTriangle size={40} className="text-red-500" />
@@ -622,7 +622,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                 type="button"
                 onClick={() => setDeletingDiscount(null)}
                 disabled={isProcessing}
-                className="w-full rounded-2xl py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50"
+                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
               >
                 キャンセル
               </button>

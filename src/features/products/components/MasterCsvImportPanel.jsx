@@ -180,18 +180,18 @@ const MasterCsvMappingModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
       <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-blue-50/80 px-6 py-5">
+        <div className="border-b border-gray-100 bg-ui-50/80 px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-500">Column Mapping</p>
-              <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{label.title} 列の紐付け</h3>
-              <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Column Mapping</p>
+              <h3 className="mt-1 text-2xl font-black tracking-tight text-gray-900">{label.title} 列の紐付け</h3>
+              <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
                 {fileName || 'CSVファイル'} の先頭行をヘッダーとして読み取り、Akuto項目へ紐付けます。
               </p>
             </div>
-            <button type="button" onClick={onClose} className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-500 shadow-sm">
+            <button type="button" onClick={onClose} className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-gray-500 shadow-sm">
               閉じる
             </button>
           </div>
@@ -204,9 +204,9 @@ const MasterCsvMappingModal = ({
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="overflow-hidden rounded-2xl border border-slate-100">
+          <div className="overflow-hidden rounded-2xl border border-gray-100">
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-black text-slate-400">
+              <thead className="bg-gray-50 text-xs font-black text-gray-500">
                 <tr>
                   <th className="w-16 px-4 py-3">列</th>
                   <th className="px-4 py-3">CSVヘッダー</th>
@@ -214,17 +214,17 @@ const MasterCsvMappingModal = ({
                   <th className="w-72 px-4 py-3">Akuto項目</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-gray-100">
                 {mappingDraft.map((mapping) => (
                   <tr key={`${mapping.columnIndex}-${mapping.header}`}>
-                    <td className="px-4 py-3 font-mono text-xs font-black text-slate-400">{mapping.columnIndex + 1}</td>
-                    <td className="px-4 py-3 font-black text-slate-800">{headers[mapping.columnIndex] || `列${mapping.columnIndex + 1}`}</td>
-                    <td className="max-w-[280px] truncate px-4 py-3 text-xs font-bold text-slate-500">{firstDataRow[mapping.columnIndex] || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-black text-gray-500">{mapping.columnIndex + 1}</td>
+                    <td className="px-4 py-3 font-black text-gray-800">{headers[mapping.columnIndex] || `列${mapping.columnIndex + 1}`}</td>
+                    <td className="max-w-[280px] truncate px-4 py-3 text-xs font-bold text-gray-500">{firstDataRow[mapping.columnIndex] || '-'}</td>
                     <td className="px-4 py-3">
                       <select
                         value={mapping.fieldKey}
                         onChange={(event) => updateMapping(mapping.columnIndex, event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                        className="h-11 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui focus:ring-4 focus:ring-ui-100"
                       >
                         {options.map((option) => (
                           <option key={option.id || 'none'} value={option.id}>
@@ -240,19 +240,19 @@ const MasterCsvMappingModal = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-5">
-          <div className="text-xs font-bold text-slate-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-white px-6 py-5">
+          <div className="text-xs font-bold text-gray-500">
             紐付け済み: {mappingDraft.filter((mapping) => mapping.fieldKey).length.toLocaleString()} / {mappingDraft.length.toLocaleString()}列
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onClose} className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-500">
+            <button type="button" onClick={onClose} className="rounded-2xl bg-gray-100 px-5 py-3 text-sm font-black text-gray-500">
               キャンセル
             </button>
             <button
               type="button"
               onClick={onApply}
               disabled={!!missingRequiredFields.length}
-              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-black text-white shadow-lg shadow-gray-200/20 disabled:opacity-50"
             >
               この紐付けでプレビュー
             </button>
@@ -506,11 +506,11 @@ const MasterCsvImportPanel = ({
   const createCount = preview?.importableItems?.filter((item) => item.importAction !== 'update').length || 0;
 
   return (
-    <div className="rounded-3xl border-2 border-blue-100 bg-blue-50/60 p-4">
+    <div className="rounded-3xl border-2 border-ui-100 bg-ui-50/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-black text-slate-900">{label.title}</div>
-          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+          <div className="text-sm font-black text-gray-900">{label.title}</div>
+          <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
             CSV選択後、列の紐付けを確認してからプレビューします。
           </p>
         </div>
@@ -521,7 +521,7 @@ const MasterCsvImportPanel = ({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={saving}
-            className="rounded-2xl border-2 border-blue-100 bg-white px-4 py-2 text-xs font-black text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-60"
+            className="rounded-2xl border-2 border-ui-100 bg-white px-4 py-2 text-xs font-black text-ui shadow-sm transition hover:border-ui-100 hover:bg-ui-50 disabled:opacity-60"
           >
             CSVを選択
           </button>
@@ -530,13 +530,13 @@ const MasterCsvImportPanel = ({
               type="button"
               onClick={() => setShowMappingModal(true)}
               disabled={saving}
-              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-2 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+              className="rounded-2xl border-2 border-gray-100 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
             >
               列の紐付け
             </button>
           )}
           {(preview || error || csvRows.length > 0) && (
-            <button type="button" onClick={reset} disabled={saving} className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-500 shadow-sm disabled:opacity-60">
+            <button type="button" onClick={reset} disabled={saving} className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-gray-500 shadow-sm disabled:opacity-60">
               取消
             </button>
           )}
@@ -544,7 +544,7 @@ const MasterCsvImportPanel = ({
             type="button"
             onClick={executeImport}
             disabled={saving || !preview?.importableItems?.length}
-            className="rounded-2xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            className="rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg shadow-gray-200/20 disabled:opacity-50"
           >
             {saving ? '取込中...' : '取込実行'}
           </button>
@@ -552,17 +552,17 @@ const MasterCsvImportPanel = ({
       </div>
 
       {!!mappingDraft.length && (
-        <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
+        <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-gray-500">
           列の紐付け:
-          <span className="ml-2 text-slate-900">
+          <span className="ml-2 text-gray-900">
             {mappingDraft.filter((mapping) => mapping.fieldKey).length.toLocaleString()} / {mappingDraft.length.toLocaleString()}列
           </span>
         </div>
       )}
 
       {['suppliers', 'brands', 'categories'].includes(type) && (
-        <div className="mt-3 rounded-2xl border border-blue-100 bg-white px-4 py-3">
-          <div className="text-xs font-black text-slate-700">取込モード</div>
+        <div className="mt-3 rounded-2xl border border-ui-100 bg-white px-4 py-3">
+          <div className="text-xs font-black text-gray-700">取込モード</div>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
@@ -571,8 +571,8 @@ const MasterCsvImportPanel = ({
               className={[
                 'rounded-2xl px-4 py-2 text-xs font-black transition',
                 brandDuplicateMode === 'skip'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               ].join(' ')}
             >
               新規のみ追加
@@ -584,21 +584,21 @@ const MasterCsvImportPanel = ({
               className={[
                 'rounded-2xl px-4 py-2 text-xs font-black transition',
                 brandDuplicateMode === 'update'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  ? 'bg-ui text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               ].join(' ')}
             >
               新規追加・既存更新
             </button>
           </div>
-          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+          <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
             新規のみ追加は既存データを変更しません。新規追加・既存更新は新規を追加し、既存はCSV内容でmerge更新します。
           </p>
         </div>
       )}
 
       {(fileName || preview) && (
-        <p className="mt-3 text-xs font-bold text-slate-500">
+        <p className="mt-3 text-xs font-bold text-gray-500">
           {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / 取込対象 {Number(preview?.importableItems?.length || 0).toLocaleString()}件{duplicateModeEnabled ? ` / 新規 ${createCount.toLocaleString()}件 / 更新 ${updateCount.toLocaleString()}件` : ''} / スキップ {Number(preview?.skippedItems?.length || 0).toLocaleString()}件
         </p>
       )}
@@ -626,9 +626,9 @@ const MasterCsvImportPanel = ({
       )}
 
       {!!preview?.importableItems?.length && (
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-blue-100 bg-white">
+        <div className="mt-3 overflow-x-auto rounded-2xl border border-ui-100 bg-white">
           <table className="w-full min-w-[760px] text-left text-xs">
-            <thead className="bg-slate-50 text-[11px] font-black text-slate-400">
+            <thead className="bg-gray-50 text-[11px] font-black text-gray-500">
               <tr>
                 <th className="px-3 py-2">行</th>
                 {label.previewColumns.map(([columnLabel]) => (
@@ -636,7 +636,7 @@ const MasterCsvImportPanel = ({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
+            <tbody className="divide-y divide-gray-100 font-bold text-gray-600">
               {preview.importableItems.slice(0, 5).map((item) => (
                 <tr key={`${item.__rowNumber}-${JSON.stringify(item).slice(0, 80)}`}>
                   <td className="px-3 py-2">{item.__rowNumber}</td>
@@ -648,7 +648,7 @@ const MasterCsvImportPanel = ({
             </tbody>
           </table>
           {preview.importableItems.length > 5 && (
-            <div className="border-t border-slate-100 px-3 py-2 text-xs font-bold text-slate-400">
+            <div className="border-t border-gray-100 px-3 py-2 text-xs font-bold text-gray-500">
               先頭5件のみ表示しています。
             </div>
           )}

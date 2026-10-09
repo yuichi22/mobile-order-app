@@ -50,10 +50,10 @@ const formatDateText = (value) => {
 };
 
 const PO_STATUS_META = {
-  ordered: { label: '発注済み', className: 'bg-blue-50 text-blue-700 border-blue-100' },
+  ordered: { label: '発注済み', className: 'bg-ui-50 text-ui border-ui-100' },
   partiallyReceived: { label: '一部入庫', className: 'bg-amber-50 text-amber-700 border-amber-100' },
-  received: { label: '入庫完了', className: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-  canceled: { label: '取消', className: 'bg-slate-100 text-slate-500 border-slate-200' }
+  received: { label: '入庫完了', className: 'bg-gray-100 text-gray-900 border-gray-200' },
+  canceled: { label: '取消', className: 'bg-gray-100 text-gray-500 border-gray-200' }
 };
 
 const PO_METHOD_LABELS = { fax: 'FAX', email: 'メール' };
@@ -65,7 +65,7 @@ const MASTER_EDIT_FIELDS = {
   reorderLot: 'LOT'
 };
 const StatusBadge = ({ status }) => {
-  const meta = PO_STATUS_META[status] || { label: status || '-', className: 'bg-slate-100 text-slate-500 border-slate-200' };
+  const meta = PO_STATUS_META[status] || { label: status || '-', className: 'bg-gray-100 text-gray-500 border-gray-200' };
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-black ${meta.className}`}>
       {meta.label}
@@ -206,11 +206,11 @@ const buildPurchaseOrderHtml = ({ storeName, supplier, brandGroups, totalAmount,
 <meta charset="utf-8" />
 <title>発注書 - ${escapeHtml(supplier?.name || '')}</title>
 <style>
-  body { font-family: "Hiragino Sans", "Yu Gothic", sans-serif; color: #0f172a; margin: 32px; }
+  body { font-family: "Hiragino Sans", "Yu Gothic", sans-serif; color: #0B1220; margin: 32px; }
   h1 { font-size: 24px; letter-spacing: 0.3em; text-align: center; margin-bottom: 28px; }
   .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
   .meta .to { font-size: 16px; font-weight: 700; }
-  .meta .to small { display: block; font-size: 12px; font-weight: 400; color: #475569; margin-top: 4px; }
+  .meta .to small { display: block; font-size: 12px; font-weight: 400; color: #4B5563; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
   th { background: #f1f5f9; }
@@ -757,10 +757,10 @@ const SupplierPurchaseCheckPanel = ({
   // 計算開始前: 何も読み込まず、開始ボタンだけを表示する(画面を開いただけでは何もしない)。
   if (notStarted) {
     return (
-      <div className="mt-5 flex flex-col items-center gap-5 rounded-3xl border border-slate-200 bg-white p-12 text-center">
+      <div className="mt-5 flex flex-col items-center gap-5 rounded-3xl border border-gray-200 bg-white p-12 text-center">
         <div>
-          <div className="text-base font-black text-slate-700">発注候補の計算はまだ開始していません</div>
-          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+          <div className="text-base font-black text-gray-700">発注候補の計算はまだ開始していません</div>
+          <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
             在庫が発注点を下回った商品を全商品から抽出します。商品数が多い場合は少し時間がかかります。
             <br />
             ボタンを押すまでデータの読み込みは行いません。
@@ -769,7 +769,7 @@ const SupplierPurchaseCheckPanel = ({
         <button
           type="button"
           onClick={onStart}
-          className="rounded-2xl bg-blue-600 px-8 py-4 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 active:scale-95"
+          className="rounded-2xl bg-gray-900 px-8 py-4 text-sm font-black text-white shadow-sm transition-colors hover:bg-gray-800 active:scale-95"
         >
           発注候補の計算を開始
         </button>
@@ -779,11 +779,11 @@ const SupplierPurchaseCheckPanel = ({
 
   if (loading) {
     return (
-      <div className="mt-5 flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white p-12 text-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+      <div className="mt-5 flex flex-col items-center gap-4 rounded-3xl border border-gray-200 bg-white p-12 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-ui-100 border-t-blue-600" />
         <div>
-          <div className="text-base font-black text-slate-700">発注候補を抽出しています</div>
-          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+          <div className="text-base font-black text-gray-700">発注候補を抽出しています</div>
+          <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
             しばらくお待ちください。商品数が多い場合は数十秒かかることがあります。
           </p>
         </div>
@@ -798,23 +798,23 @@ const SupplierPurchaseCheckPanel = ({
   return (
     <div className="mt-5 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-500">
+        <p className="text-sm font-bold text-gray-500">
           在庫が発注点を下回った商品を仕入先ごとにまとめています。行をクリックすると、ブランドごとの発注金額と商品リストが展開されます。
         </p>
         <button
           type="button"
           onClick={onReload}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:border-blue-200"
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-600 hover:border-ui-100"
         >
           <RefreshCw size={14} /> 再集計
         </button>
       </div>
 
       {!orderableGroups.length && !unassignedGroup && (
-        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-          <CheckCircle2 size={28} className="mx-auto text-emerald-500" />
-          <p className="mt-3 text-sm font-black text-slate-700">発注が必要な商品はありません</p>
-          <p className="mt-1 text-xs font-bold text-slate-400">在庫が発注点(reorderPoint)を下回るとここに表示されます。</p>
+        <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+          <CheckCircle2 size={28} className="mx-auto text-gray-900" />
+          <p className="mt-3 text-sm font-black text-gray-700">発注が必要な商品はありません</p>
+          <p className="mt-1 text-xs font-bold text-gray-500">在庫が発注点(reorderPoint)を下回るとここに表示されます。</p>
         </div>
       )}
 
@@ -833,10 +833,10 @@ const SupplierPurchaseCheckPanel = ({
             data-supplier-card={group.supplierId}
             className={`scroll-mt-64 rounded-3xl border transition-all ${
               isExpanded
-                ? 'border-blue-300 bg-white shadow-sm'
+                ? 'border-ui-100 bg-white shadow-sm'
                 : belowMinOrder
-                  ? 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                  : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm'
+                  ? 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                  : 'border-gray-200 bg-white hover:border-ui-100 hover:shadow-sm'
             }`}
           >
             <div
@@ -852,12 +852,12 @@ const SupplierPurchaseCheckPanel = ({
               className="flex w-full cursor-pointer items-center justify-between px-6 py-4 text-left"
             >
               <div className="flex items-center gap-4">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${belowMinOrder && !isExpanded ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${belowMinOrder && !isExpanded ? 'bg-gray-100 text-gray-500' : 'bg-ui-50 text-ui'}`}>
                   <ClipboardList size={20} />
                 </div>
                 <div>
-                  <p className={`text-base font-black ${belowMinOrder && !isExpanded ? 'text-slate-400' : 'text-slate-900'}`}>{supplier?.name || group.supplierId}</p>
-                  <p className="text-xs font-bold text-slate-400">
+                  <p className={`text-base font-black ${belowMinOrder && !isExpanded ? 'text-gray-500' : 'text-gray-900'}`}>{supplier?.name || group.supplierId}</p>
+                  <p className="text-xs font-bold text-gray-500">
                     対象 {group.candidates.length} 品目
                     {group.candidates.some((candidate) => candidate.isRelisted) && (
                       <span className="ml-2 text-amber-600">欠品キャンセル再掲あり</span>
@@ -866,7 +866,7 @@ const SupplierPurchaseCheckPanel = ({
                   <p className="mt-0.5 text-xs font-bold">
                     {minOrderAmount !== null ? (
                       <>
-                        <span className={belowMinOrder ? 'text-amber-600' : 'text-slate-400'}>
+                        <span className={belowMinOrder ? 'text-amber-600' : 'text-gray-500'}>
                           最低発注金額 {formatYen(minOrderAmount)}{belowMinOrder ? '（未達）' : ''}
                         </span>
                         <button
@@ -875,21 +875,21 @@ const SupplierPurchaseCheckPanel = ({
                             event.stopPropagation();
                             setMinOrderModal({ supplier, value: String(minOrderAmount) });
                           }}
-                          className="ml-2 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 hover:border-blue-200 hover:text-blue-600"
+                          className="ml-2 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-black text-gray-500 hover:border-ui-100 hover:text-ui"
                         >
                           変更
                         </button>
                       </>
                     ) : (
                       <>
-                        <span className="text-slate-300">最低発注金額 未設定</span>
+                        <span className="text-gray-300">最低発注金額 未設定</span>
                         <button
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             setMinOrderModal({ supplier, value: '' });
                           }}
-                          className="ml-2 rounded-md border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600 hover:bg-blue-100"
+                          className="ml-2 rounded-md border border-ui-100 bg-ui-50 px-2 py-0.5 text-[10px] font-black text-ui hover:bg-ui-50"
                         >
                           設定する
                         </button>
@@ -900,20 +900,20 @@ const SupplierPurchaseCheckPanel = ({
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className={`text-lg font-black ${belowMinOrder ? 'text-slate-400' : 'text-slate-900'}`}>{formatYen(isExpanded ? includedTotal : group.totalAmount)}</p>
-                  <p className="text-xs font-bold text-slate-400">仕入概算 {formatYen(isExpanded ? includedEstimatedTotal : group.estimatedCostTotal)}</p>
+                  <p className={`text-lg font-black ${belowMinOrder ? 'text-gray-500' : 'text-gray-900'}`}>{formatYen(isExpanded ? includedTotal : group.totalAmount)}</p>
+                  <p className="text-xs font-bold text-gray-500">仕入概算 {formatYen(isExpanded ? includedEstimatedTotal : group.estimatedCostTotal)}</p>
                 </div>
                 {isExpanded
-                  ? <ChevronDown size={18} className="text-blue-400" />
-                  : <ChevronRight size={18} className="text-slate-300" />}
+                  ? <ChevronDown size={18} className="text-ui" />
+                  : <ChevronRight size={18} className="text-gray-300" />}
               </div>
             </div>
 
             {isExpanded && (
-              <div className="border-t border-slate-100 px-6 py-5">
+              <div className="border-t border-gray-100 px-6 py-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold text-slate-500">
+                    <p className="text-xs font-bold text-gray-500">
                       {supplier?.contactName ? `担当: ${supplier.contactName} / ` : ''}
                       {supplier?.fax ? `FAX: ${supplier.fax} / ` : ''}
                       {supplier?.email ? `メール: ${supplier.email}` : 'メール未登録'}
@@ -923,16 +923,16 @@ const SupplierPurchaseCheckPanel = ({
                         注残なし（発注から{supplier?.stockoutCancelDays || '-'}日で欠品キャンセル判定）
                       </p>
                     )}
-                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-gray-500">
                       カーソル移動
-                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 font-black text-blue-600">Enter ↓</span>
+                      <span className="rounded-lg border border-ui-100 bg-ui-50 px-2 py-0.5 font-black text-ui">Enter ↓</span>
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => openProductBrowser({ scope: 'supplier', title: `${supplier?.name || '仕入先'} のその他の商品` })}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:border-blue-200"
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-700 hover:border-ui-100"
                     >
                       <List size={16} /> この仕入先のその他の商品
                     </button>
@@ -940,7 +940,7 @@ const SupplierPurchaseCheckPanel = ({
                       type="button"
                       disabled={processing || !orderableBrandGroups.length}
                       onClick={() => printSheet(orderableBrandGroups)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:border-blue-200 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-700 hover:border-ui-100 disabled:opacity-40"
                     >
                       <Printer size={16} /> 印刷 / PDF保存
                     </button>
@@ -949,7 +949,7 @@ const SupplierPurchaseCheckPanel = ({
                       disabled={processing || !orderableBrandGroups.length || !canEmail}
                       onClick={() => executeOrder({ method: 'email', targetBrandGroups: orderableBrandGroups, label: 'メール' })}
                       title={canEmail ? '' : '仕入先マスタにメールアドレスが登録されていません'}
-                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-black text-white hover:bg-gray-800 disabled:opacity-40"
                     >
                       <Mail size={16} /> メールで発注
                     </button>
@@ -957,7 +957,7 @@ const SupplierPurchaseCheckPanel = ({
                       type="button"
                       disabled={processing || !orderableBrandGroups.length}
                       onClick={() => executeOrder({ method: 'fax', targetBrandGroups: orderableBrandGroups, label: 'FAX' })}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-sm font-black text-white hover:bg-slate-900 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2 text-sm font-black text-white hover:bg-gray-900 disabled:opacity-40"
                     >
                       <Send size={16} /> FAX発注（発注済みにする）
                     </button>
@@ -969,21 +969,21 @@ const SupplierPurchaseCheckPanel = ({
                     const isExcluded = excludedBrandIds.includes(brandGroup.brandId);
 
                     return (
-                      <div key={brandGroup.brandId || '__none__'} className={`rounded-2xl border ${isExcluded ? 'border-slate-100 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+                      <div key={brandGroup.brandId || '__none__'} className={`rounded-2xl border ${isExcluded ? 'border-gray-100 bg-gray-50' : 'border-gray-200 bg-white'}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <span className={`text-sm font-black ${isExcluded ? 'text-slate-400' : 'text-slate-900'}`}>{brandGroup.brandName}</span>
-                            <span className={`text-sm font-black ${isExcluded ? 'text-slate-300 line-through' : 'text-blue-700'}`}>
+                            <span className={`text-sm font-black ${isExcluded ? 'text-gray-500' : 'text-gray-900'}`}>{brandGroup.brandName}</span>
+                            <span className={`text-sm font-black ${isExcluded ? 'text-gray-300 line-through' : 'text-ui'}`}>
                               {formatYen(brandGroup.subtotal)}
                             </span>
-                            <span className="text-xs font-bold text-slate-400">{brandGroup.lines.length}品目</span>
+                            <span className="text-xs font-bold text-gray-500">{brandGroup.lines.length}品目</span>
                           </div>
                           <div className="flex items-center gap-3">
                             {!isExcluded && (
                               <button
                                 type="button"
                                 onClick={() => openProductBrowser({ scope: 'brand', brandId: brandGroup.brandId, title: `${brandGroup.brandName} のその他の商品` })}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 hover:border-blue-200"
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-600 hover:border-ui-100"
                               >
                                 <List size={12} className="inline" /> このブランドのその他の商品
                               </button>
@@ -993,7 +993,7 @@ const SupplierPurchaseCheckPanel = ({
                                 type="button"
                                 disabled={processing || !toOrderableGroup(brandGroup).lines.length}
                                 onClick={() => executeOrder({ method: 'fax', targetBrandGroups: [toOrderableGroup(brandGroup)], label: `FAX（${brandGroup.brandName}のみ）` })}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 hover:border-blue-200 hover:text-blue-600 disabled:opacity-40"
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-600 hover:border-ui-100 hover:text-ui disabled:opacity-40"
                               >
                                 このブランドのみ発注
                               </button>
@@ -1003,19 +1003,19 @@ const SupplierPurchaseCheckPanel = ({
                                 type="button"
                                 disabled={!toOrderableGroup(brandGroup).lines.length}
                                 onClick={() => printSheet([toOrderableGroup(brandGroup)])}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 hover:border-blue-200 disabled:opacity-40"
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-black text-gray-600 hover:border-ui-100 disabled:opacity-40"
                               >
                                 <Printer size={14} className="inline" /> ブランド発注書
                               </button>
                             )}
                             {/* ブランドが1つだけの発注書では除外＝発注しないと同義のため非表示 */}
                             {brandGroups.length > 1 && (
-                              <label className="flex items-center gap-1.5 text-xs font-black text-slate-500">
+                              <label className="flex items-center gap-1.5 text-xs font-black text-gray-500">
                                 <input
                                   type="checkbox"
                                   checked={isExcluded}
                                   onChange={() => toggleBrandExcluded(brandGroup.brandId)}
-                                  className="h-4 w-4 rounded border-slate-300"
+                                  className="h-4 w-4 rounded border-gray-300"
                                 />
                                 発注書から除外
                               </label>
@@ -1024,10 +1024,10 @@ const SupplierPurchaseCheckPanel = ({
                         </div>
 
                         {!isExcluded && (
-                          <div className="overflow-x-auto border-t border-slate-100">
+                          <div className="overflow-x-auto border-t border-gray-100">
                             <table className="w-full text-sm">
                               <thead>
-                                <tr className="text-left text-xs font-black uppercase tracking-wider text-slate-400">
+                                <tr className="text-left text-xs font-black uppercase tracking-wider text-gray-500">
                                   <th className="px-4 py-2">商品</th>
                                   <th className="px-2 py-2 text-right">在庫</th>
                                   <th className="px-2 py-2 text-right">発注点</th>
@@ -1047,12 +1047,12 @@ const SupplierPurchaseCheckPanel = ({
                                   return (
                                   <tr
                                     key={line.productId}
-                                    className={`border-t border-slate-100 ${
-                                      isSelected ? 'bg-blue-50' : isZero ? 'bg-slate-50 opacity-50' : ''
+                                    className={`border-t border-gray-100 ${
+                                      isSelected ? 'bg-ui-50' : isZero ? 'bg-gray-50 opacity-50' : ''
                                     }`}
                                   >
                                     <td
-                                      className="cursor-pointer select-none px-4 py-2 font-bold text-slate-800"
+                                      className="cursor-pointer select-none px-4 py-2 font-bold text-gray-800"
                                       title="クリックで選択 / Shift+クリックで範囲選択"
                                       onMouseDown={(event) => {
                                         if (event.shiftKey) event.preventDefault();
@@ -1060,14 +1060,14 @@ const SupplierPurchaseCheckPanel = ({
                                       onClick={(event) => handleLineSelectClick(event, line.productId)}
                                     >
                                       {line.productName}
-                                      {line.sku && <span className="ml-2 text-xs font-bold text-slate-400">{line.sku}</span>}
+                                      {line.sku && <span className="ml-2 text-xs font-bold text-gray-500">{line.sku}</span>}
                                       {line.isRelisted && (
                                         <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
                                           欠品キャンセル再掲
                                         </span>
                                       )}
                                       {line.isManual && (
-                                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-ui-50 px-2 py-0.5 text-[10px] font-black text-ui">
                                           手動追加
                                           <button
                                             type="button"
@@ -1076,20 +1076,20 @@ const SupplierPurchaseCheckPanel = ({
                                               event.stopPropagation();
                                               toggleExtraProduct(line.productId);
                                             }}
-                                            className="rounded-full p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-700"
+                                            className="rounded-full p-0.5 text-ui hover:bg-ui-50 hover:text-ui"
                                           >
                                             <X size={10} />
                                           </button>
                                         </span>
                                       )}
                                     </td>
-                                    <td className="px-2 py-2 text-right font-bold text-slate-600">{line.inventory}</td>
+                                    <td className="px-2 py-2 text-right font-bold text-gray-600">{line.inventory}</td>
                                     <td className="px-2 py-2 text-right">
                                       <button
                                         type="button"
                                         title="クリックで発注点を変更"
                                         onClick={() => openMasterEdit(line, 'reorderPoint')}
-                                        className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 font-bold text-slate-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                        className="rounded-md border border-dashed border-gray-300 px-2 py-0.5 font-bold text-gray-500 hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
                                       >
                                         {line.reorderPoint ?? '-'}
                                       </button>
@@ -1099,7 +1099,7 @@ const SupplierPurchaseCheckPanel = ({
                                         type="button"
                                         title="クリックで発注数を変更"
                                         onClick={() => openMasterEdit(line, 'reorderQuantity')}
-                                        className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 font-bold text-slate-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                        className="rounded-md border border-dashed border-gray-300 px-2 py-0.5 font-bold text-gray-500 hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
                                       >
                                         {line.reorderQuantity ?? '-'}
                                       </button>
@@ -1113,7 +1113,7 @@ const SupplierPurchaseCheckPanel = ({
                                         onChange={(event) => setQtyDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
                                         onFocus={(event) => event.target.select()}
                                         onKeyDown={handleQtyInputKeyDown}
-                                        className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                        className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                       />
                                     </td>
                                     <td className="px-2 py-2 text-right">
@@ -1121,16 +1121,16 @@ const SupplierPurchaseCheckPanel = ({
                                         type="button"
                                         title="クリックでLOTを変更"
                                         onClick={() => openMasterEdit(line, 'reorderLot')}
-                                        className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 font-bold text-slate-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                        className="rounded-md border border-dashed border-gray-300 px-2 py-0.5 font-bold text-gray-500 hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
                                       >
                                         {line.reorderLot ?? line.orderLot ?? '-'}
                                       </button>
                                     </td>
-                                    <td className="px-2 py-2 text-right font-bold text-slate-600">
+                                    <td className="px-2 py-2 text-right font-bold text-gray-600">
                                       {line.unitPrice === null ? <span className="text-amber-600">未設定</span> : formatYen(line.unitPrice)}
                                     </td>
-                                    <td className="px-4 py-2 text-right font-black text-slate-800">
-                                      {isZero ? <span className="text-slate-400">今回0発注</span> : formatYen(line.amount)}
+                                    <td className="px-4 py-2 text-right font-black text-gray-800">
+                                      {isZero ? <span className="text-gray-500">今回0発注</span> : formatYen(line.amount)}
                                     </td>
                                   </tr>
                                   );
@@ -1165,24 +1165,24 @@ const SupplierPurchaseCheckPanel = ({
 
       {productBrowser && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4"
           onClick={() => setProductBrowser(null)}
         >
           <div
             className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
-                <h3 className="text-base font-black text-slate-900">{productBrowser.title}</h3>
-                <p className="mt-0.5 text-xs font-bold text-slate-400">
+                <h3 className="text-base font-black text-gray-900">{productBrowser.title}</h3>
+                <p className="mt-0.5 text-xs font-bold text-gray-500">
                   発注書にまだ載っていない商品の一覧です。発注点に達していない商品も「発注書に追加」で取り込めます。
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setProductBrowser(null)}
-                className="rounded-xl border border-slate-200 p-2 text-slate-400 hover:border-slate-300 hover:text-slate-600"
+                className="rounded-xl border border-gray-200 p-2 text-gray-500 hover:border-gray-300 hover:text-gray-600"
               >
                 <X size={16} />
               </button>
@@ -1195,28 +1195,28 @@ const SupplierPurchaseCheckPanel = ({
                   value={browserKeyword}
                   onChange={(event) => setBrowserKeyword(event.target.value)}
                   placeholder="商品名・SKU・バーコードで検索"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700"
                 />
               </div>
             )}
 
             <div className="flex-1 overflow-y-auto px-6 pb-5">
               {browserLoading ? (
-                <p className="py-8 text-center text-sm font-bold text-slate-400">商品一覧を読み込んでいます…</p>
+                <p className="py-8 text-center text-sm font-bold text-gray-500">商品一覧を読み込んでいます…</p>
               ) : !scopedBrowserProducts.length ? (
                 <div className="py-10 text-center">
-                  <CheckCircle2 size={28} className="mx-auto text-emerald-500" />
-                  <p className="mt-3 text-sm font-black text-slate-700">
+                  <CheckCircle2 size={28} className="mx-auto text-gray-900" />
+                  <p className="mt-3 text-sm font-black text-gray-700">
                     {productBrowser.scope === 'brand' ? 'このブランド' : 'この仕入先'}の商品はすべて発注書に掲載されています
                   </p>
-                  <p className="mt-1 text-xs font-bold text-slate-400">追加できるその他の商品はありません。</p>
+                  <p className="mt-1 text-xs font-bold text-gray-500">追加できるその他の商品はありません。</p>
                 </div>
               ) : !browserProducts.length ? (
-                <p className="py-8 text-center text-sm font-bold text-slate-400">検索に該当する商品がありません。</p>
+                <p className="py-8 text-center text-sm font-bold text-gray-500">検索に該当する商品がありません。</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white">
-                    <tr className="text-left text-xs font-black uppercase tracking-wider text-slate-400">
+                    <tr className="text-left text-xs font-black uppercase tracking-wider text-gray-500">
                       <th className="py-2 pr-3">商品</th>
                       <th className="px-2 py-2">ブランド</th>
                       <th className="px-2 py-2 text-right">在庫</th>
@@ -1231,20 +1231,20 @@ const SupplierPurchaseCheckPanel = ({
                       const brand = brandById?.get(String(product.brandId || '')) || null;
 
                       return (
-                        <tr key={product.id} className="border-t border-slate-100">
-                          <td className="py-2 pr-3 font-bold text-slate-800">
+                        <tr key={product.id} className="border-t border-gray-100">
+                          <td className="py-2 pr-3 font-bold text-gray-800">
                             {product.name || '(名称未設定)'}
-                            {product.sku && <span className="ml-2 text-xs font-bold text-slate-400">{product.sku}</span>}
+                            {product.sku && <span className="ml-2 text-xs font-bold text-gray-500">{product.sku}</span>}
                             {toNumberOrNull(product.reorderQuantity) === 0 && (
-                              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                              <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">
                                 発注数0・廃盤扱い
                               </span>
                             )}
                           </td>
-                          <td className="px-2 py-2 text-xs font-bold text-slate-500">{brand?.name || '-'}</td>
-                          <td className="px-2 py-2 text-right font-bold text-slate-600">{resolveInventoryQuantity(product)}</td>
-                          <td className="px-2 py-2 text-right font-bold text-slate-400">{toNumberOrNull(product.reorderPoint) ?? '-'}</td>
-                          <td className="px-2 py-2 text-right font-bold text-slate-600">
+                          <td className="px-2 py-2 text-xs font-bold text-gray-500">{brand?.name || '-'}</td>
+                          <td className="px-2 py-2 text-right font-bold text-gray-600">{resolveInventoryQuantity(product)}</td>
+                          <td className="px-2 py-2 text-right font-bold text-gray-500">{toNumberOrNull(product.reorderPoint) ?? '-'}</td>
+                          <td className="px-2 py-2 text-right font-bold text-gray-600">
                             {toNumberOrNull(product.priceTaxExcluded) === null ? '-' : formatYen(product.priceTaxExcluded)}
                           </td>
                           <td className="px-2 py-2 text-right">
@@ -1254,7 +1254,7 @@ const SupplierPurchaseCheckPanel = ({
                               <button
                                 type="button"
                                 onClick={() => toggleExtraProduct(product.id)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white hover:bg-blue-700"
+                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-black text-white hover:bg-gray-800"
                               >
                                 発注書に追加
                               </button>
@@ -1278,17 +1278,17 @@ const SupplierPurchaseCheckPanel = ({
 
       {masterEditModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4"
           onClick={() => setMasterEditModal(null)}
         >
           <div
             className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-base font-black text-slate-900">{MASTER_EDIT_FIELDS[masterEditModal.field]}の変更</h3>
-            <p className="mt-1 text-xs font-bold text-slate-500">{masterEditModal.line.productName}</p>
+            <h3 className="text-base font-black text-gray-900">{MASTER_EDIT_FIELDS[masterEditModal.field]}の変更</h3>
+            <p className="mt-1 text-xs font-bold text-gray-500">{masterEditModal.line.productName}</p>
             <div className="mt-4 flex items-center gap-3">
-              <span className="shrink-0 text-lg font-black text-slate-400">
+              <span className="shrink-0 text-lg font-black text-gray-500">
                 {masterEditModal.current} →
               </span>
               <input
@@ -1301,21 +1301,21 @@ const SupplierPurchaseCheckPanel = ({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') saveMasterEdit();
                 }}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-right text-lg font-black text-slate-800 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-lg font-black text-gray-800 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setMasterEditModal(null)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 hover:border-slate-300"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-600 hover:border-gray-300"
               >
                 キャンセル
               </button>
               <button
                 type="button"
                 onClick={saveMasterEdit}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700"
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-black text-white hover:bg-gray-800"
               >
                 保存
               </button>
@@ -1326,24 +1326,24 @@ const SupplierPurchaseCheckPanel = ({
 
       {bulkModalOpen && bulkSelection.length > 0 && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4"
           onClick={() => setBulkModalOpen(false)}
         >
           <div
             className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-base font-black text-slate-900">選択した商品をまとめて操作</h3>
-            <p className="mt-1 text-xs font-bold text-slate-500">
+            <h3 className="text-base font-black text-gray-900">選択した商品をまとめて操作</h3>
+            <p className="mt-1 text-xs font-bold text-gray-500">
               {bulkSelection.length}件の商品を選択中です。廃盤扱い（発注数0）にすると発注候補に上がらなくなります。
             </p>
-            <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50 p-3">
               {sheetLines
                 .filter((line) => bulkSelection.includes(line.productId))
                 .map((line) => (
-                  <p key={line.productId} className="py-0.5 text-xs font-bold text-slate-600">
+                  <p key={line.productId} className="py-0.5 text-xs font-bold text-gray-600">
                     {line.productName}
-                    {line.sku && <span className="ml-2 text-slate-400">{line.sku}</span>}
+                    {line.sku && <span className="ml-2 text-gray-500">{line.sku}</span>}
                   </p>
                 ))}
             </div>
@@ -1351,14 +1351,14 @@ const SupplierPurchaseCheckPanel = ({
               <button
                 type="button"
                 onClick={resetLineSelection}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 hover:border-slate-300"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-600 hover:border-gray-300"
               >
                 キャンセル
               </button>
               <button
                 type="button"
                 onClick={applyBulkDiscontinue}
-                className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-black text-white hover:bg-slate-900"
+                className="rounded-xl bg-gray-800 px-4 py-2 text-sm font-black text-white hover:bg-gray-900"
               >
                 選択した商品を廃盤扱いにする（発注数0）
               </button>
@@ -1369,20 +1369,20 @@ const SupplierPurchaseCheckPanel = ({
 
       {minOrderModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4"
           onClick={() => setMinOrderModal(null)}
         >
           <div
             className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-base font-black text-slate-900">最低発注金額の設定</h3>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+            <h3 className="text-base font-black text-gray-900">最低発注金額の設定</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               {minOrderModal.supplier?.name || '仕入先'} の最低発注金額（税抜定価）を入力してください。
               発注金額がこの金額に達しない場合、リストでグレー表示されます。空欄で保存すると未設定に戻ります。
             </p>
             <div className="mt-4 flex items-center gap-2">
-              <span className="text-sm font-black text-slate-400">¥</span>
+              <span className="text-sm font-black text-gray-500">¥</span>
               <input
                 type="number"
                 min="0"
@@ -1393,14 +1393,14 @@ const SupplierPurchaseCheckPanel = ({
                   if (event.key === 'Enter') saveMinOrderAmount();
                 }}
                 placeholder="例: 30000"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-right text-base font-black text-slate-800"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-base font-black text-gray-800"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setMinOrderModal(null)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 hover:border-slate-300"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-600 hover:border-gray-300"
               >
                 キャンセル
               </button>
@@ -1408,7 +1408,7 @@ const SupplierPurchaseCheckPanel = ({
                 type="button"
                 disabled={processing}
                 onClick={saveMinOrderAmount}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-40"
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-black text-white hover:bg-gray-800 disabled:opacity-40"
               >
                 保存
               </button>
@@ -1522,10 +1522,10 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
 
   if (!purchaseOrders.length) {
     return (
-      <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-        <Truck size={28} className="mx-auto text-slate-300" />
-        <p className="mt-3 text-sm font-black text-slate-600">発注履歴はまだありません</p>
-        <p className="mt-1 text-xs font-bold text-slate-400">仕入先別発注確認から発注すると、ここに発注書単位で記録されます。</p>
+      <div className="mt-5 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+        <Truck size={28} className="mx-auto text-gray-300" />
+        <p className="mt-3 text-sm font-black text-gray-600">発注履歴はまだありません</p>
+        <p className="mt-1 text-xs font-bold text-gray-500">仕入先別発注確認から発注すると、ここに発注書単位で記録されます。</p>
       </div>
     );
   }
@@ -1538,46 +1538,46 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
         const receivedCount = activeLines.filter((line) => Number(line.receivedQty || 0) >= Number(line.qty || 0)).length;
 
         return (
-          <div key={po.id} className="rounded-3xl border border-slate-200 bg-white">
+          <div key={po.id} className="rounded-3xl border border-gray-200 bg-white">
             <button
               type="button"
               onClick={() => toggleExpand(po)}
               className="flex w-full flex-wrap items-center justify-between gap-3 px-6 py-4 text-left"
             >
               <div className="flex items-center gap-3">
-                {isExpanded ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
+                {isExpanded ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
                 <div>
-                  <p className="text-sm font-black text-slate-900">
+                  <p className="text-sm font-black text-gray-900">
                     {po.supplierName || po.supplierId}
-                    <span className="ml-2 text-xs font-bold text-slate-400">{formatDateText(po.orderedAt)} 発注</span>
+                    <span className="ml-2 text-xs font-bold text-gray-500">{formatDateText(po.orderedAt)} 発注</span>
                     {po.method && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">
                         {PO_METHOD_LABELS[po.method] || po.method}
                       </span>
                     )}
                   </p>
-                  <p className="text-xs font-bold text-slate-400">
+                  <p className="text-xs font-bold text-gray-500">
                     {activeLines.length}品目 / 入庫 {receivedCount}品目
                     {po.eta ? ` / 納期(発注書): ${formatDateText(po.eta)}` : ''}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-black text-slate-800">{formatYen(po.totalAmount)}</span>
+                <span className="text-sm font-black text-gray-800">{formatYen(po.totalAmount)}</span>
                 <StatusBadge status={po.status} />
               </div>
             </button>
 
             {isExpanded && (
-              <div className="border-t border-slate-100 px-6 py-4">
+              <div className="border-t border-gray-100 px-6 py-4">
                 <div className="flex flex-wrap items-end justify-between gap-3">
-                  <label className="text-xs font-black text-slate-500">
+                  <label className="text-xs font-black text-gray-500">
                     発注書の納期(ETA)
                     <input
                       type="date"
                       value={etaDraft}
                       onChange={(event) => setEtaDraft(event.target.value)}
-                      className="ml-2 rounded-lg border border-slate-200 px-2 py-1.5 font-bold text-slate-700"
+                      className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5 font-bold text-gray-700"
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -1585,14 +1585,14 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                       type="button"
                       disabled={processing}
                       onClick={() => saveEta(po)}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-40"
+                      className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-black text-white hover:bg-gray-800 disabled:opacity-40"
                     >
                       納期を保存
                     </button>
                     <button
                       type="button"
                       onClick={() => reprint(po)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-600 hover:border-blue-200"
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-black text-gray-600 hover:border-ui-100"
                     >
                       <Printer size={13} /> 再印刷
                     </button>
@@ -1601,7 +1601,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                         type="button"
                         disabled={processing}
                         onClick={() => resendEmail(po)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-600 hover:border-blue-200 disabled:opacity-40"
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-black text-gray-600 hover:border-ui-100 disabled:opacity-40"
                       >
                         <Mail size={13} /> メール再送
                       </button>
@@ -1622,7 +1622,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-xs font-black uppercase tracking-wider text-slate-400">
+                      <tr className="text-left text-xs font-black uppercase tracking-wider text-gray-500">
                         <th className="py-2 pr-3">商品</th>
                         <th className="px-2 py-2">ブランド</th>
                         <th className="px-2 py-2 text-right">数量</th>
@@ -1638,16 +1638,16 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                         const fulfilled = !line.canceled && remaining === 0;
 
                         return (
-                          <tr key={line.productId} className={`border-t border-slate-100 ${line.canceled ? 'opacity-40' : ''}`}>
-                            <td className="py-2 pr-3 font-bold text-slate-800">
+                          <tr key={line.productId} className={`border-t border-gray-100 ${line.canceled ? 'opacity-40' : ''}`}>
+                            <td className="py-2 pr-3 font-bold text-gray-800">
                               {line.productName}
-                              {line.canceled && <span className="ml-2 text-[10px] font-black text-slate-400">キャンセル</span>}
-                              {fulfilled && <PackageCheck size={13} className="ml-1 inline text-emerald-500" />}
+                              {line.canceled && <span className="ml-2 text-[10px] font-black text-gray-500">キャンセル</span>}
+                              {fulfilled && <PackageCheck size={13} className="ml-1 inline text-gray-900" />}
                             </td>
-                            <td className="px-2 py-2 font-bold text-slate-500">{line.brandName || '-'}</td>
-                            <td className="px-2 py-2 text-right font-bold text-slate-600">{line.qty}</td>
-                            <td className="px-2 py-2 text-right font-bold text-slate-600">{formatYen(line.amount)}</td>
-                            <td className="px-2 py-2 text-right font-bold text-slate-600">{Number(line.receivedQty || 0)}</td>
+                            <td className="px-2 py-2 font-bold text-gray-500">{line.brandName || '-'}</td>
+                            <td className="px-2 py-2 text-right font-bold text-gray-600">{line.qty}</td>
+                            <td className="px-2 py-2 text-right font-bold text-gray-600">{formatYen(line.amount)}</td>
+                            <td className="px-2 py-2 text-right font-bold text-gray-600">{Number(line.receivedQty || 0)}</td>
                             <td className="px-2 py-2">
                               {/* 表示優先は 商品別 > 発注書別。未入力なら発注書ETAを薄く表示する。 */}
                               <input
@@ -1655,10 +1655,10 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                                 value={lineEtaDrafts[line.productId] ?? (line.eta || '')}
                                 onChange={(event) => setLineEtaDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
                                 disabled={line.canceled}
-                                className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700 disabled:bg-slate-50"
+                                className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 disabled:bg-gray-50"
                               />
                               {!line.eta && !lineEtaDrafts[line.productId] && po.eta && (
-                                <span className="ml-1 text-[10px] font-bold text-slate-400">({formatDateText(po.eta)})</span>
+                                <span className="ml-1 text-[10px] font-bold text-gray-500">({formatDateText(po.eta)})</span>
                               )}
                             </td>
                             <td className="px-2 py-2 text-right">
@@ -1670,10 +1670,10 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                                   placeholder={String(remaining)}
                                   value={receiptDrafts[line.productId] ?? ''}
                                   onChange={(event) => setReceiptDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
-                                  className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs font-bold"
+                                  className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-xs font-bold"
                                 />
                               ) : (
-                                <span className="text-xs font-bold text-slate-300">-</span>
+                                <span className="text-xs font-bold text-gray-300">-</span>
                               )}
                             </td>
                           </tr>
@@ -1689,7 +1689,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                       type="button"
                       disabled={processing}
                       onClick={() => receive(po)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-black text-white hover:bg-gray-900 disabled:opacity-40"
                     >
                       <PackageCheck size={16} /> 入庫登録
                     </button>

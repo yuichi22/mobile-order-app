@@ -213,15 +213,15 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
   };
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-start gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-900 text-white">
             <Printer size={22} />
           </div>
           <div>
             <h3 className="text-lg font-black tracking-tight text-gray-900">レシート設定（レジモード別）</h3>
-            <p className="mt-0.5 text-xs font-bold text-gray-400">
+            <p className="mt-0.5 text-xs font-bold text-gray-500">
               POSレジ・ORDERレジで、印刷方式・プリンタ・自動印刷・文言を分けて設定できます。上部またはフッターの「保存」で保存されます。
             </p>
           </div>
@@ -235,7 +235,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
             type="button"
             onClick={() => setActiveMode(tab.id)}
             className={`h-9 rounded-full px-5 text-sm font-black transition-all ${
-              activeMode === tab.id ? 'bg-slate-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              activeMode === tab.id ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             {tab.label}
@@ -246,7 +246,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
       <div className="space-y-5">
         {/* 印刷方式（Star / 印刷ブリッジ） */}
         <div>
-          <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-gray-400">印刷方式</label>
+          <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-gray-500">印刷方式</label>
           <div className="grid gap-2 sm:grid-cols-2">
             {RECEIPT_PRINT_METHODS.map((method) => {
               const active = current.printMethod === method.id;
@@ -256,16 +256,16 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                   type="button"
                   onClick={() => updateCurrent({ printMethod: method.id })}
                   className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                    active ? 'border-slate-900 bg-slate-50' : 'border-gray-100 bg-white hover:border-gray-200'
+                    active ? 'border-gray-900 bg-gray-50' : 'border-gray-100 bg-white hover:border-gray-200'
                   }`}
                 >
                   {method.device && (
-                    <span className="mb-1.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                    <span className="mb-1.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">
                       {method.device}
                     </span>
                   )}
                   <div className="text-sm font-black text-gray-900">{method.label}</div>
-                  <div className="mt-1 text-[11px] font-bold leading-relaxed text-gray-400">{method.desc}</div>
+                  <div className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">{method.desc}</div>
                 </button>
               );
             })}
@@ -274,19 +274,19 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
         {/* Star プリンタ方式（iPadアプリ） */}
         {!isBridge && isNative && (
-          <div className="rounded-2xl border-2 border-blue-100 bg-blue-50/50 p-4">
+          <div className="rounded-2xl border-2 border-ui-100 bg-ui-50/50 p-4">
             <div className="mb-3 flex items-center gap-2">
-              <Bluetooth size={18} className="text-blue-600" />
+              <Bluetooth size={18} className="text-ui" />
               <span className="text-sm font-black text-gray-900">Star プリンタ（この端末）</span>
             </div>
             <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-500">
               プリンタの選択は<strong className="text-gray-700">この iPad だけの設定</strong>です（他の端末には影響しません）。先にiPadの「設定 &gt; Bluetooth」でプリンタをペアリングしてから、下で検索・選択・テストしてください。
             </p>
 
-            <div className="mb-3 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-bold text-gray-600">
+            <div className="mb-3 rounded-xl border border-ui-100 bg-white px-3 py-2 text-xs font-bold text-gray-600">
               使用中プリンタ：{effectivePrinter
                 ? <span className="font-mono text-gray-900">{effectivePrinter.identifier}（{effectivePrinter.interface}）</span>
-                : <span className="text-gray-400">未選択（印刷時に自動探索）</span>}
+                : <span className="text-gray-500">未選択（印刷時に自動探索）</span>}
               {!devicePrinter && storeFallback && (
                 <span className="mt-1 block font-sans text-[10px] font-bold text-amber-600">
                   これは旧来の店舗共通設定の値です。この端末に別のプリンタを繋いでいる場合は、下から検索して選び直してください。
@@ -296,7 +296,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
             {/* 用紙幅。80mm=48桁 / 58mm=32桁 で明細の折返しとバナー幅が変わる。 */}
             <div className="mb-3">
-              <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">用紙幅</label>
+              <label className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">用紙幅</label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {PAPER_WIDTHS.map((entry) => {
                   const active = paperWidth === entry.id;
@@ -306,16 +306,16 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                       type="button"
                       onClick={() => selectPaperWidth(entry.id)}
                       className={`rounded-xl border-2 px-3 py-2 text-left transition-all ${
-                        active ? 'border-slate-900 bg-white' : 'border-gray-100 bg-white hover:border-gray-200'
+                        active ? 'border-gray-900 bg-white' : 'border-gray-100 bg-white hover:border-gray-200'
                       }`}
                     >
                       <div className="text-xs font-black text-gray-900">{entry.label}</div>
-                      <div className="mt-0.5 text-[10px] font-bold text-gray-400">{entry.columns}桁</div>
+                      <div className="mt-0.5 text-[10px] font-bold text-gray-500">{entry.columns}桁</div>
                     </button>
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-gray-400">
+              <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-gray-500">
                 プリンタに入れているロール紙の幅を選んでください。間違えるとレシートの明細がずれます。
               </p>
             </div>
@@ -325,7 +325,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                 type="button"
                 onClick={handleDiscoverStar}
                 disabled={discovering || testing}
-                className="flex h-10 items-center gap-2 rounded-xl border-2 border-blue-200 bg-white px-4 text-xs font-black text-blue-700 transition hover:bg-blue-50 disabled:opacity-60"
+                className="flex h-10 items-center gap-2 rounded-xl border-2 border-ui-100 bg-white px-4 text-xs font-black text-ui transition hover:bg-ui-50 disabled:opacity-60"
               >
                 {discovering ? <LoadingSpinner size={14} /> : <Search size={14} />}
                 プリンタを検索
@@ -334,7 +334,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                 type="button"
                 onClick={handleTestPrintStar}
                 disabled={testing || discovering}
-                className="flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-black text-white transition hover:bg-black disabled:opacity-60"
+                className="flex h-10 items-center gap-2 rounded-xl bg-gray-900 px-4 text-xs font-black text-white transition hover:bg-black disabled:opacity-60"
               >
                 {testing ? <LoadingSpinner size={14} /> : <Printer size={14} />}
                 テスト印刷
@@ -366,14 +366,14 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                       type="button"
                       onClick={() => selectDevicePrinter(printer)}
                       className={`flex w-full items-center justify-between rounded-xl border-2 px-3 py-2 text-left transition ${
-                        selected ? 'border-slate-900 bg-slate-50' : 'border-gray-100 bg-white hover:border-gray-200'
+                        selected ? 'border-gray-900 bg-gray-50' : 'border-gray-100 bg-white hover:border-gray-200'
                       }`}
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-mono text-xs font-black text-gray-900">{printer.identifier}</span>
-                        <span className="block text-[10px] font-bold text-gray-400">{printer.interface}</span>
+                        <span className="block text-[10px] font-bold text-gray-500">{printer.interface}</span>
                       </span>
-                      {selected && <Check size={16} className="shrink-0 text-slate-900" />}
+                      {selected && <Check size={16} className="shrink-0 text-gray-900" />}
                     </button>
                   );
                 })}
@@ -382,7 +382,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
             {starStatus && (
               <div className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold leading-relaxed ${
-                starStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                starStatus.type === 'success' ? 'bg-gray-100 text-gray-900' : 'bg-red-50 text-red-600'
               }`}>
                 {starStatus.message}
               </div>
@@ -396,7 +396,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
         {/* Star方式・Web(非ネイティブ)端末での案内 */}
         {!isBridge && !isNative && (
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-700">
+          <div className="rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3 text-xs font-bold leading-relaxed text-ui">
             この端末（PC/ブラウザ）ではStarプリンタへ直接接続できないため、会計時はブラウザ印刷（AirPrint等）のダイアログで発行します。Star本体への直接印刷はiPadアプリで動作します。
           </div>
         )}
@@ -406,31 +406,31 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block sm:col-span-2">
-                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">印刷ブリッジURL</span>
+                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">印刷ブリッジURL</span>
                 <input
                   value={current.bridgeUrl || ''}
                   onChange={(event) => updateCurrent({ bridgeUrl: event.target.value })}
                   placeholder="http://localhost:8787"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">プリンタIP</span>
+                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">プリンタIP</span>
                 <input
                   value={current.printerIp || ''}
                   onChange={(event) => updateCurrent({ printerIp: event.target.value })}
                   placeholder="192.168.0.100"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ポート</span>
+                <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ポート</span>
                 <input
                   type="number"
                   value={current.printerPort ?? 9100}
                   onChange={(event) => updateCurrent({ printerPort: Number(event.target.value) || 9100 })}
                   placeholder="9100"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
                 />
               </label>
             </div>
@@ -449,7 +449,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                 type="button"
                 onClick={handleTestBridge}
                 disabled={bridgeTesting || bridgeChecking}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-900 text-sm font-black text-white transition hover:bg-black disabled:opacity-60"
               >
                 {bridgeTesting ? <LoadingSpinner size={16} /> : <Printer size={16} />}
                 テスト印刷
@@ -458,7 +458,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
             {bridgeStatus && (
               <div className={`rounded-xl px-3 py-2 text-xs font-bold leading-relaxed ${
-                bridgeStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                bridgeStatus.type === 'success' ? 'bg-gray-100 text-gray-900' : 'bg-red-50 text-red-600'
               }`}>
                 {bridgeStatus.message}
               </div>
@@ -466,7 +466,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
               <div className="mb-1 text-xs font-black text-gray-700">印刷ブリッジをインストール</div>
-              <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-400">
+              <p className="mb-3 text-[11px] font-bold leading-relaxed text-gray-500">
                 この端末でブリッジ印刷するには印刷ブリッジを起動してください（初回のみNode.jsが必要）。
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -479,7 +479,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-blue-700">
+            <div className="rounded-xl border border-ui-100 bg-ui-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-ui">
               プリンタIPはルーター側で固定割当してください。IPが変わると印刷できなくなります。
             </div>
           </div>
@@ -497,31 +497,31 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
 
         <div className="grid gap-4">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">ヘッダー文言（任意）</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">ヘッダー文言（任意）</span>
             <input
               value={current.headerTitle || ''}
               onChange={(event) => updateCurrent({ headerTitle: event.target.value })}
               placeholder="例：領収書 / お買い上げありがとうございます"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">フッター文言（任意）</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">フッター文言（任意）</span>
             <textarea
               value={current.footerNote || ''}
               onChange={(event) => updateCurrent({ footerNote: event.target.value })}
               rows={2}
               placeholder="例：またのご来店をお待ちしております"
-              className="w-full rounded-2xl border-2 border-gray-100 px-4 py-3 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+              className="w-full rounded-2xl border-2 border-gray-100 px-4 py-3 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-400">バナー画像URL（任意）</span>
+            <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-gray-500">バナー画像URL（任意）</span>
             <input
               value={current.bannerImage || ''}
               onChange={(event) => updateCurrent({ bannerImage: event.target.value })}
               placeholder="https://..."
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-slate-900"
+              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
             />
           </label>
         </div>

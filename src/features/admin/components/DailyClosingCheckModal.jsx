@@ -84,14 +84,14 @@ const NumericInputModal = ({
       <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-xs font-black text-orange-500">
+            <div className="text-xs font-black text-ui">
               数字入力
             </div>
             <h3 className="mt-1 truncate text-lg font-black text-gray-900">
               {title}
             </h3>
             {description && (
-              <p className="mt-1 text-xs font-bold text-gray-400">
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 {description}
               </p>
             )}
@@ -112,7 +112,7 @@ const NumericInputModal = ({
             <div className="min-h-[2.5rem] font-mono text-4xl font-black tracking-tight text-gray-900">
               {normalizedValue ? Number(normalizedValue).toLocaleString() : '0'}
               {suffix && (
-                <span className="ml-1 text-base font-black text-gray-400">
+                <span className="ml-1 text-base font-black text-gray-500">
                   {suffix}
                 </span>
               )}
@@ -455,11 +455,11 @@ const DailyClosingCheckModal = ({
               <span className="truncate text-sm font-black text-gray-800">
                 {item.name}
               </span>
-              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-gray-400">
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-gray-500">
                 {categoryLabel}・{typeLabel}
               </span>
             </div>
-            <div className="mt-1 text-[11px] font-bold text-gray-400">
+            <div className="mt-1 text-[11px] font-bold text-gray-500">
               システム：{item.expectedCount}件 / {formatCurrency(item.expectedAmount)}
               {item.countable && item.value > 0 && (
                 <span className="ml-2">
@@ -484,10 +484,10 @@ const DailyClosingCheckModal = ({
                   value: couponCounts[item.id] || '',
                   suffix: '枚'
                 })}
-                className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
                 placeholder="0"
               />
-              <span className="text-[9px] font-bold text-gray-400">枚</span>
+              <span className="text-[9px] font-bold text-gray-500">枚</span>
             </div>
           ) : item.mode === 'amount' ? (
             <div className="shrink-0 text-right">
@@ -501,17 +501,17 @@ const DailyClosingCheckModal = ({
               <div className="text-sm font-black text-gray-700">
                 {formatCurrency(item.expectedAmount)}
               </div>
-              <div className="text-[9px] font-bold text-gray-400">自動記録（照合なし）</div>
+              <div className="text-[9px] font-bold text-gray-500">自動記録（照合なし）</div>
             </div>
           )}
         </div>
 
         {item.countable && (
           <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs font-bold">
-            <span className="text-gray-400">
+            <span className="text-gray-500">
               実確認額：{formatCurrency(item.actualAmount)}
             </span>
-            <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-green-600' : 'text-red-500'}`}>
+            <span className={`flex items-center gap-1 ${item.difference === 0 ? 'text-gray-900' : 'text-red-500'}`}>
             {item.difference === 0 && <CheckCircle2 size={13} />}
             差額：{item.difference > 0 ? '+' : ''}
             {formatCurrency(item.difference)}
@@ -530,7 +530,7 @@ const DailyClosingCheckModal = ({
       <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <div className="flex items-center gap-2 text-xs font-black text-orange-500">
+            <div className="flex items-center gap-2 text-xs font-black text-ui">
               <CheckCircle2 size={15} />
               {readOnly ? '締め内容（閲覧）' : '締め処理'}
               {registerName && (
@@ -542,15 +542,15 @@ const DailyClosingCheckModal = ({
             <h2 className="mt-1 text-xl font-black text-gray-900">
               {dateKey} の{readOnly ? '締め内容' : '締め確認'}
             </h2>
-            <p className="mt-1 text-xs font-bold text-gray-400">
+            <p className="mt-1 text-xs font-bold text-gray-500">
               {readOnly
                 ? '他のレジの締め内容です。この端末からは閲覧のみで、変更・締め保存はできません。'
                 : '金種・カード端末・QR決済サイト・クーポン枚数を確認してから日計を保存します。'}
             </p>
             {(Number(summary?.cancelReturnTotal || 0) !== 0
               || (Array.isArray(summary?.methodAdjustments) && summary.methodAdjustments.length > 0)) && (
-              <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-black leading-relaxed">
-                <div className="mb-0.5 text-indigo-500">ドロワーに効いた調整（実査差額の参考）</div>
+              <div className="mt-2 rounded-lg bg-ui-50 px-3 py-2 text-[11px] font-black leading-relaxed">
+                <div className="mb-0.5 text-ui">ドロワーに効いた調整（実査差額の参考）</div>
                 {Number(summary?.cancelReturnTotal || 0) !== 0 && (
                   <div className="text-red-600">
                     取消・返品 ¥{Number(summary.cancelReturnTotal || 0).toLocaleString()}
@@ -561,7 +561,7 @@ const DailyClosingCheckModal = ({
                   const md = String(adj.originalBusinessDate || '').split('-');
                   const dateLabel = md.length === 3 ? `${Number(md[1])}/${Number(md[2])}分 ` : '';
                   return (
-                    <div key={`madj-${i}`} className="text-indigo-700">
+                    <div key={`madj-${i}`} className="text-ui">
                       付替 {dateLabel}{ml(adj.from)}→{ml(adj.to)} ¥{Number(adj.amount || 0).toLocaleString()}
                     </div>
                   );
@@ -591,7 +591,7 @@ const DailyClosingCheckModal = ({
                 </div>
 
                 {cashDifference === 0 ? (
-                    <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                    <div className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-900">
                     <CheckCircle2 size={14} />
                     差額なし
                     </div>
@@ -605,30 +605,30 @@ const DailyClosingCheckModal = ({
 
               <div className="mb-4 grid grid-cols-3 gap-2">
                 <div className="rounded-xl bg-gray-50 p-3">
-                  <div className="text-[11px] font-black text-gray-400">現金売上</div>
+                  <div className="text-[11px] font-black text-gray-500">現金売上</div>
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(expectedCashAmount)}
                   </div>
-                  <div className="mt-1 text-[10px] font-bold text-gray-400">
+                  <div className="mt-1 text-[10px] font-bold text-gray-500">
                     レジ金 {formatCurrency(normalizedChangeFundAmount)}
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-orange-50 p-3">
-                  <div className="text-[11px] font-black text-orange-500">実査額</div>
+                <div className="rounded-xl bg-ui-50 p-3">
+                  <div className="text-[11px] font-black text-ui">実査額</div>
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(actualCashAmount)}
                   </div>
-                  <div className="mt-1 text-[10px] font-bold text-orange-500">
+                  <div className="mt-1 text-[10px] font-bold text-ui">
                     期待額 {formatCurrency(expectedDrawerAmount)}
                   </div>
                 </div>
 
-                <div className={`rounded-xl p-3 ${cashDifference === 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                <div className={`text-[11px] font-black ${cashDifference === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <div className={`rounded-xl p-3 ${cashDifference === 0 ? 'bg-gray-100' : 'bg-red-50'}`}>
+                <div className={`text-[11px] font-black ${cashDifference === 0 ? 'text-gray-900' : 'text-red-500'}`}>
                     差額
                 </div>
-                <div className={`mt-1 flex items-center gap-1 text-lg font-black ${cashDifference === 0 ? 'text-green-700' : 'text-red-600'}`}>
+                <div className={`mt-1 flex items-center gap-1 text-lg font-black ${cashDifference === 0 ? 'text-gray-900' : 'text-red-600'}`}>
                     {cashDifference === 0 && <CheckCircle2 size={17} />}
                     {cashDifference > 0 ? '+' : ''}
                     {formatCurrency(cashDifference)}
@@ -639,7 +639,7 @@ const DailyClosingCheckModal = ({
               <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] font-black text-gray-400">釣り銭用レジ金</div>
+                    <div className="text-[11px] font-black text-gray-500">釣り銭用レジ金</div>
                     <div className="mt-0.5 text-base font-black text-gray-900">
                       {formatCurrency(normalizedChangeFundAmount)}
                     </div>
@@ -674,7 +674,7 @@ const DailyClosingCheckModal = ({
                         value: changeFundAmountInput,
                         suffix: '円'
                       })}
-                      className="h-9 min-w-0 flex-1 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+                      className="h-9 min-w-0 flex-1 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-ui0 focus:ring-2 focus:ring-gray-100"
                       placeholder="100000"
                     />
                     <button
@@ -698,7 +698,7 @@ const DailyClosingCheckModal = ({
                 </div>
 
                 {couponDifference === 0 ? (
-                    <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                    <div className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-900">
                     <CheckCircle2 size={14} />
                     差額なし
                     </div>
@@ -712,24 +712,24 @@ const DailyClosingCheckModal = ({
 
               <div className="mb-4 grid grid-cols-3 gap-2">
                 <div className="rounded-xl bg-gray-50 p-3">
-                  <div className="text-[11px] font-black text-gray-400">利用金額</div>
+                  <div className="text-[11px] font-black text-gray-500">利用金額</div>
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(expectedCouponAmount)}
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-orange-50 p-3">
-                  <div className="text-[11px] font-black text-orange-500">実確認額</div>
+                <div className="rounded-xl bg-ui-50 p-3">
+                  <div className="text-[11px] font-black text-ui">実確認額</div>
                   <div className="mt-1 text-lg font-black text-gray-900">
                     {formatCurrency(actualCouponAmount)}
                   </div>
                 </div>
 
-                <div className={`rounded-xl p-3 ${couponDifference === 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                <div className={`text-[11px] font-black ${couponDifference === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <div className={`rounded-xl p-3 ${couponDifference === 0 ? 'bg-gray-100' : 'bg-red-50'}`}>
+                <div className={`text-[11px] font-black ${couponDifference === 0 ? 'text-gray-900' : 'text-red-500'}`}>
                     差額
                 </div>
-                <div className={`mt-1 flex items-center gap-1 text-lg font-black ${couponDifference === 0 ? 'text-green-700' : 'text-red-600'}`}>
+                <div className={`mt-1 flex items-center gap-1 text-lg font-black ${couponDifference === 0 ? 'text-gray-900' : 'text-red-600'}`}>
                     {couponDifference === 0 && <CheckCircle2 size={17} />}
                     {couponDifference > 0 ? '+' : ''}
                     {formatCurrency(couponDifference)}
@@ -739,7 +739,7 @@ const DailyClosingCheckModal = ({
 
               <div className="space-y-2">
                 {couponCheckItems.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-5 text-center text-xs font-bold text-gray-400">
+                  <div className="rounded-xl bg-gray-50 p-5 text-center text-xs font-bold text-gray-500">
                     クーポン・値引きの利用はありません
                   </div>
                 ) : (
@@ -748,7 +748,7 @@ const DailyClosingCheckModal = ({
                     {primaryCouponItems.map(renderCouponItem)}
 
                     {primaryCouponItems.length === 0 && (
-                      <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-400">
+                      <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
                         枚数照合が必要なクーポン・金券はありません
                       </div>
                     )}
@@ -815,25 +815,25 @@ const DailyClosingCheckModal = ({
                           value: denominations[item.key],
                           suffix: '枚'
                         })}
-                        className="h-10 w-20 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                        className="h-10 w-20 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
                         placeholder="0"
                       />
-                      <span className="text-xs font-bold text-gray-400">枚</span>
+                      <span className="text-xs font-bold text-gray-500">枚</span>
                     </div>
                   </label>
                 ))}
               </div>
             </section>
 
-            <section className="flex h-full flex-col rounded-2xl border border-blue-100 bg-blue-50/30 p-4 xl:col-start-2 xl:row-start-2">
+            <section className="flex h-full flex-col rounded-2xl border border-ui-100 bg-ui-50/30 p-4 xl:col-start-2 xl:row-start-2">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-black text-blue-800">
+                <div className="flex items-center gap-2 text-sm font-black text-ui">
                   <CreditCard size={17} />
                   カード端末確認
                 </div>
 
                 {cardDifference === 0 ? (
-                  <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                  <div className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-900">
                     <CheckCircle2 size={14} />
                     差額なし
                   </div>
@@ -847,7 +847,7 @@ const DailyClosingCheckModal = ({
 
               <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-black ${
                 cardDifference === 0
-                  ? 'bg-blue-50 text-blue-700'
+                  ? 'bg-ui-50 text-ui'
                   : 'bg-red-50 text-red-600'
               }`}>
                 <span className="shrink-0">
@@ -862,7 +862,7 @@ const DailyClosingCheckModal = ({
               </div>
 
               <label className="mt-auto block">
-                <span className="mb-2 block text-xs font-black text-blue-700">
+                <span className="mb-2 block text-xs font-black text-ui">
                   カード端末の決済合計
                 </span>
                 <input
@@ -878,21 +878,21 @@ const DailyClosingCheckModal = ({
                     value: cardActualAmountInput,
                     suffix: '円'
                   })}
-                  className="h-12 w-full cursor-pointer rounded-xl border border-blue-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-12 w-full cursor-pointer rounded-xl border border-ui-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
                   placeholder="0"
                 />
               </label>
             </section>
 
-            <section className="flex h-full flex-col rounded-2xl border border-purple-100 bg-purple-50/30 p-4 xl:col-start-2 xl:row-start-3">
+            <section className="flex h-full flex-col rounded-2xl border border-ui-100 bg-ui-50/30 p-4 xl:col-start-2 xl:row-start-3">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-black text-purple-800">
+                <div className="flex items-center gap-2 text-sm font-black text-ui">
                   <QrCode size={17} />
                   QR決済確認
                 </div>
 
                 {qrDifference === 0 ? (
-                  <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                  <div className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-900">
                     <CheckCircle2 size={14} />
                     差額なし
                   </div>
@@ -906,7 +906,7 @@ const DailyClosingCheckModal = ({
 
               <div className={`mb-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-black ${
                 qrDifference === 0
-                  ? 'bg-purple-50 text-purple-700'
+                  ? 'bg-ui-50 text-ui'
                   : 'bg-red-50 text-red-600'
               }`}>
                 <span className="shrink-0">
@@ -921,7 +921,7 @@ const DailyClosingCheckModal = ({
               </div>
 
               <label className="mt-auto block">
-                <span className="mb-2 block text-xs font-black text-purple-700">
+                <span className="mb-2 block text-xs font-black text-ui">
                   QR決済サイトの集計金額
                 </span>
                 <input
@@ -937,7 +937,7 @@ const DailyClosingCheckModal = ({
                     value: qrActualAmountInput,
                     suffix: '円'
                   })}
-                  className="h-12 w-full cursor-pointer rounded-xl border border-purple-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  className="h-12 w-full cursor-pointer rounded-xl border border-ui-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
                   placeholder="0"
                 />
               </label>
@@ -953,7 +953,7 @@ const DailyClosingCheckModal = ({
                     </div>
                 </div>
                 ) : (
-                <div className="mt-5 flex items-start gap-3 rounded-2xl bg-green-50 p-4 text-sm font-bold text-green-700">
+                <div className="mt-5 flex items-start gap-3 rounded-2xl bg-gray-100 p-4 text-sm font-bold text-gray-900">
                     <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
                     <div>
                     現金・カード・QR決済・クーポンともに差額はありません。このまま締め保存できます。

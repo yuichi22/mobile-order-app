@@ -71,13 +71,13 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
   };
 
   return (
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-orange-100 bg-orange-50/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-ui-100 bg-ui-50/40 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <div className="flex items-center gap-2 text-xs font-black text-orange-500">
+        <div className="flex items-center gap-2 text-xs font-black text-ui">
           <CalendarDays size={15} />
           日計対象日
         </div>
-        <p className="mt-1 text-xs font-bold text-gray-400">
+        <p className="mt-1 text-xs font-bold text-gray-500">
           矢印で日付を移動できます。日付を押すとカレンダーから選択できます。
         </p>
       </div>
@@ -86,7 +86,7 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
         <button
           type="button"
           onClick={() => shiftDate(-1)}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-ui-50 hover:text-ui"
           aria-label="前の日"
         >
           <ChevronLeft size={20} strokeWidth={3} />
@@ -96,7 +96,7 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
           <button
             type="button"
             onClick={openDatePicker}
-            className="min-w-[220px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-700"
+            className="min-w-[220px] rounded-full bg-white px-6 py-3 text-center text-sm font-black text-gray-900 shadow-sm transition-colors hover:bg-ui-50 hover:text-ui"
           >
             {formatDateLabel(currentDate)}
           </button>
@@ -115,7 +115,7 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
         <button
           type="button"
           onClick={() => shiftDate(1)}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-orange-100 hover:text-orange-600"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm transition-colors hover:bg-ui-50 hover:text-ui"
           aria-label="次の日"
         >
           <ChevronRight size={20} strokeWidth={3} />
@@ -445,20 +445,20 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
 
           {/* 粗利・原価（原価登録済み明細ベース。日計と同基準） */}
           <div className="mb-8 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-emerald-50 p-4">
-              <div className="text-xs font-black text-emerald-600">粗利（税抜）</div>
+            <div className="rounded-2xl bg-gray-100 p-4">
+              <div className="text-xs font-black text-gray-900">粗利（税抜）</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 ¥{Number(analytics.grossProfitTaxExcluded || 0).toLocaleString()}
               </div>
             </div>
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="text-xs font-black text-gray-400">原価率</div>
+              <div className="text-xs font-black text-gray-500">原価率</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 {analytics.costRate == null ? '-' : `${Number(analytics.costRate).toFixed(1)}%`}
               </div>
             </div>
             <div className="rounded-2xl bg-gray-50 p-4">
-              <div className="text-xs font-black text-gray-400">原価（税抜）</div>
+              <div className="text-xs font-black text-gray-500">原価（税抜）</div>
               <div className="mt-2 text-2xl font-black text-gray-900">
                 ¥{Number(analytics.costTaxExcludedTotal || 0).toLocaleString()}
               </div>

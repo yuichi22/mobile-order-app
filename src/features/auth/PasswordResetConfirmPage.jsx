@@ -93,11 +93,11 @@ const PasswordResetConfirmPage = () => {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
         <div className={cardClassName}>
           <div className="bg-gray-900 p-8 text-center">
-            <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg">
+            <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
               <LoadingSpinner size={32} colorClass="text-white" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">確認中...</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">再設定リンクを確認しています。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">再設定リンクを確認しています。</p>
           </div>
         </div>
       </div>
@@ -109,15 +109,15 @@ const PasswordResetConfirmPage = () => {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
         <div className={cardClassName}>
           <div className="bg-gray-900 p-8 text-center">
-            <div className="mb-4 inline-flex rounded-2xl bg-emerald-600 p-3 text-white shadow-lg">
+            <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
               <CheckCircle2 size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">再設定が完了しました</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">新しいパスワードでログインできます。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">新しいパスワードでログインできます。</p>
           </div>
 
           <div className="space-y-5 p-8">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 text-sm leading-relaxed text-emerald-700">
+            <div className="rounded-2xl border border-gray-200 bg-gray-100 px-4 py-4 text-sm leading-relaxed text-gray-900">
               パスワードの更新が完了しました。ログイン画面へ戻って、新しいパスワードでログインしてください。
             </div>
 
@@ -143,7 +143,7 @@ const PasswordResetConfirmPage = () => {
               <AlertCircle size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">リンクを確認できませんでした</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">再設定リンクの期限切れ、または既に使用済みの可能性があります。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">再設定リンクの期限切れ、または既に使用済みの可能性があります。</p>
           </div>
 
           <div className="space-y-5 p-8">
@@ -153,7 +153,7 @@ const PasswordResetConfirmPage = () => {
 
             <Link
               to="/reset-password"
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-black text-white shadow-lg transition hover:bg-blue-700"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gray-900 text-base font-black text-white shadow-lg transition hover:bg-gray-800"
             >
               <KeyRound size={18} />
               再設定メールを送り直す
@@ -176,11 +176,11 @@ const PasswordResetConfirmPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
       <div className={cardClassName}>
         <div className="bg-gray-900 p-8 text-center">
-          <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg">
+          <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
             <LockKeyhole size={32} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">新しいパスワードを設定</h1>
-          <p className="mt-2 text-sm font-medium text-gray-400">認証済みのアカウントに新しいパスワードを設定します。</p>
+          <p className="mt-2 text-sm font-medium text-gray-500">認証済みのアカウントに新しいパスワードを設定します。</p>
         </div>
 
         <div className="p-8">
@@ -195,8 +195,8 @@ const PasswordResetConfirmPage = () => {
             </div>
           )}
 
-          <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-relaxed text-slate-600">
-            <div className="font-black text-slate-800">再設定対象</div>
+          <div className="mb-6 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-4 text-sm leading-relaxed text-gray-600">
+            <div className="font-black text-gray-800">再設定対象</div>
             <div className="mt-1 break-all">{email}</div>
           </div>
 
@@ -206,7 +206,7 @@ const PasswordResetConfirmPage = () => {
               <input
                 type="password"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
                 placeholder="6文字以上で入力"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -218,7 +218,7 @@ const PasswordResetConfirmPage = () => {
               <input
                 type="password"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
                 placeholder="もう一度入力"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -228,7 +228,7 @@ const PasswordResetConfirmPage = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98] disabled:bg-blue-300"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98] disabled:bg-ui-100"
             >
               {isSubmitting ? <LoadingSpinner size={20} colorClass="text-white" /> : '新しいパスワードを設定'}
             </button>

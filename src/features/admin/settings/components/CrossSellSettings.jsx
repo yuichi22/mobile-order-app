@@ -150,7 +150,7 @@ const CategoryVisibilityEditor = ({
 }) => {
   if (categories.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
+      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-500">
         カテゴリーがまだありません
       </div>
     );
@@ -171,7 +171,7 @@ const CategoryVisibilityEditor = ({
                 <p className="truncate text-sm font-black text-gray-800">
                   {category.name || category.id}
                 </p>
-                <p className="mt-1 text-xs font-bold text-gray-400">
+                <p className="mt-1 text-xs font-bold text-gray-500">
                   ID: {category.id}
                 </p>
               </div>
@@ -194,7 +194,7 @@ const CategoryVisibilityEditor = ({
                   }}
                   className={`rounded-xl border px-3 py-2 text-left transition-all ${
                     currentValue === option.value
-                      ? 'border-green-300 bg-green-50 text-green-800 ring-2 ring-green-100'
+                      ? 'border-gray-200 bg-gray-100 text-gray-900 ring-2 ring-gray-200'
                       : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -256,7 +256,7 @@ const GroupEditor = ({
         return (
           <div
             key={group.id}
-            className="rounded-[1.75rem] border border-green-100 bg-white p-5 shadow-sm"
+            className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
           >
             <div className="mb-3 flex justify-end">
               <button
@@ -282,9 +282,9 @@ const GroupEditor = ({
                   }));
                 }}
                 placeholder="例：ドリンク"
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none transition-colors focus:border-green-300 focus:bg-white"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none transition-colors focus:border-gray-200 focus:bg-white"
               />
-              <span className="mt-1 block text-[11px] font-bold text-gray-400">
+              <span className="mt-1 block text-[11px] font-bold text-gray-500">
                 顧客画面では「ドリンクはいかがですか？」のように使われます。
               </span>
             </label>
@@ -305,7 +305,7 @@ const GroupEditor = ({
                       onClick={() => toggleCategory(group.id, category.id)}
                       className={`rounded-2xl border px-3 py-3 text-left transition-all ${
                         checked
-                          ? 'border-green-300 bg-green-50 text-green-800 ring-2 ring-green-100'
+                          ? 'border-gray-200 bg-gray-100 text-gray-900 ring-2 ring-gray-200'
                           : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'
                       }`}
                     >
@@ -327,7 +327,7 @@ const GroupEditor = ({
       <button
         type="button"
         onClick={addGroup}
-        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-green-300 bg-green-50 text-sm font-black text-green-700 transition-colors hover:bg-green-100"
+        className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-200 bg-gray-100 text-sm font-black text-gray-900 transition-colors hover:bg-gray-100"
       >
         <Plus size={18} />
         グループを追加
@@ -370,14 +370,14 @@ const FlowStepEditor = ({
       {normalizeArray(flow.steps).map((step, index) => (
         <div
           key={step.id}
-          className="rounded-[1.75rem] border-2 border-green-200 bg-white p-4 shadow-sm"
+          className="rounded-[1.75rem] border-2 border-gray-200 bg-white p-4 shadow-sm"
         >
-          <div className="mb-4 flex items-center justify-between gap-3 border-b border-green-100 pb-3">
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200 pb-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="inline-flex shrink-0 items-center rounded-full bg-green-600 px-3 py-1.5 text-xs font-black text-white shadow-sm">
+              <div className="inline-flex shrink-0 items-center rounded-full bg-gray-900 px-3 py-1.5 text-xs font-black text-white shadow-sm">
                 ステップ {index + 1}
               </div>
-              <p className="truncate text-xs font-bold text-green-700/70">
+              <p className="truncate text-xs font-bold text-gray-900/70">
                 この順番でお客様に提案します
               </p>
             </div>
@@ -527,7 +527,7 @@ const FlowStepEditor = ({
                   className={`flex-1 rounded-xl px-3 py-2 transition-colors ${
                     step.skipMode !== 'backOnly'
                       ? 'bg-white text-gray-800 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                      : 'text-gray-500 hover:text-gray-600'
                   }`}
                 >
                   スキップ可
@@ -543,7 +543,7 @@ const FlowStepEditor = ({
                   className={`flex-1 rounded-xl px-3 py-2 transition-colors ${
                     step.skipMode === 'backOnly'
                       ? 'bg-white text-gray-800 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                      : 'text-gray-500 hover:text-gray-600'
                   }`}
                 >
                   スキップ禁止（戻る）
@@ -662,13 +662,13 @@ const FlowEditor = ({
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-black text-gray-900">フロー一覧</h4>
-              <p className="mt-1 text-[11px] font-bold text-gray-400">0件</p>
+              <p className="mt-1 text-[11px] font-bold text-gray-500">0件</p>
             </div>
 
             <button
               type="button"
               onClick={addFlow}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-600 text-white shadow-lg shadow-green-100 transition-transform active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg shadow-gray-200 transition-transform active:scale-95"
               aria-label="フローを追加"
             >
               <Plus size={18} strokeWidth={3} />
@@ -678,11 +678,11 @@ const FlowEditor = ({
 
         <div className="flex min-h-[18rem] items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
           <div>
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-white text-gray-400 shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-white text-gray-500 shadow-sm">
               <GitBranch size={24} />
             </div>
             <h4 className="text-lg font-black text-gray-800">まだフローがありません</h4>
-            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-400">
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               左上の＋から、クロスセルの流れを追加してください。
             </p>
           </div>
@@ -702,7 +702,7 @@ const FlowEditor = ({
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h4 className="text-sm font-black text-gray-900">フロー一覧</h4>
-            <p className="mt-1 text-[11px] font-bold text-gray-400">
+            <p className="mt-1 text-[11px] font-bold text-gray-500">
               {flows.length}件
             </p>
           </div>
@@ -710,7 +710,7 @@ const FlowEditor = ({
           <button
             type="button"
             onClick={addFlow}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-600 text-white shadow-lg shadow-green-100 transition-transform active:scale-95"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg shadow-gray-200 transition-transform active:scale-95"
             aria-label="フローを追加"
           >
             <Plus size={18} strokeWidth={3} />
@@ -731,15 +731,15 @@ const FlowEditor = ({
                 onClick={() => setSelectedFlowId(flow.id)}
                 className={`w-full rounded-2xl border p-3 text-left transition-all ${
                   isSelected
-                    ? 'border-green-200 bg-green-50 shadow-sm'
-                    : 'border-transparent bg-gray-50 hover:border-green-100 hover:bg-white'
+                    ? 'border-gray-200 bg-gray-100 shadow-sm'
+                    : 'border-transparent bg-gray-50 hover:border-gray-200 hover:bg-white'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${
                     flow.enabled !== false
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-400'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-200 text-gray-500'
                   }`}>
                     <GitBranch size={16} />
                   </div>
@@ -747,20 +747,20 @@ const FlowEditor = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className={`truncate text-xs font-black ${
-                        isSelected ? 'text-green-900' : 'text-gray-800'
+                        isSelected ? 'text-gray-900' : 'text-gray-800'
                       }`}>
                         {flow.name || `フロー ${index + 1}`}
                       </p>
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${
                         flow.enabled !== false
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-400'
+                          ? 'bg-gray-100 text-gray-900'
+                          : 'bg-gray-100 text-gray-500'
                       }`}>
                         {flow.enabled !== false ? '有効' : '無効'}
                       </span>
                     </div>
 
-                    <p className="mt-1 truncate text-[10px] font-bold text-gray-400">
+                    <p className="mt-1 truncate text-[10px] font-bold text-gray-500">
                       {listTriggerLabel || '未設定'} → {normalizeArray(flow.steps).length}ステップ
                     </p>
                   </div>
@@ -777,8 +777,8 @@ const FlowEditor = ({
             <div className="mb-2 flex items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
                 selectedFlow.enabled !== false
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-400'
+                  ? 'bg-gray-100 text-gray-900'
+                  : 'bg-gray-100 text-gray-500'
               }`}>
                 {selectedFlow.enabled !== false ? '有効' : '無効'}
               </span>
@@ -791,7 +791,7 @@ const FlowEditor = ({
               {selectedFlow.name || `フロー ${selectedIndex + 1}`}
             </h4>
 
-            <p className="mt-1 truncate text-sm font-bold text-gray-400">
+            <p className="mt-1 truncate text-sm font-bold text-gray-500">
               {triggerLabel} → {normalizeArray(selectedFlow.steps).length}ステップ
             </p>
           </div>
@@ -821,7 +821,7 @@ const FlowEditor = ({
                   }));
                 }}
                 placeholder="例：ランチ料理からドリンク・デザート"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-green-300 focus:ring-4 focus:ring-green-100"
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-gray-200 focus:ring-4 focus:ring-gray-200"
               />
             </label>
 
@@ -830,7 +830,7 @@ const FlowEditor = ({
                 <p className="text-sm font-black text-gray-800">
                   このフローを有効にする
                 </p>
-                <p className="mt-1 text-xs font-bold text-gray-400">
+                <p className="mt-1 text-xs font-bold text-gray-500">
                   無効にすると顧客画面では起動しません
                 </p>
               </div>
@@ -844,11 +844,11 @@ const FlowEditor = ({
                     enabled: event.target.checked
                   }));
                 }}
-                className="h-5 w-5 accent-green-600"
+                className="h-5 w-5 accent-gray-900"
               />
             </label>
 
-            <label className="flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-ui-100 bg-ui-50/70 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-gray-800">
                   提供タイミングを表示する
@@ -867,19 +867,19 @@ const FlowEditor = ({
                     serviceTimingEnabled: event.target.checked
                   }));
                 }}
-                className="h-5 w-5 accent-blue-600"
+                className="h-5 w-5 accent-ui"
               />
             </label>
           </div>
 
-          <section className="rounded-3xl border border-orange-100 bg-orange-50/70 p-5">
+          <section className="rounded-3xl border border-ui-100 bg-ui-50/70 p-5">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-ui shadow-sm">
                 <GitBranch size={18} />
               </div>
               <div>
-                <h5 className="text-sm font-black text-orange-900">トリガー設定</h5>
-                <p className="mt-1 text-xs font-bold text-orange-700/70">
+                <h5 className="text-sm font-black text-ui">トリガー設定</h5>
+                <p className="mt-1 text-xs font-bold text-ui/70">
                   どの商品をきっかけに提案を始めるかを設定します。
                 </p>
               </div>
@@ -887,7 +887,7 @@ const FlowEditor = ({
 
             <div className="grid grid-cols-2 gap-3">
               <label>
-                <span className="mb-1 block text-xs font-black text-orange-800">
+                <span className="mb-1 block text-xs font-black text-ui">
                   トリガー種類
                 </span>
                 <select
@@ -901,7 +901,7 @@ const FlowEditor = ({
                       triggerGroupId: ''
                     }));
                   }}
-                  className="w-full rounded-2xl border border-orange-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
+                  className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
                 >
                   <option value="category">カテゴリー</option>
                   <option value="group">グループ</option>
@@ -910,7 +910,7 @@ const FlowEditor = ({
 
               {selectedFlow.triggerType === 'group' ? (
                 <label>
-                  <span className="mb-1 block text-xs font-black text-orange-800">
+                  <span className="mb-1 block text-xs font-black text-ui">
                     トリガーグループ
                   </span>
                   <select
@@ -921,7 +921,7 @@ const FlowEditor = ({
                         triggerGroupId: event.target.value
                       }));
                     }}
-                    className="w-full rounded-2xl border border-orange-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
+                    className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
                   >
                     <option value="">選択してください</option>
                     {groups.map((group) => (
@@ -933,7 +933,7 @@ const FlowEditor = ({
                 </label>
               ) : (
                 <label>
-                  <span className="mb-1 block text-xs font-black text-orange-800">
+                  <span className="mb-1 block text-xs font-black text-ui">
                     トリガーカテゴリー
                   </span>
                   <select
@@ -944,7 +944,7 @@ const FlowEditor = ({
                         triggerCategoryId: event.target.value
                       }));
                     }}
-                    className="w-full rounded-2xl border border-orange-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
+                    className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
                   >
                     <option value="">選択してください</option>
                     {categories.map((category) => (
@@ -958,14 +958,14 @@ const FlowEditor = ({
             </div>
           </section>
 
-          <section className="rounded-3xl border border-green-100 bg-green-50/70 p-5">
+          <section className="rounded-3xl border border-gray-200 bg-gray-100/70 p-5">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-green-700 shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-gray-900 shadow-sm">
                 <Layers3 size={18} />
               </div>
               <div>
-                <h5 className="text-sm font-black text-green-900">ステップ設定</h5>
-                <p className="mt-1 text-xs font-bold text-green-700/70">
+                <h5 className="text-sm font-black text-gray-900">ステップ設定</h5>
+                <p className="mt-1 text-xs font-bold text-gray-900/70">
                   提案する順番や対象カテゴリを設定します。
                 </p>
               </div>
@@ -1149,7 +1149,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
 
   if (!storeId) {
     return (
-      <div className="rounded-3xl border border-gray-100 bg-white p-6 text-sm font-bold text-gray-400">
+      <div className="rounded-3xl border border-gray-100 bg-white p-6 text-sm font-bold text-gray-500">
         店舗情報を読み込み中です。
       </div>
     );
@@ -1158,17 +1158,17 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
   if (loading) {
     return (
       <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-gray-100 bg-white">
-        <LoadingSpinner size={32} colorClass="text-gray-400" />
+        <LoadingSpinner size={32} colorClass="text-gray-500" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-green-100 bg-gradient-to-br from-green-50 to-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 to-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-green-700 shadow-sm">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-900 shadow-sm">
               <Sparkles size={24} />
             </div>
 
@@ -1182,12 +1182,12 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
             </p>
           </div>
 
-          <label className="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-green-100">
+          <label className="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200">
             <div className="text-right">
               <p className="text-sm font-black text-gray-800">
                 機能を有効化
               </p>
-              <p className="text-xs font-bold text-gray-400">
+              <p className="text-xs font-bold text-gray-500">
                 顧客画面に反映
               </p>
             </div>
@@ -1196,7 +1196,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
               type="checkbox"
               checked={enabled}
               onChange={(event) => setEnabled(event.target.checked)}
-              className="h-5 w-5 accent-green-600"
+              className="h-5 w-5 accent-gray-900"
             />
           </label>
         </div>
@@ -1214,13 +1214,13 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
                 onClick={() => setActiveSection(tab.id)}
                 className={`rounded-2xl px-4 py-3 text-left transition-all ${
                   isActive
-                    ? 'bg-green-600 text-white shadow-lg shadow-green-100'
-                    : 'bg-gray-50 text-gray-500 hover:bg-green-50 hover:text-green-700'
+                    ? 'bg-gray-900 text-white shadow-lg shadow-gray-200'
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 <div className="text-sm font-black leading-tight">{tab.label}</div>
                 <div className={`mt-1 text-[10px] font-bold leading-snug ${
-                  isActive ? 'text-green-100' : 'text-gray-400'
+                  isActive ? 'text-gray-300' : 'text-gray-500'
                 }`}>
                   {tab.description}
                 </div>
@@ -1241,7 +1241,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
             <h3 className="text-lg font-black text-gray-900">
               カテゴリー表示設定
             </h3>
-            <p className="mt-1 text-sm font-bold text-gray-400">
+            <p className="mt-1 text-sm font-bold text-gray-500">
               通常タブに出すか、クロスセル時だけ出すかを設定します。
             </p>
           </div>
@@ -1256,9 +1256,9 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
       )}
 
       {activeSection === 'groups' && (
-        <section className="rounded-3xl border border-green-100 bg-green-50/60 p-6 shadow-sm">
+        <section className="rounded-3xl border border-gray-200 bg-gray-100/60 p-6 shadow-sm">
         <div className="mb-5 flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-green-700 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-gray-900 shadow-sm">
             <Layers3 size={20} />
           </div>
 
@@ -1266,7 +1266,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
             <h3 className="text-lg font-black text-gray-900">
               グループ設定
             </h3>
-            <p className="mt-1 text-sm font-bold text-gray-400">
+            <p className="mt-1 text-sm font-bold text-gray-500">
               複数カテゴリーをまとめて、1つの提案対象にします。
             </p>
           </div>
@@ -1283,7 +1283,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
       {activeSection === 'flows' && (
         <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-50 text-green-700">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-100 text-gray-900">
             <GitBranch size={20} />
           </div>
 
@@ -1291,7 +1291,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
             <h3 className="text-lg font-black text-gray-900">
               フロー設定
             </h3>
-            <p className="mt-1 text-sm font-bold text-gray-400">
+            <p className="mt-1 text-sm font-bold text-gray-500">
               どの商品カテゴリーをきっかけに、どの順番で提案するかを設定します。
             </p>
           </div>
@@ -1312,7 +1312,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-green-600 px-6 text-sm font-black text-white shadow-lg transition-transform active:scale-95 disabled:bg-gray-300"
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-lg transition-transform active:scale-95 disabled:bg-gray-300"
           >
             {saving ? (
               <LoadingSpinner size={18} colorClass="text-white" />

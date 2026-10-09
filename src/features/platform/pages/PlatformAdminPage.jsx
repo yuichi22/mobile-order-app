@@ -168,14 +168,14 @@ const PLATFORM_LEAD_STATUSES = [
 ];
 
 const getLeadStatusClassName = (status) => {
-  if (status === 'new') return 'bg-emerald-50 text-emerald-700';
-  if (status === 'contacted') return 'bg-blue-50 text-blue-700';
-  if (status === 'demo_scheduled') return 'bg-purple-50 text-purple-700';
-  if (status === 'converted_to_store') return 'bg-slate-100 text-slate-600';
-  if (status === 'contract_created') return 'bg-indigo-50 text-indigo-700';
+  if (status === 'new') return 'bg-gray-100 text-gray-900';
+  if (status === 'contacted') return 'bg-ui-50 text-ui';
+  if (status === 'demo_scheduled') return 'bg-ui-50 text-ui';
+  if (status === 'converted_to_store') return 'bg-gray-100 text-gray-600';
+  if (status === 'contract_created') return 'bg-ui-50 text-ui';
   if (status === 'lost') return 'bg-red-50 text-red-600';
   if (status === 'archived') return 'bg-zinc-100 text-zinc-500';
-  return 'bg-slate-100 text-slate-500';
+  return 'bg-gray-100 text-gray-500';
 };
 
 const callPlatformAdminApi = async (path, body = {}) => {
@@ -1176,11 +1176,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
   if (!isSuperAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-sm">
-          <TriangleAlert className="mx-auto mb-4 h-12 w-12 text-orange-400" />
-          <h1 className="text-xl font-black text-slate-900">アクセス権限がありません</h1>
-          <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
+          <TriangleAlert className="mx-auto mb-4 h-12 w-12 text-ui" />
+          <h1 className="text-xl font-black text-gray-900">アクセス権限がありません</h1>
+          <p className="mt-3 text-sm font-bold leading-6 text-gray-500">
             この画面はスーパーアドミン専用です。
           </p>
         </div>
@@ -1190,7 +1190,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
   if (authChecking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <LoadingSpinner />
       </div>
     );
@@ -1198,16 +1198,16 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
   if (!authVerified) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm">
-          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white">
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white">
             <ShieldCheck size={26} strokeWidth={3} />
           </div>
 
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-2xl font-black text-gray-900">
             スーパーアドミン確認
           </h1>
-          <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
+          <p className="mt-3 text-sm font-bold leading-6 text-gray-500">
             登録メールアドレスに6桁の確認コードを送信し、本人確認を行います。
           </p>
 
@@ -1216,7 +1216,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               type="button"
               onClick={handleSendCode}
               disabled={codeSending}
-              className="h-12 w-full rounded-2xl bg-slate-900 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-12 w-full rounded-2xl bg-gray-900 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {codeSending ? '送信中...' : codeSent ? '確認コードを再送する' : '確認コードを送信する'}
             </button>
@@ -1228,14 +1228,14 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  className="h-14 w-full rounded-2xl border-2 border-slate-100 px-5 text-center text-xl font-black tracking-[0.3em] text-slate-900 outline-none focus:border-slate-900"
+                  className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-center text-xl font-black tracking-[0.3em] text-gray-900 outline-none focus:border-gray-900"
                   placeholder="000000"
                 />
 
                 <button
                   type="submit"
                   disabled={codeVerifying}
-                  className="h-12 w-full rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-12 w-full rounded-2xl bg-gray-900 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {codeVerifying ? '確認中...' : '確認して入室する'}
                 </button>
@@ -1255,17 +1255,17 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <LoadingSpinner />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-8 text-slate-900">
+    <div className="min-h-screen bg-gray-50 px-6 py-8 text-gray-900">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-gray-900 px-4 py-2 text-xs font-black text-white">
             <ShieldCheck size={15} strokeWidth={3} />
             SUPER ADMIN
           </div>
@@ -1275,57 +1275,57 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <h1 className="text-2xl font-black tracking-tight md:text-3xl">
                 Akuto プラットフォーム管理
               </h1>
-              <p className="mt-2 text-sm font-bold text-slate-500">
+              <p className="mt-2 text-sm font-bold text-gray-500">
                 チェーン・運営組織ごとに店舗を管理します。
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              <div className="rounded-2xl bg-gray-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">
                   Organizations
                 </div>
-                <div className="mt-1 text-2xl font-black text-slate-900">
+                <div className="mt-1 text-2xl font-black text-gray-900">
                   {organizations.length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              <div className="rounded-2xl bg-gray-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">
                   Stores
                 </div>
-                <div className="mt-1 text-2xl font-black text-slate-900">
+                <div className="mt-1 text-2xl font-black text-gray-900">
                   {stores.length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              <div className="rounded-2xl bg-gray-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">
                   Plans
                 </div>
-                <div className="mt-1 text-2xl font-black text-slate-900">
+                <div className="mt-1 text-2xl font-black text-gray-900">
                   {plans.length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              <div className="rounded-2xl bg-gray-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">
                   Contracts
                 </div>
-                <div className="mt-1 text-2xl font-black text-slate-900">
+                <div className="mt-1 text-2xl font-black text-gray-900">
                   {contracts.length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-emerald-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-500">
+              <div className="rounded-2xl bg-gray-100 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-gray-900">
                   Leads
                 </div>
-                <div className="mt-1 text-2xl font-black text-emerald-700">
+                <div className="mt-1 text-2xl font-black text-gray-900">
                   {leads.length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-indigo-50 px-5 py-4 text-right">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-indigo-500">
+              <div className="rounded-2xl bg-ui-50 px-5 py-4 text-right">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-ui">
                   Partners
                 </div>
-                <div className="mt-1 text-2xl font-black text-indigo-700">
+                <div className="mt-1 text-2xl font-black text-ui">
                   {partners.length}
                 </div>
               </div>
@@ -1345,8 +1345,8 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 }}
                 className={`h-11 rounded-2xl px-5 text-sm font-black transition-all ${
                   activeTab === tab.id
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                 }`}
               >
                 {tab.label}
@@ -1362,25 +1362,25 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         )}
 
         <div className={`${activeTab === 'leads' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">申込リード</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+              <h2 className="text-lg font-black text-gray-900">申込リード</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 /signup から送信された無料デモ・導入相談の申込です。
               </p>
             </div>
-            <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+            <div className="rounded-2xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-900">
               {activeLeads.filter((lead) => lead.status === 'new').length}件 new
             </div>
           </div>
 
           <div className="grid gap-3">
             {activeLeads.slice(0, 8).map((lead) => (
-              <article key={lead.id} className="rounded-2xl border border-slate-100 p-4">
+              <article key={lead.id} className="rounded-2xl border border-gray-100 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-black text-slate-900">
+                      <h3 className="text-base font-black text-gray-900">
                         {lead.storeName || '店舗名未入力'}
                       </h3>
                       <span className={`rounded-full px-3 py-1 text-xs font-black ${getLeadStatusClassName(lead.status)}`}>
@@ -1388,21 +1388,21 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       </span>
                     </div>
 
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {lead.companyName || '会社名未入力'} / {lead.contactName || '担当者未入力'}
                     </p>
 
-                    <div className="mt-3 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-2">
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="mt-3 grid gap-2 text-xs font-bold text-gray-500 md:grid-cols-2">
+                      <div className="rounded-xl bg-gray-50 px-3 py-2">
                         Email: {lead.email || '-'}
                       </div>
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="rounded-xl bg-gray-50 px-3 py-2">
                         Tel: {lead.tel || '-'}
                       </div>
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="rounded-xl bg-gray-50 px-3 py-2">
                         Source: {lead.source || '-'}
                       </div>
-                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="rounded-xl bg-gray-50 px-3 py-2">
                         Created: {lead.createdAtText || '-'}
                       </div>
                     </div>
@@ -1415,7 +1415,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   </div>
 
                   <div className="flex shrink-0 flex-col gap-2">
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-400">
+                    <div className="rounded-2xl bg-gray-50 px-4 py-3 text-xs font-black text-gray-500">
                       {displayLabel('salesChannel', lead.salesChannel || 'direct')}
                     </div>
 
@@ -1423,7 +1423,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       value={lead.status}
                       onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
                       disabled={leadUpdatingId === lead.id}
-                      className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-black text-gray-600 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {PLATFORM_LEAD_STATUSES.map((status) => (
                         <option key={status.value} value={status.value}>
@@ -1436,7 +1436,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       type="button"
                       onClick={() => handleApplyLeadToForms(lead)}
                       disabled={Boolean(lead.organizationId || lead.storeId) || lead.status === 'converted_to_store'}
-                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-gray-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {(lead.organizationId || lead.storeId || lead.status === 'converted_to_store')
                         ? '反映済み'
@@ -1447,7 +1447,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       type="button"
                       onClick={() => handleCreateOrganizationAndStoreFromLead(lead)}
                       disabled={leadCreatingId === lead.id || Boolean(lead.organizationId || lead.storeId) || lead.status === 'converted_to_store'}
-                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-gray-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-gray-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {leadCreatingId === lead.id
                         ? '作成中...'
@@ -1461,37 +1461,37 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             ))}
 
             {!activeLeads.length && (
-              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+              <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm font-bold text-gray-500">
                 表示中の申込リードはありません。
               </div>
             )}
           </div>
 
           {archivedLeads.length > 0 && (
-            <div className="mt-5 border-t border-slate-100 pt-5">
+            <div className="mt-5 border-t border-gray-100 pt-5">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-500">
+                <h3 className="text-sm font-black text-gray-500">
                   アーカイブ・失注リード
                 </h3>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-500">
                   {archivedLeads.length}件
                 </div>
               </div>
 
               <div className="grid gap-2">
                 {archivedLeads.slice(0, 8).map((lead) => (
-                  <article key={lead.id} className="rounded-2xl bg-slate-50 p-4">
+                  <article key={lead.id} className="rounded-2xl bg-gray-50 p-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-black text-slate-700">
+                          <h4 className="text-sm font-black text-gray-700">
                             {lead.storeName || '店舗名未入力'}
                           </h4>
                           <span className={`rounded-full px-3 py-1 text-xs font-black ${getLeadStatusClassName(lead.status)}`}>
                             {lead.status}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs font-bold text-slate-400">
+                        <p className="mt-1 text-xs font-bold text-gray-500">
                           {lead.companyName || '会社名未入力'} / {lead.contactName || '担当者未入力'} / {lead.email || '-'}
                         </p>
                       </div>
@@ -1500,7 +1500,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                         value={lead.status}
                         onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
                         disabled={leadUpdatingId === lead.id}
-                        className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-black text-gray-600 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {PLATFORM_LEAD_STATUSES.map((status) => (
                           <option key={status.value} value={status.value}>
@@ -1518,9 +1518,9 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
         <div className={`${activeTab === 'organizations' ? 'grid' : 'hidden'} mb-6 gap-6 lg:grid-cols-2`}>
           <section className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="mb-4 border-b border-slate-100 pb-4">
-              <h2 className="text-lg font-black text-slate-900">組織作成</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+            <div className="mb-4 border-b border-gray-100 pb-4">
+              <h2 className="text-lg font-black text-gray-900">組織作成</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 新しい運営組織を作成します。
               </p>
             </div>
@@ -1528,43 +1528,43 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             <form onSubmit={handleCreateOrganization} className="grid gap-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">組織ID</span>
+                  <span className="text-xs font-black text-gray-500">組織ID</span>
                   <input
                     value={organizationForm.organizationId}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, organizationId: event.target.value.trim() }))}
                     placeholder="例: org_example"
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">組織名</span>
+                  <span className="text-xs font-black text-gray-500">組織名</span>
                   <input
                     value={organizationForm.name}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="例: TABLE HAUS"
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   />
                 </label>
               </div>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black text-slate-400">オーナーメール</span>
+                <span className="text-xs font-black text-gray-500">オーナーメール</span>
                 <input
                   value={organizationForm.ownerEmail}
                   onChange={(event) => setOrganizationForm((current) => ({ ...current, ownerEmail: event.target.value }))}
                   placeholder="owner@example.com"
-                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                 />
               </label>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">種別</span>
+                  <span className="text-xs font-black text-gray-500">種別</span>
                   <select
                     value={organizationForm.type}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, type: event.target.value }))}
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   >
                     <option value="single">単店舗</option>
                     <option value="multi_store">複数店舗</option>
@@ -1572,11 +1572,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">ステータス</span>
+                  <span className="text-xs font-black text-gray-500">ステータス</span>
                   <select
                     value={organizationForm.status}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, status: event.target.value }))}
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   >
                     <option value="active">有効</option>
                     <option value="inactive">無効</option>
@@ -1587,7 +1587,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <button
                 type="submit"
                 disabled={organizationCreating}
-                className="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-12 rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {organizationCreating ? '組織作成中...' : '組織を作成する'}
               </button>
@@ -1595,9 +1595,9 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
           </section>
 
           <section className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="mb-4 border-b border-slate-100 pb-4">
-              <h2 className="text-lg font-black text-slate-900">店舗作成</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+            <div className="mb-4 border-b border-gray-100 pb-4">
+              <h2 className="text-lg font-black text-gray-900">店舗作成</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 組織に紐づく店舗を作成します。
               </p>
             </div>
@@ -1605,21 +1605,21 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             <form onSubmit={handleCreateStore} className="grid gap-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">店舗ID</span>
+                  <span className="text-xs font-black text-gray-500">店舗ID</span>
                   <input
                     value={storeForm.storeId}
                     onChange={(event) => setStoreForm((current) => ({ ...current, storeId: event.target.value.trim() }))}
                     placeholder="例: store_example"
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">組織</span>
+                  <span className="text-xs font-black text-gray-500">組織</span>
                   <select
                     value={storeForm.organizationId}
                     onChange={(event) => setStoreForm((current) => ({ ...current, organizationId: event.target.value }))}
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   >
                     <option value="">選択</option>
                     {organizations.map((organization) => (
@@ -1632,43 +1632,43 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               </div>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black text-slate-400">店舗名</span>
+                <span className="text-xs font-black text-gray-500">店舗名</span>
                 <input
                   value={storeForm.name}
                   onChange={(event) => setStoreForm((current) => ({ ...current, name: event.target.value }))}
                   placeholder="例: TABLE HAUS"
-                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                 />
               </label>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">住所</span>
+                  <span className="text-xs font-black text-gray-500">住所</span>
                   <input
                     value={storeForm.address}
                     onChange={(event) => setStoreForm((current) => ({ ...current, address: event.target.value }))}
                     placeholder="任意"
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   />
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-xs font-black text-slate-400">電話番号</span>
+                  <span className="text-xs font-black text-gray-500">電話番号</span>
                   <input
                     value={storeForm.tel}
                     onChange={(event) => setStoreForm((current) => ({ ...current, tel: event.target.value }))}
                     placeholder="任意"
-                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                   />
                 </label>
               </div>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black text-slate-400">ステータス</span>
+                <span className="text-xs font-black text-gray-500">ステータス</span>
                 <select
                   value={storeForm.status}
                   onChange={(event) => setStoreForm((current) => ({ ...current, status: event.target.value }))}
-                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
                 >
                   <option value="active">有効</option>
                   <option value="inactive">無効</option>
@@ -1678,7 +1678,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <button
                 type="submit"
                 disabled={storeCreating}
-                className="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-12 rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {storeCreating ? '店舗作成中...' : '店舗を作成する'}
               </button>
@@ -1687,10 +1687,10 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         </div>
 
         <div className={`${activeTab === 'partners' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">代理店</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+              <h2 className="text-lg font-black text-gray-900">代理店</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 referral / sales / implementation の代理店情報を管理します。
               </p>
             </div>
@@ -1698,28 +1698,28 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           <form onSubmit={handleCreatePartner} className="mb-5 grid gap-3 md:grid-cols-4">
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">代理店ID</span>
+              <span className="text-xs font-black text-gray-500">代理店ID</span>
               <input
                 value={partnerForm.partnerId}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, partnerId: event.target.value.trim() }))}
                 placeholder="例: partner_example"
                 disabled={Boolean(editingPartnerId)}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">代理店名</span>
+              <span className="text-xs font-black text-gray-500">代理店名</span>
               <input
                 value={partnerForm.name}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="例: Example Partner"
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">種別</span>
+              <span className="text-xs font-black text-gray-500">種別</span>
               <select
                 value={partnerForm.type}
                 onChange={(event) => {
@@ -1733,7 +1733,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       nextType === 'implementation' ? '25' : nextType === 'sales' ? '20' : '10'
                   }));
                 }}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 <option value="referral">紹介のみ</option>
                 <option value="sales">営業代理店</option>
@@ -1742,11 +1742,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">ステータス</span>
+              <span className="text-xs font-black text-gray-500">ステータス</span>
               <select
                 value={partnerForm.status}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 <option value="active">有効</option>
                 <option value="inactive">無効</option>
@@ -1754,46 +1754,46 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">紹介コード</span>
+              <span className="text-xs font-black text-gray-500">紹介コード</span>
               <input
                 value={partnerForm.referralCode}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
                 placeholder="例: PARTNER001"
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">初期報酬率（%）</span>
+              <span className="text-xs font-black text-gray-500">初期報酬率（%）</span>
               <input
                 type="number"
                 step="1"
                 min="0"
                 value={partnerForm.defaultInitialCommissionRate}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, defaultInitialCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">月額報酬率（%）</span>
+              <span className="text-xs font-black text-gray-500">月額報酬率（%）</span>
               <input
                 type="number"
                 step="1"
                 min="0"
                 value={partnerForm.defaultMonthlyCommissionRate}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, defaultMonthlyCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">連絡先メール</span>
+              <span className="text-xs font-black text-gray-500">連絡先メール</span>
               <input
                 value={partnerForm.contactEmail}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, contactEmail: event.target.value }))}
                 placeholder="partner@example.com"
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
@@ -1801,7 +1801,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <button
                 type="submit"
                 disabled={partnerCreating}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-indigo-600 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {partnerCreating
                   ? editingPartnerId ? '代理店更新中...' : '代理店作成中...'
@@ -1812,7 +1812,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 <button
                   type="button"
                   onClick={resetPartnerForm}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-100 px-6 text-sm font-black text-slate-600 shadow-sm transition-all hover:bg-slate-200 active:scale-95"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-gray-100 px-6 text-sm font-black text-gray-600 shadow-sm transition-all hover:bg-gray-200 active:scale-95"
                 >
                   編集をキャンセル
                 </button>
@@ -1822,38 +1822,38 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           <div className="grid gap-3 md:grid-cols-2">
             {partners.map((partner) => (
-              <article key={partner.id} className="rounded-2xl border border-slate-100 p-4">
+              <article key={partner.id} className="rounded-2xl border border-gray-100 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-black text-slate-900">{partner.name}</h3>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <h3 className="text-base font-black text-gray-900">{partner.name}</h3>
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {partner.id} / {displayLabel('partnerType', partner.type)} / {displayLabel('partnerStatus', partner.status)}
                     </p>
                     {partner.contactEmail && (
-                      <p className="mt-1 text-xs font-bold text-slate-400">
+                      <p className="mt-1 text-xs font-bold text-gray-500">
                         {partner.contactEmail}
                       </p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-2">
-                    <div className="rounded-2xl bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700">
+                    <div className="rounded-2xl bg-ui-50 px-4 py-2 text-xs font-black text-ui">
                       {partner.referralCode || 'no code'}
                     </div>
                     <button
                       type="button"
                       onClick={() => handleEditPartner(partner)}
-                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-slate-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                      className="inline-flex h-9 items-center justify-center rounded-2xl bg-gray-900 px-4 text-xs font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95"
                     >
                       編集
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-2">
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                <div className="mt-3 grid gap-2 text-xs font-bold text-gray-500 md:grid-cols-2">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     初期: {(partner.defaultInitialCommissionRate * 100).toFixed(0)}%
                   </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     月額: {(partner.defaultMonthlyCommissionRate * 100).toFixed(0)}%
                   </div>
                 </div>
@@ -1861,7 +1861,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             ))}
 
             {!partners.length && (
-              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+              <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm font-bold text-gray-500">
                 代理店はまだ登録されていません。
               </div>
             )}
@@ -1869,10 +1869,10 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         </div>
 
         <div className={`${activeTab === 'partners' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">代理店報酬サマリー</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+              <h2 className="text-lg font-black text-gray-900">代理店報酬サマリー</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 契約作成時にスナップショット保存されたcommissionを代理店別に集計します。
               </p>
             </div>
@@ -1880,31 +1880,31 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           <div className="grid gap-3">
             {partnerCommissionSummaries.map((summary) => (
-              <article key={summary.partnerId} className="rounded-2xl border border-slate-100 p-4">
+              <article key={summary.partnerId} className="rounded-2xl border border-gray-100 p-4">
                 <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <h3 className="text-base font-black text-slate-900">
+                    <h3 className="text-base font-black text-gray-900">
                       {summary.partnerName}
                     </h3>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {summary.partnerId} / {summary.contractCount}契約
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-right">
-                    <div className="rounded-2xl bg-indigo-50 px-4 py-3">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-400">
+                    <div className="rounded-2xl bg-ui-50 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-ui">
                         Initial
                       </div>
-                      <div className="mt-1 text-sm font-black text-indigo-700">
+                      <div className="mt-1 text-sm font-black text-ui">
                         ¥{summary.initialCommissionTotal.toLocaleString()}
                       </div>
                     </div>
-                    <div className="rounded-2xl bg-emerald-50 px-4 py-3">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-400">
+                    <div className="rounded-2xl bg-gray-100 px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-900">
                         Monthly
                       </div>
-                      <div className="mt-1 text-sm font-black text-emerald-700">
+                      <div className="mt-1 text-sm font-black text-gray-900">
                         ¥{summary.monthlyCommissionTotal.toLocaleString()}
                       </div>
                     </div>
@@ -1915,25 +1915,25 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   {summary.contracts.map((contract) => (
                     <div
                       key={contract.contractId}
-                      className="grid gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 md:grid-cols-[1.3fr_1fr_1fr_1fr]"
+                      className="grid gap-2 rounded-2xl bg-gray-50 px-4 py-3 text-xs font-bold text-gray-500 md:grid-cols-[1.3fr_1fr_1fr_1fr]"
                     >
                       <div>
-                        <div className="font-black text-slate-700">{contract.storeName}</div>
-                        <div className="mt-0.5 break-all text-[11px] text-slate-400">{contract.contractId}</div>
+                        <div className="font-black text-gray-700">{contract.storeName}</div>
+                        <div className="mt-0.5 break-all text-[11px] text-gray-500">{contract.contractId}</div>
                       </div>
                       <div>
-                        <span className="text-slate-400">billing</span>
-                        <div className="mt-0.5 font-black text-slate-700">{displayLabel('billingStatus', contract.billingStatus)}</div>
+                        <span className="text-gray-500">billing</span>
+                        <div className="mt-0.5 font-black text-gray-700">{displayLabel('billingStatus', contract.billingStatus)}</div>
                       </div>
                       <div>
-                        <span className="text-slate-400">初期報酬</span>
-                        <div className="mt-0.5 font-black text-slate-700">
+                        <span className="text-gray-500">初期報酬</span>
+                        <div className="mt-0.5 font-black text-gray-700">
                           ¥{contract.initialCommissionAmount.toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <span className="text-slate-400">月額報酬</span>
-                        <div className="mt-0.5 font-black text-slate-700">
+                        <span className="text-gray-500">月額報酬</span>
+                        <div className="mt-0.5 font-black text-gray-700">
                           ¥{contract.monthlyCommissionAmount.toLocaleString()}
                         </div>
                       </div>
@@ -1944,7 +1944,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             ))}
 
             {!partnerCommissionSummaries.length && (
-              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+              <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm font-bold text-gray-500">
                 代理店報酬対象の契約はまだありません。
               </div>
             )}
@@ -1952,56 +1952,56 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         </div>
 
         <div className={`${activeTab === 'contracts' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">契約作成</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+              <h2 className="text-lg font-black text-gray-900">契約作成</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 組織・店舗・プランを選択して、Mobile Orderの契約レコードを作成します。
               </p>
             </div>
           </div>
 
-          <div className="mb-5 rounded-3xl border border-slate-100 bg-slate-50 p-4">
-            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+          <div className="mb-5 rounded-3xl border border-gray-100 bg-gray-50 p-4">
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-gray-500">
               Contract Flow
             </div>
             <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">
                   1
                 </div>
-                <div className="text-sm font-black text-slate-800">組織・店舗化</div>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                <div className="text-sm font-black text-gray-800">組織・店舗化</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-gray-500">
                   リードから組織と店舗を作成します。
                 </p>
               </div>
 
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">
                   2
                 </div>
-                <div className="text-sm font-black text-slate-800">契約作成</div>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                <div className="text-sm font-black text-gray-800">契約作成</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-gray-500">
                   プラン・初期費用・代理店情報を保存します。
                 </p>
               </div>
 
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">
                   3
                 </div>
-                <div className="text-sm font-black text-slate-800">Checkout作成</div>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                <div className="text-sm font-black text-gray-800">Checkout作成</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-gray-500">
                   Stripe Checkout URLを作成します。
                 </p>
               </div>
 
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
+                <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">
                   4
                 </div>
-                <div className="text-sm font-black text-slate-800">契約同期</div>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                <div className="text-sm font-black text-gray-800">契約同期</div>
+                <p className="mt-1 text-xs font-bold leading-5 text-gray-500">
                   WebhookまたはStripe同期でactive化します。
                 </p>
               </div>
@@ -2010,11 +2010,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           <form onSubmit={handleCreateContract} className="grid gap-3 md:grid-cols-4">
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">組織</span>
+              <span className="text-xs font-black text-gray-500">組織</span>
               <select
                 value={contractForm.organizationId}
                 onChange={(event) => setContractForm((current) => ({ ...current, organizationId: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 <option value="">選択</option>
                 {organizations.map((organization) => (
@@ -2026,11 +2026,11 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">店舗</span>
+              <span className="text-xs font-black text-gray-500">店舗</span>
               <select
                 value={contractForm.storeId}
                 onChange={(event) => setContractForm((current) => ({ ...current, storeId: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 <option value="">選択</option>
                 {stores
@@ -2044,7 +2044,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">プラン</span>
+              <span className="text-xs font-black text-gray-500">プラン</span>
               <select
                 value={contractForm.planId}
                 onChange={(event) => {
@@ -2055,7 +2055,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     initialSetupFee: String(nextPlan?.initialSetupFeeDefault || current.initialSetupFee || '100000')
                   }));
                 }}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 {plans.map((plan) => (
                   <option key={plan.id} value={plan.id}>
@@ -2066,18 +2066,18 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">初期設定費</span>
+              <span className="text-xs font-black text-gray-500">初期設定費</span>
               <input
                 type="number"
                 min="0"
                 value={contractForm.initialSetupFee}
                 onChange={(event) => setContractForm((current) => ({ ...current, initialSetupFee: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">販売経路</span>
+              <span className="text-xs font-black text-gray-500">販売経路</span>
               <select
                 value={contractForm.salesChannel}
                 onChange={(event) => {
@@ -2093,7 +2093,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     } : {})
                   }));
                 }}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
               >
                 <option value="admin_created">管理者作成</option>
                 <option value="direct">直接契約</option>
@@ -2102,7 +2102,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">代理店</span>
+              <span className="text-xs font-black text-gray-500">代理店</span>
               <select
                 value={contractForm.partnerId}
                 disabled={contractForm.salesChannel !== 'partner'}
@@ -2116,7 +2116,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     monthlyCommissionRate: String(Math.round((Number(nextPartner?.defaultMonthlyCommissionRate) || 0) * 100))
                   }));
                 }}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
               >
                 <option value="">なし</option>
                 {partners
@@ -2130,17 +2130,17 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">紹介コード</span>
+              <span className="text-xs font-black text-gray-500">紹介コード</span>
               <input
                 value={contractForm.referralCode}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">初期報酬率（%）</span>
+              <span className="text-xs font-black text-gray-500">初期報酬率（%）</span>
               <input
                 type="number"
                 min="0"
@@ -2148,12 +2148,12 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={contractForm.initialCommissionRate}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, initialCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-black text-slate-400">月額報酬率（%）</span>
+              <span className="text-xs font-black text-gray-500">月額報酬率（%）</span>
               <input
                 type="number"
                 min="0"
@@ -2161,12 +2161,12 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={contractForm.monthlyCommissionRate}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, monthlyCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
               />
             </label>
 
             {contractForm.salesChannel === 'partner' && contractForm.partnerId && (
-              <div className="rounded-2xl bg-indigo-50 px-4 py-3 text-xs font-black leading-5 text-indigo-700 md:col-span-4">
+              <div className="rounded-2xl bg-ui-50 px-4 py-3 text-xs font-black leading-5 text-ui md:col-span-4">
                 初期報酬: ¥{Math.round((Number(contractForm.initialSetupFee) || 0) * ((Number(contractForm.initialCommissionRate) || 0) / 100)).toLocaleString()}
                 {' / '}
                 月額報酬: ¥{Math.round(((plans.find((plan) => plan.id === contractForm.planId)?.monthlyAmount || 0) * ((Number(contractForm.monthlyCommissionRate) || 0) / 100))).toLocaleString()}
@@ -2177,7 +2177,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <button
                 type="submit"
                 disabled={contractCreating}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {contractCreating ? '契約作成中...' : '契約を作成する'}
               </button>
@@ -2186,10 +2186,10 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         </div>
 
         <div className={`${activeTab === 'plans' ? 'block' : 'hidden'} mb-6 rounded-3xl bg-white p-5 shadow-sm`}>
-          <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">料金プラン</h2>
-              <p className="mt-1 text-xs font-bold text-slate-400">
+              <h2 className="text-lg font-black text-gray-900">料金プラン</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 Stripeと紐づくMobile Orderのプラン設定です。
               </p>
             </div>
@@ -2197,30 +2197,30 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           <div className="grid gap-3 md:grid-cols-2">
             {plans.map((plan) => (
-              <article key={plan.id} className="rounded-2xl border border-slate-100 p-4">
+              <article key={plan.id} className="rounded-2xl border border-gray-100 p-4">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-black text-slate-900">{plan.name}</h3>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <h3 className="text-base font-black text-gray-900">{plan.name}</h3>
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {plan.id} / {displayLabel('planStatus', plan.status)} / {displayLabel('planType', plan.planType)}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-black text-white">
+                  <div className="rounded-2xl bg-gray-900 px-4 py-2 text-sm font-black text-white">
                     ¥{plan.monthlyAmount.toLocaleString()} / 月
                   </div>
                 </div>
 
-                <div className="grid gap-2 text-xs font-bold text-slate-500">
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                <div className="grid gap-2 text-xs font-bold text-gray-500">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     初期設定費: ¥{plan.initialSetupFeeDefault.toLocaleString()}
                   </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     Product: {plan.stripeProductId || '-'}
                   </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     Price: {plan.stripePriceId || '-'}
                   </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="rounded-xl bg-gray-50 px-3 py-2">
                     Lookup: {plan.stripeLookupKey || '-'}
                   </div>
                 </div>
@@ -2228,7 +2228,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
             ))}
 
             {!plans.length && (
-              <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+              <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm font-bold text-gray-500">
                 料金プランがまだ登録されていません。
               </div>
             )}
@@ -2238,27 +2238,27 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
         <div className={`${activeTab === 'contracts' ? 'space-y-5' : 'hidden'}`}>
           {organizationCards.map((organization) => (
             <section key={organization.id} className="rounded-3xl bg-white p-5 shadow-sm">
-              <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
+              <div className="mb-5 flex flex-col gap-3 border-b border-gray-100 pb-5 md:flex-row md:items-center md:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
-                    <Layers3 className="h-6 w-6 text-slate-500" />
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-100">
+                    <Layers3 className="h-6 w-6 text-gray-500" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="truncate text-lg font-black text-slate-900">
+                    <h2 className="truncate text-lg font-black text-gray-900">
                       {organization.name}
                     </h2>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {organization.id} / {displayLabel('organizationType', organization.type)} / {displayLabel('organizationStatus', organization.status)}
                     </p>
                     {organization.ownerEmail && (
-                      <p className="mt-1 text-xs font-bold text-slate-400">
+                      <p className="mt-1 text-xs font-bold text-gray-500">
                         {organization.ownerEmail}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
+                <div className="rounded-2xl bg-gray-50 px-4 py-3 text-sm font-black text-gray-600">
                   {organization.stores.length}店舗
                 </div>
               </div>
@@ -2267,26 +2267,26 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 {organization.stores.map((store) => (
                   <article
                     key={store.id}
-                    className="flex flex-col gap-4 rounded-2xl border border-slate-100 p-4 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 p-4 md:flex-row md:items-center md:justify-between"
                   >
                     <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gray-100">
                         {store.logoUrl ? (
                           <img src={store.logoUrl} alt={store.name} className="h-full w-full object-contain p-2" />
                         ) : (
-                          <Building2 className="h-6 w-6 text-slate-400" />
+                          <Building2 className="h-6 w-6 text-gray-500" />
                         )}
                       </div>
 
                       <div className="min-w-0">
-                        <h3 className="truncate text-base font-black text-slate-900">
+                        <h3 className="truncate text-base font-black text-gray-900">
                           {store.name}
                         </h3>
-                        <p className="mt-1 text-xs font-bold text-slate-400">
+                        <p className="mt-1 text-xs font-bold text-gray-500">
                           {store.id}
                         </p>
                         {(store.address || store.tel) && (
-                          <p className="mt-1 text-sm font-semibold text-slate-500">
+                          <p className="mt-1 text-sm font-semibold text-gray-500">
                             {[store.address, store.tel].filter(Boolean).join(' / ')}
                           </p>
                         )}
@@ -2294,75 +2294,75 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                         {store.contract ? (
                           <div className="mt-3 space-y-3">
                             <div className="flex flex-wrap gap-2 text-xs font-black">
-                              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                              <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-600">
                                 {store.contract.planName || store.contract.planId}
                               </span>
-                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                              <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-900">
                                 ¥{store.contract.monthlyAmount.toLocaleString()} / 月
                               </span>
                               <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
                                 課金: {displayLabel('billingStatus', store.contract.billingStatus)}
                               </span>
-                              <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                              <span className="rounded-full bg-ui-50 px-3 py-1 text-ui">
                                 導入: {displayLabel('onboardingStatus', store.contract.onboardingStatus)}
                               </span>
                             </div>
 
-                            <div className="grid gap-2 rounded-2xl bg-slate-50 p-3 text-[11px] font-bold text-slate-500 md:grid-cols-2">
+                            <div className="grid gap-2 rounded-2xl bg-gray-50 p-3 text-[11px] font-bold text-gray-500 md:grid-cols-2">
                               <div>
-                                <span className="text-slate-400">Contract</span>
-                                <div className="mt-0.5 break-all text-slate-700">
+                                <span className="text-gray-500">Contract</span>
+                                <div className="mt-0.5 break-all text-gray-700">
                                   {store.contract.contractId || store.contract.id}
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-400">Status</span>
-                                <div className="mt-0.5 text-slate-700">
+                                <span className="text-gray-500">Status</span>
+                                <div className="mt-0.5 text-gray-700">
                                   {displayLabel('contractStatus', store.contract.status)} / {displayLabel('billingStatus', store.contract.billingStatus)}
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-400">Stripe Customer</span>
-                                <div className="mt-0.5 break-all text-slate-700">
+                                <span className="text-gray-500">Stripe Customer</span>
+                                <div className="mt-0.5 break-all text-gray-700">
                                   {store.contract.stripeCustomerId || '-'}
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-400">Subscription</span>
-                                <div className="mt-0.5 break-all text-slate-700">
+                                <span className="text-gray-500">Subscription</span>
+                                <div className="mt-0.5 break-all text-gray-700">
                                   {store.contract.stripeSubscriptionId || '-'}
                                 </div>
                               </div>
                             </div>
 
                             {store.contract.commission?.eligible && (
-                              <div className="grid gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 p-3 text-[11px] font-bold text-indigo-700 md:grid-cols-2">
+                              <div className="grid gap-2 rounded-2xl border border-ui-100 bg-ui-50 p-3 text-[11px] font-bold text-ui md:grid-cols-2">
                                 <div>
-                                  <span className="text-indigo-400">Partner</span>
+                                  <span className="text-ui">Partner</span>
                                   <div className="mt-0.5 break-all">
                                     {store.contract.commission.partnerName || store.contract.commission.partnerId || store.contract.partnerId || '-'}
                                   </div>
                                 </div>
                                 <div>
-                                  <span className="text-indigo-400">Referral</span>
+                                  <span className="text-ui">Referral</span>
                                   <div className="mt-0.5 break-all">
                                     {store.contract.commission.referralCode || store.contract.referralCode || '-'}
                                   </div>
                                 </div>
                                 <div>
-                                  <span className="text-indigo-400">初期報酬</span>
+                                  <span className="text-ui">初期報酬</span>
                                   <div className="mt-0.5">
                                     ¥{(Number(store.contract.commission.initialCommissionAmount) || 0).toLocaleString()}
-                                    <span className="ml-1 text-indigo-400">
+                                    <span className="ml-1 text-ui">
                                       ({Math.round((Number(store.contract.commission.initialRate) || 0) * 100)}%)
                                     </span>
                                   </div>
                                 </div>
                                 <div>
-                                  <span className="text-indigo-400">月額報酬</span>
+                                  <span className="text-ui">月額報酬</span>
                                   <div className="mt-0.5">
                                     ¥{(Number(store.contract.commission.monthlyCommissionAmount) || 0).toLocaleString()}
-                                    <span className="ml-1 text-indigo-400">
+                                    <span className="ml-1 text-ui">
                                       ({Math.round((Number(store.contract.commission.monthlyRate) || 0) * 100)}%)
                                     </span>
                                   </div>
@@ -2393,7 +2393,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                             type="button"
                             onClick={() => handleCreateCheckout(store.contract.contractId || store.contract.id)}
                             disabled={checkoutLoadingContractId === (store.contract.contractId || store.contract.id)}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {checkoutLoadingContractId === (store.contract.contractId || store.contract.id)
                               ? 'Checkout作成中...'
@@ -2418,7 +2418,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                               type="button"
                               onClick={() => handleOpenBillingPortal(store.contract.contractId || store.contract.id)}
                               disabled={portalLoadingContractId === (store.contract.contractId || store.contract.id)}
-                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {portalLoadingContractId === (store.contract.contractId || store.contract.id)
                                 ? 'Portal作成中...'
@@ -2426,7 +2426,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                               <ChevronRight size={16} strokeWidth={3} />
                             </button>
                           ) : (
-                            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-xs font-black text-slate-400">
+                            <div className="rounded-2xl bg-gray-100 px-4 py-3 text-xs font-black text-gray-500">
                               Billing PortalはCheckout作成後に利用できます
                             </div>
                           )}
@@ -2436,7 +2436,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       <button
                         type="button"
                         onClick={() => onOpenStoreAdmin?.(store.id)}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95"
                       >
                         <Store size={16} strokeWidth={3} />
                         店舗管理を開く
@@ -2447,7 +2447,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 ))}
 
                 {!organization.stores.length && (
-                  <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">
+                  <div className="rounded-2xl bg-gray-50 p-5 text-center text-sm font-bold text-gray-500">
                     この組織に紐づく店舗はまだありません。
                   </div>
                 )}
@@ -2457,7 +2457,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
 
           {!organizationCards.length && !error && (
             <div className="rounded-3xl bg-white p-10 text-center shadow-sm">
-              <p className="text-sm font-bold text-slate-500">
+              <p className="text-sm font-bold text-gray-500">
                 組織・店舗がまだ登録されていません。
               </p>
             </div>

@@ -344,32 +344,32 @@ export default function MobileTagRegisterPage() {
   };
 
   if (phase === 'auth') {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-500">{message}</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6 text-gray-500">{message}</div>;
   }
   if (phase === 'error' || phase === 'timeout') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 p-6 text-center">
-        <div className="text-lg font-black text-slate-800">{phase === 'timeout' ? 'タイムアウトしました' : '接続できませんでした'}</div>
-        <div className="text-sm text-slate-500">{phase === 'timeout' ? 'ログインから12時間が経過したためログアウトしました。' : message}</div>
-        <div className="text-sm text-slate-500">PCで「モバイル用QRを表示」から新しいQRを表示して、もう一度読み込んでください。</div>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 p-6 text-center">
+        <div className="text-lg font-black text-gray-800">{phase === 'timeout' ? 'タイムアウトしました' : '接続できませんでした'}</div>
+        <div className="text-sm text-gray-500">{phase === 'timeout' ? 'ログインから12時間が経過したためログアウトしました。' : message}</div>
+        <div className="text-sm text-gray-500">PCで「モバイル用QRを表示」から新しいQRを表示して、もう一度読み込んでください。</div>
       </div>
     );
   }
 
   const field = (label, key, opts = {}) => (
     <label className="block">
-      <span className="text-xs font-bold text-slate-500">{label}</span>
+      <span className="text-xs font-bold text-gray-500">{label}</span>
       <input value={form[key]} onChange={updateField(key)} inputMode={opts.inputMode} placeholder={opts.placeholder || ''}
         onFocus={opts.selectOnFocus ? (e) => e.target.select() : undefined}
-        className="mt-1 h-12 w-full rounded-xl border-2 border-slate-200 px-3 text-base" />
+        className="mt-1 h-12 w-full rounded-xl border-2 border-gray-200 px-3 text-base" />
     </label>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-24">
       <header className="sticky top-0 z-10 border-b bg-white px-4 py-3">
-        <div className="text-base font-black text-slate-800">下げ札から商品登録</div>
-        <div className="text-[11px] text-slate-400">下げ札を読み取る → ブランド照合 → 登録</div>
+        <div className="text-base font-black text-gray-800">下げ札から商品登録</div>
+        <div className="text-[11px] text-gray-500">下げ札を読み取る → ブランド照合 → 登録</div>
       </header>
 
       <div className="mx-auto max-w-md space-y-3 p-4">
@@ -377,7 +377,7 @@ export default function MobileTagRegisterPage() {
         <input ref={brandInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onBrandTagCapture} />
 
         {justSaved && (
-          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          <div className="flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2 text-sm font-bold text-gray-900">
             <Check size={16} />
             <span>
               「{justSaved.name}」を登録しました（{justSaved.barcode}）
@@ -390,28 +390,28 @@ export default function MobileTagRegisterPage() {
         <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
           {field('商品名 *', 'name')}
           <div>
-            <span className="text-xs font-bold text-slate-500">ブランド</span>
+            <span className="text-xs font-bold text-gray-500">ブランド</span>
             <button
               type="button"
               onClick={() => setBrandModal({ open: true, candidates: [], defaultNewName: form.brandName })}
-              className="mt-1 flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 px-3 text-base"
+              className="mt-1 flex h-12 w-full items-center justify-between rounded-xl border-2 border-gray-200 px-3 text-base"
             >
-              <span className={form.brandName ? 'text-slate-800' : 'text-slate-400'}>{form.brandName || 'ブランドを選択 / タグ読み取り'}</span>
-              <span className="text-xs text-slate-400">選択</span>
+              <span className={form.brandName ? 'text-gray-800' : 'text-gray-500'}>{form.brandName || 'ブランドを選択 / タグ読み取り'}</span>
+              <span className="text-xs text-gray-500">選択</span>
             </button>
           </div>
           {field('品番 / SKU', 'sku')}
           <div>
-            <span className="text-xs font-bold text-slate-500">バーコード</span>
+            <span className="text-xs font-bold text-gray-500">バーコード</span>
             <div className="mt-1 flex gap-2">
               <input value={form.barcode} onChange={(e) => applyBarcode(e.target.value)} inputMode="numeric"
-                className="h-12 flex-1 rounded-xl border-2 border-slate-200 px-3 text-base" />
+                className="h-12 flex-1 rounded-xl border-2 border-gray-200 px-3 text-base" />
               <button type="button" onClick={() => setScannerOpen(true)}
-                className="flex h-12 items-center gap-1 rounded-xl bg-slate-700 px-3 text-sm font-black text-white active:scale-95">
+                className="flex h-12 items-center gap-1 rounded-xl bg-gray-700 px-3 text-sm font-black text-white active:scale-95">
                 <Barcode size={16} /> スキャン
               </button>
             </div>
-            <div className="mt-1 text-[11px] text-slate-400">空のまま登録すると在庫コード（2始まり）を自動発行します。</div>
+            <div className="mt-1 text-[11px] text-gray-500">空のまま登録すると在庫コード（2始まり）を自動発行します。</div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {field('サイズ', 'size')}
@@ -420,30 +420,30 @@ export default function MobileTagRegisterPage() {
           <div>
             {field('税抜売価', 'priceTaxExcluded', { inputMode: 'numeric' })}
             {String(form.priceTaxExcluded).trim() !== '' && Number.isFinite(Number(form.priceTaxExcluded)) && (
-              <div className="mt-1 text-[11px] text-slate-400">税込 ¥{Math.floor(Number(form.priceTaxExcluded) * 1.1).toLocaleString()}（税率10%）</div>
+              <div className="mt-1 text-[11px] text-gray-500">税込 ¥{Math.floor(Number(form.priceTaxExcluded) * 1.1).toLocaleString()}（税率10%）</div>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             {field('入庫数（登録と同時に入庫）', 'stockIn', { inputMode: 'numeric', placeholder: '空=入庫なし', selectOnFocus: true })}
             <label className="flex cursor-pointer flex-col justify-end">
-              <span className="text-xs font-bold text-slate-500">ラベル印刷</span>
+              <span className="text-xs font-bold text-gray-500">ラベル印刷</span>
               <button
                 type="button"
                 onClick={() => setForm((cur) => ({ ...cur, labelEnabled: !cur.labelEnabled }))}
-                className={`mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 text-base font-black transition ${form.labelEnabled ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400'}`}
+                className={`mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 text-base font-black transition ${form.labelEnabled ? 'border-gray-900 bg-gray-100 text-gray-900' : 'border-gray-200 bg-white text-gray-500'}`}
               >
                 {form.labelEnabled ? <><Check size={18} /> ON</> : 'OFF'}
               </button>
             </label>
           </div>
-          <div className="text-[11px] text-slate-400">ラベル印刷はバーコードに追従して自動切替（空・2始まり＝ON／通常バーコード＝OFF）。必要なら手動でも変更できます。</div>
+          <div className="text-[11px] text-gray-500">ラベル印刷はバーコードに追従して自動切替（空・2始まり＝ON／通常バーコード＝OFF）。必要なら手動でも変更できます。</div>
         </div>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 border-t bg-white p-3">
         <div className="mx-auto flex w-full max-w-md gap-2">
           <button type="button" onClick={save} disabled={saving}
-            className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-sm active:scale-95 disabled:opacity-60">
+            className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-gray-900 text-base font-black text-white shadow-sm active:scale-95 disabled:opacity-60">
             {saving ? '登録中…' : '登録'}
           </button>
           <button type="button" onClick={startScan} disabled={scanning}
@@ -460,7 +460,7 @@ export default function MobileTagRegisterPage() {
             <div className="mb-2 text-center text-sm font-bold text-white">バーコードを枠に合わせてください</div>
             <BarcodeScanner active={scannerOpen} onDetected={onBarcodeDetected} onError={() => {}} />
             <button type="button" onClick={() => setScannerOpen(false)}
-              className="mt-3 h-12 w-full rounded-xl bg-white text-base font-black text-slate-800 active:scale-95">
+              className="mt-3 h-12 w-full rounded-xl bg-white text-base font-black text-gray-800 active:scale-95">
               閉じる
             </button>
           </div>

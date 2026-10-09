@@ -42,20 +42,20 @@ const LOCATION_THEME = {
   warehouse: {
     label: '倉庫',
     icon: Warehouse,
-    buttonClass: 'bg-blue-600 hover:bg-blue-700',
-    panelClass: 'border-blue-100 bg-blue-50/50',
-    textClass: 'text-blue-700',
-    lightTextClass: 'text-blue-400',
-    focusClass: 'focus:border-blue-400'
+    buttonClass: 'bg-gray-900 hover:bg-gray-800',
+    panelClass: 'border-ui-100 bg-ui-50/50',
+    textClass: 'text-ui',
+    lightTextClass: 'text-ui',
+    focusClass: 'focus:border-ui'
   },
   storefront: {
     label: '店頭',
     icon: Store,
-    buttonClass: 'bg-emerald-600 hover:bg-emerald-700',
-    panelClass: 'border-emerald-100 bg-emerald-50/50',
-    textClass: 'text-emerald-700',
-    lightTextClass: 'text-emerald-400',
-    focusClass: 'focus:border-emerald-400'
+    buttonClass: 'bg-gray-900 hover:bg-gray-900',
+    panelClass: 'border-gray-200 bg-gray-100/50',
+    textClass: 'text-gray-900',
+    lightTextClass: 'text-gray-900',
+    focusClass: 'focus:border-gray-900'
   }
 };
 
@@ -92,27 +92,27 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
   };
 
   return (
-    <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4">
-      <p className="text-sm font-black text-slate-900">{item.name || '名称未設定'}</p>
-      <p className="mt-1 text-xs font-bold text-slate-500">
+    <div className="rounded-3xl border border-ui-100 bg-ui-50 p-4">
+      <p className="text-sm font-black text-gray-900">{item.name || '名称未設定'}</p>
+      <p className="mt-1 text-xs font-bold text-gray-500">
         品番: {item.sku || '-'} / バーコード: {item.barcode || '-'}
       </p>
       {(item.size || item.colorName) && (
-        <p className="mt-1 text-xs font-bold text-slate-500">
+        <p className="mt-1 text-xs font-bold text-gray-500">
           {item.size ? `サイズ: ${item.size}` : ''}
           {item.size && item.colorName ? ' / ' : ''}
           {item.colorName ? `色: ${item.colorName}` : ''}
         </p>
       )}
-      <p className="mt-1 text-xs font-bold text-slate-500">
+      <p className="mt-1 text-xs font-bold text-gray-500">
         価格: {item.priceTaxExcluded != null ? `¥${Number(item.priceTaxExcluded).toLocaleString()}` : '-'}
         {' '}(税込 {item.priceTaxIncluded != null ? `¥${Number(item.priceTaxIncluded).toLocaleString()}` : item.priceTaxExcluded != null ? `¥${Math.floor(Number(item.priceTaxExcluded) * (100 + Number(item.taxRate ?? 10)) / 100).toLocaleString()}` : '-'})
       </p>
-      <p className="mt-1 text-xs font-bold text-orange-500">
+      <p className="mt-1 text-xs font-bold text-ui">
         倉庫: {Number(item.warehouseQuantity || 0).toLocaleString()} / 店頭: {Number(item.storefrontShelfQuantity || 0).toLocaleString()}
       </p>
       {formatStorefrontBreakdown(item) ? (
-        <p className="mt-1 text-[11px] font-bold text-slate-400">{formatStorefrontBreakdown(item)}</p>
+        <p className="mt-1 text-[11px] font-bold text-gray-500">{formatStorefrontBreakdown(item)}</p>
       ) : null}
       <div className="mt-3 flex items-center gap-2">
         <input
@@ -122,19 +122,19 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
           value={quantityInput}
           onChange={(event) => setQuantityInput(event.target.value)}
           placeholder="店頭の実数(上書き)"
-          className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
+          className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-gray-900"
         />
         <button
           type="button"
           onClick={handleSave}
           disabled={saving || quantityInput === '' || Number(quantityInput) < 0}
-          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <LoadingSpinner size={16} /> : <Check size={16} />}
           カウント
         </button>
       </div>
-      {error ? <p className="mt-2 text-xs font-bold text-rose-500">{error}</p> : null}
+      {error ? <p className="mt-2 text-xs font-bold text-red-500">{error}</p> : null}
     </div>
   );
 };
@@ -510,9 +510,9 @@ const StocktakePage = ({ storeId }) => {
 
   if (activeStocktake === undefined) {
     return (
-      <div className="min-h-screen bg-slate-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="mx-auto max-w-md pt-6">
-          <div className="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-10">
+          <div className="flex items-center justify-center rounded-3xl border border-gray-200 bg-white p-10">
             <LoadingSpinner />
           </div>
         </div>
@@ -522,12 +522,12 @@ const StocktakePage = ({ storeId }) => {
 
   if (activeStocktake === null) {
     return (
-      <div className="min-h-screen bg-slate-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="mx-auto max-w-md space-y-4 pt-6">
           <div>
-            <h1 className="text-xl font-black text-slate-900">棚卸し</h1>
+            <h1 className="text-xl font-black text-gray-900">棚卸し</h1>
           </div>
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
+          <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm font-bold text-gray-500">
             現在進行中の棚卸しはありません。管理画面の「在庫管理 &gt; 棚卸」から開始してください。
           </div>
         </div>
@@ -537,20 +537,20 @@ const StocktakePage = ({ storeId }) => {
 
   if (view === 'home') {
     return (
-      <div className="min-h-screen bg-slate-50 p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="mx-auto max-w-md space-y-5 pt-6">
           <div>
-            <h1 className="text-xl font-black text-slate-900">棚卸し</h1>
-            <p className="mt-1 text-sm font-bold text-slate-500">カウントする場所を選んでください。</p>
+            <h1 className="text-xl font-black text-gray-900">棚卸し</h1>
+            <p className="mt-1 text-sm font-bold text-gray-500">カウントする場所を選んでください。</p>
           </div>
 
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">カウントする</p>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">カウントする</p>
             <div className="mt-2 grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleSelectLocation('warehouse')}
-                className="flex h-24 flex-col items-center justify-center gap-2 rounded-3xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"
+                className="flex h-24 flex-col items-center justify-center gap-2 rounded-3xl bg-gray-900 text-white shadow-sm transition hover:bg-gray-800"
               >
                 <Warehouse size={24} />
                 <span className="text-base font-black">倉庫</span>
@@ -558,7 +558,7 @@ const StocktakePage = ({ storeId }) => {
               <button
                 type="button"
                 onClick={() => handleSelectLocation('storefront')}
-                className="flex h-24 flex-col items-center justify-center gap-2 rounded-3xl bg-emerald-600 text-white shadow-sm transition hover:bg-emerald-700"
+                className="flex h-24 flex-col items-center justify-center gap-2 rounded-3xl bg-gray-900 text-white shadow-sm transition hover:bg-gray-900"
               >
                 <Store size={24} />
                 <span className="text-base font-black">店頭</span>
@@ -567,10 +567,10 @@ const StocktakePage = ({ storeId }) => {
           </div>
 
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">店頭の数え直しリスト ({recountItems.length})</p>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">店頭の数え直しリスト ({recountItems.length})</p>
             <div className="mt-2 space-y-3">
               {recountItems.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
+                <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm font-bold text-gray-500">
                   数え直し対象の商品はありません。
                 </div>
               ) : (
@@ -598,13 +598,13 @@ const StocktakePage = ({ storeId }) => {
     : Boolean(existingItem?.storefrontConfirmedAt);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-md space-y-4 pt-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleBackToHome}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-100 text-gray-500 transition hover:bg-gray-200"
             aria-label="場所選択に戻る"
           >
             <ChevronLeft size={20} />
@@ -624,7 +624,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={cancelScanning}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-200 text-sm font-black text-slate-600 transition hover:bg-slate-300"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-200 text-sm font-black text-gray-600 transition hover:bg-gray-300"
             >
               <X size={16} />
               スキャンをやめる
@@ -633,7 +633,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={openManualEntry}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition hover:bg-gray-200"
             >
               <Keyboard size={16} />
               バーコードを手入力
@@ -641,8 +641,8 @@ const StocktakePage = ({ storeId }) => {
           </div>
         ) : manualEntryOpen ? (
           <div className="space-y-3">
-            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-bold text-slate-500">読み取れない時は、バーコードの数字を入力してください。</p>
+            <div className="space-y-2 rounded-3xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-bold text-gray-500">読み取れない時は、バーコードの数字を入力してください。</p>
               <input
                 ref={manualInputRef}
                 type="text"
@@ -655,13 +655,13 @@ const StocktakePage = ({ storeId }) => {
                 onChange={(event) => setManualBarcode(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') handleManualLookup(); }}
                 placeholder="バーコードを入力"
-                className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-emerald-400"
+                className="h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-gray-900"
               />
               <button
                 type="button"
                 onClick={handleManualLookup}
                 disabled={!manualBarcode.trim()}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Search size={16} />
                 この番号で検索
@@ -678,7 +678,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={closeManualEntry}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition hover:bg-gray-200"
             >
               <X size={16} />
               手入力をやめる
@@ -697,7 +697,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={openManualEntry}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition hover:bg-gray-200"
             >
               <Keyboard size={16} />
               バーコードを手入力
@@ -706,16 +706,16 @@ const StocktakePage = ({ storeId }) => {
         )}
 
         {lookupState === 'loading' && (
-          <div className="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-8">
+          <div className="flex items-center justify-center rounded-3xl border border-gray-200 bg-white p-8">
             <LoadingSpinner />
           </div>
         )}
 
         {lookupState === 'found' && scannedProduct && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Scanned</p>
-            <h2 className="mt-1 text-lg font-black text-slate-900">{scannedProduct.name || '名称未設定'}</h2>
-            <div className="mt-3 space-y-1 text-sm font-bold text-slate-500">
+          <div className="rounded-3xl border border-gray-200 bg-white p-5">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">Scanned</p>
+            <h2 className="mt-1 text-lg font-black text-gray-900">{scannedProduct.name || '名称未設定'}</h2>
+            <div className="mt-3 space-y-1 text-sm font-bold text-gray-500">
               <p>品番: {scannedProduct.sku || scannedProduct.productCode || '-'}</p>
               <p>バーコード: {scannedProduct.barcode || scannedBarcode}</p>
               {scannedProduct.size ? <p>サイズ: {scannedProduct.size}</p> : null}
@@ -734,14 +734,14 @@ const StocktakePage = ({ storeId }) => {
                   <LoadingSpinner size={16} />
                 </div>
               ) : locationAlreadyCounted ? (
-                <div className="mt-2 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold leading-relaxed text-emerald-700">
+                <div className="mt-2 rounded-2xl bg-gray-100 px-4 py-3 text-xs font-bold leading-relaxed text-gray-900">
                   この商品は{view === 'warehouse' ? '倉庫で' : '店頭で'}<strong>{view === 'warehouse' ? 'カウント済み' : '確定済み'}</strong>です(現在 {existingCountForLocation.toLocaleString()}個)。もう一度カウントすると確認が表示されます。
                   {view === 'storefront' && formatStorefrontBreakdown(existingItem) ? (
-                    <span className="mt-1 block font-bold text-emerald-600/80">内訳: {formatStorefrontBreakdown(existingItem)}</span>
+                    <span className="mt-1 block font-bold text-gray-900/80">内訳: {formatStorefrontBreakdown(existingItem)}</span>
                   ) : null}
                 </div>
               ) : existingCountForLocation > 0 ? (
-                <p className="mt-2 rounded-2xl bg-orange-50 px-4 py-3 text-xs font-bold leading-relaxed text-orange-600">
+                <p className="mt-2 rounded-2xl bg-ui-50 px-4 py-3 text-xs font-bold leading-relaxed text-ui">
                   すでに{existingCountForLocation.toLocaleString()}個カウント済みです。
                 </p>
               ) : null}
@@ -754,7 +754,7 @@ const StocktakePage = ({ storeId }) => {
                   value={quantityInput}
                   onChange={(event) => setQuantityInput(event.target.value)}
                   placeholder="追加する数"
-                  className={`h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition ${theme.focusClass}`}
+                  className={`h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition ${theme.focusClass}`}
                 />
                 <button
                   type="button"
@@ -771,7 +771,7 @@ const StocktakePage = ({ storeId }) => {
                 <p className={`mt-2 text-xs font-bold ${theme.textClass}`}>{saveMessage}</p>
               ) : null}
               {saveError ? (
-                <p className="mt-2 text-xs font-bold text-rose-500">{saveError}</p>
+                <p className="mt-2 text-xs font-bold text-red-500">{saveError}</p>
               ) : null}
             </div>
 
@@ -803,7 +803,7 @@ const StocktakePage = ({ storeId }) => {
                     value={transferQuantityInput}
                     onChange={(event) => setTransferQuantityInput(event.target.value)}
                     placeholder="出庫する数"
-                    className="h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-slate-900 outline-none transition focus:border-amber-400"
+                    className="h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-amber-400"
                   />
                   <button
                     type="button"
@@ -820,24 +820,24 @@ const StocktakePage = ({ storeId }) => {
                   <p className="mt-2 text-xs font-bold text-amber-600">{transferMessage}</p>
                 ) : null}
                 {transferError ? (
-                  <p className="mt-2 text-xs font-bold text-rose-500">{transferError}</p>
+                  <p className="mt-2 text-xs font-bold text-red-500">{transferError}</p>
                 ) : null}
               </div>
             )}
 
             {existingItem ? (
-              <div className="mt-4 border-t border-slate-100 pt-4">
+              <div className="mt-4 border-t border-gray-100 pt-4">
                 <button
                   type="button"
                   onClick={handleAddToRecount}
                   disabled={recountSaving || existingItem?.needsRecount}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 text-sm font-black text-orange-600 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-ui-50 text-sm font-black text-ui transition hover:bg-ui-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {recountSaving ? <LoadingSpinner size={16} /> : <ListChecks size={16} />}
                   {existingItem?.needsRecount ? '数え直し対象に登録済み' : '数え直し対象に追加'}
                 </button>
                 {recountMessage ? (
-                  <p className="mt-2 text-center text-xs font-bold text-orange-500">{recountMessage}</p>
+                  <p className="mt-2 text-center text-xs font-bold text-ui">{recountMessage}</p>
                 ) : null}
               </div>
             ) : null}
@@ -845,7 +845,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={startScanning}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-slate-700"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white transition hover:bg-gray-700"
             >
               <RefreshCw size={16} />
               次をスキャン
@@ -854,13 +854,13 @@ const StocktakePage = ({ storeId }) => {
         )}
 
         {lookupState === 'not_found' && (
-          <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-center">
-            <p className="text-sm font-black text-rose-600">商品が見つかりませんでした</p>
-            <p className="mt-1 text-xs font-bold text-rose-400">バーコード: {scannedBarcode}</p>
+          <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-center">
+            <p className="text-sm font-black text-red-600">商品が見つかりませんでした</p>
+            <p className="mt-1 text-xs font-bold text-red-400">バーコード: {scannedBarcode}</p>
             <button
               type="button"
               onClick={startScanning}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-slate-700"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white transition hover:bg-gray-700"
             >
               <RefreshCw size={16} />
               再スキャン
@@ -869,12 +869,12 @@ const StocktakePage = ({ storeId }) => {
         )}
 
         {lookupState === 'error' && (
-          <div className="rounded-3xl border border-rose-100 bg-rose-50 p-5 text-center">
-            <p className="text-sm font-black text-rose-600">商品の検索に失敗しました</p>
+          <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-center">
+            <p className="text-sm font-black text-red-600">商品の検索に失敗しました</p>
             <button
               type="button"
               onClick={startScanning}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-slate-700"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-sm font-black text-white transition hover:bg-gray-700"
             >
               <RefreshCw size={16} />
               再スキャン
@@ -884,52 +884,52 @@ const StocktakePage = ({ storeId }) => {
 
         <div>
           <div className="flex items-center gap-2">
-            <History size={16} className="text-slate-400" />
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            <History size={16} className="text-gray-500" />
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
               カウント履歴 ({localHistory.length})
             </p>
           </div>
 
           {visibleHistoryItems.length === 0 ? (
-            <div className="mt-2 rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500">
+            <div className="mt-2 rounded-3xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm font-bold text-gray-500">
               まだカウントした商品はありません。
             </div>
           ) : (
             <div className="mt-2 space-y-2">
               {visibleHistoryItems.map((entry) => (
-                <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div key={entry.id} className="rounded-2xl border border-gray-200 bg-white p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-black text-slate-900">{entry.name}</p>
+                    <p className="text-sm font-black text-gray-900">{entry.name}</p>
                     <button
                       type="button"
                       onClick={() => setLocalHistory((prev) => prev.filter((h) => h.id !== entry.id))}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-red-50 hover:text-red-500"
                       aria-label="履歴から削除"
                     >
                       <X size={14} />
                     </button>
                   </div>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="mt-1 text-xs font-bold text-gray-500">
                     品番: {entry.sku || '-'} / バーコード: {entry.barcode || '-'}
                   </p>
                   {(entry.size || entry.colorName) && (
-                    <p className="mt-1 text-xs font-bold text-slate-500">
+                    <p className="mt-1 text-xs font-bold text-gray-500">
                       {entry.size ? `サイズ: ${entry.size}` : ''}
                       {entry.size && entry.colorName ? ' / ' : ''}
                       {entry.colorName ? `色: ${entry.colorName}` : ''}
                     </p>
                   )}
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="mt-1 text-xs font-bold text-gray-500">
                     価格: {entry.priceTaxExcluded != null ? `¥${Number(entry.priceTaxExcluded).toLocaleString()}` : '-'}
                     {' '}(税込 {entry.priceTaxIncluded != null ? `¥${Number(entry.priceTaxIncluded).toLocaleString()}` : '-'})
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black text-white ${
-                      entry.location === 'warehouse' ? 'bg-blue-500' : 'bg-emerald-500'
+                      entry.location === 'warehouse' ? 'bg-ui' : 'bg-gray-900'
                     }`}>
                       {entry.location === 'warehouse' ? '倉庫' : '店頭'}
                     </span>
-                    <p className="text-xs font-black text-slate-700">
+                    <p className="text-xs font-black text-gray-700">
                       今回カウント: {Number(entry.countedQuantity).toLocaleString()}個
                     </p>
                   </div>
@@ -942,7 +942,7 @@ const StocktakePage = ({ storeId }) => {
             <button
               type="button"
               onClick={() => setHistoryShowAll(true)}
-              className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+              className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition hover:bg-gray-200"
             >
               続きを見る
             </button>
@@ -953,10 +953,10 @@ const StocktakePage = ({ storeId }) => {
       {recountConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h3 className="text-base font-black text-slate-900">
+            <h3 className="text-base font-black text-gray-900">
               {view === 'warehouse' ? '倉庫でカウント済みの商品です' : '店頭で確定済みの商品です'}
             </h3>
-            <p className="mt-2 text-sm font-bold leading-relaxed text-slate-600">
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-600">
               「{scannedProduct?.name || '名称未設定'}」は{view === 'warehouse' ? '倉庫で' : '店頭で'}<strong>{view === 'warehouse' ? 'カウント済み' : '確定済み'}</strong>(現在 {existingCountForLocation.toLocaleString()}個)です。
               入力した<strong>{quantityInput || 0}個</strong>をどう反映しますか？
             </p>
@@ -966,7 +966,7 @@ const StocktakePage = ({ storeId }) => {
                 type="button"
                 onClick={() => handleSaveCount({ skipConfirm: true })}
                 disabled={saving}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 追加でカウント(現在の数に＋{quantityInput || 0})
               </button>
@@ -982,7 +982,7 @@ const StocktakePage = ({ storeId }) => {
                 type="button"
                 onClick={() => setRecountConfirmOpen(false)}
                 disabled={saving}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-black text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gray-100 px-4 text-sm font-black text-gray-600 transition hover:bg-gray-200 disabled:opacity-50"
               >
                 キャンセル
               </button>

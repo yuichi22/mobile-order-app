@@ -44,9 +44,9 @@ const LoginPage = ({ redirectTo = '' }) => {
       <ForgotEmailHelpModal open={showForgotEmailHelp} onClose={() => setShowForgotEmailHelp(false)} />
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
         <div className="bg-gray-900 p-8 text-center">
-          <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg"><Store size={32} /></div>
+          <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg"><Store size={32} /></div>
           <h1 className="text-2xl font-bold tracking-tight text-white">AKUTO</h1>
-          <p className="mt-2 text-sm font-medium text-gray-400">店舗管理コンソール</p>
+          <p className="mt-2 text-sm font-medium text-gray-500">店舗管理コンソール</p>
         </div>
 
         <div className="p-8">
@@ -63,7 +63,7 @@ const LoginPage = ({ redirectTo = '' }) => {
               <input
                 type="email"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
                 placeholder="owner@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -74,7 +74,7 @@ const LoginPage = ({ redirectTo = '' }) => {
               <input
                 type="password"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
                 placeholder="パスワードを入力"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -83,7 +83,7 @@ const LoginPage = ({ redirectTo = '' }) => {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-blue-400 disabled:shadow-none"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ui-100 disabled:shadow-none"
             >
               {isLoggingIn ? <><LoadingSpinner size={20} colorClass="text-white" /><span>ログイン中...</span></> : <><LogIn size={20} /><span>ログイン</span></>}
             </button>
@@ -97,7 +97,7 @@ const LoginPage = ({ redirectTo = '' }) => {
             >
               メールアドレスを忘れた方
             </button>
-            <Link to="/reset-password" className="font-bold text-blue-600 transition hover:text-blue-700 hover:underline">
+            <Link to="/reset-password" className="font-bold text-ui transition hover:text-ui hover:underline">
               パスワードを忘れた方
             </Link>
           </div>
@@ -105,7 +105,7 @@ const LoginPage = ({ redirectTo = '' }) => {
           <div className="mt-8 border-t border-gray-100 pt-6 text-center">
             <p className="text-sm text-gray-500">
               アカウントをお持ちでないですか？
-              <Link to="/register" className="ml-2 font-bold text-blue-600 hover:underline">新規登録</Link>
+              <Link to="/register" className="ml-2 font-bold text-ui hover:underline">新規登録</Link>
             </p>
           </div>
         </div>

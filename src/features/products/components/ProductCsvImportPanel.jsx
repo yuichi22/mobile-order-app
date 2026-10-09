@@ -467,24 +467,24 @@ const ProductCsvMappingModal = ({
   const firstDataRow = rows?.[1] || [];
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
       <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div data-ui-id="商品CSV_IMPORT_FIXED_MODE_NOTICE" className="mx-6 mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-black text-blue-700">
+        <div data-ui-id="商品CSV_IMPORT_FIXED_MODE_NOTICE" className="mx-6 mt-5 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black text-ui">
             <span>取込モード</span>
-            <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">新規追加・既存更新</span>
-            <span className="rounded-full bg-white px-2 py-1 text-blue-700 shadow-sm">判定キー：バーコード優先</span>
+            <span className="rounded-full bg-white px-2 py-1 text-ui shadow-sm">新規追加・既存更新</span>
+            <span className="rounded-full bg-white px-2 py-1 text-ui shadow-sm">判定キー：バーコード優先</span>
           </div>
-          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+          <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
             バーコード一致は既存更新し、未登録の商品は新規追加します。
           </p>
         </div>
-        <div className="border-b border-slate-100 bg-sky-50/80 px-6 py-5">
+        <div className="border-b border-gray-100 bg-ui-50/80 px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-500">Column Mapping</p>
-              <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-900">CSV列の紐付け</h3>
-              <p className="mt-2 text-sm font-bold leading-relaxed text-slate-500">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Column Mapping</p>
+              <h3 className="mt-1 text-2xl font-black tracking-tight text-gray-900">CSV列の紐付け</h3>
+              <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
                 {fileName || 'CSVファイル'} の先頭行をヘッダーとして読み取り、Akutoの商品項目へ紐付けます。
               </p>
             </div>
@@ -492,7 +492,7 @@ const ProductCsvMappingModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-500 shadow-sm"
+              className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-gray-500 shadow-sm"
             >
               閉じる
             </button>
@@ -506,9 +506,9 @@ const ProductCsvMappingModal = ({
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="overflow-hidden rounded-2xl border border-slate-100">
+          <div className="overflow-hidden rounded-2xl border border-gray-100">
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-black text-slate-400">
+              <thead className="bg-gray-50 text-xs font-black text-gray-500">
                 <tr>
                   <th className="w-16 px-4 py-3">列</th>
                   <th className="px-4 py-3">CSVヘッダー</th>
@@ -516,23 +516,23 @@ const ProductCsvMappingModal = ({
                   <th className="w-72 px-4 py-3">Akuto項目</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-gray-100">
                 {mappingDraft.map((mapping) => (
                   <tr key={`${mapping.columnIndex}-${mapping.header}`}>
-                    <td className="px-4 py-3 font-mono text-xs font-black text-slate-400">
+                    <td className="px-4 py-3 font-mono text-xs font-black text-gray-500">
                       {mapping.columnIndex + 1}
                     </td>
-                    <td className="px-4 py-3 font-black text-slate-800">
+                    <td className="px-4 py-3 font-black text-gray-800">
                       {headers[mapping.columnIndex] || `列${mapping.columnIndex + 1}`}
                     </td>
-                    <td className="max-w-[280px] truncate px-4 py-3 text-xs font-bold text-slate-500">
+                    <td className="max-w-[280px] truncate px-4 py-3 text-xs font-bold text-gray-500">
                       {firstDataRow[mapping.columnIndex] || '-'}
                     </td>
                     <td className="px-4 py-3">
                       <select
                         value={mapping.fieldKey}
                         onChange={(event) => updateMapping(mapping.columnIndex, event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                        className="h-11 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui focus:ring-4 focus:ring-ui-100"
                       >
                         {PRODUCT_CSV_FIELD_OPTIONS.map((option) => (
                           <option key={option.id || 'none'} value={option.id}>
@@ -547,13 +547,13 @@ const ProductCsvMappingModal = ({
             </table>
           </div>
 
-          <p className="mt-4 text-xs font-bold leading-relaxed text-slate-400">
+          <p className="mt-4 text-xs font-bold leading-relaxed text-gray-500">
             同じAkuto項目を複数列に割り当てた場合は、最後に選んだ列だけが有効になります。
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-6 py-5">
-          <div className="text-xs font-bold text-slate-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-white px-6 py-5">
+          <div className="text-xs font-bold text-gray-500">
             紐付け済み: {mappingDraft.filter((mapping) => mapping.fieldKey).length.toLocaleString()} / {mappingDraft.length.toLocaleString()}列
           </div>
 
@@ -561,7 +561,7 @@ const ProductCsvMappingModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-500"
+              className="rounded-2xl bg-gray-100 px-5 py-3 text-sm font-black text-gray-500"
             >
               キャンセル
             </button>
@@ -569,7 +569,7 @@ const ProductCsvMappingModal = ({
               type="button"
               onClick={onApply}
               disabled={!hasNameMapping}
-              className="rounded-2xl bg-sky-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-sky-500/20 disabled:opacity-50"
+              className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-black text-white shadow-lg shadow-gray-200/20 disabled:opacity-50"
             >
               この紐付けでプレビュー
             </button>
@@ -800,12 +800,12 @@ const ProductCsvImportPanel = ({
 
 
   return (
-    <div className="border-t border-slate-100 bg-white px-5 py-4">
-      <div className="rounded-3xl border-2 border-sky-100 bg-sky-50/70 p-4">
+    <div className="border-t border-gray-100 bg-white px-5 py-4">
+      <div className="rounded-3xl border-2 border-ui-100 bg-ui-50/70 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-black text-slate-900">CSV取込</div>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+            <div className="text-sm font-black text-gray-900">CSV取込</div>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               CSV選択後、列の紐付けを確認してからプレビューします。バーコード一致は既存更新し、未登録の商品は新規追加します。
             </p>
           </div>
@@ -822,7 +822,7 @@ const ProductCsvImportPanel = ({
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={saving}
-              className="rounded-2xl border-2 border-sky-100 bg-white px-4 py-2 text-xs font-black text-sky-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-60"
+              className="rounded-2xl border-2 border-ui-100 bg-white px-4 py-2 text-xs font-black text-ui shadow-sm transition hover:border-ui-100 hover:bg-ui-50 disabled:opacity-60"
             >
               CSVを選択
             </button>
@@ -831,7 +831,7 @@ const ProductCsvImportPanel = ({
                 type="button"
                 onClick={() => setShowMappingModal(true)}
                 disabled={saving}
-                className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-2 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                className="rounded-2xl border-2 border-gray-100 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
               >
                 列の紐付け
               </button>
@@ -841,7 +841,7 @@ const ProductCsvImportPanel = ({
                 type="button"
                 onClick={reset}
                 disabled={saving}
-                className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-500 shadow-sm disabled:opacity-60"
+                className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-gray-500 shadow-sm disabled:opacity-60"
               >
                 取消
               </button>
@@ -850,7 +850,7 @@ const ProductCsvImportPanel = ({
               type="button"
               onClick={executeImport}
               disabled={saving || !preview?.importableProducts?.length || typeof onSaveProduct !== 'function'}
-              className="rounded-2xl bg-sky-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-sky-500/20 disabled:opacity-50"
+              className="rounded-2xl bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-lg shadow-gray-200/20 disabled:opacity-50"
             >
               {saving ? '取込中...' : '取込実行'}
             </button>
@@ -858,7 +858,7 @@ const ProductCsvImportPanel = ({
         </div>
 
         {importProgress?.jobId && (
-          <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-bold text-blue-700">
+          <div className="mt-3 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-3 text-xs font-bold text-ui">
             importJob: {importProgress.jobId} / {importProgress.phase}
             {typeof importProgress.processedProductGroups === 'number' ? ` / グループ ${importProgress.processedProductGroups.toLocaleString()}件` : ''}
             {typeof importProgress.processedProducts === 'number' ? ` / 商品 ${importProgress.processedProducts.toLocaleString()}件` : ''}
@@ -866,19 +866,19 @@ const ProductCsvImportPanel = ({
         )}
 
         {!!mappingDraft.length && (
-          <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
+          <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-gray-500">
             列の紐付け:
-            <span className="ml-2 text-slate-900">
+            <span className="ml-2 text-gray-900">
               {mappingDraft.filter((mapping) => mapping.fieldKey).length.toLocaleString()} / {mappingDraft.length.toLocaleString()}列
             </span>
-            <span className="ml-3 text-slate-400">
+            <span className="ml-3 text-gray-500">
               商品名: {mappingDraft.some((mapping) => mapping.fieldKey === 'name') ? '設定済み' : '未設定'}
             </span>
           </div>
         )}
 
         {(fileName || preview) && (
-          <p className="mt-3 text-xs font-bold text-slate-500">
+          <p className="mt-3 text-xs font-bold text-gray-500">
             {fileName || 'CSVファイル'} / データ行 {Number(preview?.totalRows || Math.max(csvRows.length - 1, 0)).toLocaleString()}件 / グループ {Number(preview?.importableProductGroups?.length || 0).toLocaleString()}件 / 取込対象 {Number(preview?.importableProducts?.length || 0).toLocaleString()}件 / スキップ {Number(preview?.skippedProducts?.length || 0).toLocaleString()}件
           </p>
         )}
@@ -910,9 +910,9 @@ const ProductCsvImportPanel = ({
         )}
 
         {!!preview?.importableProducts?.length && (
-          <div className="mt-3 overflow-x-auto rounded-2xl border border-sky-100 bg-white">
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-ui-100 bg-white">
             <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="bg-slate-50 text-[11px] font-black text-slate-400">
+              <thead className="bg-gray-50 text-[11px] font-black text-gray-500">
                 <tr>
                   <th className="px-3 py-2">行</th>
                   <th className="px-3 py-2">品番</th>
@@ -925,12 +925,12 @@ const ProductCsvImportPanel = ({
                   <th className="px-3 py-2 text-right">在庫</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
+              <tbody className="divide-y divide-gray-100 font-bold text-gray-600">
                 {preview.importableProducts.slice(0, 5).map((product) => (
                   <tr key={`${product.__rowNumber}-${product.sku}-${product.barcode}`}>
                     <td className="px-3 py-2">{product.__rowNumber}</td>
                     <td className="px-3 py-2">{product.sku || '-'}</td>
-                    <td className="px-3 py-2 text-slate-900">{product.name}</td>
+                    <td className="px-3 py-2 text-gray-900">{product.name}</td>
                     <td className="px-3 py-2">{product.subCategoryName ? `${product.categoryName || '-'} / ${product.subCategoryName}` : (product.categoryName || '-')}</td>
                     <td className="px-3 py-2">{product.brandName || '-'}</td>
                     <td className="px-3 py-2 text-right">{Number(product.priceTaxExcluded || 0).toLocaleString()}</td>
@@ -943,21 +943,21 @@ const ProductCsvImportPanel = ({
             </table>
 
             {getPreviewImportableProductCount(preview) > 5 && (
-              <div className="border-t border-slate-100 px-3 py-2 text-xs font-bold text-slate-400">
+              <div className="border-t border-gray-100 px-3 py-2 text-xs font-bold text-gray-500">
                 先頭5件のみ表示しています。
               </div>
             )}
           </div>
         )}
-        <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-4 py-3">
+        <div className="mt-3 rounded-2xl border border-gray-100 bg-white px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-xs font-black text-slate-900">直近のCSV取込履歴</div>
-              <div className="mt-1 text-[11px] font-bold text-slate-400">
+              <div className="text-xs font-black text-gray-900">直近のCSV取込履歴</div>
+              <div className="mt-1 text-[11px] font-bold text-gray-500">
                 importJobs に記録された商品CSV取込の履歴です。
               </div>
             </div>
-            <div className="text-[11px] font-black text-slate-400">
+            <div className="text-[11px] font-black text-gray-500">
               {importJobs.length.toLocaleString()}件
             </div>
           </div>
@@ -969,15 +969,15 @@ const ProductCsvImportPanel = ({
           )}
 
           {!importJobsError && importJobs.length === 0 && (
-            <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-400">
+            <div className="mt-3 rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
               まだ商品CSV取込履歴はありません。
             </div>
           )}
 
           {!importJobsError && importJobs.length > 0 && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-100">
+            <div className="mt-3 overflow-hidden rounded-xl border border-gray-100">
               <table className="w-full min-w-[760px] text-left text-[11px]">
-                <thead className="bg-slate-50 font-black text-slate-400">
+                <thead className="bg-gray-50 font-black text-gray-500">
                   <tr>
                     <th className="px-3 py-2">日時</th>
                     <th className="px-3 py-2">状態</th>
@@ -989,7 +989,7 @@ const ProductCsvImportPanel = ({
                     <th className="px-3 py-2">jobId</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
+                <tbody className="divide-y divide-gray-100 font-bold text-gray-600">
                   {importJobs.map((job) => (
                     <tr key={job.id}>
                       <td className="whitespace-nowrap px-3 py-2">{formatImportJobDate(job.createdAt)}</td>
@@ -1003,7 +1003,7 @@ const ProductCsvImportPanel = ({
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         {getImportJobGroupProgressText(job)}
                       </td>
-                      <td className="max-w-[160px] truncate px-3 py-2 font-mono text-slate-400">{job.id}</td>
+                      <td className="max-w-[160px] truncate px-3 py-2 font-mono text-gray-500">{job.id}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -35,25 +35,25 @@ const PasswordResetPage = () => {
         <ForgotEmailHelpModal open={showForgotEmailHelp} onClose={() => setShowForgotEmailHelp(false)} />
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
           <div className="bg-gray-900 p-8 text-center">
-            <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg">
+            <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
               <MailCheck size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">再設定メールを送信しました</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">受信したメールから新しいパスワードを設定してください。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">受信したメールから新しいパスワードを設定してください。</p>
           </div>
 
           <div className="space-y-5 p-8">
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-relaxed text-slate-600">
-              <div className="font-black text-slate-800">送信先</div>
+            <div className="rounded-2xl border border-ui-100 bg-ui-50 px-4 py-4 text-sm leading-relaxed text-gray-600">
+              <div className="font-black text-gray-800">送信先</div>
               <div className="mt-1 break-all">{email}</div>
             </div>
 
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm leading-relaxed text-slate-500">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm leading-relaxed text-gray-500">
               登録メールアドレスを忘れた場合は、
               <button
                 type="button"
                 onClick={() => setShowForgotEmailHelp(true)}
-                className="ml-1 font-bold text-blue-600 transition hover:text-blue-700 hover:underline"
+                className="ml-1 font-bold text-ui transition hover:text-ui hover:underline"
               >
                 こちらの案内
               </button>
@@ -82,11 +82,11 @@ const PasswordResetPage = () => {
       <ForgotEmailHelpModal open={showForgotEmailHelp} onClose={() => setShowForgotEmailHelp(false)} />
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
         <div className="bg-gray-900 p-8 text-center">
-          <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg">
+          <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
             <MailCheck size={32} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">パスワードを再設定</h1>
-          <p className="mt-2 text-sm font-medium text-gray-400">登録メールアドレス宛に再設定用のメールを送信します。</p>
+          <p className="mt-2 text-sm font-medium text-gray-500">登録メールアドレス宛に再設定用のメールを送信します。</p>
         </div>
 
         <div className="p-8">
@@ -107,7 +107,7 @@ const PasswordResetPage = () => {
               <input
                 type="email"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:bg-white"
+                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
                 placeholder="owner@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -117,18 +117,18 @@ const PasswordResetPage = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98] disabled:bg-blue-300"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98] disabled:bg-ui-100"
             >
               {isSubmitting ? <LoadingSpinner size={20} colorClass="text-white" /> : '再設定メールを送信'}
             </button>
           </form>
 
-          <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm leading-relaxed text-slate-500">
+          <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm leading-relaxed text-gray-500">
             登録メールアドレスを忘れた場合は、
             <button
               type="button"
               onClick={() => setShowForgotEmailHelp(true)}
-              className="ml-1 font-bold text-blue-600 transition hover:text-blue-700 hover:underline"
+              className="ml-1 font-bold text-ui transition hover:text-ui hover:underline"
             >
               こちらの案内
             </button>

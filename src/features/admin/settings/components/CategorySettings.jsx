@@ -125,7 +125,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
 
   if (loading) {
     return (
-      <div className="p-16 text-center text-orange-500">
+      <div className="p-16 text-center text-ui">
         <LoadingSpinner size={32} className="mx-auto" />
       </div>
     );
@@ -135,7 +135,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
     <div className="w-full animate-in fade-in duration-300 pb-20">
       {editingItem ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="flex h-24 items-center justify-between border-b bg-orange-500 px-8 text-white transition-none">
+          <div className="flex h-24 items-center justify-between border-b bg-gray-900 px-8 text-white transition-none">
             <div className="flex items-center gap-5">
               <div className="rounded-2xl bg-white/20 p-3 shadow-inner">
                 <Tag size={24} strokeWidth={2.5} />
@@ -170,7 +170,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                   value={editingItem.name}
                   onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                   required
-                  className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-50"
+                  className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-ui focus:ring-4 focus:ring-ui-100"
                   placeholder="例：おすすめ"
                 />
               </div>
@@ -191,13 +191,13 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                         onClick={() => setEditingItem({ ...editingItem, layoutType: option.id })}
                         className={`group relative overflow-hidden rounded-3xl border-2 p-6 text-left transition-all ${
                           isSelected
-                            ? 'border-orange-500 bg-orange-50/50 shadow-xl shadow-orange-100 ring-1 ring-orange-500'
-                            : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-gray-50/30'
+                            ? 'border-ui bg-ui-50/50 shadow-xl shadow-gray-200 ring-1 ring-ui-100'
+                            : 'border-gray-100 bg-white hover:border-ui-100 hover:bg-gray-50/30'
                         }`}
                       >
                         <div
                           className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full transition-all ${
-                            isSelected ? 'scale-100 bg-orange-500 text-white' : 'scale-50 bg-gray-100 text-transparent'
+                            isSelected ? 'scale-100 bg-ui text-white' : 'scale-50 bg-gray-100 text-transparent'
                           }`}
                         >
                           <Check size={14} strokeWidth={4} />
@@ -205,16 +205,16 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                         <div
                           className={`mb-6 flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
                             isSelected
-                              ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-                              : 'bg-gray-50 text-gray-400 group-hover:text-orange-400'
+                              ? 'bg-ui text-white shadow-lg shadow-gray-200'
+                              : 'bg-gray-50 text-gray-500 group-hover:text-ui'
                           }`}
                         >
                           <option.icon size={28} />
                         </div>
-                        <div className={`mb-2 text-lg font-black ${isSelected ? 'text-orange-950' : 'text-gray-700'}`}>
+                        <div className={`mb-2 text-lg font-black ${isSelected ? 'text-ui' : 'text-gray-700'}`}>
                           {option.label}
                         </div>
-                        <p className={`text-xs font-medium leading-relaxed ${isSelected ? 'text-orange-700/70' : 'text-gray-400'}`}>
+                        <p className={`text-xs font-medium leading-relaxed ${isSelected ? 'text-ui/70' : 'text-gray-500'}`}>
                           {option.desc}
                         </p>
                       </button>
@@ -223,7 +223,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-blue-100 bg-blue-50/60 p-6">
+              <div className="rounded-[2rem] border border-ui-100 bg-ui-50/60 p-6">
                 <label className="flex cursor-pointer items-start gap-4">
                   <input
                     type="checkbox"
@@ -232,7 +232,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                       ...editingItem,
                       serviceTimingEnabled: event.target.checked
                     })}
-                    className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="mt-1 h-5 w-5 rounded border-gray-300 text-ui focus:ring-ui-100"
                   />
                   <div>
                     <div className="text-sm font-black text-gray-800">
@@ -253,7 +253,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                             ...editingItem,
                             serviceTimingDefault: event.target.value
                           })}
-                          className="h-12 w-full rounded-2xl border border-blue-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-blue-300"
+                          className="h-12 w-full rounded-2xl border border-ui-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui-100"
                         >
                           <option value="before_meal">食前</option>
                           <option value="with_meal">食事と一緒に</option>
@@ -271,14 +271,14 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
               <button
                 type="button"
                 onClick={cancelEditing}
-                className="rounded-xl px-8 py-4 font-bold text-gray-400 transition-colors hover:bg-gray-100 outline-none"
+                className="rounded-xl px-8 py-4 font-bold text-gray-500 transition-colors hover:bg-gray-100 outline-none"
               >
                 キャンセル
               </button>
               <button
                 type="submit"
                 disabled={isProcessing || !editingItem.name.trim()}
-                className="flex items-center gap-3 rounded-xl bg-orange-500 px-12 py-4 font-black text-white shadow-xl shadow-orange-200 transition-all hover:bg-orange-600 active:scale-95"
+                className="flex items-center gap-3 rounded-xl bg-gray-900 px-12 py-4 font-black text-white shadow-xl shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
               >
               {isProcessing ? <LoadingSpinner size={24} /> : <Save size={20} />}
                 保存する
@@ -288,14 +288,14 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
         </div>
       ) : (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="flex h-24 items-center justify-between border-b bg-orange-50/50 px-8 transition-none">
+          <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none">
             <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-orange-500 p-3 text-white shadow-xl shadow-orange-200">
+              <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
                 <Tag size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-orange-600">登録済みカテゴリ</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済みカテゴリ</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
                   現在の登録数 / {list.length}件
                 </p>
               </div>
@@ -303,7 +303,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
             <button
               type="button"
               onClick={startCreating}
-              className="flex items-center gap-3 whitespace-nowrap rounded-xl bg-orange-500 px-6 py-3.5 font-black text-white shadow-xl shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95 outline-none"
+              className="flex items-center gap-3 whitespace-nowrap rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 outline-none"
             >
               <Plus size={20} strokeWidth={3} />
               新しいカテゴリ
@@ -312,7 +312,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
 
           <div className="w-full overflow-x-auto">
             <table className="w-full table-fixed border-collapse text-left">
-              <thead className="bg-gray-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+              <thead className="bg-gray-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                 <tr>
                   <th className="w-20 px-4 py-5 text-center">#</th>
                   <th className="px-4 py-5">名称</th>
@@ -342,7 +342,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                         await onSave(nextList);
                         onSaved?.();
                       })}
-                      className="group cursor-pointer transition-colors hover:bg-orange-50/30"
+                      className="group cursor-pointer transition-colors hover:bg-ui-50/30"
                     >
                       <td className="px-4 py-5 text-center">
                         <div
@@ -356,7 +356,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                               event.stopPropagation();
                               moveCategory(index, -1);
                             }}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-black text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-black text-gray-500 transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-30"
                             title="上へ"
                           >
                             ↑
@@ -368,7 +368,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                               event.stopPropagation();
                               moveCategory(index, 1);
                             }}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-black text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-xs font-black text-gray-500 transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-30"
                             title="下へ"
                           >
                             ↓
@@ -378,14 +378,14 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                       <td className="px-4 py-5">
                         <div className="flex flex-col">
                           <span className="text-lg font-black leading-tight text-gray-800">{item.name}</span>
-                          <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                             ID: {item.id}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-5">
-                        <div className="inline-flex h-10 items-center justify-center gap-3 rounded-xl border border-orange-100/50 bg-orange-50 px-4 text-xs font-bold leading-none text-orange-700">
-                          <currentLayout.icon size={16} className="self-center text-orange-500" />
+                        <div className="inline-flex h-10 items-center justify-center gap-3 rounded-xl border border-ui-100/50 bg-ui-50 px-4 text-xs font-bold leading-none text-ui">
+                          <currentLayout.icon size={16} className="self-center text-ui" />
                           <span className="flex h-full items-center leading-none">{currentLayout.label}</span>
                         </div>
                       </td>
@@ -402,7 +402,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                               event.stopPropagation();
                               startEditing(item);
                             }}
-                            className="rounded-2xl border border-gray-100 bg-white p-2.5 text-blue-500 shadow-md transition-all hover:bg-blue-50 active:scale-90 outline-none"
+                            className="rounded-2xl border border-gray-100 bg-white p-2.5 text-ui shadow-md transition-all hover:bg-ui-50 active:scale-90 outline-none"
                           >
                             <Edit size={18} />
                           </button>
@@ -428,7 +428,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
       )}
 
       {deletingCategory && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 shadow-inner">
               <AlertTriangle size={40} className="text-red-500" />
@@ -451,7 +451,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                 type="button"
                 onClick={() => setDeletingCategory(null)}
                 disabled={isProcessing}
-                className="w-full rounded-2xl py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50"
+                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
               >
                 キャンセル
               </button>

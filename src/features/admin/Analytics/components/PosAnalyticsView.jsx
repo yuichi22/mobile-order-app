@@ -49,41 +49,41 @@ const SummaryCards = ({ salesIncl, salesExcl, totalTax, customerCount, avgIncl, 
   const subAvg = isExcl ? avgIncl : avgExcl;
   return (
     <div className="grid gap-3 md:grid-cols-3">
-      <div className="rounded-2xl bg-blue-50 p-4">
+      <div className="rounded-2xl bg-ui-50 p-4">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-black text-blue-600">売上合計 {label}・値引き後</div>
+          <div className="text-xs font-black text-ui">売上合計 {label}・値引き後</div>
           <div className="flex rounded-full bg-white p-0.5 text-[10px] font-black shadow-sm">
             <button
               type="button"
               onClick={() => onTaxModeChange('tax_excluded')}
-              className={`rounded-full px-2 py-1 transition-colors ${isExcl ? 'bg-blue-600 text-white' : 'text-blue-600'}`}
+              className={`rounded-full px-2 py-1 transition-colors ${isExcl ? 'bg-ui text-white' : 'text-ui'}`}
             >
               税抜
             </button>
             <button
               type="button"
               onClick={() => onTaxModeChange('tax_included')}
-              className={`rounded-full px-2 py-1 transition-colors ${!isExcl ? 'bg-blue-600 text-white' : 'text-blue-600'}`}
+              className={`rounded-full px-2 py-1 transition-colors ${!isExcl ? 'bg-ui text-white' : 'text-ui'}`}
             >
               税込
             </button>
           </div>
         </div>
         <div className="mt-2 text-2xl font-black text-gray-900">{yen(mainSales)}</div>
-        <div className="mt-1 text-[11px] font-bold text-blue-600/80">
+        <div className="mt-1 text-[11px] font-bold text-ui/80">
           {isExcl ? '税込' : '税抜'} {yen(subSales)}
-          <span className="mx-1 text-blue-300">/</span>
+          <span className="mx-1 text-gray-300">/</span>
           内税 {yen(totalTax)}
         </div>
       </div>
       <div className="rounded-2xl bg-gray-50 p-4">
-        <div className="text-xs font-black text-gray-400">来客数（会計件数）</div>
+        <div className="text-xs font-black text-gray-500">来客数（会計件数）</div>
         <div className="mt-2 text-2xl font-black text-gray-900">{Number(customerCount || 0).toLocaleString()}</div>
       </div>
       <div className="rounded-2xl bg-gray-50 p-4">
-        <div className="text-xs font-black text-gray-400">客単価 {label}</div>
+        <div className="text-xs font-black text-gray-500">客単価 {label}</div>
         <div className="mt-2 text-2xl font-black text-gray-900">{yen(mainAvg)}</div>
-        <div className="mt-1 text-[11px] font-bold text-gray-400">{isExcl ? '税込' : '税抜'} {yen(subAvg)}</div>
+        <div className="mt-1 text-[11px] font-bold text-gray-500">{isExcl ? '税込' : '税抜'} {yen(subAvg)}</div>
       </div>
     </div>
   );
@@ -96,45 +96,45 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
     <div className="mt-4 rounded-2xl border border-gray-100 p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
         <TicketPercent size={16} /> 物販の内訳（期間合計）
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込（粗利・原価は税抜）</span>
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込（粗利・原価は税抜）</span>
       </div>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl bg-gray-50 p-4">
-          <div className="text-[11px] font-black text-gray-400">商品売上（値引き前）</div>
+          <div className="text-[11px] font-black text-gray-500">商品売上（値引き前）</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(grossItemTotal)}</div>
-          <div className="mt-1 text-[11px] font-bold text-gray-400">値引き後 {yen(netSales)}</div>
+          <div className="mt-1 text-[11px] font-bold text-gray-500">値引き後 {yen(netSales)}</div>
         </div>
-        <div className="rounded-xl bg-orange-50 p-4">
-          <div className="text-[11px] font-black text-orange-500">値引き額</div>
+        <div className="rounded-xl bg-ui-50 p-4">
+          <div className="text-[11px] font-black text-ui">値引き額</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(financial?.discountTotal)}</div>
-          <div className="mt-1 text-[11px] font-bold text-orange-400">{ratioText(financial?.discountTotal, netSales)}</div>
+          <div className="mt-1 text-[11px] font-bold text-ui">{ratioText(financial?.discountTotal, netSales)}</div>
         </div>
-        <div className="rounded-xl bg-emerald-50 p-4">
-          <div className="text-[11px] font-black text-emerald-600">販促費</div>
+        <div className="rounded-xl bg-gray-100 p-4">
+          <div className="text-[11px] font-black text-gray-900">販促費</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(financial?.promoExpenseTotal)}</div>
-          <div className="mt-1 text-[11px] font-bold text-emerald-500">{ratioText(financial?.promoExpenseTotal, netSales)}</div>
+          <div className="mt-1 text-[11px] font-bold text-gray-900">{ratioText(financial?.promoExpenseTotal, netSales)}</div>
         </div>
-        <div className="rounded-xl bg-sky-50 p-4">
-          <div className="text-[11px] font-black text-sky-600">金券/売掛</div>
+        <div className="rounded-xl bg-ui-50 p-4">
+          <div className="text-[11px] font-black text-ui">金券/売掛</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(financial?.voucherTotal)}</div>
-          <div className="mt-1 text-[11px] font-bold text-sky-500">{ratioText(financial?.voucherTotal, netSales)}</div>
+          <div className="mt-1 text-[11px] font-bold text-ui">{ratioText(financial?.voucherTotal, netSales)}</div>
         </div>
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl bg-emerald-50/60 p-4">
-          <div className="flex items-center gap-1 text-[11px] font-black text-emerald-600"><TrendingUp size={12} /> 粗利（税抜）</div>
+        <div className="rounded-xl bg-gray-100/60 p-4">
+          <div className="flex items-center gap-1 text-[11px] font-black text-gray-900"><TrendingUp size={12} /> 粗利（税抜）</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(financial?.grossProfitTaxExcluded)}</div>
-          <div className="mt-1 text-[11px] font-bold text-gray-400">税込 {yen(financial?.grossProfitTaxIncluded)}</div>
+          <div className="mt-1 text-[11px] font-bold text-gray-500">税込 {yen(financial?.grossProfitTaxIncluded)}</div>
         </div>
         <div className="rounded-xl bg-gray-50 p-4">
-          <div className="text-[11px] font-black text-gray-400">原価率</div>
+          <div className="text-[11px] font-black text-gray-500">原価率</div>
           <div className="mt-1 text-xl font-black text-gray-900">
             {financial?.grossProfitRate == null ? '-' : `${(100 - Number(financial.grossProfitRate || 0)).toFixed(1)}%`}
           </div>
         </div>
         <div className="rounded-xl bg-gray-50 p-4">
-          <div className="text-[11px] font-black text-gray-400">原価（税抜）</div>
+          <div className="text-[11px] font-black text-gray-500">原価（税抜）</div>
           <div className="mt-1 text-xl font-black text-gray-900">{yen(financial?.costTaxExcludedTotal)}</div>
         </div>
       </div>
@@ -144,23 +144,23 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
 
 const SalesRow = ({ entry, active, onSelect, onDrill }) => (
   <div className={`flex items-center justify-between rounded-xl px-2 py-2 transition ${
-    active ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-gray-50 hover:bg-gray-100'
+    active ? 'bg-ui-50 ring-2 ring-ui-100' : 'bg-gray-50 hover:bg-gray-100'
   }`}>
     <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center justify-between gap-3 px-2 py-1 text-left">
       <div className="min-w-0">
         <div className="truncate text-sm font-black text-gray-800">{entry.name}</div>
-        <div className="text-[11px] font-bold text-gray-400">
+        <div className="text-[11px] font-bold text-gray-500">
           {Number(entry.quantity || 0).toLocaleString()}点
           <span className="mx-1 text-gray-300">/</span>
           {Number(entry.transactionCount || 0).toLocaleString()}会計
         </div>
         {entry.costRate != null && (
-          <div className="mt-0.5 text-[11px] font-bold text-emerald-600">
+          <div className="mt-0.5 text-[11px] font-bold text-gray-900">
             粗利 {yen(entry.grossProfitTaxExcluded)}
-            <span className="mx-1 text-emerald-300">/</span>
+            <span className="mx-1 text-gray-300">/</span>
             原価率 {Number(entry.costRate || 0).toFixed(1)}%
             <span className="mx-1 text-gray-300">/</span>
-            <span className="text-gray-400">原価 {yen(entry.costTaxExcluded)}</span>
+            <span className="text-gray-500">原価 {yen(entry.costTaxExcluded)}</span>
           </div>
         )}
       </div>
@@ -170,7 +170,7 @@ const SalesRow = ({ entry, active, onSelect, onDrill }) => (
       <button
         type="button"
         onClick={onDrill}
-        className="ml-1 flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-blue-50 hover:text-blue-600"
+        className="ml-1 flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-ui-50 hover:text-ui"
       >
         詳細<ChevronRight size={13} />
       </button>
@@ -179,7 +179,7 @@ const SalesRow = ({ entry, active, onSelect, onDrill }) => (
 );
 
 const EmptyList = ({ label = 'データがありません' }) => (
-  <div className="rounded-xl bg-gray-50 p-6 text-center text-xs font-bold text-gray-400">{label}</div>
+  <div className="rounded-xl bg-gray-50 p-6 text-center text-xs font-bold text-gray-500">{label}</div>
 );
 
 // 構成比の配色。
@@ -224,7 +224,7 @@ const CompositionBar = ({ items = [], title = '売上割合' }) => {
                 <div key={entry.id} className="flex items-center gap-1.5 text-[11px] font-bold">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorOf(index) }} />
                   <span className="text-gray-700">{entry.name}</span>
-                  <span className="text-gray-400">{pct.toFixed(1)}%</span>
+                  <span className="text-gray-500">{pct.toFixed(1)}%</span>
                   <span className="text-gray-500">{yen(entry.total)}</span>
                 </div>
               );
@@ -424,7 +424,7 @@ const PosAnalyticsView = ({
             type="button"
             onClick={() => switchMode('store')}
             className={`flex h-9 items-center gap-1.5 rounded-full px-5 text-sm font-black transition ${
-              viewMode === 'store' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-blue-600'
+              viewMode === 'store' ? 'bg-ui text-white shadow-sm' : 'text-gray-500 hover:text-ui'
             }`}
           >
             <Store size={15} /> 店舗
@@ -433,7 +433,7 @@ const PosAnalyticsView = ({
             type="button"
             onClick={() => switchMode('ec')}
             className={`flex h-9 items-center gap-1.5 rounded-full px-5 text-sm font-black transition ${
-              viewMode === 'ec' ? 'bg-sky-500 text-white shadow-sm' : 'text-gray-500 hover:text-sky-600'
+              viewMode === 'ec' ? 'bg-ui text-white shadow-sm' : 'text-gray-500 hover:text-ui'
             }`}
           >
             <Globe size={15} /> EC
@@ -442,14 +442,14 @@ const PosAnalyticsView = ({
             type="button"
             onClick={() => switchMode('all')}
             className={`flex h-9 items-center gap-1.5 rounded-full px-5 text-sm font-black transition ${
-              viewMode === 'all' ? 'bg-slate-900 text-white shadow-sm' : 'text-gray-500 hover:text-slate-700'
+              viewMode === 'all' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             全体
           </button>
         </div>
         {(viewMode === 'ec' || viewMode === 'all') && !hasEc && (
-          <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-500">
+          <span className="rounded-full bg-ui-50 px-3 py-1 text-[11px] font-bold text-ui">
             この期間のEC売上はありません
           </span>
         )}
@@ -457,7 +457,7 @@ const PosAnalyticsView = ({
             店舗ごとのEC売上を足すと二重計上になる。 */}
         {(viewMode === 'ec' || viewMode === 'all') && hasEc && (
           <span
-            className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600"
+            className="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-bold text-gray-900"
             title="ECサイトの売上は店舗ではなく販売チャネルの売上です。同じECサイトを複数店舗で共有している場合、店舗ごとの数字を合算すると二重計上になります。"
           >
             ECは全店共通（店舗別に合算しない）
@@ -484,9 +484,9 @@ const PosAnalyticsView = ({
       {viewMode === 'store' && <FinancialPanel financial={financial} grossItemTotal={grossItemTotal} />}
 
       {selection.level !== 'all' && (
-        <div className="mt-3 flex items-center gap-2 text-xs font-black text-blue-600">
-          <span className="rounded-full bg-blue-100 px-3 py-1">グラフ表示中: 「{selection.name}」</span>
-          <button type="button" onClick={() => setSelection({ level: 'all' })} className="text-gray-400 underline">
+        <div className="mt-3 flex items-center gap-2 text-xs font-black text-ui">
+          <span className="rounded-full bg-ui-50 px-3 py-1">グラフ表示中: 「{selection.name}」</span>
+          <button type="button" onClick={() => setSelection({ level: 'all' })} className="text-gray-500 underline">
             全体に戻す
           </button>
         </div>
@@ -503,7 +503,7 @@ const PosAnalyticsView = ({
                 type="button"
                 onClick={() => activateTab(tab.id)}
                 className={`flex h-9 items-center gap-1.5 rounded-t-lg px-4 text-xs font-black transition ${
-                  isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'
+                  isActive ? 'bg-ui text-white' : 'bg-gray-100 text-gray-500 hover:bg-ui-50'
                 }`}
               >
                 <Icon size={13} />
@@ -513,7 +513,7 @@ const PosAnalyticsView = ({
                 <button
                   type="button"
                   onClick={() => closeTab(tab.id)}
-                  className="ml-0.5 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  className="ml-0.5 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
                   aria-label="タブを閉じる"
                 >
                   <X size={13} />
@@ -525,8 +525,8 @@ const PosAnalyticsView = ({
       </div>
 
       <div className="mt-3">
-        <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-gray-400">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-gray-500">
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
           行をクリックでグラフに反映（再クリックで解除）
           {canDrill && '／「詳細＞」で1つ下の階層を新しいタブで開く'}
         </div>
@@ -566,7 +566,7 @@ const PosAnalyticsView = ({
       <div className="print:break-inside-avoid mt-2">
         <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
           ABC分析（アイテム別）
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-400">税込</span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
         </div>
         <AbcAnalysisView
           abcAnalysis={analytics.abcAnalysis}

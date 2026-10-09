@@ -65,7 +65,7 @@ const EmailActionPage = () => {
               <AlertCircle size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">認証リンクを確認できませんでした</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">この認証リンクには対応していません。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">この認証リンクには対応していません。</p>
           </div>
 
           <div className="space-y-5 p-8">
@@ -91,7 +91,7 @@ const EmailActionPage = () => {
               <AlertCircle size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">認証リンクを確認できませんでした</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">メール内のリンクを開き直してください。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">メール内のリンクを開き直してください。</p>
           </div>
 
           <div className="space-y-5 p-8">
@@ -113,11 +113,11 @@ const EmailActionPage = () => {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
         <div className={cardClassName}>
           <div className="bg-gray-900 p-8 text-center">
-            <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white shadow-lg">
+            <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
               <LoadingSpinner size={32} colorClass="text-white" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">{loadingTitle}</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">リンクの有効性を確認しています。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">リンクの有効性を確認しています。</p>
           </div>
         </div>
       </div>
@@ -129,15 +129,15 @@ const EmailActionPage = () => {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
         <div className={cardClassName}>
           <div className="bg-gray-900 p-8 text-center">
-            <div className="mb-4 inline-flex rounded-2xl bg-emerald-600 p-3 text-white shadow-lg">
+            <div className="mb-4 inline-flex rounded-2xl bg-gray-900 p-3 text-white shadow-lg">
               <BadgeCheck size={32} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">メールアドレスを確認しました</h1>
-            <p className="mt-2 text-sm font-medium text-gray-400">認証が完了しました。ログインしてご利用ください。</p>
+            <p className="mt-2 text-sm font-medium text-gray-500">認証が完了しました。ログインしてご利用ください。</p>
           </div>
 
           <div className="space-y-5 p-8">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 text-sm leading-relaxed text-emerald-700">
+            <div className="rounded-2xl border border-gray-200 bg-gray-100 px-4 py-4 text-sm leading-relaxed text-gray-900">
               メールアドレスの確認が完了しました。ログイン画面からそのままご利用いただけます。
             </div>
 
@@ -162,7 +162,7 @@ const EmailActionPage = () => {
             <AlertCircle size={32} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">認証リンクを確認できませんでした</h1>
-          <p className="mt-2 text-sm font-medium text-gray-400">リンクの有効期限切れ、または既に使用済みの可能性があります。</p>
+          <p className="mt-2 text-sm font-medium text-gray-500">リンクの有効期限切れ、または既に使用済みの可能性があります。</p>
         </div>
 
         <div className="space-y-5 p-8">

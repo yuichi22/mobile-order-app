@@ -5,10 +5,10 @@ const ForgotEmailHelpModal = ({ open, onClose }) => {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-lg rounded-[2.25rem] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="mb-6 flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 shadow-inner">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ui-50 text-ui shadow-inner">
             <MailQuestion size={26} strokeWidth={2.4} />
           </div>
           <div>
@@ -22,7 +22,7 @@ const ForgotEmailHelpModal = ({ open, onClose }) => {
         <div className="space-y-4">
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
-              <UserCog size={16} className="text-orange-500" />
+              <UserCog size={16} className="text-ui" />
               スタッフ・マネージャーの方
             </div>
             <p className="text-sm leading-relaxed text-gray-600">
@@ -32,7 +32,7 @@ const ForgotEmailHelpModal = ({ open, onClose }) => {
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
-              <UserRound size={16} className="text-orange-500" />
+              <UserRound size={16} className="text-ui" />
               オーナーの方
             </div>
             <p className="text-sm leading-relaxed text-gray-600">
@@ -40,7 +40,7 @@ const ForgotEmailHelpModal = ({ open, onClose }) => {
             </p>
           </div>
 
-          <div className="flex gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4 text-sm leading-relaxed text-orange-700">
+          <div className="flex gap-3 rounded-2xl border border-ui-100 bg-ui-50 px-4 py-4 text-sm leading-relaxed text-ui">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
             <p>パスワードが分からない場合は、この画面を閉じて「パスワードを忘れた方」から再設定してください。</p>
           </div>
@@ -50,7 +50,7 @@ const ForgotEmailHelpModal = ({ open, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="h-12 rounded-xl bg-slate-900 px-6 text-sm font-black text-white shadow-lg transition hover:bg-black active:scale-[0.98]"
+            className="h-12 rounded-xl bg-gray-900 px-6 text-sm font-black text-white shadow-lg transition hover:bg-black active:scale-[0.98]"
           >
             閉じる
           </button>

@@ -147,11 +147,11 @@ const buildMenuMetaChips = (item) => {
 };
 
 const toneClasses = {
-  orange: 'bg-orange-50 text-orange-700',
+  orange: 'bg-ui-50 text-ui',
   amber: 'bg-amber-50 text-amber-700',
-  rose: 'bg-rose-50 text-rose-700',
-  slate: 'bg-slate-100 text-slate-600',
-  emerald: 'bg-emerald-50 text-emerald-700'
+  rose: 'bg-red-50 text-red-700',
+  slate: 'bg-gray-100 text-gray-600',
+  emerald: 'bg-gray-100 text-gray-900'
 };
 
 const MetaChipList = ({ item, compact = false }) => {
@@ -957,7 +957,7 @@ const handleClearLimitedQuantity = async (event, item) => {
 
   if (loading) {
     return (
-      <div className="p-16 text-center text-orange-500">
+      <div className="p-16 text-center text-ui">
         <LoadingSpinner size={32} className="mx-auto" />
       </div>
     );
@@ -967,7 +967,7 @@ const handleClearLimitedQuantity = async (event, item) => {
     <div className="w-full pb-20">
       {editingItem ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="flex h-24 items-center justify-between border-b bg-orange-500 px-8 text-white">
+          <div className="flex h-24 items-center justify-between border-b bg-gray-900 px-8 text-white">
             <div className="flex items-center gap-5">
               <div className="rounded-2xl bg-white/20 p-3 shadow-inner">
                 <Utensils size={24} strokeWidth={2.5} />
@@ -986,7 +986,7 @@ const handleClearLimitedQuantity = async (event, item) => {
       type="submit"
       form="menu-item-edit-form"
       disabled={isProcessing}
-      className="flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black text-orange-600 shadow-sm transition-all hover:bg-orange-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black text-ui shadow-sm transition-all hover:bg-ui-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <Save size={18} strokeWidth={3} />
       <span>{isProcessing ? '保存中...' : '保存'}</span>
@@ -1008,47 +1008,47 @@ const handleClearLimitedQuantity = async (event, item) => {
             <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 xl:grid-cols-12">
               <div className="flex flex-col gap-8 xl:col-span-7">
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-8 flex items-center gap-2 text-orange-500">
+                  <div className="mb-8 flex items-center gap-2 text-ui">
                     <Info size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">基本設定</span>
                   </div>
                   <div className="mb-5">
-                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">商品名</label>
+                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">商品名</label>
                     <textarea
                       value={editingItem.name}
                       onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                       required
                       rows={2}
-                      className="min-h-16 w-full resize-none rounded-2xl border-2 border-gray-100 px-6 py-4 text-2xl font-bold leading-snug text-gray-800 outline-none transition-all focus:border-orange-500"
+                      className="min-h-16 w-full resize-none rounded-2xl border-2 border-gray-100 px-6 py-4 text-2xl font-bold leading-snug text-gray-800 outline-none transition-all focus:border-ui"
                       placeholder={"例：厚切りトースト\nバター添え"}
                     />
                   </div>
 
                   <div className="mb-8">
-                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                       キッチン呼称
                     </label>
                     <input
                       value={editingItem.kitchenName || ''}
                       onChange={(event) => setEditingItem({ ...editingItem, kitchenName: event.target.value })}
-                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-bold text-gray-800 outline-none transition-all focus:border-orange-500"
+                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-bold text-gray-800 outline-none transition-all focus:border-ui"
                       placeholder="例：トースト / ラテ / セットドリンク"
                     />
-                    <p className="mt-2 text-xs font-bold text-gray-400">
+                    <p className="mt-2 text-xs font-bold text-gray-500">
                       キッチンモニターだけで使う短い呼び名です。空欄の場合は商品名を表示します。
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">価格</label>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">価格</label>
                       <div className="relative">
                         <input
                           type="number"
                           value={editingItem.price}
                           onChange={(event) => setEditingItem({ ...editingItem, price: Number(event.target.value) })}
                           required
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-ui placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
                           placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
@@ -1056,7 +1056,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                         テイクアウト価格
                       </label>
                       <div className="relative">
@@ -1068,12 +1068,12 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             takeoutPrice: event.target.value
                           })}
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-orange-500 placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-ui placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
                           placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
                       </div>
-                      <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                      <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                         税込価格で入力。テイクアウト注文では軽減税率を適用します。0または空欄の場合はテイクアウト対象外です。
                       </p>
                     </div>
@@ -1084,7 +1084,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           coreApps は refreshEntitlements が merge:false で丸ごと上書きするため、
                           独自フラグを直接書くと次の同期で消える。 */}
                     {basicSettings?.webOrderEnabled === true && (
-                      <div className="lg:col-span-2 rounded-3xl border-2 border-emerald-100 bg-emerald-50/40 p-6">
+                      <div className="lg:col-span-2 rounded-3xl border-2 border-gray-200 bg-gray-100/40 p-6">
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <div className="text-base font-black text-gray-800">Web注文</div>
@@ -1103,7 +1103,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               })}
                               className="peer sr-only"
                             />
-                            <div className={`h-8 w-14 rounded-full ${webOrderAvailable ? 'bg-gray-200 peer-checked:bg-emerald-500' : 'bg-gray-100'}`} />
+                            <div className={`h-8 w-14 rounded-full ${webOrderAvailable ? 'bg-gray-200 peer-checked:bg-gray-900' : 'bg-gray-100'}`} />
                             <div className="absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform peer-checked:translate-x-6" />
                           </label>
                         </div>
@@ -1119,7 +1119,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                         {webOrderAvailable && editingItem.webOrderEnabled === true && (
                           <div className="mt-5 grid gap-5 md:grid-cols-2">
                             <div>
-                              <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                              <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                                 テイクアウト用の画像URL（任意）
                               </label>
                               <input
@@ -1129,14 +1129,14 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   ...editingItem,
                                   webOrderImage: event.target.value
                                 })}
-                                className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-800 outline-none transition-all focus:border-emerald-500"
+                                className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-800 outline-none transition-all focus:border-gray-900"
                                 placeholder="https://…"
                               />
-                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                                 未指定ならメニュー画像を使います。容器に入った状態の写真があるとよく伝わります。
                               </p>
 
-                              <label className="mt-5 mb-2 block text-[11px] font-black uppercase text-gray-400">
+                              <label className="mt-5 mb-2 block text-[11px] font-black uppercase text-gray-500">
                                 受付の締め切り
                               </label>
                               <div className="flex items-center gap-3">
@@ -1150,7 +1150,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       ? null
                                       : Number(event.target.value) * webOrderLeadUnitMinutes
                                   })}
-                                  className="h-12 w-28 rounded-2xl border-2 border-gray-100 px-4 text-lg font-black text-gray-800 outline-none transition-all focus:border-emerald-500"
+                                  className="h-12 w-28 rounded-2xl border-2 border-gray-100 px-4 text-lg font-black text-gray-800 outline-none transition-all focus:border-gray-900"
                                   placeholder="3"
                                 />
                                 <select
@@ -1164,19 +1164,19 @@ const handleClearLimitedQuantity = async (event, item) => {
                                         : Number(webOrderLeadValue) * unit
                                     });
                                   }}
-                                  className="h-12 rounded-2xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none focus:border-emerald-500"
+                                  className="h-12 rounded-2xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none focus:border-gray-900"
                                 >
                                   <option value={60}>時間前まで</option>
                                   <option value={1440}>日前まで</option>
                                 </select>
                               </div>
-                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                                 受取時刻から逆算します。⚠「2日前」は48時間前の意味です。空欄なら店舗の既定値を使います。
                               </p>
                             </div>
 
                             <div>
-                              <div className="mb-2 text-[11px] font-black uppercase text-gray-400">プレビュー</div>
+                              <div className="mb-2 text-[11px] font-black uppercase text-gray-500">プレビュー</div>
                               <div className="overflow-hidden rounded-3xl border-2 border-gray-100 bg-white">
                                 <div className="aspect-[4/3] w-full bg-gray-50">
                                   {webOrderPreviewImage ? (
@@ -1200,11 +1200,11 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     ¥{Number(editingItem.takeoutPrice || 0).toLocaleString()}
                                   </div>
                                   {webOrderLeadLabel && (
-                                    <div className="mt-1 text-xs font-bold text-emerald-700">{webOrderLeadLabel}</div>
+                                    <div className="mt-1 text-xs font-bold text-gray-900">{webOrderLeadLabel}</div>
                                   )}
                                 </div>
                               </div>
-                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-400">
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                                 ⚠ 実際の並び方はサイト側で決まります。ここでは内容の確認だけできます。
                               </p>
                             </div>
@@ -1214,7 +1214,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     )}
 
                     <div className="relative lg:col-span-2">
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">カテゴリ</label>
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">カテゴリ</label>
                       <button
                         type="button"
                         onClick={() => setIsCategoryOpen(!isCategoryOpen)}
@@ -1229,7 +1229,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                         </span>
                         <ChevronDown
                           size={20}
-                          className={`text-gray-400 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`}
+                          className={`text-gray-500 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`}
                         />
                       </button>
                       {isCategoryOpen && (
@@ -1244,7 +1244,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               }}
                               className={`flex h-14 w-full items-center gap-3 px-6 text-left font-bold ${
                                 editingItem.category === category.id
-                                  ? 'bg-orange-50 text-orange-700'
+                                  ? 'bg-ui-50 text-ui'
                                   : 'text-gray-600 hover:bg-gray-50'
                               }`}
                             >
@@ -1266,14 +1266,14 @@ const handleClearLimitedQuantity = async (event, item) => {
                     <div className="text-base font-black text-gray-800">
                       原価・粗利設定
                     </div>
-                    <p className="mt-1 text-sm text-gray-400">
+                    <p className="mt-1 text-sm text-gray-500">
                       日計の粗利計算に使う原価です。未入力の場合は原価未設定として扱います。
                     </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-3">
                     <div>
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                         原価
                       </label>
                       <div className="relative">
@@ -1285,7 +1285,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             costPrice: event.target.value
                           })}
-                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-blue-500 placeholder:text-base placeholder:font-bold placeholder:text-gray-300"
+                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-ui placeholder:text-base placeholder:font-bold placeholder:text-gray-300"
                           placeholder={resolvedCostTaxModeHint}
                         />
                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
@@ -1295,7 +1295,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                         原価の入力方式
                       </label>
                       <select
@@ -1304,19 +1304,19 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ...editingItem,
                           costTaxMode: event.target.value
                         })}
-                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-blue-500"
+                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                       >
                         <option value="inherit">基本設定に従う</option>
                         <option value="tax_included">税込</option>
                         <option value="tax_excluded">税抜</option>
                       </select>
-                      <p className="mt-2 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-600">
+                      <p className="mt-2 rounded-2xl bg-ui-50 px-4 py-3 text-xs font-bold leading-relaxed text-ui">
                         現在の基本設定：{resolvedDefaultCostTaxModeLabel}
                       </p>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+                      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                         原価の税区分
                       </label>
                       <select
@@ -1325,20 +1325,20 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ...editingItem,
                           costTaxRateType: event.target.value
                         })}
-                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-blue-500"
+                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                       >
                         <option value="inherit">基本設定に従う</option>
                         <option value="standard">標準税率</option>
                         <option value="reduced">軽減税率</option>
                         <option value="exempt">非課税/対象外</option>
                       </select>
-                      <p className="mt-2 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold leading-relaxed text-blue-600">
+                      <p className="mt-2 rounded-2xl bg-ui-50 px-4 py-3 text-xs font-bold leading-relaxed text-ui">
                         現在の基本設定：{resolvedDefaultCostTaxRateTypeLabel}
                       </p>
                     </div>
                   </div>
 
-                  <p className="mt-4 text-xs font-bold leading-relaxed text-gray-400">
+                  <p className="mt-4 text-xs font-bold leading-relaxed text-gray-500">
                     注文作成時にこの原価を保存し、日計で粗利を集計する予定です。過去注文の粗利が後から変わらないようにします。
                   </p>
                 </div>
@@ -1348,14 +1348,14 @@ const handleClearLimitedQuantity = async (event, item) => {
     <div className="text-base font-black text-gray-800">
       クロスセル・セット価格
     </div>
-    <p className="mt-1 text-sm text-gray-400">
+    <p className="mt-1 text-sm text-gray-500">
       おすすめ表示中だけ、通常価格の代わりに使う価格です。
     </p>
   </div>
 
   <div className="grid gap-4 md:grid-cols-2">
     <div>
-      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
         価格ラベル
       </label>
       <input
@@ -1364,13 +1364,13 @@ const handleClearLimitedQuantity = async (event, item) => {
           ...editingItem,
           crossSellPriceLabelText: event.target.value
         })}
-        className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-sm font-bold text-gray-700 outline-none focus:border-orange-500"
+        className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-sm font-bold text-gray-700 outline-none focus:border-ui"
         placeholder="例：セット価格"
       />
     </div>
 
     <div>
-      <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">
+      <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
         セット価格
       </label>
       <div className="relative">
@@ -1382,7 +1382,7 @@ const handleClearLimitedQuantity = async (event, item) => {
             ...editingItem,
             crossSellPrice: event.target.value
           })}
-          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-orange-500"
+          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
           placeholder="未設定"
         />
         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
@@ -1400,7 +1400,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       <div className="text-base font-black text-gray-800">
                         顧客画面への表示
                       </div>
-                      <p className="mt-1 text-sm font-bold leading-relaxed text-gray-400">
+                      <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">
                         管理画面には商品を残したまま、お客様のメニュー画面だけ表示を制御できます。
                       </p>
                     </div>
@@ -1408,8 +1408,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       (editingItem.customerVisibility || 'visible') === 'hidden'
                         ? 'bg-gray-100 text-gray-500'
                         : (editingItem.customerVisibility || 'visible') === 'scheduled'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'bg-emerald-50 text-emerald-600'
+                          ? 'bg-ui-50 text-ui'
+                          : 'bg-gray-100 text-gray-900'
                     }`}>
                       {(editingItem.customerVisibility || 'visible') === 'hidden'
                         ? '非表示'
@@ -1450,14 +1450,14 @@ const handleClearLimitedQuantity = async (event, item) => {
                           })}
                           className={`rounded-3xl border-2 p-5 text-left transition-all ${
                             selected
-                              ? 'scale-[1.02] border-orange-500 bg-orange-50 shadow-lg shadow-orange-100'
-                              : 'border-gray-100 bg-white hover:border-orange-200'
+                              ? 'scale-[1.02] border-ui bg-ui-50 shadow-lg shadow-gray-200'
+                              : 'border-gray-100 bg-white hover:border-ui-100'
                           }`}
                         >
-                          <div className={`text-sm font-black ${selected ? 'text-orange-700' : 'text-gray-700'}`}>
+                          <div className={`text-sm font-black ${selected ? 'text-ui' : 'text-gray-700'}`}>
                             {option.title}
                           </div>
-                          <p className={`mt-2 text-xs font-bold leading-relaxed ${selected ? 'text-orange-500/80' : 'text-gray-400'}`}>
+                          <p className={`mt-2 text-xs font-bold leading-relaxed ${selected ? 'text-ui/80' : 'text-gray-500'}`}>
                             {option.description}
                           </p>
                         </button>
@@ -1466,19 +1466,19 @@ const handleClearLimitedQuantity = async (event, item) => {
                   </div>
 
                   {(editingItem.customerVisibility || 'visible') === 'scheduled' && (
-                    <div className="mt-6 rounded-3xl border-2 border-blue-100 bg-blue-50/60 p-6">
+                    <div className="mt-6 rounded-3xl border-2 border-ui-100 bg-ui-50/60 p-6">
                       <div className="mb-4">
-                        <div className="text-sm font-black text-blue-900">
+                        <div className="text-sm font-black text-ui">
                           表示予約カレンダー
                         </div>
-                        <p className="mt-1 text-xs font-bold leading-relaxed text-blue-500">
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-ui">
                           開始日だけ、終了日だけ、期間指定のいずれにも対応します。空欄の側は制限なしです。
                         </p>
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>
-                          <label className="mb-2 block text-[11px] font-black uppercase text-blue-400">
+                          <label className="mb-2 block text-[11px] font-black uppercase text-ui">
                             表示開始日
                           </label>
                           <input
@@ -1490,12 +1490,12 @@ const handleClearLimitedQuantity = async (event, item) => {
                               visibleDateMode: 'dateRange',
                               visibleFromDate: event.target.value
                             })}
-                            className="h-14 w-full rounded-2xl border-2 border-blue-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-blue-400"
+                            className="h-14 w-full rounded-2xl border-2 border-ui-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
                           />
                         </div>
 
                         <div>
-                          <label className="mb-2 block text-[11px] font-black uppercase text-blue-400">
+                          <label className="mb-2 block text-[11px] font-black uppercase text-ui">
                             表示終了日
                           </label>
                           <input
@@ -1507,7 +1507,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               visibleDateMode: 'dateRange',
                               visibleToDate: event.target.value
                             })}
-                            className="h-14 w-full rounded-2xl border-2 border-blue-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-blue-400"
+                            className="h-14 w-full rounded-2xl border-2 border-ui-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
                           />
                         </div>
                       </div>
@@ -1522,11 +1522,11 @@ const handleClearLimitedQuantity = async (event, item) => {
                             visibleFromDate: '',
                             visibleToDate: ''
                           })}
-                          className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-blue-500 shadow-sm"
+                          className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-ui shadow-sm"
                         >
                           日付をクリア
                         </button>
-                        <p className="flex items-center text-xs font-bold text-blue-400">
+                        <p className="flex items-center text-xs font-bold text-ui">
                           例：6月10日〜6月30日だけ表示、6月1日から表示、今月末で終了。
                         </p>
                       </div>
@@ -1535,7 +1535,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-6 flex items-center gap-2 text-orange-500">
+                  <div className="mb-6 flex items-center gap-2 text-ui">
                     <Clock size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">提供時間帯</span>
                   </div>
@@ -1547,12 +1547,12 @@ const handleClearLimitedQuantity = async (event, item) => {
                         onClick={() => toggleArrayValue('periods', period.id)}
                         className={`flex min-h-[60px] min-w-[120px] flex-col items-center justify-center rounded-2xl border-2 px-5 text-sm font-black text-center transition-all ${
                           editingItem.periods?.includes(period.id)
-                            ? 'scale-105 border-orange-500 bg-orange-500 text-white shadow-lg'
-                            : 'border-gray-100 bg-white text-gray-400 hover:border-orange-200'
+                            ? 'scale-105 border-ui bg-ui text-white shadow-lg'
+                            : 'border-gray-100 bg-white text-gray-500 hover:border-ui-100'
                         }`}
                       >
                         <span className="leading-tight">{period.name}</span>
-                        <span className={`mt-1 text-[12px] font-bold ${editingItem.periods?.includes(period.id) ? 'text-orange-100' : 'text-gray-300'}`}>
+                        <span className={`mt-1 text-[12px] font-bold ${editingItem.periods?.includes(period.id) ? 'text-gray-300' : 'text-gray-300'}`}>
                           {period.start}-{period.end}
                         </span>
                       </button>
@@ -1561,7 +1561,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-6 flex items-center gap-2 text-orange-500">
+                  <div className="mb-6 flex items-center gap-2 text-ui">
                     <ChefHat size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">担当キッチン</span>
                   </div>
@@ -1573,8 +1573,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                         onClick={() => toggleArrayValue('kitchenIds', kitchen.id, true)}
                         className={`flex min-h-[60px] min-w-[120px] items-center justify-center rounded-2xl border-2 px-5 text-sm font-black transition-all ${
                           editingItem.kitchenIds?.includes(kitchen.id)
-                            ? 'scale-105 border-orange-500 bg-orange-500 text-white shadow-lg'
-                            : 'border-gray-100 bg-white text-gray-400 hover:border-orange-200'
+                            ? 'scale-105 border-ui bg-ui text-white shadow-lg'
+                            : 'border-gray-100 bg-white text-gray-500 hover:border-ui-100'
                         }`}
                       >
                         {kitchen.name}
@@ -1584,7 +1584,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-6 flex items-center gap-2 text-orange-500">
+                  <div className="mb-6 flex items-center gap-2 text-ui">
                     <ListPlus size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">
                       調理分類
@@ -1592,7 +1592,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   </div>
 
                   {cookingCategories.length === 0 ? (
-                    <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
+                    <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-500">
                       調理分類がまだ設定されていません
                     </div>
                   ) : (
@@ -1607,8 +1607,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                             onClick={() => toggleArrayValue('cookingCategoryIds', cookingCategory.id)}
                             className={`flex min-h-[52px] min-w-[120px] items-center justify-center rounded-2xl border-2 px-5 text-sm font-black transition-all ${
                               selected
-                                ? 'scale-105 border-slate-900 bg-slate-900 text-white shadow-lg'
-                                : 'border-gray-100 bg-white text-gray-400 hover:border-slate-300 hover:text-slate-700'
+                                ? 'scale-105 border-gray-900 bg-gray-900 text-white shadow-lg'
+                                : 'border-gray-100 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
                             }`}
                           >
                             {cookingCategory.name}
@@ -1618,13 +1618,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                     </div>
                   )}
 
-                  <p className="mt-4 text-xs font-bold leading-relaxed text-gray-400">
+                  <p className="mt-4 text-xs font-bold leading-relaxed text-gray-500">
                     キッチン画面の集計に使います。複数選択できます。
                   </p>
                 </div>
 
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-6 flex items-center gap-2 text-orange-500">
+                  <div className="mb-6 flex items-center gap-2 text-ui">
                     <Check size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">注文・提供設定</span>
                   </div>
@@ -1633,7 +1633,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <div className="text-base font-black text-gray-800">テイクアウト可否</div>
-                          <p className="mt-1 text-sm text-gray-400">店内のみの設定は会計時に持ち帰りへ切り替えられません。</p>
+                          <p className="mt-1 text-sm text-gray-500">店内のみの設定は会計時に持ち帰りへ切り替えられません。</p>
                         </div>
                         <label className="relative inline-flex cursor-pointer items-center">
                           <input
@@ -1642,48 +1642,48 @@ const handleClearLimitedQuantity = async (event, item) => {
                             onChange={(event) => setEditingItem({ ...editingItem, allowsTakeout: event.target.checked })}
                             className="peer sr-only"
                           />
-                          <div className="h-8 w-14 rounded-full bg-gray-200 peer-checked:bg-orange-500" />
+                          <div className="h-8 w-14 rounded-full bg-gray-200 peer-checked:bg-gray-900" />
                           <div className="absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform peer-checked:translate-x-6" />
                         </label>
                       </div>
                     </div>
                     <div className="grid gap-6 md:grid-cols-2 md:col-span-2">
                       <div className="rounded-3xl border-2 border-gray-100 p-6">
-                        <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">1回の注文上限</label>
+                        <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">1回の注文上限</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
                             min="1"
                             value={editingItem.orderLimitPerOrder ?? ''}
                             onChange={(event) => setEditingItem({ ...editingItem, orderLimitPerOrder: event.target.value })}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-orange-500"
+                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
                             placeholder="未設定"
                           />
-                          <span className="whitespace-nowrap text-sm font-bold text-gray-400">点まで</span>
+                          <span className="whitespace-nowrap text-sm font-bold text-gray-500">点まで</span>
                         </div>
-                        <p className="mt-2 text-sm text-gray-400">未設定なら上限なしで注文できます。</p>
+                        <p className="mt-2 text-sm text-gray-500">未設定なら上限なしで注文できます。</p>
                       </div>
                       <div className="rounded-3xl border-2 border-gray-100 p-6">
-                        <label className="mb-2 block text-[11px] font-black uppercase text-gray-400">本日の限定数</label>
+                        <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">本日の限定数</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
                             min="1"
                             value={editingItem.limitedQuantity ?? ''}
                             onChange={(event) => setEditingItem({ ...editingItem, limitedQuantity: event.target.value })}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-orange-500"
+                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
                             placeholder="未設定"
                           />
-                          <span className="whitespace-nowrap text-sm font-bold text-gray-400">点まで</span>
+                          <span className="whitespace-nowrap text-sm font-bold text-gray-500">点まで</span>
                         </div>
-                        <p className="mt-2 text-sm text-gray-400">本日の販売上限です。上限到達で自動的に売り切れ表示になります。</p>
+                        <p className="mt-2 text-sm text-gray-500">本日の販売上限です。上限到達で自動的に売り切れ表示になります。</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-6 flex items-center gap-2 text-orange-500">
+                  <div className="mb-6 flex items-center gap-2 text-ui">
                     <AlertTriangle size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">アレルゲン</span>
                   </div>
@@ -1696,7 +1696,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                         className={`rounded-2xl border-2 px-4 py-3 text-sm font-black transition-all ${
                           editingItem.allergens?.includes(allergen.id)
                             ? 'scale-105 border-amber-400 bg-amber-50 text-amber-700 shadow-lg shadow-amber-100'
-                            : 'border-gray-100 bg-white text-gray-400 hover:border-amber-200'
+                            : 'border-gray-100 bg-white text-gray-500 hover:border-amber-200'
                         }`}
                       >
                         {allergen.label}
@@ -1706,25 +1706,25 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className="flex min-h-[320px] flex-col rounded-[2.5rem] border border-gray-100 bg-white p-8 shadow-sm">
-                  <div className="mb-8 flex items-center gap-2 text-orange-500">
+                  <div className="mb-8 flex items-center gap-2 text-ui">
                     <ImageIcon size={18} strokeWidth={3} />
                     <span className="text-xs font-black uppercase tracking-widest">画像・説明</span>
                   </div>
                   <div className="mb-8">
-                    <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">商品画像URL</label>
+                    <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">商品画像URL</label>
                     <input
                       value={editingItem.image}
                       onChange={(event) => {
                         setEditingItem({ ...editingItem, image: event.target.value });
                         setImagePreview(event.target.value);
                       }}
-                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 font-mono text-sm text-gray-500 outline-none focus:border-orange-500"
+                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 font-mono text-sm text-gray-500 outline-none focus:border-ui"
                       placeholder="https://..."
                     />
                   </div>
                     <div className="mb-8 grid gap-6 md:grid-cols-2">
                       <div>
-                        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                           写真ラベル
                         </label>
                         <input
@@ -1733,7 +1733,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             photoLabelText: event.target.value
                           })}
-                          className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 text-sm font-bold text-gray-700 outline-none focus:border-orange-500"
+                          className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                           placeholder="例：期間限定"
                         />
                         <p className="mt-2 text-xs font-bold text-gray-300">
@@ -1742,7 +1742,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                           ラベル色
                         </label>
                         <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
@@ -1775,7 +1775,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   <textarea
                     value={editingItem.description}
                     onChange={(event) => setEditingItem({ ...editingItem, description: event.target.value })}
-                    className="min-h-[160px] w-full flex-grow resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none focus:border-orange-500"
+                    className="min-h-[160px] w-full flex-grow resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none focus:border-ui"
                     placeholder="商品のこだわりやおすすめポイントを入力してください"
                   />
                 </div>
@@ -1785,9 +1785,9 @@ const handleClearLimitedQuantity = async (event, item) => {
                 <div className="rounded-[2.5rem] border-4 border-gray-200 bg-gray-100 p-6 shadow-inner">
                   <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm">
-                      {displayLayout === 'grid' && <LayoutGrid size={14} className="text-orange-500" />}
-                      {displayLayout === 'wide' && <StretchHorizontal size={14} className="text-orange-500" />}
-                      {displayLayout === 'list' && <ListIcon size={14} className="text-orange-500" />}
+                      {displayLayout === 'grid' && <LayoutGrid size={14} className="text-ui" />}
+                      {displayLayout === 'wide' && <StretchHorizontal size={14} className="text-ui" />}
+                      {displayLayout === 'list' && <ListIcon size={14} className="text-ui" />}
                       <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">
                         {displayLayout} preview
                       </span>
@@ -1819,7 +1819,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             <span className="shrink-0 text-lg font-black leading-tight tracking-tight text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
                           </div>
 
-                          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-400">{editingItem.description || '商品の説明がここに表示されます。'}</p>
+                          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-500">{editingItem.description || '商品の説明がここに表示されます。'}</p>
                           <PreviewMeta item={editingItem} />
                         </div>
                       </div>
@@ -1846,7 +1846,7 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                           <div className="flex flex-grow flex-col px-3.5 pb-4 pt-3.5">
                             <h3 className="whitespace-pre-line line-clamp-2 text-[13px] font-black leading-snug tracking-tight text-gray-900">{editingItem.name || 'メニュー名'}</h3>
-                            <p className="mt-1.5 line-clamp-1 text-[10px] leading-relaxed text-gray-400">{editingItem.description || '商品の説明'}</p>
+                            <p className="mt-1.5 line-clamp-1 text-[10px] leading-relaxed text-gray-500">{editingItem.description || '商品の説明'}</p>
                             <PreviewMeta item={editingItem} />
                             <div className="mt-auto flex justify-end pt-2">
                               <span className="text-[16px] font-black leading-tight tracking-tight text-gray-900">¥{(editingItem.price || 0).toLocaleString()}</span>
@@ -1874,7 +1874,7 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                         <div className="min-w-0 flex-grow">
                           <h3 className="whitespace-pre-line line-clamp-2 text-sm font-black leading-snug tracking-tight text-gray-900">{editingItem.name || 'メニュー名'}</h3>
-                          <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-gray-400">{editingItem.description || '商品の説明がここに表示されます。'}</p>
+                          <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">{editingItem.description || '商品の説明がここに表示されます。'}</p>
                           <PreviewMeta item={editingItem} />
 
                           <div className="mt-3 flex items-center justify-between gap-3">
@@ -1887,15 +1887,15 @@ const handleClearLimitedQuantity = async (event, item) => {
                   </div>
                 </div>
 
-                <div className="flex flex-col rounded-[2rem] border-4 border-orange-200 bg-orange-50 p-8">
+                <div className="flex flex-col rounded-[2rem] border-4 border-ui-100 bg-ui-50 p-8">
                   <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <span className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-orange-600">
+                      <span className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-ui">
                         <ListPlus size={20} />
                         追加オプション
                       </span>
 
-                      <p className="mt-2 text-xs font-bold leading-relaxed text-orange-500/80">
+                      <p className="mt-2 text-xs font-bold leading-relaxed text-ui/80">
                         単一選択では、先頭が初期選択になります。
                       </p>
                     </div>
@@ -1903,7 +1903,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     <button
                       type="button"
                       onClick={addOptionGroup}
-                      className="flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 font-black text-white shadow-lg transition-all hover:bg-orange-600"
+                      className="flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 font-black text-white shadow-lg transition-all hover:bg-gray-800"
                     >
                       <Plus size={16} strokeWidth={3} />
                       オプショングループ追加
@@ -1912,7 +1912,7 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                   <div className="min-h-[160px] space-y-4">
                     {editingOptionGroups.length === 0 ? (
-                      <div className="flex min-h-[160px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-orange-200 bg-white/60 text-center text-orange-500/80">
+                      <div className="flex min-h-[160px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-ui-100 bg-white/60 text-center text-ui/80">
                         <ListPlus size={32} className="mb-2 opacity-80" />
                         <span className="text-sm font-bold">オプションはまだ設定されていません</span>
                         <span className="mt-1 text-xs font-medium">
@@ -1923,7 +1923,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       editingOptionGroups.map((group, groupIndex) => (
                         <div
                           key={group.id || groupIndex}
-                          className="rounded-[1.5rem] border-2 border-orange-200 bg-white p-4 shadow-sm"
+                          className="rounded-[1.5rem] border-2 border-ui-100 bg-white p-4 shadow-sm"
                         >
                           <div className="mb-4 flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1">
@@ -1931,7 +1931,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                 type="button"
                                 onClick={() => moveOptionGroup(groupIndex, -1)}
                                 disabled={groupIndex === 0}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 text-gray-400 disabled:opacity-30"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 text-gray-500 disabled:opacity-30"
                               >
                                 ↑
                               </button>
@@ -1940,7 +1940,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                 type="button"
                                 onClick={() => moveOptionGroup(groupIndex, 1)}
                                 disabled={groupIndex === editingOptionGroups.length - 1}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 text-gray-400 disabled:opacity-30"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 text-gray-500 disabled:opacity-30"
                               >
                                 ↓
                               </button>
@@ -1950,7 +1950,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               value={group.name}
                               onChange={(event) => updateOptionGroup(groupIndex, 'name', event.target.value)}
                               placeholder="例：ライス"
-                              className="h-11 min-w-[180px] flex-1 rounded-xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none transition-all focus:border-orange-500"
+                              className="h-11 min-w-[180px] flex-1 rounded-xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none transition-all focus:border-ui"
                             />
 
                             <select
@@ -1969,7 +1969,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   };
                                 }));
                               }}
-                              className="h-11 rounded-xl border-2 border-gray-100 px-3 text-xs font-black text-gray-600 outline-none focus:border-orange-500"
+                              className="h-11 rounded-xl border-2 border-gray-100 px-3 text-xs font-black text-gray-600 outline-none focus:border-ui"
                             >
                               <option value="single">単一選択</option>
                               <option value="multiple">複数選択</option>
@@ -2018,7 +2018,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       type="button"
                                       onClick={() => moveGroupOption(groupIndex, optionIndex, -1)}
                                       disabled={optionIndex === 0}
-                                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-400 disabled:opacity-30"
+                                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 disabled:opacity-30"
                                     >
                                       ↑
                                     </button>
@@ -2027,7 +2027,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       type="button"
                                       onClick={() => moveGroupOption(groupIndex, optionIndex, 1)}
                                       disabled={optionIndex === (group.options || []).length - 1}
-                                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-400 disabled:opacity-30"
+                                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 disabled:opacity-30"
                                     >
                                       ↓
                                     </button>
@@ -2037,13 +2037,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     value={option.name}
                                     onChange={(event) => updateGroupOption(groupIndex, optionIndex, 'name', event.target.value)}
                                     placeholder="例：大盛り"
-                                    className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition-all focus:border-orange-500"
+                                    className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition-all focus:border-ui"
                                   />
 
                                   <button
                                     type="button"
                                     onClick={() => removeGroupOption(groupIndex, optionIndex)}
-                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-orange-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
                                     title="選択肢削除"
                                   >
                                     <Trash2 size={16} />
@@ -2061,9 +2061,9 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       value={option.price}
                                       onChange={(event) => updateGroupOption(groupIndex, optionIndex, 'price', event.target.value)}
                                       placeholder="0"
-                                      className="h-10 w-full rounded-xl border border-gray-200 bg-white pr-8 text-right text-sm font-bold outline-none transition-all focus:border-orange-500"
+                                      className="h-10 w-full rounded-xl border border-gray-200 bg-white pr-8 text-right text-sm font-bold outline-none transition-all focus:border-ui"
                                     />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-orange-400">
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-ui">
                                       円
                                     </span>
                                   </div>
@@ -2074,7 +2074,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           <button
                             type="button"
                             onClick={() => addGroupOption(groupIndex)}
-                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-orange-300 bg-orange-50 py-3 text-sm font-black text-orange-600 transition-colors hover:bg-orange-100"
+                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ui-100 bg-ui-50 py-3 text-sm font-black text-ui transition-colors hover:bg-ui-50"
                           >
                             <Plus size={16} strokeWidth={3} />
                             選択肢追加
@@ -2086,13 +2086,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className={`flex items-center justify-between rounded-[2rem] border-2 p-6 shadow-sm ${
-                  editingItem.isSoldOut ? 'border-red-100 bg-red-50' : 'border-green-100 bg-green-50'
+                  editingItem.isSoldOut ? 'border-red-100 bg-red-50' : 'border-gray-200 bg-gray-100'
                 }`}>
                   <div className="flex items-center gap-4">
-                    <div className={`rounded-2xl p-3 shadow-sm ${editingItem.isSoldOut ? 'bg-white text-red-500' : 'bg-white text-green-500'}`}>
+                    <div className={`rounded-2xl p-3 shadow-sm ${editingItem.isSoldOut ? 'bg-white text-red-500' : 'bg-white text-gray-900'}`}>
                       <Utensils size={20} />
                     </div>
-                    <span className={`text-sm font-black uppercase tracking-widest ${editingItem.isSoldOut ? 'text-red-800' : 'text-green-800'}`}>
+                    <span className={`text-sm font-black uppercase tracking-widest ${editingItem.isSoldOut ? 'text-red-800' : 'text-gray-900'}`}>
                       売り切れ設定
                     </span>
                   </div>
@@ -2113,14 +2113,14 @@ const handleClearLimitedQuantity = async (event, item) => {
               <button
                 type="button"
                 onClick={closeEditor}
-                className="rounded-xl px-10 py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50"
+                className="rounded-xl px-10 py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
               >
                 キャンセル
               </button>
               <button
                 type="submit"
                 disabled={isProcessing || !editingItem.name}
-                className="flex items-center gap-3 rounded-xl bg-orange-500 px-16 py-4 text-lg font-black text-white shadow-xl shadow-orange-200 transition-all hover:bg-orange-600"
+                className="flex items-center gap-3 rounded-xl bg-gray-900 px-16 py-4 text-lg font-black text-white shadow-xl shadow-gray-200 transition-all hover:bg-gray-800"
               >
               {isProcessing ? <LoadingSpinner size={24} /> : <Save size={24} strokeWidth={3} />}
                 保存
@@ -2130,14 +2130,14 @@ const handleClearLimitedQuantity = async (event, item) => {
         </div>
       ) : (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="flex min-h-24 flex-wrap items-center justify-between gap-4 border-b bg-orange-50/50 px-8 py-5 transition-none lg:h-24 lg:flex-nowrap lg:py-0">
+          <div className="flex min-h-24 flex-wrap items-center justify-between gap-4 border-b bg-ui-50/50 px-8 py-5 transition-none lg:h-24 lg:flex-nowrap lg:py-0">
             <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-orange-500 p-3 text-white shadow-xl shadow-orange-200">
+              <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
                 <Utensils size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-orange-600">登録済みメニュー</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済みメニュー</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
                   現在の登録数 / {filteredMenuItems.length}件
                 </p>
               </div>
@@ -2150,13 +2150,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="商品名で検索"
-                  className="h-12 w-[220px] rounded-xl border border-gray-200 bg-white pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-orange-400"
+                  className="h-12 w-[220px] rounded-xl border border-gray-200 bg-white pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
                 {keyword.trim() && (
                   <button
                     type="button"
                     onClick={() => setKeyword('')}
-                    className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-all hover:bg-gray-200 hover:text-gray-600 active:scale-95"
+                    className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 hover:text-gray-600 active:scale-95"
                     aria-label="検索文字を消す"
                   >
                     <X size={14} strokeWidth={3} />
@@ -2166,12 +2166,12 @@ const handleClearLimitedQuantity = async (event, item) => {
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(true)}
-                className="relative flex h-12 items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 text-sm font-black text-orange-600 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-100/80"
+                className="relative flex h-12 items-center gap-2 rounded-xl border border-ui-100 bg-ui-50 px-4 text-sm font-black text-ui shadow-sm transition-colors hover:border-ui-100 hover:bg-ui-50/80"
               >
                 <Filter size={16} />
                 フィルタ
                 {activeFilterCount > 0 && (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] text-white">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900 px-1.5 text-[10px] text-white">
                     {activeFilterCount}
                   </span>
                 )}
@@ -2179,7 +2179,7 @@ const handleClearLimitedQuantity = async (event, item) => {
               <button
                 type="button"
                 onClick={startCreating}
-                className="flex items-center gap-3 rounded-xl bg-orange-500 px-6 py-3.5 font-black text-white shadow-xl shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95 transform whitespace-nowrap outline-none"
+                className="flex items-center gap-3 rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 transform whitespace-nowrap outline-none"
               >
                 <Plus size={20} strokeWidth={3} />
                 新メニュー追加
@@ -2188,18 +2188,18 @@ const handleClearLimitedQuantity = async (event, item) => {
           </div>
 
           {isSingleCategorySortReady && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-orange-100 bg-white px-8 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ui-100 bg-white px-8 py-4">
               <div>
-                <div className="text-sm font-black text-slate-800">
+                <div className="text-sm font-black text-gray-800">
                   「{activeSortCategoryName}」の表示順
                 </div>
-                <p className="mt-0.5 text-xs font-bold text-slate-400">
+                <p className="mt-0.5 text-xs font-bold text-gray-500">
                   左側の ↑↓ で、カテゴリ内の商品順をすぐに変更できます。
                 </p>
               </div>
 
               {isProcessing && (
-                <div className="flex items-center gap-2 rounded-xl bg-orange-50 px-4 py-2 text-xs font-black text-orange-600">
+                <div className="flex items-center gap-2 rounded-xl bg-ui-50 px-4 py-2 text-xs font-black text-ui">
                   <LoadingSpinner size={16} />
                   保存中...
                 </div>
@@ -2208,14 +2208,14 @@ const handleClearLimitedQuantity = async (event, item) => {
           )}
 
           {!isSingleCategorySortReady && activeFilterCount > 0 && (
-            <div className="border-b border-gray-100 bg-gray-50 px-8 py-3 text-xs font-bold text-gray-400">
+            <div className="border-b border-gray-100 bg-gray-50 px-8 py-3 text-xs font-bold text-gray-500">
               表示順を変更するには、フィルタでカテゴリを1つだけ選択し、検索や他の条件を外してください。
             </div>
           )}
 
             <div className="bg-gray-50/50 p-4">
               {visibleMenuItems.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-400">
+                <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-500">
                   メニューがありません
                 </div>
               ) : (
@@ -2240,14 +2240,14 @@ const handleClearLimitedQuantity = async (event, item) => {
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '0 96px' }}
                         className={`group flex flex-col gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-colors lg:flex-row lg:items-center ${
                           isSingleCategorySortReady
-                            ? 'cursor-pointer border-orange-100 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
-                            : 'cursor-pointer border-gray-200 hover:border-orange-200 hover:bg-orange-50/30 hover:shadow-md'
+                            ? 'cursor-pointer border-ui-100 hover:border-ui-100 hover:bg-ui-50/30 hover:shadow-md'
+                            : 'cursor-pointer border-gray-200 hover:border-ui-100 hover:bg-ui-50/30 hover:shadow-md'
                         } ${isCustomerHidden ? 'border-gray-300 bg-gray-200 opacity-70 hover:opacity-100' : 'bg-white'}`}
                       >
                         <div className="flex items-center gap-4 lg:min-w-0 lg:flex-1">
                           <div
                             className={`flex min-h-10 w-16 shrink-0 items-center justify-center ${
-                              isSingleCategorySortReady ? 'text-orange-500' : 'text-gray-300'
+                              isSingleCategorySortReady ? 'text-ui' : 'text-gray-300'
                             }`}
                           >
                             {isSingleCategorySortReady ? (
@@ -2262,7 +2262,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     event.stopPropagation();
                                     moveMenuItemImmediately(index, -1);
                                   }}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-xs font-black text-orange-600 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-ui-50 text-xs font-black text-ui transition-colors hover:bg-ui-50 disabled:cursor-not-allowed disabled:opacity-30"
                                   title="上へ"
                                 >
                                   ↑
@@ -2274,7 +2274,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     event.stopPropagation();
                                     moveMenuItemImmediately(index, 1);
                                   }}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-xs font-black text-orange-600 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-ui-50 text-xs font-black text-ui transition-colors hover:bg-ui-50 disabled:cursor-not-allowed disabled:opacity-30"
                                   title="下へ"
                                 >
                                   ↓
@@ -2338,7 +2338,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   className="h-2 w-2 rounded-full shadow-sm"
                                   style={{ backgroundColor: categoryById[item.category]?.hex || '#ccc' }}
                                 />
-                                <span className="text-[10px] font-black tracking-tight text-gray-400">
+                                <span className="text-[10px] font-black tracking-tight text-gray-500">
                                   {categoryById[item.category]?.name || '未設定'}
                                 </span>
                               </div>
@@ -2370,14 +2370,14 @@ const handleClearLimitedQuantity = async (event, item) => {
                               className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-xs font-black leading-none ${
                                 item.isSoldOut
                                   ? 'border-red-100 bg-red-50 text-red-600'
-                                  : 'border-green-100 bg-green-50 text-green-600'
+                                  : 'border-gray-200 bg-gray-100 text-gray-900'
                               }`}
                             >
                               {item.isSoldOut ? '売り切れ' : '販売中'}
                             </div>
 
                             {Number(item.limitedQuantity) > 0 && (
-                              <div className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-4 text-xs font-black leading-none text-orange-700">
+                              <div className="inline-flex h-10 items-center justify-center rounded-xl border border-ui-100 bg-ui-50 px-4 text-xs font-black leading-none text-ui">
                                 本日残り {Number(item.remainingQuantity ?? item.limitedQuantity ?? 0)} 点
                               </div>
                             )}
@@ -2391,7 +2391,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   onClick={(event) => handleToggleSoldOut(event, item)}
                                   className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-xs font-black leading-none shadow-sm transition-colors active:scale-95 ${
                                     item.isSoldOut
-                                      ? 'border-green-100 bg-green-50 text-green-700 hover:bg-green-100'
+                                      ? 'border-gray-200 bg-gray-100 text-gray-900 hover:bg-gray-100'
                                       : 'border-red-100 bg-red-50 text-red-600 hover:bg-red-100'
                                   }`}
                                 >
@@ -2400,7 +2400,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                 <button
                                   type="button"
                                   onClick={(event) => handleSetLimitedQuantity(event, item)}
-                                  className="inline-flex h-10 items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-4 text-xs font-black leading-none text-orange-700 shadow-sm transition-colors hover:bg-orange-100 active:scale-95"
+                                  className="inline-flex h-10 items-center justify-center rounded-xl border border-ui-100 bg-ui-50 px-4 text-xs font-black leading-none text-ui shadow-sm transition-colors hover:bg-ui-50 active:scale-95"
                                 >
                                   残数設定
                                 </button>
@@ -2421,7 +2421,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     event.stopPropagation();
                                     startEditing(item);
                                   }}
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-100 bg-white text-blue-500 shadow-sm transition-colors hover:bg-blue-50"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-100 bg-white text-ui shadow-sm transition-colors hover:bg-ui-50"
                                   title="編集"
                                 >
                                   <Edit size={17} />
@@ -2452,7 +2452,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   <button
                     type="button"
                     onClick={() => setVisibleLimit((current) => current + 50)}
-                    className="flex items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 px-8 py-4 text-sm font-black text-orange-600 transition-colors hover:bg-orange-100"
+                    className="flex items-center justify-center rounded-2xl border border-ui-100 bg-ui-50 px-8 py-4 text-sm font-black text-ui transition-colors hover:bg-ui-50"
                   >
                     さらに表示する（{visibleMenuItems.length} / {filteredMenuItems.length}件）
                   </button>
@@ -2463,7 +2463,7 @@ const handleClearLimitedQuantity = async (event, item) => {
       )}
 
       {deletingMenu && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-2xl">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 shadow-inner">
               <AlertTriangle size={40} className="text-red-500" />
@@ -2477,7 +2477,7 @@ const handleClearLimitedQuantity = async (event, item) => {
               <button type="button" onClick={confirmDelete} disabled={isProcessing} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg transition-all hover:bg-red-600">
               {isProcessing ? <LoadingSpinner size={20} /> : '削除する'}
               </button>
-              <button type="button" onClick={() => setDeletingMenu(null)} disabled={isProcessing} className="w-full rounded-2xl py-4 font-bold text-gray-400 transition-colors hover:bg-gray-50">
+              <button type="button" onClick={() => setDeletingMenu(null)} disabled={isProcessing} className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50">
                 キャンセル
               </button>
             </div>
@@ -2486,7 +2486,7 @@ const handleClearLimitedQuantity = async (event, item) => {
       )}
 {stockInputTarget && (
   <div
-    className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm"
+    className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm"
     onClick={closeStockInputModal}
   >
     <div
@@ -2495,13 +2495,13 @@ const handleClearLimitedQuantity = async (event, item) => {
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ui">
             Stock
           </p>
           <h3 className="mt-1 truncate text-xl font-black text-gray-900">
             残数設定
           </h3>
-          <p className="mt-1 truncate text-sm font-bold text-gray-400">
+          <p className="mt-1 truncate text-sm font-bold text-gray-500">
             {stockInputTarget.name}
           </p>
         </div>
@@ -2509,22 +2509,22 @@ const handleClearLimitedQuantity = async (event, item) => {
         <button
           type="button"
           onClick={closeStockInputModal}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-600"
           aria-label="閉じる"
         >
           <X size={20} />
         </button>
       </div>
 
-      <div className="mb-5 rounded-3xl border border-orange-100 bg-orange-50 px-5 py-5 text-center">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400">
+      <div className="mb-5 rounded-3xl border border-ui-100 bg-ui-50 px-5 py-5 text-center">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-ui">
           本日残数
         </div>
         <div className="mt-2 flex items-end justify-center gap-1">
-          <span className="min-w-[72px] text-center text-5xl font-black tabular-nums text-orange-700">
+          <span className="min-w-[72px] text-center text-5xl font-black tabular-nums text-ui">
             {stockInputValue || '0'}
           </span>
-          <span className="pb-1 text-base font-black text-orange-500">点</span>
+          <span className="pb-1 text-base font-black text-ui">点</span>
         </div>
       </div>
 
@@ -2534,7 +2534,7 @@ const handleClearLimitedQuantity = async (event, item) => {
             key={digit}
             type="button"
             onClick={() => appendStockInputDigit(digit)}
-            className="flex h-14 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-800 transition-colors hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+            className="flex h-14 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-800 transition-colors hover:bg-ui-50 hover:text-ui active:scale-95"
           >
             {digit}
           </button>
@@ -2551,7 +2551,7 @@ const handleClearLimitedQuantity = async (event, item) => {
         <button
           type="button"
           onClick={() => appendStockInputDigit(0)}
-          className="flex h-14 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-800 transition-colors hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+          className="flex h-14 items-center justify-center rounded-2xl bg-gray-100 text-2xl font-black text-gray-800 transition-colors hover:bg-ui-50 hover:text-ui active:scale-95"
         >
           0
         </button>
@@ -2560,7 +2560,7 @@ const handleClearLimitedQuantity = async (event, item) => {
           type="button"
           onClick={confirmStockInput}
           disabled={isProcessing}
-          className="flex h-14 items-center justify-center rounded-2xl bg-orange-500 text-sm font-black text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
+          className="flex h-14 items-center justify-center rounded-2xl bg-gray-900 text-sm font-black text-white shadow-lg shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
           {isProcessing ? <LoadingSpinner size={20} /> : '決定'}
         </button>
@@ -2570,7 +2570,7 @@ const handleClearLimitedQuantity = async (event, item) => {
         <button
           type="button"
           onClick={() => setStockInputValue('')}
-          className="h-11 rounded-2xl bg-gray-50 text-sm font-black text-gray-400 transition-colors hover:bg-gray-100"
+          className="h-11 rounded-2xl bg-gray-50 text-sm font-black text-gray-500 transition-colors hover:bg-gray-100"
         >
           クリア
         </button>
@@ -2599,51 +2599,51 @@ const handleClearLimitedQuantity = async (event, item) => {
   </div>
 )}
 {isFilterModalOpen && (
-  <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-slate-900/60 px-4 pb-8 pt-24 backdrop-blur-sm">
+  <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-gray-900/60 px-4 pb-8 pt-24 backdrop-blur-sm">
     <div className="flex max-h-[calc(100vh-128px)] w-full max-w-3xl flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-orange-100 bg-orange-50/80 px-8 py-6">
+            <div className="flex items-center justify-between border-b border-ui-100 bg-ui-50/80 px-8 py-6">
               <div className="flex items-center gap-4">
-                <div className="rounded-2xl bg-orange-500 p-3 text-white shadow-lg shadow-orange-200">
+                <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-lg shadow-gray-200">
                   <Filter size={20} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black tracking-tight text-orange-600">メニューの絞り込み</h3>
-                  <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">カテゴリや提供条件から一覧を絞り込めます。</p>
+                  <h3 className="text-xl font-black tracking-tight text-ui">メニューの絞り込み</h3>
+                  <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">カテゴリや提供条件から一覧を絞り込めます。</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(false)}
-                className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-white hover:text-gray-600"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-white hover:text-gray-600"
               >
                 <X size={22} />
               </button>
             </div>
 
-            <div className="shrink-0 flex justify-end gap-3 border-b border-orange-100 bg-white px-6 py-4 md:px-8">
+            <div className="shrink-0 flex justify-end gap-3 border-b border-ui-100 bg-white px-6 py-4 md:px-8">
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-xl border border-gray-100 bg-white px-5 py-3 text-sm font-black text-gray-400 transition-colors hover:bg-gray-50"
+                className="rounded-xl border border-gray-100 bg-white px-5 py-3 text-sm font-black text-gray-500 transition-colors hover:bg-gray-50"
               >
                 リセット
               </button>
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(false)}
-                className="rounded-xl bg-orange-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-orange-200 transition-colors hover:bg-orange-600"
+                className="rounded-xl bg-gray-900 px-6 py-3 text-sm font-black text-white shadow-lg shadow-gray-200 transition-colors hover:bg-gray-800"
               >
                 絞り込み
               </button>
             </div>
 
             <div className="grid flex-1 gap-6 overflow-y-auto p-6 md:grid-cols-2 md:p-8">
-              <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6">
+              <section className="rounded-3xl border border-ui-100 bg-ui-50/60 p-6">
                 <div className="mb-4">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-orange-500">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-ui">
                       カテゴリ
                     </div>
-                    <p className="mt-1 text-xs font-bold leading-relaxed text-orange-400">
+                    <p className="mt-1 text-xs font-bold leading-relaxed text-ui">
                       1カテゴリ選択で、表示順を編集できます
                     </p>
                   </div>
@@ -2655,8 +2655,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onClick={() => toggleFilterValue('categories', category.id)}
                       className={`rounded-2xl border px-3 py-1.5 text-sm font-black transition-colors ${
                         filters.categories.includes(category.id)
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-orange-100 bg-white text-orange-600 hover:border-orange-300 hover:bg-orange-100/70'
+                          ? 'border-ui bg-ui-50 text-ui'
+                          : 'border-ui-100 bg-white text-ui hover:border-ui-100 hover:bg-ui-50/70'
                       }`}
                     >
                       {category.name}
@@ -2665,8 +2665,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6">
-                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-orange-500">提供時間帯</div>
+              <section className="rounded-3xl border border-ui-100 bg-ui-50/60 p-6">
+                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-ui">提供時間帯</div>
                 <div className="flex flex-wrap gap-2">
                   {periods.map((period) => (
                     <button
@@ -2675,8 +2675,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onClick={() => toggleFilterValue('periods', period.id)}
                       className={`rounded-2xl border px-3 py-1.5 text-sm font-black transition-colors ${
                         filters.periods.includes(period.id)
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-orange-100 bg-white text-orange-600 hover:border-orange-300 hover:bg-orange-100/70'
+                          ? 'border-ui bg-ui-50 text-ui'
+                          : 'border-ui-100 bg-white text-ui hover:border-ui-100 hover:bg-ui-50/70'
                       }`}
                     >
                       {period.name}
@@ -2685,8 +2685,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6">
-                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-orange-500">担当キッチン</div>
+              <section className="rounded-3xl border border-ui-100 bg-ui-50/60 p-6">
+                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-ui">担当キッチン</div>
                 <div className="flex flex-wrap gap-2">
                   {kitchens.map((kitchen) => (
                     <button
@@ -2695,8 +2695,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onClick={() => toggleFilterValue('kitchens', kitchen.id)}
                       className={`rounded-2xl border px-3 py-1.5 text-sm font-black transition-colors ${
                         filters.kitchens.includes(kitchen.id)
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-orange-100 bg-white text-orange-600 hover:border-orange-300 hover:bg-orange-100/70'
+                          ? 'border-ui bg-ui-50 text-ui'
+                          : 'border-ui-100 bg-white text-ui hover:border-ui-100 hover:bg-ui-50/70'
                       }`}
                     >
                       {kitchen.name}
@@ -2705,8 +2705,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6">
-                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-orange-500">テイクアウト可否</div>
+              <section className="rounded-3xl border border-ui-100 bg-ui-50/60 p-6">
+                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-ui">テイクアウト可否</div>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { id: 'all', label: 'すべて' },
@@ -2719,8 +2719,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onClick={() => setFilters((current) => ({ ...current, takeout: option.id }))}
                       className={`rounded-2xl border px-3 py-1.5 text-sm font-black transition-colors ${
                         filters.takeout === option.id
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-orange-100 bg-white text-orange-600 hover:border-orange-300 hover:bg-orange-100/70'
+                          ? 'border-ui bg-ui-50 text-ui'
+                          : 'border-ui-100 bg-white text-ui hover:border-ui-100 hover:bg-ui-50/70'
                       }`}
                     >
                       {option.label}
@@ -2729,8 +2729,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-orange-100 bg-orange-50/60 p-6 md:col-span-2">
-                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-orange-500">アレルゲン</div>
+              <section className="rounded-3xl border border-ui-100 bg-ui-50/60 p-6 md:col-span-2">
+                <div className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-ui">アレルゲン</div>
                 <div className="flex flex-wrap gap-2">
                   {ALLERGEN_OPTIONS.map((allergen) => (
                     <button
@@ -2739,8 +2739,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onClick={() => toggleFilterValue('allergens', allergen.id)}
                       className={`rounded-2xl border px-3 py-1.5 text-sm font-black transition-colors ${
                         filters.allergens.includes(allergen.id)
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
-                          : 'border-orange-100 bg-white text-orange-600 hover:border-orange-300 hover:bg-orange-100/70'
+                          ? 'border-ui bg-ui-50 text-ui'
+                          : 'border-ui-100 bg-white text-ui hover:border-ui-100 hover:bg-ui-50/70'
                       }`}
                     >
                       {allergen.label}

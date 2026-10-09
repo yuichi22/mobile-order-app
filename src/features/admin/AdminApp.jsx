@@ -633,7 +633,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </div>
               )}
 
-              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-400">
+              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-500">
                 Connected by AKUTO
               </div>
             </button>
@@ -746,7 +746,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 <div ref={paymentResultToastRef} className="pointer-events-auto rounded-3xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-black text-green-600">会計完了</p>
+                      <p className="text-xs font-black text-gray-900">会計完了</p>
                       <h3 className="mt-1 text-xl font-black tracking-tight">
                         {paymentResultToast.isSplitPayment
                           ? `${paymentResultToast.paymentMethodLabel || '現金＋カード'}会計`
@@ -783,7 +783,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
                     {/* 一部売掛: 満額のうち売掛充当分を明記(残りは現金/カード等)。全額売掛はタイトルで示すため省略。 */}
                     {Number(paymentResultToast.voucherAmount || 0) > 0 && Number(paymentResultToast.totalAmount || 0) > 0 && (
-                      <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-sm font-bold text-sky-700">
+                      <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-sm font-bold text-ui">
                         <span>売掛</span>
                         <span className="font-mono text-xl font-black">
                           ¥{Number(paymentResultToast.voucherAmount || 0).toLocaleString()}
@@ -813,7 +813,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-blue-700">
+                        <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-ui">
                           <span className="text-sm font-black">お釣り</span>
                           <span className="font-mono text-3xl font-black">
                             ¥{Number(paymentResultToast.changeAmount || paymentResultToast.change || 0).toLocaleString()}
@@ -839,7 +839,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   )}
 
                   {!paymentResultToast.canPrintReceipt && (
-                    <p className="mt-3 text-center text-xs font-bold text-gray-400">
+                    <p className="mt-3 text-center text-xs font-bold text-gray-500">
                       この会計のレシートを準備できませんでした。
                     </p>
                   )}

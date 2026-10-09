@@ -19,10 +19,10 @@ const RANK_META = {
     title: '育成候補',
     summary: '販促や導線改善で、次の主力に育てたい商品です。',
     action: '強化',
-    cardClassName: 'bg-blue-50 border-blue-200 text-blue-800',
-    badgeClassName: 'bg-blue-500',
-    chipClassName: 'bg-blue-100 text-blue-800',
-    barClassName: 'bg-blue-500'
+    cardClassName: 'bg-ui-50 border-ui-100 text-ui',
+    badgeClassName: 'bg-gray-900',
+    chipClassName: 'bg-ui-50 text-ui',
+    barClassName: 'bg-gray-900'
   },
   C: {
     title: '見直し候補',
@@ -75,7 +75,7 @@ const AbcAnalysisView = ({
       title: 'Bランク',
       value: `${abcThresholds.a}% 〜 ${abcThresholds.b}%`,
       sub: `${summary.B?.items?.length || 0}商品`,
-      className: 'border-blue-200 bg-blue-50 text-blue-800'
+      className: 'border-ui-100 bg-ui-50 text-ui'
     },
     {
       key: 'C',
@@ -89,10 +89,10 @@ const AbcAnalysisView = ({
   return (
     <div className="animate-in slide-in-from-bottom-2 fade-in duration-300">
       {showSettings && (
-        <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 p-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="mb-6 rounded-xl border border-ui-100 bg-ui-50 p-4 animate-in slide-in-from-top-2 duration-200">
           <div className="mb-3">
-            <div className="text-lg font-bold text-blue-900">ランク基準</div>
-            <div className="mt-1 text-xs text-blue-700">
+            <div className="text-lg font-bold text-ui">ランク基準</div>
+            <div className="mt-1 text-xs text-ui">
               売上構成比の境目を調整して、A・B・Cランクの分類基準を決めます。
             </div>
           </div>
@@ -124,9 +124,9 @@ const AbcAnalysisView = ({
                       b: Math.max(value + 1, abcThresholds.b)
                     });
                   }}
-                  className="h-2 flex-grow cursor-pointer appearance-none rounded-lg bg-blue-200 accent-blue-600"
+                  className="h-2 flex-grow cursor-pointer appearance-none rounded-lg bg-ui-100 accent-ui"
                 />
-                <span className="w-10 text-right text-xs font-bold text-blue-700">{abcThresholds.a}%</span>
+                <span className="w-10 text-right text-xs font-bold text-ui">{abcThresholds.a}%</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="w-16 text-[11px] font-bold text-gray-600">Bランク</span>
@@ -143,16 +143,16 @@ const AbcAnalysisView = ({
                       a: Math.min(value - 1, abcThresholds.a)
                     });
                   }}
-                  className="h-2 flex-grow cursor-pointer appearance-none rounded-lg bg-blue-200 accent-blue-600"
+                  className="h-2 flex-grow cursor-pointer appearance-none rounded-lg bg-ui-100 accent-ui"
                 />
-                <span className="w-10 text-right text-xs font-bold text-blue-700">{abcThresholds.b}%</span>
+                <span className="w-10 text-right text-xs font-bold text-ui">{abcThresholds.b}%</span>
               </div>
             </div>
             <div className="flex items-center py-1">
               <button
                 type="button"
                 onClick={() => setAbcThresholds({ a: 70, b: 90 })}
-                className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-blue-600 px-4 py-3 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-gray-900 px-4 py-3 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-gray-800"
               >
                 既定値に戻す
               </button>
@@ -227,7 +227,7 @@ const AbcAnalysisView = ({
             {tab.label} {tab.count}
           </button>
         ))}
-        <span className="ml-auto text-xs font-bold text-gray-400">
+        <span className="ml-auto text-xs font-bold text-gray-500">
           全{filteredItems.length.toLocaleString()}件中 {shownItems.length.toLocaleString()}件表示
         </span>
       </div>
@@ -248,7 +248,7 @@ const AbcAnalysisView = ({
           <tbody className="divide-y divide-gray-100">
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan="7" className="p-4 text-center text-gray-400">
+                <td colSpan="7" className="p-4 text-center text-gray-500">
                   対象データがありません
                 </td>
               </tr>
@@ -260,7 +260,7 @@ const AbcAnalysisView = ({
                 item.rank === 'A'
                   ? 'bg-amber-100 text-amber-800'
                   : item.rank === 'B'
-                    ? 'bg-blue-100 text-blue-800'
+                    ? 'bg-ui-50 text-ui'
                     : 'bg-gray-100 text-gray-600';
               const share = abcTotalSales > 0 ? (item.sales / abcTotalSales) * 100 : 0;
 
@@ -322,7 +322,7 @@ const AbcAnalysisView = ({
         </div>
       )}
 
-      <div className="mt-2 text-right text-xs text-gray-400">
+      <div className="mt-2 text-right text-xs text-gray-500">
         Aランクは {abcThresholds.a}% まで、Bランクは {abcThresholds.b}% までの累計売上構成比で判定しています。
       </div>
     </div>
