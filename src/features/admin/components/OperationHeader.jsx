@@ -72,10 +72,6 @@ const OperationHeader = ({
                 {storeName || 'AKUTO'}
               </div>
             )}
-
-            <div className="mt-1 text-[8px] font-bold uppercase tracking-[0.18em] text-gray-300">
-              Connected by AKUTO
-            </div>
           </div>
         </div>
 

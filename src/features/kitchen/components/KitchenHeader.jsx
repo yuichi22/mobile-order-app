@@ -154,10 +154,6 @@ const KitchenHeader = ({
               {storeName || 'AKUTO'}
             </div>
           )}
-
-          <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-300">
-            Connected by AKUTO
-          </div>
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-3">

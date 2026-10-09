@@ -632,10 +632,6 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   {storeSettings?.name || 'AKUTO'}
                 </div>
               )}
-
-              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-500">
-                Connected by AKUTO
-              </div>
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
