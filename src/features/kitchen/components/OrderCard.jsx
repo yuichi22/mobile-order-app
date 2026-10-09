@@ -99,27 +99,28 @@ const resolveDisplayKitchenStatus = ({
   return 'pending';
 };
 
+// キッチンのカードは一目で状態を見分けるため、例外として7色のテーマ色を使う【AKUTOブランド基準 10-09】
+// 未着手・調理中=テラコッタ / 提供待ち・済=グリーン / 提供中=ブルー
 const ORDER_STATUS_META = {
   pending: {
     label: '未着手',
-    // 状態の色は卓の地図と揃える: 未着手=グレー/調理中=アンバー/提供待ち=黒/提供中=スチールブルー
-    badgeClassName: 'border-gray-300 bg-white text-gray-700',
-    headerClassName: 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+    badgeClassName: 'border-[#C2410C]/20 bg-[#C2410C]/5 text-[#C2410C]',
+    headerClassName: 'border-[#C2410C]/10 bg-[#C2410C]/5 hover:bg-[#C2410C]/5'
   },
   cooking: {
     label: '調理中',
-    badgeClassName: 'border-amber-500 bg-amber-500 text-white',
-    headerClassName: 'border-amber-200 bg-amber-50 hover:bg-amber-100/70'
+    badgeClassName: 'border-[#C2410C] bg-[#C2410C] text-white',
+    headerClassName: 'border-[#C2410C]/20 bg-[#C2410C]/5 hover:bg-[#C2410C]/10'
   },
   serving: {
     label: '提供待ち',
-    badgeClassName: 'border-gray-900 bg-gray-900 text-white',
-    headerClassName: 'border-gray-300 bg-gray-100 hover:bg-gray-200/70'
+    badgeClassName: 'border-[#15803D] bg-[#15803D] text-white',
+    headerClassName: 'border-[#15803D]/20 bg-[#15803D]/5 hover:bg-[#15803D]/10'
   },
   targetServed: {
     label: '提供中',
-    badgeClassName: 'border-ui-100 bg-ui-50 text-ui',
-    headerClassName: 'border-ui-100 bg-ui-50 hover:bg-ui-100/70'
+    badgeClassName: 'border-[#2563EB]/20 bg-[#2563EB]/5 text-[#2563EB]',
+    headerClassName: 'border-[#2563EB]/20 bg-[#2563EB]/5 hover:bg-[#2563EB]/10'
   },
   waitingComplete: {
     label: '完了待機',
@@ -147,11 +148,11 @@ const getNextKitchenStatus = (currentStatus) => {
 
 const getServiceTimingBadgeClassName = (serviceTiming) => {
   if (serviceTiming === 'before_meal') {
-    return 'border-amber-400 bg-amber-100 text-amber-900'; // 食前=急ぎめ(濃いアンバー)
+    return 'border-amber-400 bg-amber-100 text-amber-900'; // 食前=急ぎめ
   }
 
   if (serviceTiming === 'after_meal') {
-    return 'border-gray-200 bg-gray-100 text-gray-900';
+    return 'border-[#15803D]/20 bg-[#15803D]/5 text-[#15803D]';
   }
 
   return 'border-amber-200 bg-amber-50 text-amber-700';
@@ -260,7 +261,7 @@ const canSelectCard =
   let priority = {
     label: '通常',
     icon: Timer,
-    chipClassName: 'border border-ui-100 bg-ui-50 text-ui'
+    chipClassName: 'border border-[#2563EB]/10 bg-[#2563EB]/5 text-[#2563EB]'
   };
 
   if (viewMode === 'active') {
@@ -551,21 +552,21 @@ const canSelectCard =
   const isCookingActive = hasTargetCookingItems;
 
   const headerClassName = isSelectedForSummary || isCookingActive
-    ? 'border-gray-200 bg-gray-100 shadow-inner'
+    ? 'border-[#15803D]/35 bg-[#15803D]/10 shadow-inner'
     : isSummarySelectMode
-      ? 'border-gray-200 bg-gray-50 hover:bg-gray-100/80'
+      ? 'border-gray-200 bg-gray-50 hover:bg-[#15803D]/5'
       : orderStatusMeta.headerClassName;
 
   const tableLabelClassName = isSelectedForSummary || isCookingActive
-    ? 'text-gray-900'
-    : 'text-gray-500';
+    ? 'text-[#15803D]'
+    : 'text-gray-400';
 
   const tableNumberClassName = isSelectedForSummary || isCookingActive
-    ? 'text-gray-900'
+    ? 'text-[#15803D]'
     : 'text-gray-800';
 
   const itemCountClassName = isSelectedForSummary
-    ? 'text-gray-900'
+    ? 'text-[#15803D]'
     : 'text-gray-500';
 
   const selectedElapsedBadgeClassName =
@@ -608,7 +609,7 @@ const canSelectCard =
             {getTableDisplayName(order)}
           </div>
 
-          <div className="mt-1 text-sm font-bold text-gray-500">
+          <div className="mt-1 text-sm font-bold text-gray-400">
             {partySize > 0 ? `${partySize}名` : '人数未設定'}
           </div>
         </div>
@@ -669,21 +670,21 @@ const canSelectCard =
           const rowGapClassName = isDimmedItem ? 'gap-2' : 'gap-3';
 
           const rowBackgroundClassName = isOtherKitchenServedArea
-            ? 'bg-gray-100/90'
+            ? 'bg-[#15803D]/10'
             : isDimmedItem
               ? isServedItem
                 ? 'bg-gray-100/80'
                 : isPreparedItem
-                  ? 'bg-gray-100/70'
+                  ? 'bg-[#15803D]/5'
                   : 'bg-gray-100/80'
               : isServedItem
                 ? 'bg-gray-50'
                 : isPreparedItem
-                  ? 'bg-gray-100/60'
+                  ? 'bg-[#15803D]/5'
                   : 'bg-white';
 
           const rowBorderClassName = isOtherKitchenServedArea
-            ? 'border-b border-gray-200/80 ring-1 ring-inset ring-gray-200/70'
+            ? 'border-b border-[#15803D]/35 ring-1 ring-inset ring-[#15803D]/35'
             : isDimmedItem
               ? 'border-b border-transparent'
               : 'border-b border-gray-200/70';
@@ -692,24 +693,24 @@ const canSelectCard =
             ? isServedItem
               ? 'cursor-pointer hover:bg-gray-100 active:bg-gray-200/70'
               : isPreparedItem
-                ? 'cursor-pointer hover:bg-gray-100/70 active:bg-gray-100'
-                : 'cursor-pointer hover:bg-ui-50/50 active:bg-ui-50/60'
+                ? 'cursor-pointer hover:bg-[#15803D]/10 active:bg-[#15803D]/10'
+                : 'cursor-pointer hover:bg-[#C2410C]/5 active:bg-[#C2410C]/10'
             : isOtherKitchenServedArea
               ? 'cursor-default'
               : 'cursor-default hover:bg-black/[0.02]';
 
           const itemNameClassName = isOtherKitchenServedArea
-            ? 'text-xs font-black leading-tight tracking-tight text-gray-900'
+            ? 'text-xs font-black leading-tight tracking-tight text-[#15803D]'
             : isDimmedItem
               ? 'text-xs font-bold leading-tight tracking-tight text-gray-500'
               : 'text-base font-bold leading-snug tracking-tight text-gray-800';
 
           const itemStateNameClassName = isOtherKitchenServedArea
-            ? 'text-gray-900 line-through decoration-2 decoration-gray-900/70'
+            ? 'text-[#15803D] line-through decoration-2 decoration-[#15803D]/70'
             : isServedItem
-              ? 'text-gray-500 line-through decoration-2 decoration-gray-400'
+              ? 'text-gray-400 line-through decoration-2 decoration-gray-400'
               : isPreparedItem
-                ? 'text-gray-900'
+                ? 'text-[#15803D]'
                 : '';
 
           const iconSizeClassName = isDimmedItem
@@ -723,15 +724,15 @@ const canSelectCard =
             : 'h-8 min-w-[32px] rounded-lg text-base';
 
           const quantityClassName = isOtherKitchenServedArea
-            ? 'border border-gray-900 bg-gray-100 text-gray-900 shadow-none'
+            ? 'border border-[#15803D]/60 bg-[#15803D]/20 text-[#15803D] shadow-none'
             : isDimmedItem
-              ? 'bg-transparent text-gray-500 shadow-none'
+              ? 'bg-transparent text-gray-400 shadow-none'
               : isServedItem
                 ? 'border border-gray-300 bg-gray-100 text-gray-500 shadow-none'
                 : quantity >= 4
                   ? 'border border-amber-400 bg-amber-100 text-amber-900'
                   : quantity >= 2
-                    ? 'border border-ui-100 bg-ui-50 text-ui'
+                    ? 'border border-[#C2410C]/35 bg-[#C2410C]/5 text-[#C2410C]'
                     : 'border border-gray-300 bg-white text-gray-900';
 
           const optionClassName = isDimmedItem
@@ -745,16 +746,16 @@ const canSelectCard =
           const readOnlyIconClassName = isServedItem
             ? 'border-gray-300 bg-gray-200 text-gray-500'
             : isPreparedItem
-              ? 'border-gray-900 bg-gray-900 text-white'
+              ? 'border-[#15803D] bg-[#15803D] text-white'
               : isDimmedItem
                 ? 'border-gray-300 bg-gray-100/80 text-gray-300'
-                : 'border-gray-300 bg-white text-gray-500';
+                : 'border-gray-300 bg-white text-gray-400';
 
           const actionIconClassName = isServedItem
             ? 'border-gray-300 bg-gray-200 text-gray-500 shadow-sm'
             : isPreparedItem
-              ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-              : 'border-gray-300 bg-white text-gray-500 group-hover:border-ui group-hover:bg-ui-50 group-hover:text-ui';
+              ? 'border-[#15803D] bg-[#15803D] text-white shadow-sm'
+              : 'border-gray-300 bg-white text-gray-400 group-hover:border-[#C2410C]/60 group-hover:bg-[#C2410C]/5 group-hover:text-[#C2410C]';
 
           return (
             <RowTag
@@ -800,7 +801,7 @@ const canSelectCard =
 
               <div className="min-w-0 flex-1">
                 {shouldShowOtherKitchenServedLabel && (
-                  <div className="mb-1 inline-flex rounded-full border border-gray-900 bg-gray-900 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                  <div className="mb-1 inline-flex rounded-full border border-[#15803D]/60 bg-[#15803D] px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
                     別キッチン提供済み
                   </div>
                 )}
@@ -822,7 +823,7 @@ const canSelectCard =
                         key={`${option}-${optionIndex}`}
                         className={`${optionClassName} ${
                           IMPORTANT_OPTION_PATTERN.test(option)
-                            ? 'border-ui-100 bg-ui-50 text-ui'
+                            ? 'border-[#C2410C]/20 bg-[#C2410C]/10 text-[#C2410C]'
                             : 'border-gray-200 bg-gray-100 text-gray-600'
                         } ${
                           isServedItem
@@ -867,7 +868,7 @@ const canSelectCard =
         <button
           type="button"
           onClick={handleStartCookingButtonClick}
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#C2410C] py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
         >
           <Flame size={20} />
           調理開始
@@ -878,7 +879,7 @@ const canSelectCard =
         <button
           type="button"
           onClick={markAllPrepared}
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#15803D] py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
         >
           <Check size={20} />
           全て調理完了にする
@@ -889,7 +890,7 @@ const canSelectCard =
             <button
               type="button"
               onClick={markTargetServed}
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2563EB] py-3.5 text-base font-bold text-white shadow-lg transition-all active:scale-[0.98]"
             >
               <Check size={20} />
               提供完了
@@ -901,7 +902,7 @@ const canSelectCard =
               <span className="text-base font-black text-gray-600">
                 完了待機
               </span>
-              <span className="mt-1 text-[11px] font-bold text-gray-500">
+              <span className="mt-1 text-[11px] font-bold text-gray-400">
                 他の持ち場の提供完了を待っています
               </span>
             </div>
@@ -911,7 +912,7 @@ const canSelectCard =
             <button
               type="button"
               onClick={moveCardToBack}
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2563EB] py-3.5 text-base font-bold text-white shadow-lg transition-all hover:bg-[#2563EB] active:scale-[0.98]"
             >
               <Check size={20} />
               提供中
