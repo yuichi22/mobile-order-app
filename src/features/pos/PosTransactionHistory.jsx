@@ -3197,19 +3197,19 @@ export const PosTransactionHistory = ({
                 {
                   id: 'cash',
                   label: '現金',
-                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  activeClassName: 'bg-gray-950 text-white ring-2 ring-gray-950',
                   inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'card',
                   label: 'カード',
-                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  activeClassName: 'bg-[#2563EB] text-white ring-2 ring-[#2563EB]',
                   inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'qr',
                   label: 'QR',
-                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  activeClassName: 'bg-[#9333EA] text-white ring-2 ring-[#9333EA]',
                   inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 }
               ].map((option) => (
@@ -3393,9 +3393,9 @@ export const PosTransactionHistory = ({
               filter === 'paid' && paidPaymentFilter === 'cash'
                 ? 'bg-gray-900 text-white shadow-sm'
                 : filter === 'paid' && paidPaymentFilter === 'card'
-                  ? 'bg-ui-50 text-ui'
+                  ? 'bg-[#2563EB]/10 text-[#1D4ED8]'
                   : filter === 'paid' && paidPaymentFilter === 'qr'
-                    ? 'bg-ui-50 text-ui'
+                    ? 'bg-[#9333EA]/10 text-[#7E22CE]'
                     : filter === 'paid'
                       ? 'bg-gray-100 text-gray-900'
                       : 'bg-gray-100 text-gray-500'
@@ -3406,9 +3406,9 @@ export const PosTransactionHistory = ({
               filter === 'paid' && paidPaymentFilter === 'cash'
                 ? 'bg-gray-900 text-white shadow-sm'
                 : filter === 'paid' && paidPaymentFilter === 'card'
-                  ? 'bg-ui-50 text-ui'
+                  ? 'bg-[#2563EB]/10 text-[#1D4ED8]'
                   : filter === 'paid' && paidPaymentFilter === 'qr'
-                    ? 'bg-ui-50 text-ui'
+                    ? 'bg-[#9333EA]/10 text-[#7E22CE]'
                     : filter === 'paid'
                       ? 'bg-gray-100 text-gray-900'
                       : 'bg-gray-100 text-gray-500'
@@ -3548,9 +3548,9 @@ export const PosTransactionHistory = ({
                             ? getPaymentMethodKey(ticket.paymentMethod) === 'cash'
                               ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200'
                               : getPaymentMethodKey(ticket.paymentMethod) === 'card'
-                                ? 'bg-ui-50 text-ui ring-1 ring-ui-100'
+                                ? 'bg-[#2563EB]/10 text-[#1D4ED8] ring-1 ring-[#2563EB]/20'
                                 : getPaymentMethodKey(ticket.paymentMethod) === 'qr'
-                                  ? 'bg-ui-50 text-ui ring-1 ring-ui-100'
+                                  ? 'bg-[#9333EA]/10 text-[#7E22CE] ring-1 ring-[#9333EA]/20'
                                   : 'bg-gray-100 text-gray-900'
                             : 'bg-ui-50 text-ui'
                       }`}

@@ -50,15 +50,16 @@ import { getAuth } from 'firebase/auth';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
+    // 支払い方法の色【AKUTOブランド基準・例外 10-09】: 押し間違い防止のため 現金=黒/カード=ブルー/QR=パープル(7色のテーマ色)
     id: 'cash',
     label: '現金',
     buttonLabel: '現金で会計する',
     icon: DollarSign,
-    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
-    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
+    activeClassName: 'border-gray-950 bg-gray-950 text-white shadow-md ring-2 ring-gray-200',
+    inactiveClassName: 'border-gray-300 bg-white text-gray-950 shadow-sm hover:border-gray-600 hover:bg-gray-50',
     panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
-    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
-    panelTitleClassName: 'text-gray-900',
+    panelIconClassName: 'bg-white text-gray-950 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-950',
     panelTextClassName: 'text-gray-500',
     actionClassName: 'bg-gray-950 text-white hover:bg-black hover:shadow-xl'
   },
@@ -67,26 +68,26 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
     label: 'カード',
     buttonLabel: 'カードで会計する',
     icon: CreditCard,
-    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
-    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
-    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
-    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
-    panelTitleClassName: 'text-gray-900',
-    panelTextClassName: 'text-gray-500',
-    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
+    activeClassName: 'border-[#2563EB] bg-[#2563EB] text-white shadow-md ring-2 ring-[#2563EB]/20',
+    inactiveClassName: 'border-[#2563EB]/30 bg-[#2563EB]/5 text-[#1D4ED8] shadow-sm hover:border-[#2563EB] hover:bg-[#2563EB]/10',
+    panelClassName: 'border-[#2563EB]/30 bg-[#2563EB]/5 text-[#1D4ED8]',
+    panelIconClassName: 'bg-white text-[#2563EB] shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-[#1D4ED8]',
+    panelTextClassName: 'text-[#2563EB]',
+    actionClassName: 'bg-[#2563EB] text-white hover:bg-[#1D4ED8] hover:shadow-xl'
   },
   {
     id: 'qr',
     label: 'QR決済',
     buttonLabel: 'QR決済で会計する',
     icon: ScanQrCode,
-    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
-    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
-    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
-    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
-    panelTitleClassName: 'text-gray-900',
-    panelTextClassName: 'text-gray-500',
-    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
+    activeClassName: 'border-[#9333EA] bg-[#9333EA] text-white shadow-md ring-2 ring-[#9333EA]/20',
+    inactiveClassName: 'border-[#9333EA]/30 bg-[#9333EA]/5 text-[#7E22CE] shadow-sm hover:border-[#9333EA] hover:bg-[#9333EA]/10',
+    panelClassName: 'border-[#9333EA]/30 bg-[#9333EA]/5 text-[#7E22CE]',
+    panelIconClassName: 'bg-white text-[#9333EA] shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-[#7E22CE]',
+    panelTextClassName: 'text-[#9333EA]',
+    actionClassName: 'bg-[#9333EA] text-white hover:bg-[#7E22CE] hover:shadow-xl'
   }
 ];
 
@@ -3360,7 +3361,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </span>
                     </div>
                     <div className={`flex items-center justify-between rounded-2xl px-5 py-4 shadow-sm ${
-                      takeoutPaymentSplit.otherMethod === 'qr' ? 'bg-ui text-white' : 'bg-gray-900 text-white'
+                      takeoutPaymentSplit.otherMethod === 'qr' ? 'bg-[#9333EA] text-white' : 'bg-[#2563EB] text-white'
                     }`}>
                       <span className="text-sm font-bold opacity-90">
                         {getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}支払い
