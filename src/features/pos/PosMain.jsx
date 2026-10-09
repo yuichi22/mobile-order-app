@@ -2560,7 +2560,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 }}
                 className={`rounded-2xl border p-4 transition-colors duration-500 ${
                   isJustAdded
-                    ? 'border-gray-200 bg-gray-100 ring-2 ring-gray-200'
+                    ? 'border-ui bg-ui-50 ring-2 ring-ui-100' // 追加した商品=スチールブルー(いま操作している所)
                     : 'border-gray-100 bg-gray-50'
                 }`}
               >
