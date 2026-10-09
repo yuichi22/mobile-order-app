@@ -4152,7 +4152,7 @@ const ProductMasterTable = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">{/* 折り返しても右寄せ */}
           {(hasDeficientProducts || deficiencyMode) && (
             <button
               type="button"
