@@ -3191,26 +3191,26 @@ export const PosTransactionHistory = ({
                 {
                   id: 'all',
                   label: 'すべて',
-                  activeClassName: 'bg-white text-gray-900 ring-2 ring-gray-900',
-                  inactiveClassName: 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50'
+                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'cash',
                   label: '現金',
-                  activeClassName: 'bg-white text-gray-900 ring-2 ring-gray-900',
-                  inactiveClassName: 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50'
+                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'card',
                   label: 'カード',
-                  activeClassName: 'bg-white text-ui ring-2 ring-ui-100',
-                  inactiveClassName: 'bg-white text-ui/70 ring-1 ring-gray-200 hover:bg-ui-50'
+                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'qr',
                   label: 'QR',
-                  activeClassName: 'bg-white text-ui ring-2 ring-ui-100',
-                  inactiveClassName: 'bg-white text-ui/70 ring-1 ring-gray-200 hover:bg-ui-50'
+                  activeClassName: 'bg-ui text-white ring-2 ring-ui',
+                  inactiveClassName: 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
                 }
               ].map((option) => (
                 <button
