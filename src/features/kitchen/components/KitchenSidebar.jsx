@@ -49,21 +49,21 @@ const CompactRequestSection = ({
 }) => {
 
 const toneClassName = tone === 'call'
-  ? 'border-ui-100/60 bg-ui text-white shadow-lg shadow-gray-200/30 ring-ui-100/40'
+  ? 'border-red-300/60 bg-red-600 text-white shadow-lg shadow-red-950/30 ring-red-300/40' // 呼び出し=赤(唯一の例外)
   : tone === 'check'
-    ? 'border-gray-200/60 bg-gray-900 text-white shadow-lg shadow-gray-200/30 ring-gray-200/40'
+    ? 'border-ui-100/60 bg-ui text-white shadow-lg shadow-gray-950/30 ring-ui-100/40' // 会計=スチールブルー(卓の地図と同じ)
     : 'border-gray-700 bg-gray-900/75 text-gray-100 ring-gray-700/70';
 
 const childRowClassName = tone === 'call'
-  ? 'bg-ui/70 text-white'
+  ? 'bg-red-700/70 text-white'
   : tone === 'check'
-    ? 'bg-gray-900/70 text-white'
+    ? 'bg-ui/70 text-white'
     : 'bg-gray-950/60 text-gray-100';
 
 const headerHoverClassName = tone === 'call'
-  ? 'hover:bg-ui/40'
+  ? 'hover:bg-red-700/40'
   : tone === 'check'
-    ? 'hover:bg-gray-900/40'
+    ? 'hover:bg-ui/40'
     : 'hover:bg-gray-800/80';
 
 const subTextClassName = tone === 'default'
@@ -457,9 +457,9 @@ const KitchenSidebar = ({
                   type="button"
                   onClick={onMarkSelectedOrdersReady}
                   disabled={!hasSelectedOrders}
-                  className={`flex h-12 w-full items-center justify-center rounded-2xl text-sm font-black shadow-lg transition-all active:scale-[0.98] ${
+                  className={`flex h-12 w-full items-center justify-center rounded-2xl text-sm font-black transition-all active:scale-[0.98] ${
                     hasSelectedOrders
-                      ? 'bg-gray-900 text-white shadow-gray-200/20 hover:bg-gray-900'
+                      ? 'bg-white text-gray-900 hover:bg-gray-100' /* 暗い地の主ボタン=白地に黒文字(反転) */
                       : 'cursor-not-allowed bg-gray-800 text-gray-600 shadow-none'
                   }`}
                 >
