@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AkutoWordmark } from '../../shared/components/AkutoLogo';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../shared/api/firebase/client';
 import {
@@ -3099,8 +3100,9 @@ if (shouldWaitForSessionBeforeWelcome) {
 
                 <div className="mt-4 h-px w-16 bg-gray-200" />
 
-                <p className="mt-3 text-[9px] font-semibold tracking-[0.18em] text-gray-500">
-                  Connected by AKUTO
+                <p className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-gray-500">
+                  powered by
+                  <AkutoWordmark height={9} className="text-gray-500" />
                 </p>
               </div>
             </div>
