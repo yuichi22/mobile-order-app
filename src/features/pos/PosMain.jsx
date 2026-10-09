@@ -2676,7 +2676,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   return (
     <>
     <div ref={containerRef} className="relative flex h-full select-none overflow-hidden bg-gray-100">
-      <div style={{ width: `${splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pr-1">
+      {/* 左=残り全部。右(履歴)は日付操作まで1行に収まる幅を最低限確保する(iPad横で重ならないように) */}
+      <div className="flex h-full min-w-[300px] flex-1 flex-col p-4 pr-1">
             {/* スキャン枠の上ラインを右ペインの白カード枠の上ラインに合わせる(両方とも各ペインのp-4=16px)。
                 右はカード端=下のカート枠端で一直線。カード p-4 にして中の開くの右が下のクリアの右と揃う。 */}
         {/* 会員バー: 読み込み中は左ペイン最上部に常時表示する。
@@ -3145,7 +3146,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         />
       </div>
 
-      <div style={{ width: `${100 - splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pl-1">
+      <div style={{ width: `max(${100 - splitRatio}%, 480px)` }} className="flex h-full shrink-0 flex-col p-4 pl-1">
         {isTakeoutMode ? (
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm">
             {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。
