@@ -915,7 +915,7 @@ const TableTextInput = forwardRef(({ value, onChange, type = 'text', className =
       spellCheck={inputMode ? false : undefined}
       className={classNames(
         'h-9 w-full rounded-lg border-2 border-gray-200 bg-white px-2.5 text-sm font-bold text-gray-900 outline-none transition hover:border-gray-300 [appearance:textfield] focus:border-ui [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-        leftButton ? 'pl-14' : '',
+        leftButton ? 'pl-12' : '', // 「発行」ボタン(約44px)の直後から数字を出す
         className
       )}
     />
@@ -3450,7 +3450,7 @@ const ProductMasterTable = ({
           </div>
         )}
 
-        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(148px,1.05fr)_72px_76px_92px_66px_74px_74px_84px_170px_72px_96px_44px] gap-2">
+        <div className="grid grid-cols-[minmax(120px,1fr)_minmax(172px,1.2fr)_72px_76px_92px_66px_74px_74px_84px_170px_72px_96px_44px] gap-2">
           <div>
             <FieldLabel>品番</FieldLabel>
             <TableTextInput
