@@ -2451,8 +2451,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       {showProcessingOverlay && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
           <div className="flex w-full max-w-sm flex-col items-center rounded-[2rem] border border-gray-100 bg-white px-8 py-7 text-center shadow-2xl">
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-              <LoadingSpinner size={30} className="text-blue-600" />
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-ui-50">
+              <LoadingSpinner size={30} className="text-ui" />
             </div>
             <h3 className="text-xl font-black tracking-tight text-gray-900">
               {processingTitle}
@@ -2466,7 +2466,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
       {quantityPicker && (
         <div className="fixed inset-0 z-[260] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-[2rem] border border-blue-100 bg-white p-8 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-[2rem] border border-ui-100 bg-white p-8 text-center shadow-2xl">
             <h3 className="text-xl font-black tracking-tight text-gray-900">
               {quantityPicker.title}
             </h3>
@@ -2476,7 +2476,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
             </p>
 
             <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-              <p className="mb-3 text-[11px] font-black text-gray-400">
+              <p className="mb-3 text-[11px] font-black text-gray-500">
                 数量
               </p>
 
@@ -2488,8 +2488,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
                     onClick={() => updateQuantityPickerValue(quantity)}
                     className={`h-11 rounded-xl border text-sm font-black transition-all ${
                       Number(quantityPicker.quantity || 1) === quantity
-                        ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-100'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+                        ? 'border-ui bg-ui text-white shadow-md shadow-gray-200'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-ui-100 hover:bg-ui-50'
                     }`}
                   >
                     {quantity}
@@ -2515,7 +2515,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
                 className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:opacity-50 ${
                   quantityPicker.mode === 'cancel'
                     ? 'bg-red-500 shadow-red-100 hover:bg-red-600'
-                    : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700'
+                    : 'bg-gray-900 shadow-gray-200 hover:bg-gray-800'
                 }`}
               >
                 {quantityPicker.mode === 'cancel' ? '取消へ進む' : '選択する'}

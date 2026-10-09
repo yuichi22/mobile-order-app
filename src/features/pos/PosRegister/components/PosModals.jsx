@@ -275,7 +275,7 @@ export const PosModals = ({
       {showSuccessModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="animate-in zoom-in-95 flex w-full max-w-sm flex-col items-center rounded-2xl bg-white p-8 text-center shadow-2xl">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-900">
               <Check size={40} strokeWidth={3} />
             </div>
 
@@ -292,7 +292,7 @@ export const PosModals = ({
               </div>
 
               {lastTransaction?.method === 'cash' && (
-                <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-blue-600">
+                <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-ui">
                   <span>おつり</span>
                   <span className="font-mono text-2xl font-bold">
                     ¥{Number(lastTransaction?.change || 0).toLocaleString()}
@@ -301,7 +301,7 @@ export const PosModals = ({
               )}
 
               {Number(lastTransaction?.voucherChangeAmount || 0) > 0 && (
-                <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-blue-600">
+                <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-2 text-ui">
                   <span>おつり（金券）</span>
                   <span className="font-mono text-2xl font-bold">
                     ¥{Number(lastTransaction?.voucherChangeAmount || 0).toLocaleString()}
@@ -316,7 +316,7 @@ export const PosModals = ({
                 setShowSuccessModal(false);
                 setPaymentAmount('');
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-lg font-bold text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 text-lg font-bold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98]"
             >
               戻る
             </button>
@@ -329,10 +329,10 @@ export const PosModals = ({
           <div className="animate-in zoom-in-95 w-full max-w-xs rounded-2xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800">
-                <Calculator size={20} className="text-blue-500" />
+                <Calculator size={20} className="text-ui" />
                 分割会計
               </h3>
-              <button onClick={() => setShowSplitModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowSplitModal(false)} className="text-gray-500 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
@@ -355,16 +355,16 @@ export const PosModals = ({
               </div>
               <button
                 onClick={() => setSplitCount(splitCount + 1)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700"
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-ui-50 text-ui"
               >
                 <Plus size={18} />
               </button>
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 p-3">
-                <span className="text-sm font-bold text-blue-800">1人あたり</span>
-                <span className="font-mono text-xl font-bold text-blue-700">¥{splitResult.perPerson.toLocaleString()}</span>
+              <div className="flex items-center justify-between rounded-lg border border-ui-100 bg-ui-50 p-3">
+                <span className="text-sm font-bold text-ui">1人あたり</span>
+                <span className="font-mono text-xl font-bold text-ui">¥{splitResult.perPerson.toLocaleString()}</span>
               </div>
 
               {splitResult.remainder > 0 && (
@@ -396,13 +396,13 @@ export const PosModals = ({
           >
             <div className="mb-4 flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800">
-                <Percent size={20} className="text-orange-500" />
+                <Percent size={20} className="text-ui" />
                 割引・売掛を適用
               </h3>
               <button
                 type="button"
                 onClick={() => setShowDiscountModal(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
                 aria-label="閉じる"
               >
                 <X size={20} />
@@ -410,8 +410,8 @@ export const PosModals = ({
             </div>
 
             <div className="mb-4 space-y-2">
-              <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-2">
-                <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-black text-sky-600">
+              <div className="rounded-xl border border-ui-100 bg-ui-50/70 p-2">
+                <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-black text-ui">
                   <HandCoins size={13} />
                   全額売掛
                 </div>
@@ -419,7 +419,7 @@ export const PosModals = ({
                   type="button"
                   onClick={applyFullCredit}
                   disabled={fullCreditAmount <= 0}
-                  className="flex h-10 w-full items-center justify-center gap-1 rounded-lg bg-sky-500 px-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                  className="flex h-10 w-full items-center justify-center gap-1 rounded-lg bg-gray-900 px-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                 >
                   {fullCreditAmount > 0
                     ? `全額 ¥${fullCreditAmount.toLocaleString()} を売掛に充当`
@@ -431,27 +431,27 @@ export const PosModals = ({
                   ポイントOFFのテナントでは出さない。ただし残高が残るお客様は
                   使い切りまで利用できる(2026-08-25 決定)ので、残高>0なら出す。 */}
               {crmMember && (crmMember.pointsEnabled !== false || Number(crmMember.pointBalance || 0) > 0) && (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2">
+                <div className="rounded-xl border border-gray-200 bg-gray-100/70 p-2">
                   <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                    <div className="flex items-center gap-1 text-[11px] font-black text-emerald-700">
+                    <div className="flex items-center gap-1 text-[11px] font-black text-gray-900">
                       <HandCoins size={13} />
                       ポイント利用
                     </div>
-                    <div className="text-[11px] font-black text-emerald-600">
+                    <div className="text-[11px] font-black text-gray-900">
                       残高 {Number(crmMember.pointBalance || 0).toLocaleString()}pt
-                      {crmPointUnit > 1 && <span className="ml-1 text-emerald-500">/ {crmPointUnit}pt単位</span>}
+                      {crmPointUnit > 1 && <span className="ml-1 text-gray-900">/ {crmPointUnit}pt単位</span>}
                     </div>
                   </div>
 
                   {Number(crmPointsToUse) > 0 ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
-                      <span className="text-sm font-black text-emerald-800">
+                      <span className="text-sm font-black text-gray-900">
                         {Number(crmPointsToUse).toLocaleString()}pt（¥{(Number(crmPointsToUse) * crmYenPerPoint).toLocaleString()}）を利用中
                       </span>
                       <button
                         type="button"
                         onClick={clearCrmPoints}
-                        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
+                        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-gray-900 hover:bg-gray-100"
                       >
                         取り消す
                       </button>
@@ -477,24 +477,24 @@ export const PosModals = ({
                       );
                       return (
                         <div className="flex items-center gap-2">
-                          <div className="flex min-w-0 flex-1 items-center overflow-hidden rounded-lg border border-emerald-200 bg-white">
+                          <div className="flex min-w-0 flex-1 items-center overflow-hidden rounded-lg border border-gray-200 bg-white">
                             <button
                               type="button"
                               onClick={() => setPointInput(String(Math.max(crmPointUnit, stepVal - crmPointUnit)))}
                               disabled={stepVal <= crmPointUnit}
-                              className="h-9 w-9 shrink-0 text-lg font-black text-emerald-700 disabled:text-gray-300"
+                              className="h-9 w-9 shrink-0 text-lg font-black text-gray-900 disabled:text-gray-300"
                               aria-label={`${crmPointUnit}pt減らす`}
                             >
                               −
                             </button>
-                            <div className="min-w-0 flex-1 text-center text-sm font-black text-emerald-800">
+                            <div className="min-w-0 flex-1 text-center text-sm font-black text-gray-900">
                               {stepVal.toLocaleString()}pt
                             </div>
                             <button
                               type="button"
                               onClick={() => setPointInput(String(Math.min(crmPointMax, stepVal + crmPointUnit)))}
                               disabled={stepVal + crmPointUnit > crmPointMax}
-                              className="h-9 w-9 shrink-0 text-lg font-black text-emerald-700 disabled:text-gray-300"
+                              className="h-9 w-9 shrink-0 text-lg font-black text-gray-900 disabled:text-gray-300"
                               aria-label={`${crmPointUnit}pt増やす`}
                             >
                               ＋
@@ -503,14 +503,14 @@ export const PosModals = ({
                           <button
                             type="button"
                             onClick={() => applyCrmPoints(stepVal)}
-                            className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white"
+                            className="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-xs font-black text-white"
                           >
                             利用
                           </button>
                           <button
                             type="button"
                             onClick={() => applyCrmPoints(crmPointMax)}
-                            className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-900 hover:bg-gray-100"
                           >
                             全部使う
                           </button>
@@ -524,20 +524,20 @@ export const PosModals = ({
                         onChange={(event) => setPointInput(event.target.value.replace(/\D/g, ''))}
                         inputMode="numeric"
                         placeholder={`最大 ${crmPointMax.toLocaleString()}pt`}
-                        className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-2 text-sm font-bold outline-none focus:border-emerald-500"
+                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm font-bold outline-none focus:border-gray-900"
                       />
                       <button
                         type="button"
                         onClick={() => applyCrmPoints(pointInput)}
                         disabled={!pointInput || Number(pointInput) <= 0}
-                        className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                        className="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                       >
                         利用
                       </button>
                       <button
                         type="button"
                         onClick={() => applyCrmPoints(crmPointMax)}
-                        className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                        className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-900 hover:bg-gray-100"
                       >
                         全部使う
                       </button>
@@ -547,7 +547,7 @@ export const PosModals = ({
               )}
             </div>
 
-            <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-400">
+            <div className="mb-3 grid grid-cols-[1fr_120px_100px] gap-2 border-b border-gray-100 px-2 pb-2 text-[11px] font-black text-gray-500">
               <div>項目名</div>
               <div className="text-center">数量</div>
               <div className="text-right">小計</div>
@@ -555,7 +555,7 @@ export const PosModals = ({
 
             <div className="mb-4 min-h-0 flex-grow overflow-y-auto pr-1">
               {discounts.length === 0 ? (
-                <div className="rounded-xl bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
+                <div className="rounded-xl bg-gray-50 p-6 text-center text-sm font-bold text-gray-500">
                   登録済みの割引/金券がありません
                 </div>
               ) : (
@@ -608,15 +608,15 @@ export const PosModals = ({
                         }}
                         className={`grid cursor-pointer grid-cols-[1fr_120px_100px] items-center gap-2 rounded-xl border px-2 py-3 transition-all ${
                           quantity > 0
-                            ? 'border-orange-200 bg-orange-50'
-                            : 'border-gray-100 bg-white hover:border-orange-100 hover:bg-orange-50/40'
+                            ? 'border-ui-100 bg-ui-50'
+                            : 'border-gray-100 bg-white hover:border-ui-100 hover:bg-ui-50/40'
                         }`}
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-black text-gray-800">
                             {discount.name || '値引き'}
                           </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold text-gray-400">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold text-gray-500">
                             <span>
                               {isManual
                                 ? (isManualPercent ? '会計時に％入力' : '会計時に金額入力')
@@ -624,11 +624,11 @@ export const PosModals = ({
                                   ? `1枚 ${unitValue.toLocaleString()}円`
                                   : `${unitValue}%割引`}
                             </span>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-gray-500">
                               {getAccountingCategoryLabel(discount.accountingCategory || 'sales_discount')}
                             </span>
                             {discount.accountingCategory === 'voucher_payment' && discount.allowsChange === true && isAmountDiscount && (
-                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600">
+                              <span className="rounded-full bg-ui-50 px-2 py-0.5 text-[10px] font-black text-ui">
                                 お釣り可
                               </span>
                             )}
@@ -643,7 +643,7 @@ export const PosModals = ({
                             <button
                               type="button"
                               onClick={openManual}
-                              className="flex h-8 items-center gap-1 rounded-lg bg-sky-100 px-3 text-xs font-black text-sky-700 transition-colors hover:bg-sky-200 active:scale-95"
+                              className="flex h-8 items-center gap-1 rounded-lg bg-ui-50 px-3 text-xs font-black text-ui transition-colors hover:bg-ui-100 active:scale-95"
                             >
                               <Keyboard size={14} />
                               {isManualPercent ? '％入力' : '金額入力'}
@@ -664,13 +664,13 @@ export const PosModals = ({
                                 min="0"
                                 value={quantity}
                                 onChange={(event) => updateQuantity(event.target.value)}
-                                className="h-8 w-12 rounded-lg border border-gray-200 bg-white text-center text-sm font-black text-gray-900 outline-none focus:border-orange-400"
+                                className="h-8 w-12 rounded-lg border border-gray-200 bg-white text-center text-sm font-black text-gray-900 outline-none focus:border-ui"
                               />
 
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(quantity + 1)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-700 shadow-sm active:scale-95"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-ui-50 text-ui shadow-sm active:scale-95"
                               >
                                 <Plus size={15} />
                               </button>
@@ -681,8 +681,8 @@ export const PosModals = ({
                               onClick={() => updateQuantity(isSelectedPercent ? 0 : 1)}
                               className={`h-8 rounded-lg px-3 text-xs font-black transition-colors ${
                                 isSelectedPercent
-                                  ? 'bg-orange-500 text-white'
-                                  : 'bg-gray-100 text-gray-500 hover:bg-orange-100 hover:text-orange-700'
+                                  ? 'bg-ui text-white'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-ui-50 hover:text-ui'
                               }`}
                             >
                               {isSelectedPercent ? '選択中' : '選択'}
@@ -690,7 +690,7 @@ export const PosModals = ({
                           )}
                         </div>
 
-                        <div className="text-right font-mono text-sm font-black text-orange-700">
+                        <div className="text-right font-mono text-sm font-black text-ui">
                           {isManual
                             ? '手入力'
                             : isAmountDiscount
@@ -707,7 +707,7 @@ export const PosModals = ({
             </div>
 
             <div className="shrink-0 border-t border-gray-100 pt-4">
-              <div className="mb-3 flex items-center justify-between rounded-xl bg-orange-50 px-4 py-3 text-sm font-black text-orange-900">
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-ui-50 px-4 py-3 text-sm font-black text-ui">
                 <span>適用予定額</span>
                 <span className="font-mono">
                   {previewPercentLabel ? `${previewPercentLabel} = ` : ''}-{previewDiscountAmount.toLocaleString()}円
@@ -728,7 +728,7 @@ export const PosModals = ({
                 <button
                   type="button"
                   onClick={applyDiscountSelection}
-                  className="flex flex-1 items-center justify-center rounded-xl bg-orange-500 py-3 font-black text-white shadow-sm transition-all hover:bg-orange-600 active:scale-[0.99]"
+                  className="flex flex-1 items-center justify-center rounded-xl bg-gray-900 py-3 font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-[0.99]"
                 >
                   適用
                 </button>
@@ -786,14 +786,14 @@ export const PosModals = ({
 
         return (
           <div
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm"
             onClick={closeManual}
           >
             <div
               className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b bg-sky-500 px-6 py-4 text-white">
+              <div className="flex items-center justify-between border-b bg-gray-900 px-6 py-4 text-white">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/70">
                     <Keyboard size={14} />
@@ -818,7 +818,7 @@ export const PosModals = ({
                     type="button"
                     onClick={() => applyManualAmount(true)}
                     disabled={base <= 0}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gray-900 font-black text-white shadow-sm transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                   >
                     <HandCoins size={16} />
                     全額 ¥{base.toLocaleString()} を充当
@@ -827,19 +827,19 @@ export const PosModals = ({
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">
                       {isPercent ? '入力割引率' : '入力金額'}
                     </span>
                     {amt > 0 && (
-                      <span className="text-sm font-black text-sky-600">
+                      <span className="text-sm font-black text-ui">
                         {isPercent ? `${pct}% = ` : ''}充当 -¥{amt.toLocaleString()} / 残り ¥{remaining.toLocaleString()}
                       </span>
                     )}
                   </div>
-                  <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
-                    {!isPercent && <span className="mr-1 text-2xl font-black text-slate-300">￥</span>}
-                    <span className="font-mono text-4xl font-black text-slate-800">{manualValue || '0'}</span>
-                    {isPercent && <span className="ml-1 text-2xl font-black text-slate-300">%</span>}
+                  <div className="flex h-16 items-center justify-end rounded-xl border-2 border-gray-200 bg-gray-50 px-5">
+                    {!isPercent && <span className="mr-1 text-2xl font-black text-gray-300">￥</span>}
+                    <span className="font-mono text-4xl font-black text-gray-800">{manualValue || '0'}</span>
+                    {isPercent && <span className="ml-1 text-2xl font-black text-gray-300">%</span>}
                   </div>
                 </div>
 
@@ -851,7 +851,7 @@ export const PosModals = ({
                           key={key}
                           type="button"
                           onClick={() => setManualValue('')}
-                          className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-base font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                          className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-base font-black text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
                         >
                           C
                         </button>
@@ -863,7 +863,7 @@ export const PosModals = ({
                           key={key}
                           type="button"
                           onClick={backspace}
-                          className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                          className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
                           aria-label="1文字削除"
                         >
                           <ChevronLeft size={22} />
@@ -875,7 +875,7 @@ export const PosModals = ({
                         key={key}
                         type="button"
                         onClick={() => append(key)}
-                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-2xl font-black text-slate-800 transition-all hover:border-sky-200 hover:bg-sky-50/40 active:scale-95"
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-2xl font-black text-gray-800 transition-all hover:border-ui-100 hover:bg-ui-50/40 active:scale-95"
                       >
                         {key}
                       </button>
@@ -887,7 +887,7 @@ export const PosModals = ({
                   type="button"
                   disabled={amt <= 0}
                   onClick={() => applyManualAmount(false)}
-                  className="flex h-14 w-full items-center justify-center rounded-xl bg-slate-900 font-black text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="flex h-14 w-full items-center justify-center rounded-xl bg-gray-900 font-black text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                 >
                   {isPercent ? `${pct}% = ` : ''}¥{amt.toLocaleString()} を充当{remaining > 0 ? `（残り ¥${remaining.toLocaleString()} は他の決済）` : ''}
                 </button>
@@ -895,7 +895,7 @@ export const PosModals = ({
                 <button
                   type="button"
                   onClick={closeManual}
-                  className="w-full py-2 text-sm font-bold text-gray-400 hover:text-gray-600"
+                  className="w-full py-2 text-sm font-bold text-gray-500 hover:text-gray-600"
                 >
                   戻る
                 </button>
@@ -927,7 +927,7 @@ export const PosModals = ({
             <div className="flex gap-3">
               <button
                 onClick={closeAbortModal}
-                className="flex-1 rounded-2xl bg-gray-50 py-4 font-bold text-gray-400 transition-all hover:bg-gray-100"
+                className="flex-1 rounded-2xl bg-gray-50 py-4 font-bold text-gray-500 transition-all hover:bg-gray-100"
               >
                 キャンセル
               </button>

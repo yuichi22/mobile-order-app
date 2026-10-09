@@ -54,11 +54,11 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
     label: '現金',
     buttonLabel: '現金で会計する',
     icon: DollarSign,
-    activeClassName: 'border-gray-950 bg-gray-950 text-white shadow-md ring-2 ring-gray-200',
-    inactiveClassName: 'border-gray-300 bg-white text-gray-950 shadow-sm hover:border-gray-600 hover:bg-gray-50',
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
     panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
-    panelIconClassName: 'bg-white text-gray-950 shadow-lg shadow-gray-200',
-    panelTitleClassName: 'text-gray-950',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
     panelTextClassName: 'text-gray-500',
     actionClassName: 'bg-gray-950 text-white hover:bg-black hover:shadow-xl'
   },
@@ -67,26 +67,26 @@ const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
     label: 'カード',
     buttonLabel: 'カードで会計する',
     icon: CreditCard,
-    activeClassName: 'border-blue-600 bg-blue-600 text-white shadow-md ring-2 ring-blue-100',
-    inactiveClassName: 'border-blue-200 bg-blue-50 text-blue-800 shadow-sm hover:border-blue-500 hover:bg-blue-100',
-    panelClassName: 'border-blue-300 bg-blue-50 text-blue-700',
-    panelIconClassName: 'bg-white text-blue-600 shadow-lg shadow-blue-100',
-    panelTitleClassName: 'text-blue-700',
-    panelTextClassName: 'text-blue-500',
-    actionClassName: 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
+    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
+    panelTextClassName: 'text-gray-500',
+    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
   },
   {
     id: 'qr',
     label: 'QR決済',
     buttonLabel: 'QR決済で会計する',
     icon: ScanQrCode,
-    activeClassName: 'border-purple-600 bg-purple-600 text-white shadow-md ring-2 ring-purple-100',
-    inactiveClassName: 'border-purple-200 bg-purple-50 text-purple-800 shadow-sm hover:border-purple-500 hover:bg-purple-100',
-    panelClassName: 'border-purple-300 bg-purple-50 text-purple-700',
-    panelIconClassName: 'bg-white text-purple-600 shadow-lg shadow-purple-100',
-    panelTitleClassName: 'text-purple-700',
-    panelTextClassName: 'text-purple-500',
-    actionClassName: 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-xl'
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
+    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
+    panelTextClassName: 'text-gray-500',
+    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
   }
 ];
 
@@ -2453,7 +2453,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // 中央の会計リスト列。POSレジ・ORDERテイクアウトの両方で共有する。
   const renderTakeoutCartColumn = () => (
     <div className="flex min-h-0 min-w-0 flex-col bg-white">
-      <div className={`shrink-0 border-b border-slate-100 px-4 pb-4 ${registerMode === 'pos' ? 'pt-3' : 'pt-4'}`}>
+      <div className={`shrink-0 border-b border-gray-100 px-4 pb-4 ${registerMode === 'pos' ? 'pt-3' : 'pt-4'}`}>
         {registerMode === 'pos' ? (
           // POSは税込合計を右の会計パネルに集約。ここは 割引・売掛 / 保留 / クリア の3ボタン横並び。
           <div className="grid grid-cols-3 gap-2">
@@ -2463,8 +2463,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               disabled={takeoutCart.length === 0}
               className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
                 takeoutDiscountAmount > 0
-                  ? 'border-orange-400 bg-orange-50 text-orange-700'
-                  : 'border-orange-300 bg-white text-orange-600 hover:bg-orange-50'
+                  ? 'border-ui bg-ui-50 text-ui'
+                  : 'border-ui-100 bg-white text-ui hover:bg-ui-50'
               }`}
             >
               <Percent size={15} />
@@ -2474,7 +2474,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               type="button"
               onClick={holdCurrentPosCart}
               disabled={takeoutCart.length === 0}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white text-xs font-black text-amber-600 transition-all hover:bg-amber-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PauseCircle size={15} />
               保留する
@@ -2491,7 +2491,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 setPosMessage('仮伝票をクリアしました。', 'success');
               }}
               disabled={takeoutCart.length === 0}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-500 shadow-sm transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-500 shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={15} />
               クリア
@@ -2505,8 +2505,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               disabled={takeoutCart.length === 0}
               className={`flex h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
                 takeoutDiscountAmount > 0
-                  ? 'border-orange-200 bg-orange-100 text-orange-700 shadow-sm'
-                  : 'border-orange-100 bg-orange-50 text-orange-600 hover:border-orange-200 hover:bg-orange-100'
+                  ? 'border-ui-100 bg-ui-50 text-ui shadow-sm'
+                  : 'border-ui-100 bg-ui-50 text-ui hover:border-ui-100 hover:bg-ui-50'
               }`}
             >
               <Percent size={16} />
@@ -2515,13 +2515,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
             <div className="text-right">
               {takeoutDiscountAmount > 0 && (
-                <div className="mb-1 flex items-center justify-end gap-2 text-xs font-black text-orange-600">
+                <div className="mb-1 flex items-center justify-end gap-2 text-xs font-black text-ui">
                   <span className="max-w-[160px] truncate">{takeoutDiscountLabel}</span>
                   <span className="font-mono">-¥{takeoutDiscountAmount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="text-xs font-black text-slate-400">税込合計</div>
-              <div className="font-mono text-3xl font-black text-slate-900">
+              <div className="text-xs font-black text-gray-500">税込合計</div>
+              <div className="font-mono text-3xl font-black text-gray-900">
                 ¥{takeoutCartTotal.toLocaleString()}
               </div>
             </div>
@@ -2531,7 +2531,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {takeoutCart.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
+          <div className="flex h-full flex-col items-center justify-center text-center text-gray-300">
             <ShoppingBag size={56} strokeWidth={1.5} />
             <p className="mt-3 text-sm font-black">
               商品を選択してください
@@ -2559,20 +2559,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 }}
                 className={`rounded-2xl border p-4 transition-colors duration-500 ${
                   isJustAdded
-                    ? 'border-emerald-300 bg-emerald-50 ring-2 ring-emerald-200'
-                    : 'border-slate-100 bg-slate-50'
+                    ? 'border-gray-200 bg-gray-100 ring-2 ring-gray-200'
+                    : 'border-gray-100 bg-gray-50'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-slate-800">
+                    <div className="truncate text-sm font-black text-gray-800">
                       {item.name}
                     </div>
-                    <div className="mt-1 text-xs font-bold text-slate-400">
+                    <div className="mt-1 text-xs font-bold text-gray-500">
                       ¥{Number(item.takeoutPrice || 0).toLocaleString()} / {item.categoryName}
                     </div>
                     {hasLineDiscount && (
-                      <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-2 py-0.5 text-[11px] font-black text-orange-700">
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-ui-50 px-2 py-0.5 text-[11px] font-black text-ui">
                         <Percent size={11} />
                         {item.lineDiscount?.name
                           ? item.lineDiscount.name
@@ -2583,12 +2583,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     )}
                     {item.sourceType === 'retail' && (
-                      <div className="mt-1 text-[11px] font-black text-emerald-600">
+                      <div className="mt-1 text-[11px] font-black text-gray-900">
                         商品マスター在庫対象 / 在庫 {Number(item.stockQuantity ?? 0).toLocaleString()} / 選択 {Number(item.quantity || 0).toLocaleString()}
                       </div>
                     )}
                     {item.sourceType === 'manual' && (
-                      <div className="mt-1 text-[11px] font-black text-slate-400">
+                      <div className="mt-1 text-[11px] font-black text-gray-500">
                         手入力商品 / 在庫対象外
                       </div>
                     )}
@@ -2604,15 +2604,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
                     <button
                       type="button"
                       onClick={() => updateTakeoutCartQuantity(item.id, -1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
                     >
                       <Minus size={15} />
                     </button>
-                    <span className="w-10 text-center font-mono text-lg font-black text-slate-800">
+                    <span className="w-10 text-center font-mono text-lg font-black text-gray-800">
                       {Number(item.quantity || 0)}
                     </span>
                     <button
@@ -2624,7 +2624,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         item.sourceType === 'retail' &&
                         Number(item.quantity || 0) >= Number(item.stockQuantity || 0)
                       }
-                      className="flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-ui hover:bg-ui-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-white"
                     >
                       <Plus size={15} />
                     </button>
@@ -2643,8 +2643,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       }}
                       className={`flex h-9 items-center gap-1 rounded-lg border px-3 text-xs font-black transition-all active:scale-95 ${
                         hasLineDiscount
-                          ? 'border-orange-200 bg-orange-100 text-orange-700'
-                          : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+                          ? 'border-ui-100 bg-ui-50 text-ui'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-ui-100 hover:bg-ui-50 hover:text-ui'
                       }`}
                     >
                       <Percent size={13} />
@@ -2653,11 +2653,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
                     <div className="text-right">
                       {hasLineDiscount && (
-                        <div className="font-mono text-xs font-bold text-slate-400 line-through">
+                        <div className="font-mono text-xs font-bold text-gray-500 line-through">
                           ¥{lineAmount.toLocaleString()}
                         </div>
                       )}
-                      <div className={`font-mono text-lg font-black ${hasLineDiscount ? 'text-orange-600' : 'text-slate-900'}`}>
+                      <div className={`font-mono text-lg font-black ${hasLineDiscount ? 'text-ui' : 'text-gray-900'}`}>
                         ¥{lineNet.toLocaleString()}
                       </div>
                     </div>
@@ -2674,7 +2674,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   return (
     <>
-    <div ref={containerRef} className="relative flex h-full select-none overflow-hidden bg-slate-100">
+    <div ref={containerRef} className="relative flex h-full select-none overflow-hidden bg-gray-100">
       <div style={{ width: `${splitRatio}%` }} className="flex h-full min-w-[300px] flex-col p-4 pr-1">
             {/* スキャン枠の上ラインを右ペインの白カード枠の上ラインに合わせる(両方とも各ペインのp-4=16px)。
                 右はカード端=下のカート枠端で一直線。カード p-4 にして中の開くの右が下のクリアの右と揃う。 */}
@@ -2685,7 +2685,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           <div
             style={memberBarStyle(crmMember.rank)}
             className={`mb-2 flex shrink-0 items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-white shadow-md ${
-              crmMember.rank ? '' : 'bg-emerald-600'
+              crmMember.rank ? '' : 'bg-gray-900'
             }`}
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -2707,7 +2707,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={() => clearCrmMember({ notify: true })}
-              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
+              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-gray-900 transition hover:bg-white active:scale-95"
             >
               解除
             </button>
@@ -2718,7 +2718,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={onBack}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 active:scale-95"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 active:scale-95"
               title="モード選択へ戻る"
               aria-label="モード選択へ戻る"
             >
@@ -2728,7 +2728,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           <div className="flex-1 rounded-xl bg-white px-4 py-3.5 shadow-sm">
             <form onSubmit={handleScanSubmit} className="flex items-center gap-2">
               <div className="relative flex-grow">
-                <Barcode className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <Barcode className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 <input
                   ref={inputRef}
                   type="text"
@@ -2744,7 +2744,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => { setScanInput(''); setSearchResults([]); setScanCandidates([]); }}
-                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-600"
                     aria-label="クリア"
                   >
                     <X size={16} />
@@ -2762,27 +2762,27 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                           disabled={outOfStock}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => { addPosProductToCart(product); setScanInput(''); setSearchResults([]); setScanCandidates([]); }}
-                          className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2.5 text-left hover:bg-blue-50 active:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2.5 text-left hover:bg-ui-50 active:bg-ui-50 disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-bold text-gray-900">{product.name || '商品'}</span>
-                            <span className="block truncate text-xs text-gray-400">
+                            <span className="block truncate text-xs text-gray-500">
                               {variantDetail ? `${variantDetail} ・ ` : ''}
                               {[product.barcode, product.sku || product.productCode].filter(Boolean).join(' / ') || 'コードなし'}
                             </span>
                           </span>
                           <span className="shrink-0 text-right">
                             <span className="block text-sm font-black text-gray-800">¥{Number(product.resolvedPrice || 0).toLocaleString()}</span>
-                            <span className="block text-[10px] font-bold text-gray-400">在庫 {Number(product.resolvedStock ?? 0).toLocaleString()}{outOfStock ? '（なし）' : ''}</span>
+                            <span className="block text-[10px] font-bold text-gray-500">在庫 {Number(product.resolvedStock ?? 0).toLocaleString()}{outOfStock ? '（なし）' : ''}</span>
                           </span>
                         </button>
                       );
                     })}
                     {scanCandidates.length === 0 && searchLoading && searchResults.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-400">検索中...</div>
+                      <div className="px-3 py-2 text-sm text-gray-500">検索中...</div>
                     )}
                     {scanCandidates.length === 0 && !searchLoading && searchResults.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-400">一致する商品がありません</div>
+                      <div className="px-3 py-2 text-sm text-gray-500">一致する商品がありません</div>
                     )}
                   </div>
                 )}
@@ -2792,7 +2792,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 title="開く"
                 aria-label="開く"
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white transition-colors ${
-                  registerMode === 'pos' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'
+                  'bg-gray-900 hover:bg-gray-800' /* 主ボタン=黒(レジの種類で色を変えない) */
                 }`}
               >
                 <Search size={18} />
@@ -2804,7 +2804,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 type="button"
                 onClick={() => setMemberSearchOpen(true)}
                 title="会員検索・携帯番号の登録"
-                className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
+                className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-black text-gray-900 transition-colors hover:bg-gray-100 active:scale-95"
               >
                 <User size={16} strokeWidth={2.8} />
                 会員検索
@@ -2822,7 +2822,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={() => setMenuOverrideOpen(true)}
-                    className="flex h-9 items-center gap-2 rounded-lg border border-orange-300 bg-white px-3 text-xs font-black text-orange-600 transition-colors hover:bg-orange-50 active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-ui-100 bg-white px-3 text-xs font-black text-ui transition-colors hover:bg-ui-50 active:scale-95"
                   >
                     <Clock size={15} />
                     時間帯メニュー変更
@@ -2831,7 +2831,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={() => setIsTakeoutMode(true)}
-                    className="flex h-9 items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 text-xs font-black text-blue-700 transition-colors hover:bg-blue-50 active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-ui-100 bg-white px-3 text-xs font-black text-ui transition-colors hover:bg-ui-50 active:scale-95"
                   >
                     <ShoppingBag size={15} />
                     {registerMode === 'pos' ? 'POSレジ' : 'テイクアウト注文'}
@@ -2840,7 +2840,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <button
                     type="button"
                     onClick={openStaffOrderTerminal}
-                    className="flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 transition-colors hover:bg-slate-50 active:scale-95"
+                    className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-xs font-black text-gray-800 transition-colors hover:bg-gray-50 active:scale-95"
                   >
                     <ClipboardList size={15} />
                     スタッフ注文
@@ -2850,25 +2850,25 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             </div>
           )}
 
-          <div className="relative flex-grow overflow-hidden bg-slate-100" ref={mapWrapperRef}>
+          <div className="relative flex-grow overflow-hidden bg-gray-100" ref={mapWrapperRef}>
 
             {registerMode === 'pos' ? (
-              <div className="flex h-full min-h-0 flex-col bg-slate-50">
+              <div className="flex h-full min-h-0 flex-col bg-gray-50">
                 {/* iPad小画面でもカートを広く見せるため、売り場カラムは細め(約1/3)・カートを中央で広く。 */}
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(96px,1fr)_minmax(0,2fr)] gap-0">
-                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 px-4 pb-4 pt-3">
+                  <div className="min-h-0 overflow-y-auto border-r border-gray-100 bg-gray-50/70 px-4 pb-4 pt-3">
                     {/* よく売る商品をワンタップで出せるお気に入り(モーダル)。売り場ボタンの一番上に配置。 */}
                     <button
                       type="button"
                       onClick={() => setFavoritesModalOpen(true)}
-                      className="mb-2 flex h-11 w-full items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-2.5 text-left shadow-sm transition-all hover:bg-slate-900 active:scale-[0.99]"
+                      className="mb-2 flex h-11 w-full items-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-2.5 text-left shadow-sm transition-all hover:bg-gray-900 active:scale-[0.99]"
                     >
-                      <Star size={16} className="shrink-0 text-slate-200" />
+                      <Star size={16} className="shrink-0 text-gray-200" />
                       <span className="text-xs font-black leading-tight text-white">お気に入り</span>
                     </button>
 
                     {productMasterSalesAreas.length === 0 ? (
-                      <div className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white p-3 text-center text-[11px] font-bold text-slate-400">
+                      <div className="mb-4 rounded-xl border border-dashed border-gray-200 bg-white p-3 text-center text-[11px] font-bold text-gray-500">
                         売り場が未登録です。商品マスター設定で追加してください。
                       </div>
                     ) : (
@@ -2878,9 +2878,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                             key={salesArea.id || salesArea.name}
                             type="button"
                             onClick={() => setUncodedSalesArea(salesArea)}
-                            className="flex min-h-[48px] items-center rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:border-orange-300 hover:bg-orange-50 active:scale-[0.99]"
+                            className="flex min-h-[48px] items-center rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:border-ui-100 hover:bg-ui-50 active:scale-[0.99]"
                           >
-                            <span className="whitespace-normal break-words text-xs font-black leading-tight text-slate-800">
+                            <span className="whitespace-normal break-words text-xs font-black leading-tight text-gray-800">
                               {salesArea.displayName || salesArea.name}
                             </span>
                           </button>
@@ -2922,7 +2922,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   <ShoppingBag size={16} />
                   テイクアウト予約注文
                   <span className={`rounded-full px-2 py-0.5 text-xs font-black ${
-                    readyTakeoutOrders.length > 0 ? 'bg-white/25' : 'bg-gray-100 text-gray-400'
+                    readyTakeoutOrders.length > 0 ? 'bg-white/25' : 'bg-gray-100 text-gray-500'
                   }`}>
                     {readyTakeoutOrders.length}
                   </span>
@@ -2930,12 +2930,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 xl:grid-cols-2">
-                  <div className="min-h-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-4">
-                    <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">
+                  <div className="min-h-0 overflow-y-auto border-r border-gray-100 bg-gray-50/70 p-4">
+                    <div className="mb-2 text-xs font-black uppercase tracking-widest text-gray-500">
                       カテゴリー
                     </div>
                     {takeoutCategories.length === 0 ? (
-                      <div className="mb-5 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-center text-xs font-bold text-slate-400">
+                      <div className="mb-5 rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-center text-xs font-bold text-gray-500">
                         テイクアウト価格が設定された商品がありません。
                       </div>
                     ) : (
@@ -2945,8 +2945,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                           onClick={() => setTakeoutCategoryFilter('')}
                           className={`flex min-h-[56px] flex-col justify-center rounded-2xl border px-4 py-3 text-left text-sm font-black shadow-sm transition-all active:scale-[0.99] ${
                             takeoutCategoryFilter === ''
-                              ? 'border-blue-600 bg-blue-600 text-white'
-                              : 'border-slate-200 bg-white text-slate-800 hover:border-blue-300 hover:bg-blue-50'
+                              ? 'border-ui bg-ui text-white'
+                              : 'border-gray-200 bg-white text-gray-800 hover:border-ui-100 hover:bg-ui-50'
                           }`}
                         >
                           すべて
@@ -2958,8 +2958,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                             onClick={() => setTakeoutCategoryFilter(category.id)}
                             className={`flex min-h-[56px] flex-col justify-center rounded-2xl border px-4 py-3 text-left text-sm font-black shadow-sm transition-all active:scale-[0.99] ${
                               takeoutCategoryFilter === category.id
-                                ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-800 hover:border-blue-300 hover:bg-blue-50'
+                                ? 'border-ui bg-ui text-white'
+                                : 'border-gray-200 bg-white text-gray-800 hover:border-ui-100 hover:bg-ui-50'
                             }`}
                           >
                             <span className="leading-tight break-words">{category.name}</span>
@@ -2968,19 +2968,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     )}
 
-                    <div className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                    <div className="mb-3 text-xs font-black uppercase tracking-widest text-gray-500">
                       商品リスト
                     </div>
 
                     {filteredTakeoutMenuItems.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
-                        <p className="text-sm font-black text-slate-500">
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center">
+                        <p className="text-sm font-black text-gray-500">
                           {takeoutMenuItems.length === 0
                             ? 'テイクアウト価格が設定された商品がありません。'
                             : 'このカテゴリーに商品がありません。'}
                         </p>
                         {takeoutMenuItems.length === 0 && (
-                          <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
+                          <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                             メニュー設定で「テイクアウト価格」を入力すると、ここに表示されます。
                           </p>
                         )}
@@ -2992,21 +2992,21 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                             key={item.id}
                             type="button"
                             onClick={() => addTakeoutCartItem(item)}
-                            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99]"
+                            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-ui-100 hover:bg-ui-50 active:scale-[0.99]"
                           >
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-black text-slate-800">
+                              <div className="truncate text-sm font-black text-gray-800">
                                 {item.name || '未設定商品'}
                               </div>
-                              <div className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                              <div className="mt-1 truncate text-[11px] font-bold text-gray-500">
                                 {item.categoryName}
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <span className="font-mono text-base font-black text-slate-900">
+                              <span className="font-mono text-base font-black text-gray-900">
                                 ¥{Number(item.takeoutPrice || 0).toLocaleString()}
                               </span>
-                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
+                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900 text-white">
                                 <Plus size={17} strokeWidth={3} />
                               </span>
                             </div>
@@ -3024,14 +3024,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <>
 
             {movingSession && (
-              <div className="absolute left-4 right-4 top-4 z-20 rounded-2xl border border-blue-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+              <div className="absolute left-4 right-4 top-4 z-20 rounded-2xl border border-ui-100 bg-white/95 p-4 shadow-xl backdrop-blur">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-sm font-black text-blue-600">
+                    <div className="flex items-center gap-2 text-sm font-black text-ui">
                       <MoveRight size={17} />
                       席移動モード
                     </div>
-                    <p className="mt-1 text-sm font-bold text-slate-700">
+                    <p className="mt-1 text-sm font-bold text-gray-700">
                       {getTableDisplayLabel(movingSession)} から移動先の空席を選択してください。
                     </p>
                     {moveError && (
@@ -3045,7 +3045,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     type="button"
                     onClick={resetMoveMode}
                     disabled={isMovingTable}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 disabled:opacity-50"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 disabled:opacity-50"
                   >
                     <X size={17} />
                   </button>
@@ -3062,7 +3062,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <div
                       key={session.id}
                       className={`rounded-xl border bg-white p-3 text-left shadow-sm transition-all ${
-                        isMoveSource ? 'border-blue-500 ring-2 ring-blue-200' : 'hover:bg-blue-50'
+                        isMoveSource ? 'border-ui ring-2 ring-ui-100' : 'hover:bg-ui-50'
                       }`}
                     >
                       <button
@@ -3091,8 +3091,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         }}
                         className={`mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-black transition-all ${
                           isMoveSource
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600'
+                            ? 'bg-ui text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-ui-50 hover:text-ui'
                         }`}
                       >
                         <MoveRight size={15} />
@@ -3138,7 +3138,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       <div className="relative z-20 -ml-2 mr-[-8px] flex w-4 items-center justify-center">
         <div
           className={`h-12 w-1.5 cursor-col-resize rounded-full shadow-sm transition-all ${
-            isDragging ? 'scale-110 bg-blue-500' : 'bg-gray-300 hover:bg-gray-400'
+            isDragging ? 'scale-110 bg-ui' : 'bg-gray-300 hover:bg-gray-400'
           }`}
           onMouseDown={handleMouseDown}
         />
@@ -3150,40 +3150,40 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             {/* ヘッダー(POS会計タイトル)を廃止し縦を詰める。閉じる×は合計ボックス右上へ集約。
                 body を縦flexにし、合計/支払い方法は固定・入力エリアを伸ばして下の隙間を無くす。 */}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-              <div className="mb-1.5 shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 pb-1 pt-2">
-                <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+              <div className="mb-1.5 shrink-0 rounded-2xl border border-gray-200 bg-gray-50 px-4 pb-1 pt-2">
+                <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-500">
                   <span>商品 {takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString()}点</span>
                   {takeoutDiscountAmount > 0 && (
                     <span>{takeoutDiscountSummaryLabel} -¥{takeoutDiscountAmount.toLocaleString()}</span>
                   )}
                   {takeoutVoucherChangeAmount > 0 && (
-                    <span className="text-blue-600">金券お釣り ¥{takeoutVoucherChangeAmount.toLocaleString()}</span>
+                    <span className="text-ui">金券お釣り ¥{takeoutVoucherChangeAmount.toLocaleString()}</span>
                   )}
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="shrink-0 text-sm font-black text-slate-600">お支払い額</span>
-                  <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-slate-900">
+                  <span className="shrink-0 text-sm font-black text-gray-600">お支払い額</span>
+                  <span className="min-w-0 truncate font-mono text-4xl font-black tracking-tight text-gray-900">
                     ¥{takeoutCartTotal.toLocaleString()}
                   </span>
                 </div>
               </div>
 
               {/* 会員(ポイント)。会員バーコード(MB+番号)のスキャン、または番号入力で照会する。 */}
-              <div className="mb-1.5 shrink-0 rounded-2xl border border-emerald-200 bg-emerald-50/50 px-3 py-2">
+              <div className="mb-1.5 shrink-0 rounded-2xl border border-gray-200 bg-gray-100/50 px-3 py-2">
                 {crmMember ? (
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-emerald-800">
+                      <div className="truncate text-sm font-black text-gray-900">
                         {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
                       </div>
-                      <div className="text-[11px] font-bold text-emerald-600">
+                      <div className="text-[11px] font-bold text-gray-900">
                         利用可能 {crmMember.pointBalance.toLocaleString()}pt
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => clearCrmMember()}
-                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100"
+                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-gray-900 hover:bg-gray-100"
                     >
                       解除
                     </button>
@@ -3198,19 +3198,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       onChange={(e) => setCrmCodeInput(e.target.value)}
                       inputMode="numeric"
                       placeholder="会員番号（スキャンも可）"
-                      className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-emerald-500"
+                      className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-gray-900"
                     />
                     <button
                       type="submit"
                       disabled={crmMemberBusy || !crmCodeInput.trim()}
-                      className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
+                      className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
                     >
                       {crmMemberBusy ? '照会中…' : '照会'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setMemberSearchOpen(true)}
-                      className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                      className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-black text-gray-900 hover:bg-gray-100"
                     >
                       検索
                     </button>
@@ -3245,15 +3245,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
               {takeoutZeroPayable ? (
                 <div className={`mb-3 mt-[5.5px] flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 ${
-                  registerMode === 'pos' ? 'border-blue-200 bg-blue-50/40' : 'border-orange-200 bg-orange-50/40'
+                  registerMode === 'pos' ? 'border-ui-100 bg-ui-50/40' : 'border-ui-100 bg-ui-50/40'
                 }`}>
                   <div className={`mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white shadow-sm ${
-                    registerMode === 'pos' ? 'text-blue-500' : 'text-orange-500'
+                    registerMode === 'pos' ? 'text-ui' : 'text-ui'
                   }`}>
                     <HandCoins size={44} strokeWidth={2.2} />
                   </div>
                   <p className="text-xl font-black text-gray-700">お支払いは不要です</p>
-                  <p className="mt-2 text-center text-sm font-bold text-gray-400">
+                  <p className="mt-2 text-center text-sm font-bold text-gray-500">
                     割引・金券・売掛で全額充当されています。
                     <br />
                     「会計を確定」を押すと会計が完了します。
@@ -3261,7 +3261,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   {takeoutVoucherChangeAmount > 0 && (
                     <div className="mt-4 flex items-baseline gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm">
                       <span className="text-sm font-bold text-gray-500">お釣り（現金）</span>
-                      <span className="font-mono text-3xl font-black tracking-tight text-blue-600">
+                      <span className="font-mono text-3xl font-black tracking-tight text-ui">
                         ¥{takeoutVoucherChangeAmount.toLocaleString()}
                       </span>
                     </div>
@@ -3270,7 +3270,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               ) : takeoutPaymentMethod === 'cash' ? (
                 <div className="flex min-h-0 flex-1 flex-col pb-2">
                   <div className="mb-2 grid shrink-0 grid-cols-2 gap-2">
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-gray-500">お預かり</span>
                         <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
@@ -3279,10 +3279,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </div>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-gray-500">おつり</span>
-                        <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                        <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${takeoutChangeAmount < 0 ? 'text-red-500' : 'text-ui'}`}>
                           ¥{takeoutChangeAmount.toLocaleString()}
                         </span>
                       </div>
@@ -3320,7 +3320,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <button
                       type="button"
                       onClick={() => setTakeoutPaymentAmount(String(takeoutCartTotal))}
-                      className="min-h-[50px] rounded-xl border border-blue-200 bg-blue-50 px-2 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                      className="min-h-[50px] rounded-xl border border-ui-100 bg-ui-50 px-2 text-sm font-black text-ui shadow-sm transition-all hover:bg-ui-50 active:scale-95"
                     >
                       ちょうど
                     </button>
@@ -3349,8 +3349,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 </div>
               ) : (
                 takeoutPaymentSplit.isSplit ? (
-                  <div className="mb-3 flex min-h-[200px] flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
-                    <div className="mb-1 text-center text-sm font-black text-blue-700">
+                  <div className="mb-3 flex min-h-[200px] flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-ui-100 bg-ui-50/40 p-5">
+                    <div className="mb-1 text-center text-sm font-black text-ui">
                       現金・{getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}の分割会計
                     </div>
                     <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
@@ -3360,7 +3360,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       </span>
                     </div>
                     <div className={`flex items-center justify-between rounded-2xl px-5 py-4 shadow-sm ${
-                      takeoutPaymentSplit.otherMethod === 'qr' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                      takeoutPaymentSplit.otherMethod === 'qr' ? 'bg-ui text-white' : 'bg-gray-900 text-white'
                     }`}>
                       <span className="text-sm font-bold opacity-90">
                         {getSplitMethodLabel(takeoutPaymentSplit.otherMethod)}支払い
@@ -3369,13 +3369,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         ¥{takeoutPaymentSplit.otherPortion.toLocaleString()}
                       </span>
                     </div>
-                    <p className="mt-1 text-center text-xs font-bold text-gray-400">
+                    <p className="mt-1 text-center text-xs font-bold text-gray-500">
                       会計額 ¥{takeoutCartTotal.toLocaleString()} − 現金預かり ¥{takeoutPaymentSplit.cashPortion.toLocaleString()}
                     </p>
                   </div>
                 ) : (
                 <div className={`mb-3 flex min-h-[200px] flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
-                  selectedTakeoutPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-400'
+                  selectedTakeoutPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-500'
                 }`}>
                   {!takeoutPaymentMethod && (
                     <>
@@ -3383,7 +3383,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         <CreditCard size={52} />
                       </div>
                       <p className="text-xl font-black text-gray-700">支払い方法を選択</p>
-                      <p className="mt-2 text-sm font-bold text-gray-400">
+                      <p className="mt-2 text-sm font-bold text-gray-500">
                         現金・カード・QRのいずれかを選んでください
                       </p>
                     </>
@@ -3421,9 +3421,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 onClick={handleSubmitTakeoutTransaction}
                 className={`flex min-h-[56px] w-full items-center justify-center gap-3 rounded-xl px-3 text-lg font-black shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${
                   takeoutZeroPayable
-                    ? (registerMode === 'pos'
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
-                        : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-xl')
+                    ? 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
                     : takeoutPaymentActionClassName
                 }`}
               >
@@ -3466,13 +3464,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           <p className="mt-3 break-all text-sm font-bold text-gray-500">
             「{scanNotFound}」に一致する卓・会員がありません。
           </p>
-          <p className="mt-2 text-xs font-bold text-gray-400">
+          <p className="mt-2 text-xs font-bold text-gray-500">
             卓番号と会員番号をご確認ください。
           </p>
           <button
             type="button"
             onClick={() => { setScanNotFound(''); inputRef.current?.focus(); }}
-            className="mt-5 h-11 w-full rounded-xl bg-slate-900 text-sm font-black text-white transition hover:bg-black active:scale-95"
+            className="mt-5 h-11 w-full rounded-xl bg-gray-900 text-sm font-black text-white transition hover:bg-black active:scale-95"
           >
             閉じる
           </button>
@@ -3562,9 +3560,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       const keypadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'back'];
 
       return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b bg-orange-500 px-6 py-5 text-white">
+            <div className="flex items-center justify-between border-b bg-gray-900 px-6 py-5 text-white">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/70">
                   <Percent size={14} />
@@ -3587,7 +3585,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
             <div className="space-y-5 p-6">
               <div>
-                <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">会計区分</div>
+                <div className="mb-2 text-xs font-black uppercase tracking-widest text-gray-500">会計区分</div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { id: 'sales_discount', label: '売上値引き', desc: '通常の値引き' },
@@ -3601,12 +3599,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         onClick={() => setLineDiscountCategory(option.id)}
                         className={`rounded-xl border-2 px-4 py-3 text-left transition-all active:scale-95 ${
                           isSelected
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-slate-100 bg-white hover:border-orange-200 hover:bg-orange-50/40'
+                            ? 'border-ui bg-ui-50'
+                            : 'border-gray-100 bg-white hover:border-ui-100 hover:bg-ui-50/40'
                         }`}
                       >
-                        <div className={`text-sm font-black ${isSelected ? 'text-orange-700' : 'text-slate-700'}`}>{option.label}</div>
-                        <div className="mt-0.5 text-[11px] font-bold text-slate-400">{option.desc}</div>
+                        <div className={`text-sm font-black ${isSelected ? 'text-ui' : 'text-gray-700'}`}>{option.label}</div>
+                        <div className="mt-0.5 text-[11px] font-bold text-gray-500">{option.desc}</div>
                       </button>
                     );
                   })}
@@ -3614,7 +3612,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-black uppercase tracking-widest text-slate-400">割引方法</div>
+                <div className="mb-2 text-xs font-black uppercase tracking-widest text-gray-500">割引方法</div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { id: 'percent', label: '％割引' },
@@ -3628,8 +3626,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         onClick={() => switchMode(option.id)}
                         className={`rounded-xl border-2 px-4 py-3 text-sm font-black transition-all active:scale-95 ${
                           isSelected
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-slate-100 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40'
+                            ? 'border-ui bg-ui-50 text-ui'
+                            : 'border-gray-100 bg-white text-gray-600 hover:border-ui-100 hover:bg-ui-50/40'
                         }`}
                       >
                         {option.label}
@@ -3641,22 +3639,22 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-500">
                     {mode === 'amount' ? '割引額' : '割引率'}
                   </span>
                   {previewDiscount > 0 && (
-                    <span className="text-sm font-black text-orange-600">
+                    <span className="text-sm font-black text-ui">
                       -¥{previewDiscount.toLocaleString()} → ¥{(targetLineAmount - previewDiscount).toLocaleString()}
                     </span>
                   )}
                 </div>
-                <div className="flex h-16 items-center justify-end rounded-xl border-2 border-slate-200 bg-slate-50 px-5">
+                <div className="flex h-16 items-center justify-end rounded-xl border-2 border-gray-200 bg-gray-50 px-5">
                   {mode === 'amount' && (
-                    <span className="mr-1 text-2xl font-black text-slate-300">￥</span>
+                    <span className="mr-1 text-2xl font-black text-gray-300">￥</span>
                   )}
-                  <span className="font-mono text-4xl font-black text-slate-800">{lineDiscountManualValue || '0'}</span>
+                  <span className="font-mono text-4xl font-black text-gray-800">{lineDiscountManualValue || '0'}</span>
                   {mode === 'percent' && (
-                    <span className="ml-1 text-2xl font-black text-slate-300">%</span>
+                    <span className="ml-1 text-2xl font-black text-gray-300">%</span>
                   )}
                 </div>
               </div>
@@ -3669,7 +3667,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         key={key}
                         type="button"
                         onClick={() => setLineDiscountManualValue('')}
-                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-base font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-base font-black text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
                       >
                         C
                       </button>
@@ -3681,7 +3679,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                         key={key}
                         type="button"
                         onClick={backspaceDigit}
-                        className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                        className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
                         aria-label="1文字削除"
                       >
                         <ChevronLeft size={22} />
@@ -3693,7 +3691,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       key={key}
                       type="button"
                       onClick={() => appendDigit(key)}
-                      className="flex h-14 items-center justify-center rounded-xl border-2 border-slate-100 bg-white text-2xl font-black text-slate-800 transition-all hover:border-orange-200 hover:bg-orange-50/40 active:scale-95"
+                      className="flex h-14 items-center justify-center rounded-xl border-2 border-gray-100 bg-white text-2xl font-black text-gray-800 transition-all hover:border-ui-100 hover:bg-ui-50/40 active:scale-95"
                     >
                       {key}
                     </button>
@@ -3705,7 +3703,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 type="button"
                 disabled={previewDiscount <= 0}
                 onClick={applyManual}
-                className="flex h-14 w-full items-center justify-center rounded-xl bg-orange-500 font-black text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                className="flex h-14 w-full items-center justify-center rounded-xl bg-gray-900 font-black text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
               >
                 {categoryLabel}で適用
               </button>
@@ -3714,7 +3712,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 <button
                   type="button"
                   onClick={() => { clearLineDiscount(lineDiscountTarget.id); closeModal(); }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-100 py-3 text-sm font-black text-slate-500 transition-all hover:bg-slate-50 active:scale-95"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-100 py-3 text-sm font-black text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
                 >
                   <X size={16} />
                   この商品の割引を解除
@@ -3774,7 +3772,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             <button
               type="button"
               onClick={() => setIsTakeoutOrderPickerOpen(false)}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             >
               <X size={20} />
             </button>
@@ -3782,7 +3780,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {readyTakeoutOrders.length === 0 ? (
-              <p className="py-10 text-center text-sm font-bold text-gray-400">
+              <p className="py-10 text-center text-sm font-bold text-gray-500">
                 会計できる予約注文はありません。
                 <br />
                 キッチンで「準備できた」にすると、ここに出ます。
@@ -3816,13 +3814,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                           <div className="mt-0.5 truncate text-base font-black text-gray-800">
                             {order.customerName} 様
                           </div>
-                          <div className="text-xs font-bold text-gray-400">{order.customerTel}</div>
+                          <div className="text-xs font-bold text-gray-500">{order.customerTel}</div>
                         </div>
                         <div className="shrink-0 text-right">
                           <div className="text-xl font-black text-gray-900">
                             ¥{Number(order.totalAmount || 0).toLocaleString()}
                           </div>
-                          <div className="text-[10px] font-bold text-gray-400">{order.totalQuantity}点</div>
+                          <div className="text-[10px] font-bold text-gray-500">{order.totalQuantity}点</div>
                         </div>
                       </div>
                       <ul className="mt-3 space-y-1 border-t border-gray-100 pt-2">

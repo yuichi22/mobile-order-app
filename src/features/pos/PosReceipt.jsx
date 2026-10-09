@@ -145,14 +145,14 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
   return (
     <div className="relative flex h-full flex-col items-center justify-center bg-gray-100 p-6">
       <div className="print:hidden w-full max-w-sm rounded-xl bg-white p-8 text-center shadow-xl">
-        <CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-600" />
+        <CheckCircle className="mx-auto mb-4 h-16 w-16 text-gray-900" />
           <h2 className="mb-2 text-2xl font-bold text-gray-800">会計が完了しました</h2>
           <p className="mb-2 text-gray-500">
             合計 ¥{grossTotal.toLocaleString()}
           </p>
 
           {issuedReceipt.receiptNo && (
-            <p className="mb-6 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+            <p className="mb-6 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">
               領収書番号：{issuedReceipt.receiptNo}
             </p>
           )}
@@ -183,7 +183,7 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             <span>{tenderText}</span>
           </div>
           {(voucherAmount === 0 || voucherChangeAmount > 0) && (
-            <div className="flex justify-between text-gray-400">
+            <div className="flex justify-between text-gray-500">
               <span>おつり</span>
               <span>¥{displayChangeAmount.toLocaleString()}</span>
             </div>
@@ -200,8 +200,8 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
             レシートを印刷
           </button>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left">
-            <label className="mb-2 block text-xs font-black text-slate-500">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-left">
+            <label className="mb-2 block text-xs font-black text-gray-500">
               領収書の宛名
             </label>
             <input
@@ -210,14 +210,14 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               onChange={(event) => setRecipientName(event.target.value)}
               disabled={Boolean(issuedReceipt.receiptNo) || isIssuingReceipt}
               placeholder="例：上様"
-              className="mb-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none transition focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+              className="mb-3 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold outline-none transition focus:border-ui disabled:bg-gray-100 disabled:text-gray-400"
             />
 
             <button
               type="button"
               onClick={handleIssueReceipt}
               disabled={Boolean(issuedReceipt.receiptNo) || isIssuingReceipt}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 py-3 font-black text-blue-700 shadow-sm transition-all hover:bg-blue-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-ui-100 bg-ui-50 py-3 font-black text-ui shadow-sm transition-all hover:bg-ui-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
             >
               <FileText size={18} />
               {issuedReceipt.receiptNo
@@ -231,7 +231,7 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
           <button
             type="button"
             onClick={onNext}
-            className="w-full rounded-xl bg-blue-600 py-4 font-black text-white shadow-lg transition-all hover:bg-blue-700 active:scale-[0.98]"
+            className="w-full rounded-xl bg-gray-900 py-4 font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.98]"
           >
             戻る
           </button>

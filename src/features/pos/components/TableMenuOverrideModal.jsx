@@ -74,11 +74,11 @@ const TableMenuOverrideModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 p-6 backdrop-blur-sm">
       <div className="w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 bg-orange-50 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-ui-50 px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-100">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg shadow-gray-200">
               <Clock size={22} />
             </div>
             <div>
@@ -94,7 +94,7 @@ const TableMenuOverrideModal = ({
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-2xl bg-white p-2 text-gray-400 shadow-sm transition-colors hover:text-gray-700"
+            className="rounded-2xl bg-white p-2 text-gray-500 shadow-sm transition-colors hover:text-gray-700"
           >
             <X size={20} />
           </button>
@@ -107,12 +107,12 @@ const TableMenuOverrideModal = ({
               onClick={() => setStep('period')}
               className={`rounded-2xl px-4 py-3 text-left transition-all ${
                 step === 'period'
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-100'
+                  ? 'bg-ui text-white shadow-lg shadow-gray-200'
                   : 'bg-gray-50 text-gray-500'
               }`}
             >
               <div className="text-sm font-black">1. 時間帯を選択</div>
-              <div className={`mt-1 text-xs font-bold ${step === 'period' ? 'text-orange-100' : 'text-gray-400'}`}>
+              <div className={`mt-1 text-xs font-bold ${step === 'period' ? 'text-gray-300' : 'text-gray-500'}`}>
                 表示するメニューを選びます
               </div>
             </button>
@@ -123,12 +123,12 @@ const TableMenuOverrideModal = ({
               onClick={() => selectedPeriodId && setStep('table')}
               className={`rounded-2xl px-4 py-3 text-left transition-all disabled:opacity-40 ${
                 step === 'table'
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-100'
+                  ? 'bg-ui text-white shadow-lg shadow-gray-200'
                   : 'bg-gray-50 text-gray-500'
               }`}
             >
               <div className="text-sm font-black">2. テーブルを選択</div>
-              <div className={`mt-1 text-xs font-bold ${step === 'table' ? 'text-orange-100' : 'text-gray-400'}`}>
+              <div className={`mt-1 text-xs font-bold ${step === 'table' ? 'text-gray-300' : 'text-gray-500'}`}>
                 対象テーブルに適用します
               </div>
             </button>
@@ -138,7 +138,7 @@ const TableMenuOverrideModal = ({
             <div className="space-y-5">
               <section>
                 <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
-                  <Store size={17} className="text-orange-500" />
+                  <Store size={17} className="text-ui" />
                   時間帯メニュー
                 </div>
 
@@ -148,12 +148,12 @@ const TableMenuOverrideModal = ({
                       key={period.id}
                       type="button"
                       onClick={() => handleSelectPeriod(period.id)}
-                      className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50"
+                      className="rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:border-ui-100 hover:bg-ui-50"
                     >
                       <div className="text-base font-black text-gray-900">
                         {period.name || period.label || period.id}
                       </div>
-                      <div className="mt-1 text-xs font-bold text-gray-400">
+                      <div className="mt-1 text-xs font-bold text-gray-500">
                         {period.start}〜{period.end}
                       </div>
                     </button>
@@ -161,7 +161,7 @@ const TableMenuOverrideModal = ({
                 </div>
 
                 {periods.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-500">
                     時間帯メニューが登録されていません。
                   </div>
                 )}
@@ -180,8 +180,8 @@ const TableMenuOverrideModal = ({
                       onClick={() => setDurationMinutes(minutes)}
                       className={`h-12 rounded-2xl text-sm font-black transition-all ${
                         durationMinutes === minutes
-                          ? 'bg-orange-500 text-white shadow-lg shadow-orange-100'
-                          : 'bg-gray-50 text-gray-500 hover:bg-orange-50 hover:text-orange-600'
+                          ? 'bg-ui text-white shadow-lg shadow-gray-200'
+                          : 'bg-gray-50 text-gray-500 hover:bg-ui-50 hover:text-ui'
                       }`}
                     >
                       {minutes}分
@@ -194,17 +194,17 @@ const TableMenuOverrideModal = ({
 
           {step === 'table' && (
             <div>
-              <div className="mb-4 rounded-2xl border border-orange-100 bg-orange-50 p-4">
-                <div className="text-sm font-black text-orange-900">
+              <div className="mb-4 rounded-2xl border border-ui-100 bg-ui-50 p-4">
+                <div className="text-sm font-black text-ui">
                   {selectedPeriod?.name || selectedPeriod?.label || selectedPeriod?.id} を {durationMinutes}分表示
                 </div>
-                <div className="mt-1 text-xs font-bold text-orange-700/70">
+                <div className="mt-1 text-xs font-bold text-ui/70">
                   利用中のテーブルは色付きで表示されます。適用するテーブルを選択してください。
                 </div>
               </div>
 
               {tables.length > 0 ? (
-                <div className="h-[420px] overflow-hidden rounded-3xl border border-gray-100 bg-slate-100 shadow-inner">
+                <div className="h-[420px] overflow-hidden rounded-3xl border border-gray-100 bg-gray-100 shadow-inner">
                   <FloorMapCanvas
                     mode="view"
                     items={layoutItems}
@@ -223,7 +223,7 @@ const TableMenuOverrideModal = ({
                   />
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-400">
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-bold text-gray-500">
                   テーブルが登録されていません。
                 </div>
               )}

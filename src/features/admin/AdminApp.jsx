@@ -57,26 +57,32 @@ const TabLoader = () => (
   </div>
 );
 
-const OperationTabButton = ({ active, icon: Icon, label, onClick, mode = 'order' }) => {
-  // アクティブ色はレジモードに連動: POS=青 / ORDER=オレンジ。
-  const activeClass = mode === 'pos'
-    ? 'border-blue-600 bg-blue-600 text-white shadow-blue-500/20'
-    : 'border-orange-500 bg-orange-500 text-white shadow-orange-500/20';
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-black shadow-sm transition-transform active:scale-95 ${
-        active
-          ? activeClass
-          : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-      }`}
-    >
-      <Icon size={17} strokeWidth={2.7} />
-      {label}
-    </button>
-  );
-};
+// 上のバーのファイルのタブ【AKUTOブランド基準 10-09】。選択中は下の画面(gray-100)とつながる。
+// 縁・根元の曲線・バーの下線=スチールブルー(管理画面の操作色)。POS/ORDER の区別は文字とアイコンで示す。
+const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabel, title }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-current={active ? 'page' : undefined}
+    aria-label={ariaLabel}
+    title={title}
+    className={`relative -mb-px flex h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-t-xl border border-b-0 px-4 text-sm font-black transition-colors ${
+      active
+        ? 'border-ui bg-gray-100 text-gray-900'
+        : 'border-transparent text-gray-500 hover:border-ui/50 hover:text-gray-900'
+    }`}
+  >
+    {active && (
+      <>
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -left-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 0 0, transparent 11.5px, #3B6E8F 11.5px, #3B6E8F 12.5px, #F3F4F6 12.5px)' }} />
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -right-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 100% 0, transparent 11.5px, #3B6E8F 11.5px, #3B6E8F 12.5px, #F3F4F6 12.5px)' }} />
+      </>
+    )}
+    <Icon size={17} strokeWidth={2.5} />
+    {label}
+    {trailing}
+  </button>
+);
 
 const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const location = useLocation();
@@ -507,89 +513,57 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       )}
 
       {showAdminHeader && (
-        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-gray-100 bg-white/95 px-5 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur-md print:hidden">
+        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-ui bg-white px-5 pt-[env(safe-area-inset-top)] print:hidden">
           <div className="grid min-h-[72px] grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              {/* レジトグルと戻るを同じ固定幅にし、切替時に右隣のタブが揺れないようにする。 */}
-              <div className="flex h-11 w-[160px] shrink-0 items-center">
-                {showRegisterModeToggle && (
-                  <button
-                    type="button"
-                    onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
-                    className={`group flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black text-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
-                      registerMode === 'pos'
-                        ? 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
-                        : 'bg-orange-500 shadow-orange-500/20 hover:bg-orange-600'
-                    }`}
-                    aria-label={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
-                    title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
-                  >
-                    {registerMode === 'pos' ? (
-                      <ShoppingBag size={16} strokeWidth={2.7} />
-                    ) : (
-                      <CreditCard size={16} strokeWidth={2.7} />
-                    )}
-                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
-                    <ArrowLeftRight
-                      size={15}
-                      strokeWidth={3}
-                      className="ml-1 opacity-70 transition-transform duration-200 group-hover:rotate-180"
-                    />
-                  </button>
-                )}
+            <div className="flex min-w-0 items-end gap-1 self-end pl-3">
+              {/* レジのタブ。レジにいる間は ⇄ で POS/ORDER を切り替え、他のタブからは押すとレジに戻る。 */}
+              {showRegisterModeToggle && (
+                <FileTab
+                  active
+                  icon={registerMode === 'pos' ? ShoppingBag : CreditCard}
+                  label={registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
+                  onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
+                  ariaLabel={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+                  title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
+                  trailing={<ArrowLeftRight size={15} strokeWidth={2.75} className="ml-1 text-ui" />}
+                />
+              )}
 
-                {showRegisterModeBadge && (
-                  <div
-                    className={`flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-black text-white shadow-sm ${
-                      registerMode === 'pos'
-                        ? 'bg-blue-600 shadow-blue-500/25'
-                        : 'bg-orange-500 shadow-orange-500/20'
-                    }`}
-                    title="ご契約プランではこのレジのみ利用できます"
-                  >
-                    {registerMode === 'pos' ? (
-                      <CreditCard size={16} strokeWidth={2.7} />
-                    ) : (
-                      <ShoppingBag size={16} strokeWidth={2.7} />
-                    )}
-                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
-                  </div>
-                )}
+              {showRegisterModeBadge && (
+                <FileTab
+                  active
+                  icon={registerMode === 'pos' ? ShoppingBag : CreditCard}
+                  label={registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
+                  onClick={() => {}}
+                  title="ご契約プランではこのレジのみ利用できます"
+                />
+              )}
 
-                {showSelectedRegisterReturnButton && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // 設定からの戻りはキッチン復帰等の分岐を持つ closeSettings を使う。
-                      if (activeAdminTab === 'settings') {
-                        closeSettings();
-                        return;
-                      }
-                      const currentMode = registerMode === 'pos' ? 'pos' : 'order';
-                      lastRegisterModeRef.current = currentMode;
-                      saveStoredRegisterMode(currentMode);
-                      setRegisterMode(currentMode);
-                      setActiveTab('pos');
-                    }}
-                    className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full border-2 bg-white px-4 text-sm font-black shadow-sm transition-transform duration-200 active:scale-95 ${
-                      registerMode === 'pos'
-                        ? 'border-blue-600 text-blue-600 hover:bg-blue-50'
-                        : 'border-orange-500 text-orange-500 hover:bg-orange-50'
-                    }`}
-                    aria-label={registerMode === 'pos' ? 'POSレジに戻る' : 'ORDERレジに戻る'}
-                    title={registerMode === 'pos' ? 'POSレジに戻る' : 'ORDERレジに戻る'}
-                  >
-                    <ChevronLeft size={16} strokeWidth={3} className="opacity-70" />
-                    {registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
-                  </button>
-                )}
-              </div>
+              {showSelectedRegisterReturnButton && (
+                <FileTab
+                  active={false}
+                  icon={registerMode === 'pos' ? ShoppingBag : CreditCard}
+                  label={registerMode === 'pos' ? 'POSレジ' : 'ORDERレジ'}
+                  onClick={() => {
+                    // 設定からの戻りはキッチン復帰等の分岐を持つ closeSettings を使う。
+                    if (activeAdminTab === 'settings') {
+                      closeSettings();
+                      return;
+                    }
+                    const currentMode = registerMode === 'pos' ? 'pos' : 'order';
+                    lastRegisterModeRef.current = currentMode;
+                    saveStoredRegisterMode(currentMode);
+                    setRegisterMode(currentMode);
+                    setActiveTab('pos');
+                  }}
+                  ariaLabel={registerMode === 'pos' ? 'POSレジに戻る' : 'ORDERレジに戻る'}
+                />
+              )}
 
               {canViewAnalytics && (
                 <>
-                  <OperationTabButton
+                  <FileTab
                     active={activeAdminTab === 'dailyClosing'}
-                    mode={registerMode === 'pos' ? 'pos' : 'order'}
                     icon={CalendarCheck}
                     label="日計"
                     onClick={() => {
@@ -600,9 +574,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     }}
                   />
 
-                  <OperationTabButton
+                  <FileTab
                     active={activeAdminTab === 'analytics'}
-                    mode={registerMode === 'pos' ? 'pos' : 'order'}
                     icon={BarChart3}
                     label="分析"
                     onClick={() => {
@@ -616,9 +589,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
               )}
 
               {canViewSettings && (
-                <OperationTabButton
+                <FileTab
                   active={activeAdminTab === 'settings'}
-                  mode={registerMode === 'pos' ? 'pos' : 'order'}
                   icon={Settings}
                   label="設定"
                   onClick={() => {
@@ -655,7 +627,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                 </div>
               )}
 
-              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-300">
+              <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.18em] text-gray-400">
                 Connected by AKUTO
               </div>
             </button>
@@ -669,13 +641,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     onChange={(event) => setPosSettingsProductKeyword(event.target.value)}
                     onKeyDown={handleProductSearchScanKeyDown}
                     placeholder="商品検索"
-                    className="h-11 w-full rounded-2xl border-2 border-gray-100 bg-white pl-11 pr-11 text-sm font-bold text-gray-700 outline-none transition focus:border-blue-400"
+                    className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white pl-11 pr-11 text-sm font-bold text-gray-700 outline-none transition hover:border-gray-300 focus:border-ui"
                   />
                   {posSettingsProductKeyword && (
                     <button
                       type="button"
                       onClick={clearPosProductKeyword}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 active:scale-95"
                       aria-label="検索キーワードをクリア"
                     >
                       <X size={16} strokeWidth={2.7} />
@@ -692,7 +664,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                           ? switchFromSettingsToRegister
                           : (onSwitchToKitchen || onBack)
                       }
-                      className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-gray-800 active:scale-95"
+                      className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition-colors hover:bg-gray-800 active:scale-95"
                     >
                       {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
                         <CreditCard size={18} strokeWidth={2.8} />
@@ -709,7 +681,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                     <button
                       type="button"
                       onClick={onSwitchToServe}
-                      className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95"
+                      className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition-colors hover:bg-gray-800 active:scale-95"
                     >
                       <Utensils size={18} strokeWidth={2.8} />
                       提供モードへ

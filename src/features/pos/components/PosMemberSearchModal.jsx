@@ -69,7 +69,7 @@ const Tenkey = ({ onDigit, onBackspace, onClear }) => (
         key={d}
         type="button"
         onClick={() => onDigit(d)}
-        className="h-11 rounded-xl border border-slate-200 bg-white font-mono text-lg font-black text-slate-800 active:scale-95"
+        className="h-11 rounded-xl border border-gray-200 bg-white font-mono text-lg font-black text-gray-800 active:scale-95"
       >
         {d}
       </button>
@@ -77,21 +77,21 @@ const Tenkey = ({ onDigit, onBackspace, onClear }) => (
     <button
       type="button"
       onClick={onClear}
-      className="h-11 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-500 active:scale-95"
+      className="h-11 rounded-xl border border-gray-200 bg-gray-50 text-xs font-black text-gray-500 active:scale-95"
     >
       クリア
     </button>
     <button
       type="button"
       onClick={() => onDigit('0')}
-      className="h-11 rounded-xl border border-slate-200 bg-white font-mono text-lg font-black text-slate-800 active:scale-95"
+      className="h-11 rounded-xl border border-gray-200 bg-white font-mono text-lg font-black text-gray-800 active:scale-95"
     >
       0
     </button>
     <button
       type="button"
       onClick={onBackspace}
-      className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 active:scale-95"
+      className="flex h-11 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 active:scale-95"
       aria-label="1桁消す"
     >
       <Delete size={18} strokeWidth={2.6} />
@@ -105,8 +105,8 @@ const MemberRow = ({ row, active, onClick }) => (
     onClick={onClick}
     className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${
       active
-        ? 'border-slate-900 bg-slate-900 text-white'
-        : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50'
+        ? 'border-ui bg-ui text-white'
+        : 'border-gray-200 bg-white hover:border-gray-200 hover:bg-gray-100'
     }`}
   >
     <div className="flex items-baseline justify-between gap-2">
@@ -116,16 +116,16 @@ const MemberRow = ({ row, active, onClick }) => (
           <RankBadge rank={row.rank} />
         </div>
         {row.nameKana && (
-          <div className={`truncate text-[11px] font-bold ${active ? 'text-slate-300' : 'text-slate-400'}`}>
+          <div className={`truncate text-[11px] font-bold ${active ? 'text-gray-300' : 'text-gray-500'}`}>
             {row.nameKana}
           </div>
         )}
       </div>
-      <div className={`shrink-0 text-[11px] font-black ${active ? 'text-emerald-300' : 'text-emerald-700'}`}>
+      <div className={`shrink-0 text-[11px] font-black ${active ? 'text-gray-300' : 'text-gray-900'}`}>
         {row.pointBalance.toLocaleString()}pt
       </div>
     </div>
-    <div className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold ${active ? 'text-slate-300' : 'text-slate-500'}`}>
+    <div className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold ${active ? 'text-gray-300' : 'text-gray-500'}`}>
       <span>{row.phoneLast4 ? `電話 下4桁 ${row.phoneLast4}` : '電話番号なし'}</span>
       {row.subPhoneLast4 && <span>/ 副 {row.subPhoneLast4}</span>}
       <span>{row.addressUnknown ? '住所不明' : (formatTown(row) || '住所なし')}</span>
@@ -137,10 +137,10 @@ const MemberRow = ({ row, active, onClick }) => (
         </span>
       )}
       {row.hasLine && (
-        <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-800">LINE連携済み</span>
+        <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-black text-gray-900">LINE連携済み</span>
       )}
       {row.phoneShared && (
-        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-600">番号共有</span>
+        <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-black text-gray-600">番号共有</span>
       )}
       {row.hasIdentityConflict && (
         <span className="rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-black text-red-700">要確認</span>
@@ -386,41 +386,41 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-base font-black text-slate-900">{member.displayName || '（氏名なし）'}</span>
+          <span className="text-base font-black text-gray-900">{member.displayName || '（氏名なし）'}</span>
           <RankBadge rank={member.rank} size="lg" />
         </div>
-        {member.nameKana && <div className="text-[11px] font-bold text-slate-400">{member.nameKana}</div>}
-        <dl className="mt-2 space-y-1 text-xs font-bold text-slate-600">
+        {member.nameKana && <div className="text-[11px] font-bold text-gray-500">{member.nameKana}</div>}
+        <dl className="mt-2 space-y-1 text-xs font-bold text-gray-600">
           <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">主番号</dt>
+            <dt className="text-gray-500">主番号</dt>
             <dd>{member.phoneLast4 ? `下4桁 ${member.phoneLast4}` : '登録なし'}</dd>
           </div>
           {member.subPhoneLast4 && (
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-400">固定・その他</dt>
+              <dt className="text-gray-500">固定・その他</dt>
               <dd>下4桁 {member.subPhoneLast4}</dd>
             </div>
           )}
           <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">ご住所</dt>
+            <dt className="text-gray-500">ご住所</dt>
             <dd>{member.addressUnknown ? '不明' : (formatTown(member) || '登録なし')}</dd>
           </div>
           <div className="flex justify-between gap-2">
             {/* 会員番号＝ポイントカードのバーコードの中身("MB"+これ)。お客様との照合に使う。
                 カードを一度開いたお客様にだけ発行される。 */}
-            <dt className="text-slate-400">会員番号</dt>
+            <dt className="text-gray-500">会員番号</dt>
             <dd className="font-mono">{member.memberCode || 'カード未発行'}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">ポイント</dt>
-            <dd className="text-emerald-700">{member.pointBalance.toLocaleString()}pt</dd>
+            <dt className="text-gray-500">ポイント</dt>
+            <dd className="text-gray-900">{member.pointBalance.toLocaleString()}pt</dd>
           </div>
           <div className="flex justify-between gap-2">
             {/* ⚠累計購入額(LTV)はレジに出す(2026-10-06 判断)。手動付与の妥当性を
                 その場で判断するのに要るため。カードの格もこの金額で決まる。 */}
-            <dt className="text-slate-400">お買い上げ累計</dt>
+            <dt className="text-gray-500">お買い上げ累計</dt>
             <dd>{yen(ltvShown)}</dd>
           </div>
         </dl>
@@ -430,32 +430,32 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         <button
           type="button"
           onClick={toggleLtvPanel}
-          className="mt-2 flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100"
+          className="mt-2 flex w-full items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-black text-gray-600 hover:bg-gray-100"
         >
           <span>お買い上げ累計の内訳と修正</span>
           <ChevronDown size={14} strokeWidth={3} className={ltvOpen ? 'rotate-180 transition' : 'transition'} />
         </button>
 
         {ltvOpen && (
-          <div className="mt-2 rounded-xl border border-slate-200 p-3">
-            {ltvLoading && <p className="text-[11px] font-bold text-slate-400">読み込み中…</p>}
+          <div className="mt-2 rounded-xl border border-gray-200 p-3">
+            {ltvLoading && <p className="text-[11px] font-bold text-gray-500">読み込み中…</p>}
             {!ltvLoading && ltvDetail && (
               <>
                 {/* 内訳: 合計だけだと「誰かが手で入れた数字」かどうかが分からない */}
-                <dl className="space-y-1 text-[11px] font-bold text-slate-600">
+                <dl className="space-y-1 text-[11px] font-bold text-gray-600">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-400">会計・取込分</dt>
+                    <dt className="text-gray-500">会計・取込分</dt>
                     <dd>{yen(ltvDetail.baseAmount)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-400">手動付与</dt>
+                    <dt className="text-gray-500">手動付与</dt>
                     <dd>{yen(ltvDetail.manualGrantedAmount)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-400">補正</dt>
+                    <dt className="text-gray-500">補正</dt>
                     <dd>{ltvDetail.ltvAdjustedAmount > 0 ? `+${yen(ltvDetail.ltvAdjustedAmount)}` : yen(ltvDetail.ltvAdjustedAmount)}</dd>
                   </div>
-                  <div className="flex justify-between gap-2 border-t border-slate-100 pt-1 text-slate-800">
+                  <div className="flex justify-between gap-2 border-t border-gray-100 pt-1 text-gray-800">
                     <dt>合計</dt>
                     <dd className="font-black">{yen(ltvDetail.ltvTotal)}</dd>
                   </div>
@@ -466,12 +466,12 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                   <div className="mt-3 space-y-2">
                     {ltvDetail.adjustments?.length > 0 && (
                       <div>
-                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">補正の履歴</div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-gray-500">補正の履歴</div>
                         <ul className="space-y-1">
                           {ltvDetail.adjustments.map((a) => (
-                            <li key={a.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-slate-600">
+                            <li key={a.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-gray-600">
                               <span className="min-w-0 truncate">{fmtAt(a.at)} {a.reason || ''}</span>
-                              <span className={`shrink-0 tabular-nums ${a.delta < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                              <span className={`shrink-0 tabular-nums ${a.delta < 0 ? 'text-red-600' : 'text-gray-800'}`}>
                                 {a.delta > 0 ? '+' : ''}{yen(a.delta)}
                               </span>
                             </li>
@@ -481,12 +481,12 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                     )}
                     {ltvDetail.grants?.length > 0 && (
                       <div>
-                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">手動付与の履歴</div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-gray-500">手動付与の履歴</div>
                         <ul className="space-y-1">
                           {ltvDetail.grants.map((g) => (
-                            <li key={g.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-slate-600">
+                            <li key={g.id} className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-gray-600">
                               <span className="min-w-0 truncate">{fmtAt(g.at)} {g.reason || ''}</span>
-                              <span className="shrink-0 tabular-nums text-slate-800">
+                              <span className="shrink-0 tabular-nums text-gray-800">
                                 {yen(g.amount)}（{Number(g.points || 0).toLocaleString()}pt）
                               </span>
                             </li>
@@ -498,24 +498,24 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                 )}
 
                 {/* 修正フォーム */}
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <div className="mb-1 text-[11px] font-black text-slate-500">正しい累計に直す</div>
-                  <p className="mb-1.5 text-[11px] font-bold text-slate-400">
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <div className="mb-1 text-[11px] font-black text-gray-500">正しい累計に直す</div>
+                  <p className="mb-1.5 text-[11px] font-bold text-gray-500">
                     概算で構いません。⚠ポイントは動きません（会計と手動付与で積んだ結果のため）。
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="shrink-0 font-mono text-sm font-black text-slate-500">¥</span>
+                    <span className="shrink-0 font-mono text-sm font-black text-gray-500">¥</span>
                     <input
                       value={ltvInput}
                       onChange={(e) => setLtvInput(e.target.value.replace(/\D/g, '').slice(0, 9))}
                       inputMode="numeric"
                       placeholder={String(ltvDetail.ltvTotal)}
-                      className="h-10 min-w-0 flex-1 rounded-xl border-2 border-slate-100 bg-white px-3 font-mono text-sm font-black outline-none focus:border-emerald-400"
+                      className="h-10 min-w-0 flex-1 rounded-xl border-2 border-gray-100 bg-white px-3 font-mono text-sm font-black outline-none focus:border-gray-900"
                     />
                   </div>
                   {ltvDelta !== 0 && (
-                    <div className="mt-1 text-[11px] font-bold text-slate-500">
-                      増減 <span className={ltvDelta < 0 ? 'text-red-600' : 'text-slate-800'}>
+                    <div className="mt-1 text-[11px] font-bold text-gray-500">
+                      増減 <span className={ltvDelta < 0 ? 'text-red-600' : 'text-gray-800'}>
                         {ltvDelta > 0 ? '+' : ''}{yen(ltvDelta)}
                       </span>
                     </div>
@@ -524,13 +524,13 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                     value={ltvReason}
                     onChange={(e) => setLtvReason(e.target.value)}
                     placeholder="修正の理由（必須）"
-                    className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
+                    className="mt-1.5 h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-xs font-bold outline-none focus:border-gray-900"
                   />
                   <button
                     type="button"
                     onClick={adjustLtv}
                     disabled={!canAdjustLtv || ltvBusy}
-                    className="mt-2 h-10 w-full rounded-xl bg-slate-900 text-xs font-black text-white disabled:opacity-40"
+                    className="mt-2 h-10 w-full rounded-xl bg-gray-900 text-xs font-black text-white disabled:opacity-40"
                   >
                     {ltvBusy ? '修正中…' : '累計を修正する'}
                   </button>
@@ -546,7 +546,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       </div>
 
       {/* 携帯番号。固定電話しか無い人はここで必ずアラートが出る。 */}
-      <div className={`rounded-2xl border px-4 py-3 ${member.needsMobile ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+      <div className={`rounded-2xl border px-4 py-3 ${member.needsMobile ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
         {member.needsMobile ? (
           <div className="mb-2 flex items-start gap-2 text-xs font-black text-amber-800">
             <AlertTriangle size={15} strokeWidth={2.8} className="mt-0.5 shrink-0" />
@@ -560,7 +560,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             </span>
           </div>
         ) : (
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-emerald-700">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-gray-900">
             <Check size={15} strokeWidth={3} />
             携帯番号が主番号に登録されています
           </div>
@@ -575,17 +575,17 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             onChange={(e) => setPhoneInput(e.target.value)}
             inputMode="numeric"
             placeholder="携帯番号（090/080/070）"
-            className="h-11 min-w-0 flex-1 rounded-xl border-2 border-slate-100 bg-white px-3 font-mono text-sm font-bold outline-none focus:border-emerald-400"
+            className="h-11 min-w-0 flex-1 rounded-xl border-2 border-gray-100 bg-white px-3 font-mono text-sm font-bold outline-none focus:border-gray-900"
           />
           <button
             type="submit"
             disabled={phoneBusy || !/^0[789]0\d{8}$/.test(phoneInput.replace(/\D/g, ''))}
-            className="h-11 shrink-0 rounded-xl bg-slate-900 px-4 text-xs font-black text-white disabled:opacity-40"
+            className="h-11 shrink-0 rounded-xl bg-gray-900 px-4 text-xs font-black text-white disabled:opacity-40"
           >
             {phoneBusy ? '登録中…' : '主番号に登録'}
           </button>
         </form>
-        <p className="mt-1.5 text-[11px] font-bold text-slate-500">
+        <p className="mt-1.5 text-[11px] font-bold text-gray-500">
           今までのお電話番号は残ります（どちらの番号でもお客様を特定できます）。
           お電話番号の変更がないかも併せてお伺いしてください。
         </p>
@@ -593,14 +593,14 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
 
         {phoneDone && undoRemaining > 0 && (
           <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2">
-            <span className="text-[11px] font-bold text-slate-500">
+            <span className="text-[11px] font-bold text-gray-500">
               登録しました。打ち間違いはあと {formatRemaining(undoRemaining)} 取り消せます。
             </span>
             <button
               type="button"
               onClick={undoPhone}
               disabled={phoneBusy}
-              className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-600 disabled:opacity-40"
+              className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[11px] font-black text-gray-600 disabled:opacity-40"
             >
               <Undo2 size={13} strokeWidth={2.8} />
               取り消す
@@ -610,29 +610,29 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       </div>
 
       {/* 手動付与（紙のカードなどからの移行）。入力は金額だけで、ポイントは付与率から自動計算。 */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <div className="text-xs font-black text-slate-700">手動でポイントを付与</div>
+      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+        <div className="text-xs font-black text-gray-700">手動でポイントを付与</div>
         {!meta.pointsEnabled ? (
-          <p className="mt-2 text-[11px] font-bold text-slate-500">
+          <p className="mt-2 text-[11px] font-bold text-gray-500">
             この店舗はポイントの付与が無効になっています。
           </p>
         ) : (
           <>
-            <p className="mt-1 text-[11px] font-bold text-slate-500">
-              付与の対象になる<strong className="text-slate-700">お買い上げ金額</strong>を入力してください。
-              ポイントと<strong className="text-slate-700">累計のお買い上げ金額</strong>の両方に、この金額が反映されます。
+            <p className="mt-1 text-[11px] font-bold text-gray-500">
+              付与の対象になる<strong className="text-gray-700">お買い上げ金額</strong>を入力してください。
+              ポイントと<strong className="text-gray-700">累計のお買い上げ金額</strong>の両方に、この金額が反映されます。
               1回あたり ¥{grantLimitYen.toLocaleString()} までです。超える分は分けて付与してください。
             </p>
 
-            <div className="mt-2 flex items-baseline justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-              <span className="text-xs font-black text-slate-500">金額</span>
-              <span className="font-mono text-2xl font-black text-slate-900">
+            <div className="mt-2 flex items-baseline justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+              <span className="text-xs font-black text-gray-500">金額</span>
+              <span className="font-mono text-2xl font-black text-gray-900">
                 ¥{amountNumber.toLocaleString()}
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-3 px-3">
-              <span className="text-[11px] font-bold text-slate-400">付与されるポイント</span>
-              <span className="font-mono text-sm font-black text-emerald-700">
+              <span className="text-[11px] font-bold text-gray-500">付与されるポイント</span>
+              <span className="font-mono text-sm font-black text-gray-900">
                 {previewPoints.toLocaleString()}pt
               </span>
             </div>
@@ -661,7 +661,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             </div>
 
             <div className="mt-3">
-              <div className="mb-1 text-[11px] font-black text-slate-500">付与の理由（記録に残ります）</div>
+              <div className="mb-1 text-[11px] font-black text-gray-500">付与の理由（記録に残ります）</div>
               <div className="flex gap-1.5">
                 {[['transfer', TRANSFER_REASON], ['other', 'その他']].map(([kind, label]) => (
                   <button
@@ -670,8 +670,8 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                     onClick={() => setReasonKind(kind)}
                     className={`rounded-lg px-3 py-1.5 text-[11px] font-black transition ${
                       reasonKind === kind
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        ? 'bg-ui text-white'
+                        : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     {label}
@@ -683,7 +683,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="理由を入力（必須）"
-                  className="mt-1.5 h-10 w-full rounded-xl border-2 border-slate-100 bg-white px-3 text-xs font-bold outline-none focus:border-emerald-400"
+                  className="mt-1.5 h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-xs font-bold outline-none focus:border-gray-900"
                 />
               )}
             </div>
@@ -692,7 +692,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
               type="button"
               onClick={grant}
               disabled={!canGrant || granting}
-              className="mt-3 h-12 w-full rounded-xl bg-slate-900 text-sm font-black text-white disabled:opacity-40"
+              className="mt-3 h-12 w-full rounded-xl bg-gray-900 text-sm font-black text-white disabled:opacity-40"
             >
               {granting
                 ? '付与中…'
@@ -700,7 +700,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             </button>
             {grantErr && <div className="mt-1.5 text-[11px] font-bold text-red-600">{grantErr}</div>}
             {grantDone && (
-              <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-800">
+              <div className="mt-2 rounded-xl bg-gray-100 px-3 py-2 text-[11px] font-black text-gray-900">
                 {grantDone.duplicate
                   ? 'この付与は既に記録されています（二重付与にはなっていません）。'
                   : `¥${grantDone.amount.toLocaleString()} 分 ${grantDone.points.toLocaleString()}pt を付与しました。`}
@@ -714,7 +714,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         <button
           type="button"
           onClick={() => { onLoadMember(member); onClose?.(); }}
-          className="h-12 w-full rounded-xl border-2 border-emerald-300 bg-white text-sm font-black text-emerald-700 hover:bg-emerald-50"
+          className="h-12 w-full rounded-xl border-2 border-gray-200 bg-white text-sm font-black text-gray-900 hover:bg-gray-100"
         >
           このお客様を会計に読み込む
         </button>
@@ -774,20 +774,20 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
 
 
   return createPortal(
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-950/50 px-4 py-6 backdrop-blur-sm">
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-4">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-500">Member</p>
-            <h3 className="mt-0.5 text-xl font-black text-slate-900">会員検索・携帯番号の登録</h3>
-            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-900">Member</p>
+            <h3 className="mt-0.5 text-xl font-black text-gray-900">会員検索・携帯番号の登録</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
               お電話番号・お名前・ふりがな・町名で検索できます（スペース区切りで絞り込み）。
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
             aria-label="閉じる"
           >
             <X size={18} strokeWidth={2.8} />
@@ -796,25 +796,25 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* 左: 検索と結果 */}
-          <div className="flex min-h-0 flex-col border-slate-100 lg:border-r">
+          <div className="flex min-h-0 flex-col border-gray-100 lg:border-r">
             <form
               onSubmit={(e) => { e.preventDefault(); runSearch(); }}
               className="flex shrink-0 items-center gap-2 px-5 py-3"
             >
               <div className="relative min-w-0 flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   autoFocus
                   placeholder="例: 0852211234 / 石原 / いしはら 東朝日町"
-                  className="h-11 w-full rounded-xl border-2 border-slate-100 bg-white pl-9 pr-3 text-sm font-bold outline-none focus:border-emerald-400"
+                  className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white pl-9 pr-3 text-sm font-bold outline-none focus:border-gray-900"
                 />
               </div>
               <button
                 type="submit"
                 disabled={searching}
-                className="h-11 shrink-0 rounded-xl bg-slate-900 px-5 text-sm font-black text-white disabled:opacity-40"
+                className="h-11 shrink-0 rounded-xl bg-gray-900 px-5 text-sm font-black text-white disabled:opacity-40"
               >
                 {searching ? '検索中…' : '検索'}
               </button>
@@ -826,7 +826,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
               {rows === null && !searchErr && (
-                <p className="px-1 py-6 text-xs font-bold leading-relaxed text-slate-400">
+                <p className="px-1 py-6 text-xs font-bold leading-relaxed text-gray-500">
                   はじめてのお客様は検索不要です。そのまま LINE でポイントカードにご登録いただけます
                   （携帯番号でご登録いただければ、これまでの記録と自動で繋がります）。
                   <br />
@@ -835,7 +835,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
               )}
 
               {rows !== null && rows.length === 0 && (
-                <p className="px-1 py-6 text-xs font-bold text-slate-400">
+                <p className="px-1 py-6 text-xs font-bold text-gray-500">
                   該当するお客様が見つかりませんでした。お名前の表記（漢字・ふりがな）や、
                   以前ご登録のお電話番号でもお試しください。
                 </p>
@@ -850,7 +850,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
                     </span>
                   </div>
                   {meta.truncated && (
-                    <p className="mb-2 px-1 text-[11px] font-bold text-slate-400">
+                    <p className="mb-2 px-1 text-[11px] font-bold text-gray-500">
                       {meta.matchCount}件のうち{rows.length}件を表示しています。お名前や町名を足して絞り込んでください。
                     </p>
                   )}
@@ -870,7 +870,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
           </div>
 
           {/* 右: 選んだお客様の操作。key でお客様ごとに作り直す（入力の持ち越し防止）。 */}
-          <div className="min-h-0 overflow-y-auto bg-slate-50/60 px-5 py-4">
+          <div className="min-h-0 overflow-y-auto bg-gray-50/60 px-5 py-4">
             {selected ? (
               <MemberActions
                 key={selected.personId}
@@ -882,7 +882,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
                 onClose={onClose}
               />
             ) : (
-              <p className="px-1 py-6 text-xs font-bold text-slate-400">
+              <p className="px-1 py-6 text-xs font-bold text-gray-500">
                 左の一覧からお客様をお選びください。
               </p>
             )}

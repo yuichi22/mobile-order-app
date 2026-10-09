@@ -23,10 +23,10 @@ const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
         {/* アイコン/スピナー */}
         <div className="mb-5 flex justify-center">
           {isBusy && (
-            <div className="h-14 w-14 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+            <div className="h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-slate-900" />
           )}
           {isSuccess && (
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-3xl text-gray-900">
               ✓
             </div>
           )}
@@ -37,7 +37,7 @@ const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
           )}
         </div>
 
-        <h2 className="text-lg font-black text-slate-900">
+        <h2 className="text-lg font-black text-gray-900">
           {phase === 'starting' && '端末に送信中'}
           {phase === 'waiting' && 'カードでお支払い'}
           {phase === 'canceling' && '中止しています'}
@@ -46,11 +46,11 @@ const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
         </h2>
 
         {amount != null && (
-          <p className="mt-1 text-2xl font-black tracking-tight text-slate-900">{yen(amount)}</p>
+          <p className="mt-1 text-2xl font-black tracking-tight text-gray-900">{yen(amount)}</p>
         )}
 
         {message && (
-          <p className="mt-3 text-sm font-bold leading-relaxed text-slate-500">{message}</p>
+          <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">{message}</p>
         )}
 
         {/* 操作 */}
@@ -69,7 +69,7 @@ const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
               <button
                 type="button"
                 onClick={onCancel}
-                className="h-11 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition active:scale-95 hover:bg-slate-200"
+                className="h-11 w-full rounded-2xl bg-gray-100 text-sm font-black text-gray-600 transition active:scale-95 hover:bg-gray-200"
               >
                 決済を中止
               </button>
@@ -79,13 +79,13 @@ const TerminalPaymentModal = ({ state, onCancel, onClose, onSimulate }) => {
             <button
               type="button"
               onClick={onClose}
-              className="h-11 w-full rounded-2xl bg-slate-900 text-sm font-black text-white transition active:scale-95"
+              className="h-11 w-full rounded-2xl bg-gray-900 text-sm font-black text-white transition active:scale-95"
             >
               閉じる
             </button>
           )}
           {(phase === 'starting' || phase === 'canceling') && (
-            <p className="text-xs font-bold text-slate-300">しばらくお待ちください…</p>
+            <p className="text-xs font-bold text-gray-300">しばらくお待ちください…</p>
           )}
         </div>
       </div>

@@ -20,11 +20,11 @@ const PAYMENT_METHOD_OPTIONS = [
     label: '現金',
     buttonLabel: '現金で会計する',
     icon: DollarSign,
-    activeClassName: 'border-gray-950 bg-gray-950 text-white shadow-md ring-2 ring-gray-200',
-    inactiveClassName: 'border-gray-300 bg-white text-gray-950 shadow-sm hover:border-gray-600 hover:bg-gray-50',
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
     panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
-    panelIconClassName: 'bg-white text-gray-950 shadow-lg shadow-gray-200',
-    panelTitleClassName: 'text-gray-950',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
     panelTextClassName: 'text-gray-500',
     actionClassName: 'bg-gray-950 text-white hover:bg-black hover:shadow-xl'
   },
@@ -33,26 +33,26 @@ const PAYMENT_METHOD_OPTIONS = [
     label: 'カード',
     buttonLabel: 'カードで会計する',
     icon: CreditCard,
-    activeClassName: 'border-blue-600 bg-blue-600 text-white shadow-md ring-2 ring-blue-100',
-    inactiveClassName: 'border-blue-200 bg-blue-50 text-blue-800 shadow-sm hover:border-blue-500 hover:bg-blue-100',
-    panelClassName: 'border-blue-300 bg-blue-50 text-blue-700',
-    panelIconClassName: 'bg-white text-blue-600 shadow-lg shadow-blue-100',
-    panelTitleClassName: 'text-blue-700',
-    panelTextClassName: 'text-blue-500',
-    actionClassName: 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
+    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
+    panelTextClassName: 'text-gray-500',
+    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
   },
   {
     id: 'qr',
     label: 'QR決済',
     buttonLabel: 'QR決済で会計する',
     icon: ScanQrCode,
-    activeClassName: 'border-purple-600 bg-purple-600 text-white shadow-md ring-2 ring-purple-100',
-    inactiveClassName: 'border-purple-200 bg-purple-50 text-purple-800 shadow-sm hover:border-purple-500 hover:bg-purple-100',
-    panelClassName: 'border-purple-300 bg-purple-50 text-purple-700',
-    panelIconClassName: 'bg-white text-purple-600 shadow-lg shadow-purple-100',
-    panelTitleClassName: 'text-purple-700',
-    panelTextClassName: 'text-purple-500',
-    actionClassName: 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-xl'
+    activeClassName: 'border-ui bg-ui text-white shadow-md ring-2 ring-ui-100',
+    inactiveClassName: 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:bg-gray-50',
+    panelClassName: 'border-gray-300 bg-gray-50 text-gray-900',
+    panelIconClassName: 'bg-white text-gray-900 shadow-lg shadow-gray-200',
+    panelTitleClassName: 'text-gray-900',
+    panelTextClassName: 'text-gray-500',
+    actionClassName: 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
   }
 ];
 
@@ -133,7 +133,7 @@ export const PosRegisterRight = ({
         : '支払い方法を選択してください';
 
   const paymentActionClassName = isZeroPayable
-    ? 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-xl'
+    ? 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-xl'
     : (selectedPaymentMethodOption?.actionClassName || 'bg-gray-300 text-gray-500');
 
   const handleNumClick = (value) => {
@@ -209,7 +209,7 @@ export const PosRegisterRight = ({
         <div className="mb-3 shrink-0 space-y-2">
           <div className="grid gap-2">
             <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
-              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-400">
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-500">
                 <span>小計 ¥{subTotal.toLocaleString()}</span>
                 <span>消費税 ¥{taxAmount.toLocaleString()}</span>
                 <span>{taxLabel}</span>
@@ -222,8 +222,8 @@ export const PosRegisterRight = ({
                   disabled={orders.length === 0}
                   className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black ${loading ? '' : 'transition-all'} ${
                     discountType !== 'none'
-                      ? 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-400'
-                      : 'border-orange-100 bg-white text-orange-600 hover:bg-orange-50'
+                      ? 'border-ui-100 bg-ui-50 text-ui hover:border-ui'
+                      : 'border-ui-100 bg-white text-ui hover:bg-ui-50'
                   } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <Percent size={16} />
@@ -238,22 +238,22 @@ export const PosRegisterRight = ({
                     </div>
                   )}
                   {Number(promoExpenseAmount || 0) > 0 && (
-                    <div className="mb-1 truncate text-xs font-black text-emerald-600">
+                    <div className="mb-1 truncate text-xs font-black text-gray-900">
                       販促費 -¥{Number(promoExpenseAmount || 0).toLocaleString()}
                     </div>
                   )}
                   {Number(voucherAmount || 0) > 0 && (
-                    <div className="mb-1 truncate text-xs font-black text-sky-600">
+                    <div className="mb-1 truncate text-xs font-black text-ui">
                       金券/売掛 -¥{Number(voucherAmount || 0).toLocaleString()}
                     </div>
                   )}
                   {Number(voucherChangeAmount || 0) > 0 && (
-                    <div className="mb-1 truncate text-xs font-black text-blue-600">
+                    <div className="mb-1 truncate text-xs font-black text-ui">
                       金券お釣り ¥{Number(voucherChangeAmount || 0).toLocaleString()}
                     </div>
                   )}
                   {Number(settlementAdjustmentTotal || 0) > 0 && (
-                    <div className="mb-1 truncate text-[11px] font-bold text-gray-400">
+                    <div className="mb-1 truncate text-[11px] font-bold text-gray-500">
                       調整前 ¥{Number(salesAmountBeforeSettlementAdjustments || 0).toLocaleString()}
                     </div>
                   )}
@@ -292,12 +292,12 @@ export const PosRegisterRight = ({
         )}
 
         {isZeroPayable ? (
-          <div className="mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-orange-200 bg-orange-50/40 p-6">
-            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white text-orange-500 shadow-sm">
+          <div className="mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-ui-100 bg-ui-50/40 p-6">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white text-ui shadow-sm">
               <HandCoins size={44} strokeWidth={2.2} />
             </div>
             <p className="text-xl font-black text-gray-700">お支払いは不要です</p>
-            <p className="mt-2 text-center text-sm font-bold text-gray-400">
+            <p className="mt-2 text-center text-sm font-bold text-gray-500">
               割引・金券・売掛で全額充当されています。
               <br />
               「会計を確定」を押すと会計が完了します。
@@ -305,7 +305,7 @@ export const PosRegisterRight = ({
             {Number(voucherChangeAmount || 0) > 0 && (
               <div className="mt-4 flex items-baseline gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm">
                 <span className="text-sm font-bold text-gray-500">お釣り（現金）</span>
-                <span className="font-mono text-3xl font-black tracking-tight text-blue-600">
+                <span className="font-mono text-3xl font-black tracking-tight text-ui">
                   ¥{Number(voucherChangeAmount || 0).toLocaleString()}
                 </span>
               </div>
@@ -314,7 +314,7 @@ export const PosRegisterRight = ({
         ) : paymentMethod === 'cash' ? (
           <div className="flex min-h-0 flex-1 flex-col pb-2">
             <div className="mb-3 grid shrink-0 grid-cols-2 gap-2">
-              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-bold text-gray-500">お預かり</span>
                   <span className="truncate text-right font-mono text-3xl font-black tracking-tight text-gray-900">
@@ -323,10 +323,10 @@ export const PosRegisterRight = ({
                 </div>
               </div>
 
-              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-bold text-gray-500">おつり</span>
-                  <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${changeAmount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                  <span className={`truncate text-right font-mono text-3xl font-black tracking-tight ${changeAmount < 0 ? 'text-red-500' : 'text-ui'}`}>
                     ¥{changeAmount.toLocaleString()}
                   </span>
                 </div>
@@ -361,7 +361,7 @@ export const PosRegisterRight = ({
 
               <button
                 onClick={handleFullPayment}
-                className="min-h-[50px] rounded-xl border border-blue-200 bg-blue-50 px-2 text-sm font-black text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95"
+                className="min-h-[50px] rounded-xl border border-ui-100 bg-ui-50 px-2 text-sm font-black text-ui shadow-sm transition-all hover:bg-ui-50 active:scale-95"
               >
                 ちょうど
               </button>
@@ -386,8 +386,8 @@ export const PosRegisterRight = ({
             </div>
           </div>
         ) : paymentSplit.isSplit ? (
-          <div className="mb-3 flex min-h-0 flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
-            <div className="mb-1 text-center text-sm font-black text-blue-700">
+          <div className="mb-3 flex min-h-0 flex-1 flex-col justify-center gap-3 rounded-2xl border-2 border-dashed border-ui-100 bg-ui-50/40 p-5">
+            <div className="mb-1 text-center text-sm font-black text-ui">
               現金・{getSplitMethodLabel(paymentSplit.otherMethod)}の分割会計
             </div>
             <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
@@ -397,7 +397,7 @@ export const PosRegisterRight = ({
               </span>
             </div>
             <div className={`flex items-center justify-between rounded-2xl px-5 py-4 shadow-sm ${
-              paymentSplit.otherMethod === 'qr' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+              paymentSplit.otherMethod === 'qr' ? 'bg-ui text-white' : 'bg-gray-900 text-white'
             }`}>
               <span className="text-sm font-bold opacity-90">
                 {getSplitMethodLabel(paymentSplit.otherMethod)}支払い
@@ -406,13 +406,13 @@ export const PosRegisterRight = ({
                 ¥{paymentSplit.otherPortion.toLocaleString()}
               </span>
             </div>
-            <p className="mt-1 text-center text-xs font-bold text-gray-400">
+            <p className="mt-1 text-center text-xs font-bold text-gray-500">
               会計額 ¥{Number(totalAmount).toLocaleString()} − 現金預かり ¥{paymentSplit.cashPortion.toLocaleString()}
             </p>
           </div>
         ) : (
           <div className={`mb-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
-            selectedPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-400'
+            selectedPaymentMethodOption?.panelClassName || 'border-gray-200 bg-gray-50 text-gray-500'
           }`}>
             {!paymentMethod && (
               <>
@@ -420,7 +420,7 @@ export const PosRegisterRight = ({
                   <CreditCard size={52} />
                 </div>
                 <p className="text-xl font-black text-gray-700">支払い方法を選択</p>
-                <p className="mt-2 text-sm font-bold text-gray-400">
+                <p className="mt-2 text-sm font-bold text-gray-500">
                   現金・カード・QRのいずれかを選んでください
                 </p>
               </>

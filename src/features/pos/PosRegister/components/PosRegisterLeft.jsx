@@ -123,7 +123,7 @@ export const PosRegisterLeft = ({
           <div
             style={memberBarStyle(crmMember.rank)}
             className={`flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 text-white shadow-md ${
-              crmMember.rank ? '' : 'bg-emerald-600'
+              crmMember.rank ? '' : 'bg-gray-900'
             }`}
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -145,13 +145,13 @@ export const PosRegisterLeft = ({
             <button
               type="button"
               onClick={() => onClearCrmMember?.()}
-              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-emerald-700 transition hover:bg-white active:scale-95"
+              className="shrink-0 rounded-lg bg-white/90 px-3 py-1 text-xs font-black text-gray-900 transition hover:bg-white active:scale-95"
             >
               解除
             </button>
           </div>
         ) : (
-          <div className="shrink-0 border-b border-emerald-100 bg-emerald-50/60 px-4 py-2">
+          <div className="shrink-0 border-b border-gray-200 bg-gray-100/60 px-4 py-2">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -160,18 +160,18 @@ export const PosRegisterLeft = ({
               }}
               className="flex items-center gap-2"
             >
-              <span className="shrink-0 text-[11px] font-black text-emerald-700">会員</span>
+              <span className="shrink-0 text-[11px] font-black text-gray-900">会員</span>
               <input
                 value={crmCodeInput || ''}
                 onChange={(event) => setCrmCodeInput?.(event.target.value)}
                 inputMode="numeric"
                 placeholder="会員番号（スキャンも可）"
-                className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-emerald-500"
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-gray-900"
               />
               <button
                 type="submit"
                 disabled={crmMemberBusy || !String(crmCodeInput || '').trim()}
-                className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
+                className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40"
               >
                 {crmMemberBusy ? '照会中…' : '照会'}
               </button>
@@ -180,7 +180,7 @@ export const PosRegisterLeft = ({
                 <button
                   type="button"
                   onClick={onOpenMemberSearch}
-                  className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                  className="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-black text-gray-900 hover:bg-gray-100"
                 >
                   検索
                 </button>
@@ -198,7 +198,7 @@ export const PosRegisterLeft = ({
         <div className="flex min-w-0 items-center gap-3">
           <button
             onClick={onBack}
-            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition-all hover:bg-black active:scale-95"
+            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm transition-all hover:bg-black active:scale-95"
           >
             <ChevronLeft size={18} />
             戻る
@@ -213,7 +213,7 @@ export const PosRegisterLeft = ({
 
         <div className="flex items-center gap-2">
           {isCustomMode && (
-            <div className="mr-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
+            <div className="mr-1 rounded-full bg-ui-50 px-3 py-1.5 text-xs font-black text-ui">
               個別会計中
             </div>
           )}
@@ -222,7 +222,7 @@ export const PosRegisterLeft = ({
             <button
               type="button"
               onClick={clearCustomSelection}
-              className="flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-black text-orange-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-100"
+              className="flex items-center gap-1 rounded-lg border border-ui-100 bg-ui-50 px-3 py-1.5 text-xs font-black text-ui shadow-sm transition-colors hover:border-ui-100 hover:bg-ui-50"
             >
               <RotateCcw size={14} />
               選択をクリア
@@ -231,7 +231,7 @@ export const PosRegisterLeft = ({
 
           <button
             onClick={() => setShowSplitModal(true)}
-            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-50"
             disabled={totalAmount === 0}
           >
             <Calculator size={16} />
@@ -243,7 +243,7 @@ export const PosRegisterLeft = ({
               onClick={toggleSelectAll}
               className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
                 allSelected
-                  ? 'border-blue-200 bg-blue-100 text-blue-700'
+                  ? 'border-ui-100 bg-ui-50 text-ui'
                   : 'border-gray-300 bg-gray-200 text-gray-600 hover:bg-gray-300'
               }`}
             >
@@ -255,7 +255,7 @@ export const PosRegisterLeft = ({
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-gray-50/50 p-4">
         {orders.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-60">
+          <div className="flex h-full flex-col items-center justify-center text-gray-500 opacity-60">
             <Utensils size={64} strokeWidth={1} className="mb-4" />
             <p className="font-bold">未会計の注文はありません</p>
           </div>
@@ -277,9 +277,9 @@ export const PosRegisterLeft = ({
               key={customerKey}
               className={`overflow-hidden rounded-xl border shadow-sm transition-all ${
                 customerSelection.isAllSelected
-                  ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
+                  ? 'border-ui bg-ui-50 shadow-md shadow-gray-200'
                   : customerSelection.isPartiallySelected
-                    ? 'border-blue-300 bg-blue-50/40 shadow-sm'
+                    ? 'border-ui-100 bg-ui-50/40 shadow-sm'
                     : 'border-gray-300 bg-gray-100/80 shadow-sm'
               }`}
             >
@@ -296,18 +296,18 @@ export const PosRegisterLeft = ({
                 }}
                 className={`flex w-full select-none items-center justify-between border-b px-4 py-2 text-left text-xs font-bold transition-colors ${
                   customerSelection.isAllSelected
-                    ? 'border-blue-100 bg-blue-100 text-blue-700'
+                    ? 'border-ui-100 bg-ui-50 text-ui'
                     : customerSelection.isPartiallySelected
-                      ? 'border-blue-100 bg-blue-50 text-blue-700'
+                      ? 'border-ui-100 bg-ui-50 text-ui'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-black shadow-sm ${
                     customerSelection.isAllSelected
-                      ? 'border-blue-600 bg-blue-600 text-white'
+                      ? 'border-ui bg-ui text-white'
                       : customerSelection.isPartiallySelected
-                        ? 'border-blue-500 bg-blue-500 text-white'
+                        ? 'border-ui bg-ui text-white'
                         : 'border-gray-300 bg-white text-gray-700'
                   }`}>
                     <User size={14} />
@@ -328,9 +328,9 @@ export const PosRegisterLeft = ({
                       key={order.id}
                       className={`mt-3 rounded-2xl border p-4 transition-all ${
                         orderSelection.isAllSelected
-                          ? 'border-blue-500 bg-blue-50 shadow-sm shadow-blue-100'
+                          ? 'border-ui bg-ui-50 shadow-sm shadow-gray-200'
                           : orderSelection.isPartiallySelected
-                            ? 'border-blue-300 bg-blue-50/40 shadow-sm'
+                            ? 'border-ui-100 bg-ui-50/40 shadow-sm'
                             : 'border-gray-200 bg-white/90 hover:border-gray-300 hover:bg-white'
                       }`}
                     >
@@ -350,14 +350,14 @@ export const PosRegisterLeft = ({
                         <div className="flex items-center gap-2">
                           <span className={`rounded px-2 py-0.5 text-xs font-bold ${
                             orderSelection.isAllSelected
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-ui text-white'
                               : orderSelection.isPartiallySelected
-                                ? 'bg-blue-100 text-blue-700'
+                                ? 'bg-ui-50 text-ui'
                                 : 'bg-gray-200 text-gray-600'
                           }`}>
                             注文 #{order.id.slice(-4)}
                           </span>
-                          {orderSelection.isAllSelected && <Check size={15} className="text-blue-600" />}
+                          {orderSelection.isAllSelected && <Check size={15} className="text-ui" />}
                         </div>
 
                         <span className="font-mono text-lg font-bold text-gray-800">
@@ -394,20 +394,20 @@ export const PosRegisterLeft = ({
                                 isItemCancelled
                                   ? 'border-red-100 bg-red-50/70 text-red-400'
                                   : isItemSelected
-                                    ? 'border-blue-200 bg-blue-50 text-blue-900'
-                                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/30'
+                                    ? 'border-ui-100 bg-ui-50 text-ui'
+                                    : 'border-gray-200 bg-white text-gray-700 hover:border-ui-100 hover:bg-ui-50/30'
                               }`}
                             >
                               <span className="flex min-w-0 items-center gap-2">
                                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                                   isItemSelected
-                                    ? 'border-blue-600 bg-blue-600 text-white'
+                                    ? 'border-ui bg-ui text-white'
                                     : 'border-gray-200 bg-white text-transparent'
                                 }`}>
                                   <Check size={13} strokeWidth={3} />
                                 </span>
                                 <span className={`min-w-0 truncate ${isItemCancelled ? 'line-through decoration-2' : ''}`}>
-                                  {item.name} <span className="text-gray-400">x{item.quantity}</span>
+                                  {item.name} <span className="text-gray-500">x{item.quantity}</span>
                                 </span>
                                 {isItemCancelled && (
                                   <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-600">
@@ -417,7 +417,7 @@ export const PosRegisterLeft = ({
                               </span>
 
                               <div className="flex shrink-0 items-center gap-2">
-                                <span className={`font-mono text-xs text-gray-400 ${isItemCancelled ? 'line-through decoration-2' : ''}`}>
+                                <span className={`font-mono text-xs text-gray-500 ${isItemCancelled ? 'line-through decoration-2' : ''}`}>
                                   ¥{((Number(item.unitPrice) || 0) * (Number(item.quantity) || 0)).toLocaleString()}
                                 </span>
 
@@ -433,15 +433,15 @@ export const PosRegisterLeft = ({
                                     }}
                                     className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold shadow-sm transition-all duration-200 ${
                                       isItemTakeout
-                                        ? 'border-orange-200 bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                        : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
+                                        ? 'border-ui-100 bg-ui-50 text-ui hover:bg-ui-100'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
                                     }`}
                                   >
                                     {isItemTakeout ? <ShoppingBag size={12} /> : <Store size={12} />}
                                     テイクアウト
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">
+                                  <span className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-500">
                                     <Store size={12} />
                                     店内のみ
                                   </span>

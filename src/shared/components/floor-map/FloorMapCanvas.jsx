@@ -155,31 +155,36 @@ const cancelLongPress = () => {
           if (isWall) {
             bgClass = darkTheme ? 'bg-slate-700' : 'bg-slate-300';
           } else if (isDisabled) {
-            bgClass = 'bg-red-50 text-red-700';
-            borderClass = 'border-red-300 border-4';
+            // 使えない卓=グレーの破線(赤は呼び出しと取り消せない操作だけ)
+            bgClass = 'bg-gray-100 text-gray-500';
+            borderClass = 'border-gray-300 border-4 border-dashed';
           } else if (info?.isCalling) {
             bgClass = 'bg-red-500 text-white';
             borderClass = 'border-red-600 ring-4 ring-red-200';
             animationClass = 'animate-bounce';
             icon = <Bell size={22} className="fill-white" />;
           } else if (info?.status === 'checkout') {
-            bgClass = 'bg-blue-600 text-white';
-            borderClass = 'border-blue-700 ring-4 ring-blue-100';
+            // 会計待ち=スチールブルーの塗り(利用中の線より強い)
+            bgClass = 'bg-ui text-white';
+            borderClass = 'border-ui ring-4 ring-ui-100';
             animationClass = 'animate-pulse';
             icon = <CreditCard size={22} />;
           } else if (info?.status === 'ready') {
-            bgClass = 'bg-green-500 text-white';
-            borderClass = 'border-green-600 shadow-lg';
+            // 提供待ち=黒の塗り(すぐ動く)
+            bgClass = 'bg-gray-900 text-white';
+            borderClass = 'border-gray-900 shadow-lg';
             animationClass = 'animate-pulse';
             icon = <CheckCircle size={22} />;
           } else if (info?.status === 'cooking') {
             bgClass = darkTheme ? 'bg-slate-800' : 'bg-white shadow-sm';
-            borderClass = 'border-orange-400 border-4';
+            // 調理中=アンバーの線(注意して見守る)
+            borderClass = 'border-amber-400 border-4';
             animationClass = 'animate-pulse';
-            icon = <Flame size={22} className="text-orange-500 fill-orange-500" />;
+            icon = <Flame size={22} className="text-amber-500 fill-amber-500" />;
           } else if (info?.status === 'occupied') {
-            bgClass = 'bg-blue-50 text-blue-600';
-            borderClass = 'border-blue-400 border-4';
+            // 利用中=スチールブルーの線(目で探すもの)
+            bgClass = 'bg-ui-50 text-ui';
+            borderClass = 'border-ui border-4';
           }
 
           return (
@@ -231,9 +236,9 @@ const cancelLongPress = () => {
               {!isWall && (
               <div
                 className={`absolute inset-0 z-0 ${bgClass} ${borderClass} ${animationClass} ${
-                  isMovingSource ? 'ring-4 ring-blue-400 ring-offset-4 ring-offset-slate-100' : ''
+                  isMovingSource ? 'ring-4 ring-gray-900 ring-offset-4 ring-offset-gray-100' : ''
                 } ${
-                  isSelectedTable ? 'ring-4 ring-orange-400 ring-offset-4 ring-offset-slate-100' : ''
+                  isSelectedTable ? 'ring-4 ring-ui ring-offset-4 ring-offset-gray-100' : ''
                 } ${
                   item.shape === 'circle' ? 'rounded-full' : 'rounded-xl'
                 } transition-colors duration-300`}
@@ -273,7 +278,7 @@ const cancelLongPress = () => {
 
               {!isWall && menuOverride && (
                 <div className="absolute -bottom-2 -left-2 z-20 pointer-events-none">
-                  <div className="inline-flex min-w-[2.3rem] flex-col items-center justify-center rounded-lg bg-orange-500 px-1 py-0.5 text-center text-[8px] font-black leading-[0.95] text-white shadow-sm">
+                  <div className="inline-flex min-w-[2.3rem] flex-col items-center justify-center rounded-lg bg-gray-900 px-1 py-0.5 text-center text-[8px] font-black leading-[0.95] text-white shadow-sm">
                     {String(menuOverride.periodName || '').trim()}
                     <span>{menuOverride.remainingMinutes}m</span>
                   </div>

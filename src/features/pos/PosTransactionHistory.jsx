@@ -2875,25 +2875,25 @@ export const PosTransactionHistory = ({
     }
 
     if (order?.paymentStatus === 'paid') {
-      return 'bg-green-50 text-green-600';
+      return 'bg-gray-100 text-gray-900';
     }
 
-    return 'bg-orange-50 text-orange-600';
+    return 'bg-ui-50 text-ui';
   };
 
   const formatPaymentBadgeClass = (method) => {
     const key = getPaymentMethodKey(method);
 
     if (key === 'cash') {
-      return 'border-slate-300 bg-slate-100 text-slate-900';
+      return 'border-gray-300 bg-gray-100 text-gray-900';
     }
 
     if (key === 'card') {
-      return 'border-blue-200 bg-blue-50 text-blue-700';
+      return 'border-ui-100 bg-ui-50 text-ui';
     }
 
     if (key === 'qr') {
-      return 'border-purple-200 bg-purple-50 text-purple-700';
+      return 'border-ui-100 bg-ui-50 text-ui';
     }
 
     return 'border-gray-200 bg-gray-50 text-gray-600';
@@ -2951,7 +2951,7 @@ export const PosTransactionHistory = ({
               <Search size={16} className="shrink-0 text-gray-500" />
               <span className="shrink-0 text-sm font-black text-gray-700">検索結果</span>
               {searchSummary && (
-                <span className="truncate text-xs font-bold text-gray-400">{searchSummary}</span>
+                <span className="truncate text-xs font-bold text-gray-500">{searchSummary}</span>
               )}
             </>
           ) : (
@@ -2983,7 +2983,7 @@ export const PosTransactionHistory = ({
             <button
               type="button"
               onClick={() => shiftSelectedPaidDate(-1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui"
               aria-label="前日"
             >
               <ChevronLeft size={18} strokeWidth={3} />
@@ -2992,7 +2992,7 @@ export const PosTransactionHistory = ({
             <button
               type="button"
               onClick={openPaidDatePicker}
-              className="min-w-[150px] rounded-full bg-white px-4 py-2.5 text-center text-xs font-black text-gray-800 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              className="min-w-[150px] rounded-full bg-white px-4 py-2.5 text-center text-xs font-black text-gray-800 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui"
             >
               {selectedPaidDate ? `${selectedPaidDate}（${paidDateWeekLabel}）` : '日付を選択'}
             </button>
@@ -3001,7 +3001,7 @@ export const PosTransactionHistory = ({
               type="button"
               onClick={() => shiftSelectedPaidDate(1)}
               disabled={isSelectedPaidDateToday}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm ring-1 ring-gray-100 transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:text-gray-400 disabled:opacity-40"
               aria-label="翌日"
             >
               <ChevronRight size={18} strokeWidth={3} />
@@ -3051,8 +3051,8 @@ export const PosTransactionHistory = ({
             onClick={() => setFilter('hold')}
             className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
               filter === 'hold'
-                ? 'border-amber-500 text-amber-700'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
+                ? 'border-ui text-ui'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
             }`}
           >
             <PauseCircle size={14} />
@@ -3065,8 +3065,8 @@ export const PosTransactionHistory = ({
             onClick={() => setFilter('groom')}
             className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
               filter === 'groom'
-                ? 'border-indigo-500 text-indigo-700'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
+                ? 'border-ui text-ui'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
             }`}
           >
             <CalendarClock size={14} />
@@ -3078,7 +3078,7 @@ export const PosTransactionHistory = ({
             type="button"
             onClick={() => setFilter('unpaid')}
             className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
-              filter === 'unpaid' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+              filter === 'unpaid' ? 'border-ui text-ui' : 'border-transparent text-gray-500 hover:text-gray-900'
             }`}
           >
             <Filter size={14} />
@@ -3090,7 +3090,7 @@ export const PosTransactionHistory = ({
           type="button"
           onClick={() => setFilter('paid')}
           className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
-            filter === 'paid' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+            filter === 'paid' ? 'border-ui text-ui' : 'border-transparent text-gray-500 hover:text-gray-900'
           }`}
         >
           <CheckCircle2 size={14} />
@@ -3100,7 +3100,7 @@ export const PosTransactionHistory = ({
           type="button"
           onClick={() => setFilter('cancelled')}
           className={`flex flex-1 items-center justify-center gap-1 border-b-2 -mb-px py-2.5 text-xs font-black transition-colors ${
-            filter === 'cancelled' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+            filter === 'cancelled' ? 'border-ui text-ui' : 'border-transparent text-gray-500 hover:text-gray-900'
           }`}
         >
           <XCircle size={14} />
@@ -3115,7 +3115,7 @@ export const PosTransactionHistory = ({
           <div className="flex min-w-0 items-center gap-2">
             {searchMode ? (
               <span className="truncate text-sm font-black text-gray-800">
-                <span className="mr-1 text-xs font-bold text-gray-400">対象</span>
+                <span className="mr-1 text-xs font-bold text-gray-500">対象</span>
                 {searchDeptLabel}
               </span>
             ) : registers.length > 1 ? (
@@ -3129,7 +3129,7 @@ export const PosTransactionHistory = ({
                 </span>
                 <ChevronRight
                   size={15}
-                  className={`shrink-0 text-gray-400 transition-transform ${pickingRegister ? 'rotate-90' : ''}`}
+                  className={`shrink-0 text-gray-500 transition-transform ${pickingRegister ? 'rotate-90' : ''}`}
                 />
               </button>
             ) : (
@@ -3163,7 +3163,7 @@ export const PosTransactionHistory = ({
                 }`}
               >
                 全体
-                <span className="block text-[10px] font-bold text-gray-400">全レジ横断</span>
+                <span className="block text-[10px] font-bold text-gray-500">全レジ横断</span>
               </button>
               {registers.filter((register) => register.id !== ownRegisterId).map((register) => (
                 <button
@@ -3172,8 +3172,8 @@ export const PosTransactionHistory = ({
                   onClick={() => { setViewingRegisterId(register.id); setPickingRegister(false); }}
                   className={`rounded-lg border px-3 py-2 text-left text-xs font-bold ${
                     viewingRegisterId === register.id
-                      ? 'border-blue-500 text-blue-700'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                      ? 'border-ui text-ui'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-ui-100 hover:bg-ui-50'
                   }`}
                 >
                   {register.name}
@@ -3197,20 +3197,20 @@ export const PosTransactionHistory = ({
                 {
                   id: 'cash',
                   label: '現金',
-                  activeClassName: 'bg-white text-slate-900 ring-2 ring-slate-900',
-                  inactiveClassName: 'bg-white text-slate-500 ring-1 ring-gray-200 hover:bg-slate-50'
+                  activeClassName: 'bg-white text-gray-900 ring-2 ring-gray-900',
+                  inactiveClassName: 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50'
                 },
                 {
                   id: 'card',
                   label: 'カード',
-                  activeClassName: 'bg-white text-blue-700 ring-2 ring-blue-600',
-                  inactiveClassName: 'bg-white text-blue-600/70 ring-1 ring-gray-200 hover:bg-blue-50'
+                  activeClassName: 'bg-white text-ui ring-2 ring-ui-100',
+                  inactiveClassName: 'bg-white text-ui/70 ring-1 ring-gray-200 hover:bg-ui-50'
                 },
                 {
                   id: 'qr',
                   label: 'QR',
-                  activeClassName: 'bg-white text-purple-700 ring-2 ring-purple-600',
-                  inactiveClassName: 'bg-white text-purple-600/70 ring-1 ring-gray-200 hover:bg-purple-50'
+                  activeClassName: 'bg-white text-ui ring-2 ring-ui-100',
+                  inactiveClassName: 'bg-white text-ui/70 ring-1 ring-gray-200 hover:bg-ui-50'
                 }
               ].map((option) => (
                 <button
@@ -3228,7 +3228,7 @@ export const PosTransactionHistory = ({
 
           {/* 合計・支払方法別集計は日付単位の集計なので、検索結果表示中は非表示にする。 */}
           {!searchMode && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-bold text-green-700">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] font-bold text-gray-900">
               <span className="font-black">
                 合計 ¥{Number(paidPaymentSummaryTotal || 0).toLocaleString()}
               </span>
@@ -3242,9 +3242,9 @@ export const PosTransactionHistory = ({
         </div>
       )}
 
-      <div className="flex-grow space-y-3 overflow-y-auto bg-slate-50/50 p-3">
+      <div className="flex-grow space-y-3 overflow-y-auto bg-gray-50/50 p-3">
         {filter === 'hold' && posHolds.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
+          <div className="flex h-full flex-col items-center justify-center text-center text-gray-300">
             <PauseCircle size={56} strokeWidth={1.5} />
             <p className="mt-3 text-sm font-black">
               保留中の伝票はありません
@@ -3263,14 +3263,14 @@ export const PosTransactionHistory = ({
             <div key={hold.id} className="rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-slate-800">{hold.title || '保留'}</div>
-                  <div className="text-xs font-bold text-slate-400">{count}点 ・ ¥{total.toLocaleString()}</div>
+                  <div className="truncate text-sm font-black text-gray-800">{hold.title || '保留'}</div>
+                  <div className="text-xs font-bold text-gray-500">{count}点 ・ ¥{total.toLocaleString()}</div>
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
                     onClick={() => onDeleteHold?.(hold.id)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 hover:bg-slate-50"
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-500 hover:bg-gray-50"
                   >
                     削除
                   </button>
@@ -3288,12 +3288,12 @@ export const PosTransactionHistory = ({
         })}
 
         {filter === 'groom' && checkoutRequests.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-center text-slate-300">
+          <div className="flex h-full flex-col items-center justify-center text-center text-gray-300">
             <CalendarClock size={56} strokeWidth={1.5} />
             <p className="mt-3 text-sm font-black">
               予約の会計依頼はありません
             </p>
-            <p className="mt-1 text-xs font-bold text-slate-300">
+            <p className="mt-1 text-xs font-bold text-gray-300">
               Groomの会計送信・メガネカルテのPOS送信で届きます
             </p>
           </div>
@@ -3321,36 +3321,36 @@ export const PosTransactionHistory = ({
             <div
               key={request.id}
               className={`rounded-2xl border bg-white p-3 shadow-sm ${
-                isExpired ? 'border-slate-200 opacity-60' : activeCheckoutRequestId === request.id ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-indigo-100'
+                isExpired ? 'border-gray-200 opacity-60' : activeCheckoutRequestId === request.id ? 'border-ui-100 ring-1 ring-ui-100' : 'border-ui-100'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-black text-slate-800">
+                    <span className="truncate text-sm font-black text-gray-800">
                       {request.customerName ? `${request.customerName} 様` : '予約のお客様'}
                     </span>
                     {handoverLabel && (
                       <span className={`shrink-0 rounded-lg px-2 py-0.5 text-sm font-black ${
-                        isExpired ? 'bg-slate-100 text-slate-400' : request.isHandoverDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                        isExpired ? 'bg-gray-100 text-gray-500' : request.isHandoverDue ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
                       }`}>
                         お渡し {handoverLabel}{!isExpired && request.isHandoverToday ? '（本日）' : ''}
                       </span>
                     )}
                     {isExpired ? (
-                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">期限切れ</span>
+                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">期限切れ</span>
                     ) : isClaimed ? (
-                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-600">
+                      <span className="shrink-0 rounded-full bg-ui-50 px-2 py-0.5 text-[10px] font-black text-ui">
                         呼出中{claimedByOwn ? '' : `・${claimedRegisterName}`}
                       </span>
                     ) : null}
                   </div>
-                  <div className="truncate text-xs font-bold text-slate-400">
+                  <div className="truncate text-xs font-bold text-gray-500">
                     {requestedAt && `${requestedAt} ・ `}¥{Number(request.totalAmount || 0).toLocaleString()}
                     {lineSummary && ` ・ ${lineSummary}`}
                   </div>
                   {request.note && (
-                    <div className="truncate text-[11px] font-bold text-slate-400">{request.note}</div>
+                    <div className="truncate text-[11px] font-bold text-gray-500">{request.note}</div>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -3358,19 +3358,19 @@ export const PosTransactionHistory = ({
                     <button
                       type="button"
                       onClick={() => onReleaseCheckoutRequest?.(request)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-500 hover:bg-slate-50"
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-500 hover:bg-gray-50"
                     >
                       戻す
                     </button>
                   )}
                   {isExpired ? (
-                    <span className="self-center text-[11px] font-bold text-slate-400">送信元から再送で復活</span>
+                    <span className="self-center text-[11px] font-bold text-gray-500">送信元から再送で復活</span>
                   ) : (
                     <button
                       type="button"
                       disabled={isClaimed && !claimedByOwn}
                       onClick={() => onClaimCheckoutRequest?.(request)}
-                      className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                      className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
                     >
                       呼出
                     </button>
@@ -3388,29 +3388,29 @@ export const PosTransactionHistory = ({
         )}
 
         {filter !== 'hold' && filter !== 'groom' && !loading && displayTickets.length === 0 && (
-          <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-400">
+          <div className="flex flex-col items-center gap-3 py-12 text-center text-gray-500">
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
               filter === 'paid' && paidPaymentFilter === 'cash'
-                ? 'bg-slate-900 text-white shadow-sm'
+                ? 'bg-gray-900 text-white shadow-sm'
                 : filter === 'paid' && paidPaymentFilter === 'card'
-                  ? 'bg-blue-50 text-blue-500'
+                  ? 'bg-ui-50 text-ui'
                   : filter === 'paid' && paidPaymentFilter === 'qr'
-                    ? 'bg-purple-50 text-purple-500'
+                    ? 'bg-ui-50 text-ui'
                     : filter === 'paid'
-                      ? 'bg-green-50 text-green-500'
-                      : 'bg-gray-100 text-gray-400'
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'bg-gray-100 text-gray-500'
             }`}>
               <Filter size={28} />
             </div>
             <p className={`rounded-full px-4 py-2 text-sm font-black ${
               filter === 'paid' && paidPaymentFilter === 'cash'
-                ? 'bg-slate-900 text-white shadow-sm'
+                ? 'bg-gray-900 text-white shadow-sm'
                 : filter === 'paid' && paidPaymentFilter === 'card'
-                  ? 'bg-blue-50 text-blue-700'
+                  ? 'bg-ui-50 text-ui'
                   : filter === 'paid' && paidPaymentFilter === 'qr'
-                    ? 'bg-purple-50 text-purple-700'
+                    ? 'bg-ui-50 text-ui'
                     : filter === 'paid'
-                      ? 'bg-green-50 text-green-700'
+                      ? 'bg-gray-100 text-gray-900'
                       : 'bg-gray-100 text-gray-500'
             }`}>
               {filter === 'paid'
@@ -3546,13 +3546,13 @@ export const PosTransactionHistory = ({
                             : 'bg-red-50 text-red-600'
                           : isPaid
                             ? getPaymentMethodKey(ticket.paymentMethod) === 'cash'
-                              ? 'bg-slate-100 text-slate-900 ring-1 ring-slate-200'
+                              ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200'
                               : getPaymentMethodKey(ticket.paymentMethod) === 'card'
-                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                                ? 'bg-ui-50 text-ui ring-1 ring-ui-100'
                                 : getPaymentMethodKey(ticket.paymentMethod) === 'qr'
-                                  ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-100'
-                                  : 'bg-green-50 text-green-600'
-                            : 'bg-orange-50 text-orange-600'
+                                  ? 'bg-ui-50 text-ui ring-1 ring-ui-100'
+                                  : 'bg-gray-100 text-gray-900'
+                            : 'bg-ui-50 text-ui'
                       }`}
                     >
                       {isCancelled
@@ -3567,7 +3567,7 @@ export const PosTransactionHistory = ({
                       </span>
                     )}
                     {isPaid && methodAdjustments.length > 0 && (
-                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-ui-50 text-ui ring-1 ring-ui-100">
                         支払訂正
                       </span>
                     )}
@@ -3579,12 +3579,12 @@ export const PosTransactionHistory = ({
                     {(Number(ticket.discountAmount || 0) > 0
                       || Number(ticket.promoExpenseAmount || 0) > 0
                       || Number(ticket.voucherAmount || 0) > 0) && (
-                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                      <span className="rounded px-2 py-0.5 text-center text-[10px] font-black tracking-wider bg-red-50 text-red-600 ring-1 ring-red-100">
                         割引・クーポン
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-400">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold tabular-nums text-gray-500">
                     <span>注文 {formatDateTimeShort(ticket.timestamp) || formatTime(ticket.timestamp)}</span>
                     <span className="h-1 w-1 rounded-full bg-gray-300" />
                     <span>{isCancelled ? '取消' : '会計'} {formatTicketPaidTime(ticket, isPaid, isCancelled)}</span>
@@ -3613,7 +3613,7 @@ export const PosTransactionHistory = ({
                     {isCancelled && !isReversalCancel && refundEntries.length > 0 && (
                       <>
                         <span className="h-1 w-1 rounded-full bg-gray-300" />
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-ui">
                           {refundEntries.map(([label, v]) => `返金 ${label} ${refundAmountLabel(v)}`).join(' / ')}
                         </span>
                       </>
@@ -3668,7 +3668,7 @@ export const PosTransactionHistory = ({
                       }}
                       title={hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
                       aria-label={hasMultiplePayments ? '明細印刷' : 'レシート再印刷'}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
                     >
                       <Printer size={16} />
                     </button>
@@ -3677,7 +3677,7 @@ export const PosTransactionHistory = ({
               </div>
 
               {isExpanded && (
-                <div className="border-t border-gray-100 bg-slate-50/50 px-5 pb-5 pt-2">
+                <div className="border-t border-gray-100 bg-gray-50/50 px-5 pb-5 pt-2">
                   <div className="space-y-4">
                     {!isPaid && !isCancelled && (
                       <button
@@ -3707,19 +3707,19 @@ export const PosTransactionHistory = ({
                     )}
 
                     {isPaid && Array.isArray(ticket.paidOrders) && ticket.paidOrders.length > 0 && (
-                      <div className="mt-4 rounded-xl border border-green-100 bg-green-50/50 p-4 shadow-sm">
-                        <div className="mb-3 flex items-center justify-between border-b border-green-100 pb-2">
+                      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-100/50 p-4 shadow-sm">
+                        <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-2">
                           <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-green-700">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-900">
                               この会計に含まれる支払い
                             </h4>
                             {formatSourceSessionLabel(ticket) && (
-                              <p className="mt-1 text-[10px] font-bold text-green-500">
+                              <p className="mt-1 text-[10px] font-bold text-gray-900">
                                 同一伝票: {formatSourceSessionLabel(ticket)}
                               </p>
                             )}
                           </div>
-                          <span className="text-[10px] font-black tabular-nums text-green-700">
+                          <span className="text-[10px] font-black tabular-nums text-gray-900">
                             {Array.isArray(ticket.splitPayments) && ticket.splitPayments.length > 1
                               ? `${ticket.splitPayments.length}種別`
                               : `${ticket.paidOrders.length}件`}
@@ -3776,7 +3776,7 @@ export const PosTransactionHistory = ({
                                       event.stopPropagation();
                                       printPaymentReceipt(order, ticket, settings);
                                     }}
-                                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-black text-gray-500 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-black text-gray-500 shadow-sm transition-colors hover:border-ui-100 hover:bg-ui-50 hover:text-ui"
                                   >
                                     レシート再印刷
                                   </button>
@@ -3806,7 +3806,7 @@ export const PosTransactionHistory = ({
                                 event.stopPropagation();
                                 openCancelModal(ticket, 'return');
                               }}
-                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-white py-2.5 text-xs font-black text-teal-600 shadow-sm transition-colors hover:bg-teal-50"
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-black text-gray-900 shadow-sm transition-colors hover:bg-gray-100"
                             >
                               <RotateCcw size={14} />
                               返品
@@ -3833,10 +3833,10 @@ export const PosTransactionHistory = ({
                     {isPaid && Array.isArray(ticket.excludedOrders) && ticket.excludedOrders.length > 0 && (
                       <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-2">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                             除外された注文
                           </h4>
-                          <span className="text-[10px] font-black tabular-nums text-gray-400">
+                          <span className="text-[10px] font-black tabular-nums text-gray-500">
                             {ticket.excludedOrders.length}件
                           </span>
                         </div>
@@ -3845,7 +3845,7 @@ export const PosTransactionHistory = ({
                           {ticket.excludedOrders.map((order) => (
                             <div
                               key={`${ticket.id}-excluded-${order.id}`}
-                              className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs"
+                              className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-xs"
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
@@ -3856,7 +3856,7 @@ export const PosTransactionHistory = ({
                                     注文 {formatShortOrderId(order.id)}
                                   </span>
                                 </div>
-                                <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-gray-400">
+                                <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-gray-500">
                                   <span>注文 {formatTime(order.timestamp)}</span>
                                   {order.paidAt && (
                                     <>
@@ -3867,7 +3867,7 @@ export const PosTransactionHistory = ({
                                 </div>
                               </div>
 
-                              <span className="shrink-0 pl-3 text-sm font-black tabular-nums text-gray-400">
+                              <span className="shrink-0 pl-3 text-sm font-black tabular-nums text-gray-500">
                                 ¥{Number(order.totalPrice || 0).toLocaleString()}
                               </span>
                             </div>
@@ -3881,8 +3881,8 @@ export const PosTransactionHistory = ({
                       || (Array.isArray(ticket.reversalEntries) && ticket.reversalEntries.length > 0)) && (
                       <div className="mt-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-end justify-between border-b-2 border-dashed border-gray-200 pb-2">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">注文内容</h4>
-                          <span className="text-[10px] font-bold tabular-nums text-gray-400">計 {totalItemsCount + cancelledTotalCount} 点</span>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500">注文内容</h4>
+                          <span className="text-[10px] font-bold tabular-nums text-gray-500">計 {totalItemsCount + cancelledTotalCount} 点</span>
                         </div>
 
                         <ul className="space-y-3">
@@ -3902,17 +3902,17 @@ export const PosTransactionHistory = ({
                                     <div className="flex items-center gap-2">
                                       <span className="font-bold leading-tight text-gray-700">{item.name}</span>
                                       {isRetailItem && (
-                                        <span className="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[9px] font-bold leading-none text-emerald-600">
+                                        <span className="shrink-0 rounded border border-gray-200 bg-gray-100 px-1 py-0.5 text-[9px] font-bold leading-none text-gray-900">
                                           物販
                                         </span>
                                       )}
                                       {isTakeoutItem && (
-                                        <span className="shrink-0 rounded border border-orange-200 bg-orange-50 px-1 py-0.5 text-[9px] font-bold leading-none text-orange-600">
+                                        <span className="shrink-0 rounded border border-ui-100 bg-ui-50 px-1 py-0.5 text-[9px] font-bold leading-none text-ui">
                                           軽減税率 {itemTaxRate}%
                                         </span>
                                       )}
                                     </div>
-                                    <span className="mt-1 text-[11px] font-medium tabular-nums text-gray-400">
+                                    <span className="mt-1 text-[11px] font-medium tabular-nums text-gray-500">
                                       ¥{Number(item.unitPrice || 0).toLocaleString()} x {originalQty}
                                     </span>
                                     {item.lineDiscount && Number(item.lineDiscount.amount || 0) > 0 && (
@@ -3928,7 +3928,7 @@ export const PosTransactionHistory = ({
                                       </span>
                                     )}
                                     {Array.isArray(item.options) && item.options.length > 0 && (
-                                      <span className="mt-1 text-[11px] text-gray-400">
+                                      <span className="mt-1 text-[11px] text-gray-500">
                                         オプション: {item.options.join(' / ')}
                                       </span>
                                     )}
@@ -3960,11 +3960,11 @@ export const PosTransactionHistory = ({
                         )}
 
                         {isCancelled && !isReversalCancel && refundEntries.length > 0 && (
-                          <div className="mt-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-3">
-                            <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-blue-500">返金内訳</div>
+                          <div className="mt-2 rounded-lg border border-dashed border-ui-100 bg-ui-50/40 p-3">
+                            <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-ui">返金内訳</div>
                             <ul className="space-y-1">
                               {refundEntries.map(([label, v]) => (
-                                <li key={`refund-${label}`} className="flex items-center justify-between text-sm font-bold text-blue-700">
+                                <li key={`refund-${label}`} className="flex items-center justify-between text-sm font-bold text-ui">
                                   <span>返金 {label}</span>
                                   <span className="tabular-nums">{refundAmountLabel(v)}</span>
                                 </li>
@@ -3995,14 +3995,14 @@ export const PosTransactionHistory = ({
                         )}
 
                         {methodAdjustments.length > 0 && (
-                          <div className="mt-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-3">
-                            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-500">
+                          <div className="mt-2 rounded-xl border border-dashed border-ui-100 bg-ui-50/40 p-3">
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ui">
                               <CreditCard size={12} />
                               支払方法の訂正
                             </div>
                             <ul className="space-y-1">
                               {methodAdjustments.map((adj, ai) => (
-                                <li key={`madj-${ai}`} className="flex items-center justify-between text-sm text-indigo-700">
+                                <li key={`madj-${ai}`} className="flex items-center justify-between text-sm text-ui">
                                   <span className="font-bold leading-tight">
                                     {methodLabelOf(adj.from)} → {methodLabelOf(adj.to)}
                                     {adj.sameDay ? '' : `（${monthDay(adj.businessDate)} 付替え）`}
@@ -4061,8 +4061,8 @@ export const PosTransactionHistory = ({
                             // 金券/売掛(voucher)は「使った割引/券」の名前が分かるよう小計前に出す。
                             // ただし値引きではなく「お支払い(充当)」なのでマイナス表記にはしない(合計は満額のまま)。
                             (Array.isArray(ticket.vouchers) ? ticket.vouchers : []).forEach((d) => push(d.name, d.amount, 'voucher_payment', d.id));
-                            const colorOf = (cat) => (cat === 'promo_expense' ? 'text-emerald-600'
-                              : cat === 'voucher_payment' ? 'text-sky-600' : 'text-red-500');
+                            const colorOf = (cat) => (cat === 'promo_expense' ? 'text-gray-900'
+                              : cat === 'voucher_payment' ? 'text-ui' : 'text-red-500');
                             return lines.map((line, i) => {
                               const isVoucher = line.cat === 'voucher_payment';
                               return (
@@ -4081,7 +4081,7 @@ export const PosTransactionHistory = ({
                             <span className="tabular-nums">¥{Number(ticket.subtotal || 0).toLocaleString()}</span>
                           </div>
                           {Number(ticket.taxAmountReduced || 0) > 0 && (
-                            <div className="flex justify-between text-orange-600/80">
+                            <div className="flex justify-between text-ui/80">
                               <span>消費税 {ticket.taxRates.reducedRate}% (軽減税率)</span>
                               <span className="tabular-nums">¥{Number(ticket.taxAmountReduced || 0).toLocaleString()}</span>
                             </div>
@@ -4122,7 +4122,7 @@ export const PosTransactionHistory = ({
                                   <span className="tabular-nums">¥{receivedAmount.toLocaleString()}</span>
                                 </div>
                               )}
-                              <div className="flex justify-between text-blue-600">
+                              <div className="flex justify-between text-ui">
                                 <span>おつり{Number(ticket.voucherChangeAmount || 0) > 0 ? '（金券お釣り含む）' : ''}</span>
                                 <span className="tabular-nums">¥{changeTotal.toLocaleString()}</span>
                               </div>
@@ -4212,7 +4212,7 @@ export const PosTransactionHistory = ({
                   <div key={key} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-gray-800">{item.name || '商品'}</div>
-                      <div className="text-xs font-bold text-gray-400">
+                      <div className="text-xs font-bold text-gray-500">
                         ¥{Number(item.totalPrice || 0).toLocaleString()} / {qty}点
                       </div>
                     </div>
@@ -4241,7 +4241,7 @@ export const PosTransactionHistory = ({
                 type="button"
                 onClick={selectAllForCancel}
                 className={`mt-1 w-full rounded-xl py-2 text-xs font-black ${
-                  isReturnMode ? 'bg-teal-50 text-teal-600 hover:bg-teal-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                  isReturnMode ? 'bg-gray-100 text-gray-900 hover:bg-gray-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
                 }`}
               >
                 {isReturnMode ? '全部返品（すべて選択）' : '全額取消（すべて選択）'}
@@ -4254,7 +4254,7 @@ export const PosTransactionHistory = ({
                   className="mt-2 flex w-full items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-black text-gray-700"
                 >
                   <span>在庫を戻す（物販のみ）</span>
-                  <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${returnRestoreStock ? 'bg-teal-500' : 'bg-gray-300'}`}>
+                  <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${returnRestoreStock ? 'bg-gray-900' : 'bg-gray-300'}`}>
                     <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${returnRestoreStock ? 'translate-x-5' : 'translate-x-1'}`} />
                   </span>
                 </button>
@@ -4274,7 +4274,7 @@ export const PosTransactionHistory = ({
                 <span className="text-xs font-black text-gray-500">
                   {isReturnMode ? 'お客様対応タスク' : '取消タスク'}
                 </span>
-                <span className="text-[10px] font-bold text-gray-400">
+                <span className="text-[10px] font-bold text-gray-500">
                   {returnTasks.length > 0 ? '完了したらチェック' : ''}
                 </span>
               </div>
@@ -4287,17 +4287,17 @@ export const PosTransactionHistory = ({
                       <label
                         key={task.key}
                         className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
-                          checked ? 'border-teal-300 bg-teal-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                          checked ? 'border-gray-200 bg-gray-100' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={(event) => setTaskChecks((prev) => ({ ...prev, [task.key]: event.target.checked }))}
-                          className="h-5 w-5 shrink-0 accent-teal-500"
+                          className="h-5 w-5 shrink-0 accent-gray-900"
                         />
                         <span className="flex-1 text-sm font-black text-gray-800">{task.label}</span>
-                        <span className={`font-mono text-base font-black ${checked ? 'text-teal-700' : 'text-gray-600'}`}>
+                        <span className={`font-mono text-base font-black ${checked ? 'text-gray-900' : 'text-gray-600'}`}>
                           ¥{task.amount.toLocaleString()}
                         </span>
                       </label>
@@ -4305,7 +4305,7 @@ export const PosTransactionHistory = ({
                   })}
                 </div>
               ) : cancelSelectedCount > 0 ? (
-                <div className="mb-3 rounded-xl bg-gray-50 p-3 text-xs font-bold text-gray-400">
+                <div className="mb-3 rounded-xl bg-gray-50 p-3 text-xs font-bold text-gray-500">
                   返金・返却の対応はありません（売上の取消のみ）。
                 </div>
               ) : null}
@@ -4324,7 +4324,7 @@ export const PosTransactionHistory = ({
                   onClick={executeCancellation}
                   disabled={isCancelling || cancelSelectedCount <= 0 || !allTasksDone}
                   className={`flex-1 rounded-2xl py-4 text-sm font-black text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none ${
-                    isReturnMode ? 'bg-teal-500 shadow-teal-100 hover:bg-teal-600' : 'bg-red-500 shadow-red-100 hover:bg-red-600'
+                    isReturnMode ? 'bg-gray-900 shadow-gray-200 hover:bg-gray-900' : 'bg-red-500 shadow-red-100 hover:bg-red-600'
                   }`}
                 >
                   {isCancelling
@@ -4341,7 +4341,7 @@ export const PosTransactionHistory = ({
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-6 backdrop-blur-md">
           <div className="w-full max-w-sm rounded-[2rem] border border-amber-100 bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-black text-gray-900">取消を戻す</h3>
-            <p className="mt-1 text-xs font-bold text-gray-400">
+            <p className="mt-1 text-xs font-bold text-gray-500">
               この締め後取消（本日のマイナス伝票）を取り消して、元の会計を戻します。
             </p>
             <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -4387,7 +4387,7 @@ export const PosTransactionHistory = ({
           <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-[2rem] border border-gray-100 bg-white shadow-2xl">
             <div className="border-b border-gray-100 p-5">
               <h3 className="text-lg font-black text-gray-900">支払方法を修正</h3>
-              <p className="mt-1 text-xs font-bold text-gray-400">
+              <p className="mt-1 text-xs font-bold text-gray-500">
                 打ち間違えた支払方法を正しい方法に変更します。締め済みの会計は、本日の付替え伝票で振り替えます（過去の売上は変わりません）。
               </p>
             </div>
@@ -4410,7 +4410,7 @@ export const PosTransactionHistory = ({
                       )}
                     </div>
                     {row.isSplit ? (
-                      <div className="text-xs font-bold text-gray-400">分割会計のため個別修正は非対応です。</div>
+                      <div className="text-xs font-bold text-gray-500">分割会計のため個別修正は非対応です。</div>
                     ) : (
                       <div className="grid grid-cols-3 gap-2">
                         {methods.map((m) => (
@@ -4420,7 +4420,7 @@ export const PosTransactionHistory = ({
                             onClick={() => setMethodEditChoices((prev) => ({ ...prev, [row.txnId]: m.key }))}
                             className={`rounded-lg py-2 text-sm font-black transition-colors ${
                               methodEditChoices[row.txnId] === m.key
-                                ? 'bg-gray-800 text-white'
+                                ? 'bg-ui text-white'
                                 : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-100'
                             }`}
                           >
@@ -4465,7 +4465,7 @@ export const PosTransactionHistory = ({
                 <h3 className="flex items-center gap-1.5 text-lg font-black text-gray-900">
                   <Search size={18} /> 履歴検索
                 </h3>
-                <p className="mt-1 text-xs font-bold text-gray-400">
+                <p className="mt-1 text-xs font-bold text-gray-500">
                   期間とワード（商品名・バーコード・金額・伝票ID）で過去の伝票を探します。
                 </p>
               </div>
@@ -4482,7 +4482,7 @@ export const PosTransactionHistory = ({
             <div className="border-b border-gray-100 p-5">
               {/* 対象部門（全体＋各部門）。既定=自部門。 */}
               <div className="mb-3">
-                <div className="mb-1 text-[10px] font-black text-gray-400">対象部門</div>
+                <div className="mb-1 text-[10px] font-black text-gray-500">対象部門</div>
                 <div className="flex flex-wrap gap-1">
                   {[{ id: 'all', name: '全体' }, ...departmentOptions].map((d) => (
                     <button
@@ -4490,7 +4490,7 @@ export const PosTransactionHistory = ({
                       type="button"
                       onClick={() => setSearchDepartmentId(d.id)}
                       className={`rounded-lg px-3 py-2 text-xs font-black transition-colors ${
-                        searchDepartmentId === d.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        searchDepartmentId === d.id ? 'bg-ui text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
                       {d.name}
@@ -4507,7 +4507,7 @@ export const PosTransactionHistory = ({
                   onClick={setSearchLast30Days}
                   className={`h-12 flex-1 rounded-xl text-sm font-black transition-colors ${
                     periodMode === 'last30'
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'bg-ui text-white shadow-sm'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -4516,7 +4516,7 @@ export const PosTransactionHistory = ({
 
                 {/* 日付指定ブロック(日付から 〜 日付まで)。透明なdate入力をラベルに重ねてクリックで確実に開く。 */}
                 <div className={`flex flex-1 items-center gap-1 rounded-xl p-1 ${
-                  periodMode === 'custom' ? 'bg-blue-600' : 'bg-gray-100'
+                  periodMode === 'custom' ? 'bg-ui' : 'bg-gray-100'
                 }`}>
                   <div className="relative flex-1">
                     <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
@@ -4533,7 +4533,7 @@ export const PosTransactionHistory = ({
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />
                   </div>
-                  <span className={`text-xs font-black ${periodMode === 'custom' ? 'text-white' : 'text-gray-400'}`}>〜</span>
+                  <span className={`text-xs font-black ${periodMode === 'custom' ? 'text-white' : 'text-gray-500'}`}>〜</span>
                   <div className="relative flex-1">
                     <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
                       periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
@@ -4560,7 +4560,7 @@ export const PosTransactionHistory = ({
                   onChange={(e) => setSearchWord(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') executeHistorySearch(); }}
                   placeholder="商品名・バーコード・金額・伝票ID"
-                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-blue-400"
+                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-ui"
                 />
                 {searchWord && (
                   <button
@@ -4581,7 +4581,7 @@ export const PosTransactionHistory = ({
                 <select
                   value={searchDiscountId}
                   onChange={(e) => setSearchDiscountId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-blue-400"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-ui"
                 >
                   <option value="all">すべての割引</option>
                   {discountOptions.map((d) => (
@@ -4613,11 +4613,11 @@ export const PosTransactionHistory = ({
               {/* リアルタイム件数(押す前に絞り込み結果を確認) */}
               <div className="mb-2 flex items-center justify-center gap-1.5 text-sm font-black text-gray-700">
                 {isPreviewLoading ? (
-                  <span className="text-gray-400">集計中…</span>
+                  <span className="text-gray-500">集計中…</span>
                 ) : (
                   <>
                     <span>該当</span>
-                    <span className="text-blue-600">{previewTicketCount}</span>
+                    <span className="text-ui">{previewTicketCount}</span>
                     <span>件</span>
                   </>
                 )}
@@ -4627,11 +4627,11 @@ export const PosTransactionHistory = ({
                 type="button"
                 onClick={executeHistorySearch}
                 disabled={isPreviewLoading || previewTicketCount === 0}
-                className="w-full rounded-xl bg-blue-600 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                className="w-full rounded-xl bg-gray-900 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
                 {previewTicketCount > 0 ? `この${previewTicketCount}件を一覧表示` : '一覧表示'}
               </button>
-              <p className="mt-2 text-center text-[11px] font-bold text-gray-400">
+              <p className="mt-2 text-center text-[11px] font-bold text-gray-500">
                 期間・ワード・支払方法を変えると件数がリアルタイムに更新されます。
               </p>
             </div>
