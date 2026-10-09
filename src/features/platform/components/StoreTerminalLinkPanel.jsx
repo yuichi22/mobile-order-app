@@ -81,14 +81,14 @@ const StoreTerminalLinkPanel = ({ storeId }) => {
           onChange={(e) => setCoreTenantId(e.target.value)}
           placeholder="coreTenantId（例: suomi）"
           disabled={state === 'loading'}
-          className="h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
+          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 w-full rounded-xl px-3 text-sm font-bold text-gray-700 disabled:opacity-50 outline-none focus:border-ui"
         />
         <input
           value={coreSpaceId}
           onChange={(e) => setCoreSpaceId(e.target.value)}
           placeholder="coreSpaceId（Core上の拠点ID）"
           disabled={state === 'loading'}
-          className="h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
+          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 w-full rounded-xl px-3 text-sm font-bold text-gray-700 disabled:opacity-50 outline-none focus:border-ui"
         />
       </div>
 

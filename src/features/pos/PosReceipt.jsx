@@ -210,7 +210,7 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
               onChange={(event) => setRecipientName(event.target.value)}
               disabled={Boolean(issuedReceipt.receiptNo) || isIssuingReceipt}
               placeholder="例：上様"
-              className="mb-3 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold outline-none transition focus:border-ui disabled:bg-gray-100 disabled:text-gray-400"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 mb-3 h-11 w-full rounded-xl px-3 text-sm font-bold transition disabled:bg-gray-100 disabled:text-gray-400 outline-none focus:border-ui"
             />
 
             <button

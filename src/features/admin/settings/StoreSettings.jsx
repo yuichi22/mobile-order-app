@@ -5,7 +5,6 @@ import {
   Boxes,
   Building2,
   CheckSquare,
-  ChevronRight,
   Clock,
   Database,
   FileSpreadsheet,
@@ -1860,7 +1859,7 @@ const CsvImportWorkflowPanel = ({
   onSaved
 }) => (
   <div className="space-y-5">
-    <div className="rounded-[2rem] border border-ui-100 bg-gradient-to-br from-ui to-white p-6 shadow-sm">
+    <div className="rounded-[2rem] border border-ui-100 bg-white p-6 shadow-sm">
       <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">CSV Import Workflow</p>
       <h2 className="mt-2 text-2xl font-black tracking-tight text-gray-900">CSV取込の順番</h2>
       <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
@@ -3098,9 +3097,8 @@ export const StoreSettings = ({
   const activeSettingsModeMeta = SETTINGS_MODE_ITEMS.find((item) => item.id === settingsMode) || SETTINGS_MODE_ITEMS[0];
   // 画面本体は deferredSubTab 基準で描画するため、メニュー項目の解決も deferred 側で行う。
   const deferredMenuItem = availableMenuItems.find((item) => item.id === deferredSubTab);
-  const settingsActiveClassName = settingsMode === 'pos'
-    ? 'bg-ui text-white shadow-lg shadow-gray-200/20'
-    : 'bg-gray-900 text-white shadow-lg shadow-gray-200/20';
+  // 選択中=スチールブルー(レジの種類によらず)。暗い地で黒にすると沈んで見えない
+  const settingsActiveClassName = 'bg-ui text-white';
   const settingsActiveTextClassName = settingsMode === 'pos'
     ? 'text-ui'
     : 'text-ui';
@@ -3217,14 +3215,14 @@ export const StoreSettings = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
-                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-gray-500 hover:bg-gray-800 hover:text-white'
+                  className={`group relative flex w-full items-center gap-3 rounded-2xl px-4 py-4 ${
+                    isActive ? settingsActiveClassName : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
-                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+                  {/* 選択中も1行のまま(以前は > が付いて折り返していた)。選択は塗りで示す */}
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-sm font-bold">{item.label}</span>
                 </button>
               );
             })
@@ -3237,21 +3235,21 @@ export const StoreSettings = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleSelectSettingsSubTab(item.id)}
-                  className={`group relative flex w-full items-center gap-4 rounded-2xl px-4 py-4 ${
-                    isActive ? settingsActiveClassName : 'text-gray-500 hover:bg-gray-800 hover:text-white'
+                  className={`group relative flex w-full items-center gap-3 rounded-2xl px-4 py-4 ${
+                    isActive ? settingsActiveClassName : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   }`}
                   title={item.desc}
                 >
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                  <span className="flex-1 text-left text-sm font-bold">{item.label}</span>
-                  {isActive && <ChevronRight size={16} className="animate-pulse text-white/50" />}
+                  {/* 選択中も1行のまま(以前は > が付いて折り返していた)。選択は塗りで示す */}
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-sm font-bold">{item.label}</span>
                 </button>
               );
             })
           )}
         </nav>
 
-        <div className="mt-auto flex-shrink-0 border-t border-gray-800/50 bg-gray-900 p-4">
+        <div className="mt-auto flex-shrink-0 border-t border-gray-800/50 bg-[#0B1220] p-4">
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
@@ -3264,7 +3262,7 @@ export const StoreSettings = ({
         </div>
       </aside>
 
-      <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-gray-50/50">
+      <main className="h-full flex-1 overflow-y-auto scroll-smooth bg-[var(--mode-bg)]">
         {/* メニュー切替中の軽いローディング。ボタンの点灯を先に描画し、本体は遅れて出る */}
         {isSubTabSwitching && (
           <div className="pointer-events-none fixed left-1/2 top-8 z-[90] -translate-x-1/2 rounded-full bg-gray-900/80 px-5 py-2.5 text-xs font-black text-white shadow-lg backdrop-blur">

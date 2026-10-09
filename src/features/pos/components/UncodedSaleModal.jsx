@@ -238,7 +238,7 @@ const UncodedSaleModal = ({
                     inputMode="numeric"
                     value={quantity}
                     onChange={(event) => setQuantity(Math.max(parseInt(event.target.value, 10) || 1, 1))}
-                    className="h-12 w-20 rounded-2xl border-2 border-gray-100 bg-gray-50 text-center font-mono text-2xl font-black text-gray-900 outline-none focus:border-ui"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-20 rounded-2xl text-center font-mono text-2xl font-black text-gray-900 outline-none focus:border-ui"
                   />
                   <button
                     type="button"

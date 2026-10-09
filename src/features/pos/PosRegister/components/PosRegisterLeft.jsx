@@ -166,7 +166,7 @@ export const PosRegisterLeft = ({
                 onChange={(event) => setCrmCodeInput?.(event.target.value)}
                 inputMode="numeric"
                 placeholder="会員番号（スキャンも可）"
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm font-bold outline-none focus:border-ui"
               />
               <button
                 type="submit"

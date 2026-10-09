@@ -2736,7 +2736,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
                   onChange={(event) => { if (scanCandidates.length > 0) setScanCandidates([]); setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value)); }}
                   onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
-                  className="h-11 w-full rounded-lg border-2 border-gray-300 pl-9 pr-10 text-base"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-lg pl-9 pr-10 text-base outline-none focus:border-ui"
                   placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
                 {(scanInput !== '' || scanCandidates.length > 0) && (
@@ -3198,7 +3198,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                       onChange={(e) => setCrmCodeInput(e.target.value)}
                       inputMode="numeric"
                       placeholder="会員番号（スキャンも可）"
-                      className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold outline-none focus:border-gray-900"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm font-bold outline-none focus:border-ui"
                     />
                     <button
                       type="submit"

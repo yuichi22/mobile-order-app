@@ -55,7 +55,7 @@ const LOCATION_THEME = {
     panelClass: 'border-gray-200 bg-gray-100/50',
     textClass: 'text-gray-900',
     lightTextClass: 'text-gray-900',
-    focusClass: 'focus:border-gray-900'
+    focusClass: 'focus:border-ui'
   }
 };
 
@@ -122,7 +122,7 @@ const RecountItemRow = ({ storeId, stocktakeId, item }) => {
           value={quantityInput}
           onChange={(event) => setQuantityInput(event.target.value)}
           placeholder="店頭の実数(上書き)"
-          className="h-11 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-gray-900"
+          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-1/2 rounded-2xl border-white px-4 text-base font-black text-gray-900 transition outline-none focus:border-ui"
         />
         <button
           type="button"
@@ -655,7 +655,7 @@ const StocktakePage = ({ storeId }) => {
                 onChange={(event) => setManualBarcode(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') handleManualLookup(); }}
                 placeholder="バーコードを入力"
-                className="h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-base font-black text-gray-900 transition outline-none focus:border-ui"
               />
               <button
                 type="button"
@@ -754,7 +754,7 @@ const StocktakePage = ({ storeId }) => {
                   value={quantityInput}
                   onChange={(event) => setQuantityInput(event.target.value)}
                   placeholder="追加する数"
-                  className={`h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition ${theme.focusClass}`}
+                  className={`h-12 w-1/2 rounded-2xl border-2 border-gray-200 bg-white px-4 text-base font-black text-gray-900 outline-none transition ${theme.focusClass}`}
                 />
                 <button
                   type="button"
@@ -803,7 +803,7 @@ const StocktakePage = ({ storeId }) => {
                     value={transferQuantityInput}
                     onChange={(event) => setTransferQuantityInput(event.target.value)}
                     placeholder="出庫する数"
-                    className="h-12 w-1/2 rounded-2xl border-2 border-white bg-white px-4 text-base font-black text-gray-900 outline-none transition focus:border-amber-400"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-1/2 rounded-2xl border-white px-4 text-base font-black text-gray-900 transition outline-none focus:border-ui"
                   />
                   <button
                     type="button"

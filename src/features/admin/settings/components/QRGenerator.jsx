@@ -308,10 +308,10 @@ const QRGenerator = ({ storeId }) => {
               <QrCode size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-ui">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">
                 QRコード発行
               </h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
+              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
                 テーブル選択 / 共有URL / 印刷
               </p>
             </div>

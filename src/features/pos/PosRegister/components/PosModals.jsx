@@ -524,7 +524,7 @@ export const PosModals = ({
                         onChange={(event) => setPointInput(event.target.value.replace(/\D/g, ''))}
                         inputMode="numeric"
                         placeholder={`最大 ${crmPointMax.toLocaleString()}pt`}
-                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm font-bold outline-none focus:border-gray-900"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 min-w-0 flex-1 rounded-lg px-2 py-2 text-sm font-bold outline-none focus:border-ui"
                       />
                       <button
                         type="button"
@@ -664,7 +664,7 @@ export const PosModals = ({
                                 min="0"
                                 value={quantity}
                                 onChange={(event) => updateQuantity(event.target.value)}
-                                className="h-8 w-12 rounded-lg border border-gray-200 bg-white text-center text-sm font-black text-gray-900 outline-none focus:border-ui"
+                                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-8 w-12 rounded-lg text-center text-sm font-black text-gray-900 outline-none focus:border-ui"
                               />
 
                               <button

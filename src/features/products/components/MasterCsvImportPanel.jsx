@@ -224,7 +224,7 @@ const MasterCsvMappingModal = ({
                       <select
                         value={mapping.fieldKey}
                         onChange={(event) => updateMapping(mapping.columnIndex, event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui focus:ring-4 focus:ring-ui-100"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-2xl px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                       >
                         {options.map((option) => (
                           <option key={option.id || 'none'} value={option.id}>

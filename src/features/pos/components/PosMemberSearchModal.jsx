@@ -510,7 +510,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                       onChange={(e) => setLtvInput(e.target.value.replace(/\D/g, '').slice(0, 9))}
                       inputMode="numeric"
                       placeholder={String(ltvDetail.ltvTotal)}
-                      className="h-10 min-w-0 flex-1 rounded-xl border-2 border-gray-100 bg-white px-3 font-mono text-sm font-black outline-none focus:border-gray-900"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 min-w-0 flex-1 rounded-xl px-3 font-mono text-sm font-black outline-none focus:border-ui"
                     />
                   </div>
                   {ltvDelta !== 0 && (
@@ -524,7 +524,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                     value={ltvReason}
                     onChange={(e) => setLtvReason(e.target.value)}
                     placeholder="修正の理由（必須）"
-                    className="mt-1.5 h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-xs font-bold outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-1.5 h-10 w-full rounded-xl px-3 text-xs font-bold outline-none focus:border-ui"
                   />
                   <button
                     type="button"
@@ -575,7 +575,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             onChange={(e) => setPhoneInput(e.target.value)}
             inputMode="numeric"
             placeholder="携帯番号（090/080/070）"
-            className="h-11 min-w-0 flex-1 rounded-xl border-2 border-gray-100 bg-white px-3 font-mono text-sm font-bold outline-none focus:border-gray-900"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 min-w-0 flex-1 rounded-xl px-3 font-mono text-sm font-bold outline-none focus:border-ui"
           />
           <button
             type="submit"
@@ -683,7 +683,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="理由を入力（必須）"
-                  className="mt-1.5 h-10 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-xs font-bold outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-1.5 h-10 w-full rounded-xl px-3 text-xs font-bold outline-none focus:border-ui"
                 />
               )}
             </div>
@@ -808,7 +808,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
                   onChange={(e) => setQ(e.target.value)}
                   autoFocus
                   placeholder="例: 0852211234 / 石原 / いしはら 東朝日町"
-                  className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white pl-9 pr-3 text-sm font-bold outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-9 pr-3 text-sm font-bold outline-none focus:border-ui"
                 />
               </div>
               <button

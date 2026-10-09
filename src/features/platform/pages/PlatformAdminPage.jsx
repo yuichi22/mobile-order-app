@@ -1228,7 +1228,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-center text-xl font-black tracking-[0.3em] text-gray-900 outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-center text-xl font-black tracking-[0.3em] text-gray-900 outline-none focus:border-ui"
                   placeholder="000000"
                 />
 
@@ -1423,7 +1423,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       value={lead.status}
                       onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
                       disabled={leadUpdatingId === lead.id}
-                      className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-black text-gray-600 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 rounded-2xl px-3 text-xs font-black text-gray-600 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:border-ui"
                     >
                       {PLATFORM_LEAD_STATUSES.map((status) => (
                         <option key={status.value} value={status.value}>
@@ -1500,7 +1500,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                         value={lead.status}
                         onChange={(event) => handleUpdateLeadStatus(lead, event.target.value)}
                         disabled={leadUpdatingId === lead.id}
-                        className="h-10 rounded-2xl border border-gray-200 bg-white px-3 text-xs font-black text-gray-600 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 rounded-2xl px-3 text-xs font-black text-gray-600 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:border-ui"
                       >
                         {PLATFORM_LEAD_STATUSES.map((status) => (
                           <option key={status.value} value={status.value}>
@@ -1533,7 +1533,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     value={organizationForm.organizationId}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, organizationId: event.target.value.trim() }))}
                     placeholder="例: org_example"
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </label>
 
@@ -1543,7 +1543,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     value={organizationForm.name}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="例: TABLE HAUS"
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </label>
               </div>
@@ -1554,7 +1554,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   value={organizationForm.ownerEmail}
                   onChange={(event) => setOrganizationForm((current) => ({ ...current, ownerEmail: event.target.value }))}
                   placeholder="owner@example.com"
-                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
               </label>
 
@@ -1564,7 +1564,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   <select
                     value={organizationForm.type}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, type: event.target.value }))}
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   >
                     <option value="single">単店舗</option>
                     <option value="multi_store">複数店舗</option>
@@ -1576,7 +1576,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   <select
                     value={organizationForm.status}
                     onChange={(event) => setOrganizationForm((current) => ({ ...current, status: event.target.value }))}
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   >
                     <option value="active">有効</option>
                     <option value="inactive">無効</option>
@@ -1610,7 +1610,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     value={storeForm.storeId}
                     onChange={(event) => setStoreForm((current) => ({ ...current, storeId: event.target.value.trim() }))}
                     placeholder="例: store_example"
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </label>
 
@@ -1619,7 +1619,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   <select
                     value={storeForm.organizationId}
                     onChange={(event) => setStoreForm((current) => ({ ...current, organizationId: event.target.value }))}
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   >
                     <option value="">選択</option>
                     {organizations.map((organization) => (
@@ -1637,7 +1637,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                   value={storeForm.name}
                   onChange={(event) => setStoreForm((current) => ({ ...current, name: event.target.value }))}
                   placeholder="例: TABLE HAUS"
-                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
               </label>
 
@@ -1648,7 +1648,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     value={storeForm.address}
                     onChange={(event) => setStoreForm((current) => ({ ...current, address: event.target.value }))}
                     placeholder="任意"
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </label>
 
@@ -1658,7 +1658,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     value={storeForm.tel}
                     onChange={(event) => setStoreForm((current) => ({ ...current, tel: event.target.value }))}
                     placeholder="任意"
-                    className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                   />
                 </label>
               </div>
@@ -1668,7 +1668,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 <select
                   value={storeForm.status}
                   onChange={(event) => setStoreForm((current) => ({ ...current, status: event.target.value }))}
-                  className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 >
                   <option value="active">有効</option>
                   <option value="inactive">無効</option>
@@ -1704,7 +1704,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 onChange={(event) => setPartnerForm((current) => ({ ...current, partnerId: event.target.value.trim() }))}
                 placeholder="例: partner_example"
                 disabled={Boolean(editingPartnerId)}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
               />
             </label>
 
@@ -1714,7 +1714,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={partnerForm.name}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="例: Example Partner"
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -1733,7 +1733,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                       nextType === 'implementation' ? '25' : nextType === 'sales' ? '20' : '10'
                   }));
                 }}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 <option value="referral">紹介のみ</option>
                 <option value="sales">営業代理店</option>
@@ -1746,7 +1746,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <select
                 value={partnerForm.status}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, status: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 <option value="active">有効</option>
                 <option value="inactive">無効</option>
@@ -1759,7 +1759,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={partnerForm.referralCode}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
                 placeholder="例: PARTNER001"
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -1771,7 +1771,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 min="0"
                 value={partnerForm.defaultInitialCommissionRate}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, defaultInitialCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -1783,7 +1783,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 min="0"
                 value={partnerForm.defaultMonthlyCommissionRate}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, defaultMonthlyCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -1793,7 +1793,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={partnerForm.contactEmail}
                 onChange={(event) => setPartnerForm((current) => ({ ...current, contactEmail: event.target.value }))}
                 placeholder="partner@example.com"
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -2014,7 +2014,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <select
                 value={contractForm.organizationId}
                 onChange={(event) => setContractForm((current) => ({ ...current, organizationId: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 <option value="">選択</option>
                 {organizations.map((organization) => (
@@ -2030,7 +2030,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
               <select
                 value={contractForm.storeId}
                 onChange={(event) => setContractForm((current) => ({ ...current, storeId: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 <option value="">選択</option>
                 {stores
@@ -2055,7 +2055,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     initialSetupFee: String(nextPlan?.initialSetupFeeDefault || current.initialSetupFee || '100000')
                   }));
                 }}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 {plans.map((plan) => (
                   <option key={plan.id} value={plan.id}>
@@ -2072,7 +2072,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 min="0"
                 value={contractForm.initialSetupFee}
                 onChange={(event) => setContractForm((current) => ({ ...current, initialSetupFee: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </label>
 
@@ -2093,7 +2093,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     } : {})
                   }));
                 }}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               >
                 <option value="admin_created">管理者作成</option>
                 <option value="direct">直接契約</option>
@@ -2116,7 +2116,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                     monthlyCommissionRate: String(Math.round((Number(nextPartner?.defaultMonthlyCommissionRate) || 0) * 100))
                   }));
                 }}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
               >
                 <option value="">なし</option>
                 {partners
@@ -2135,7 +2135,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={contractForm.referralCode}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, referralCode: event.target.value.trim() }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
               />
             </label>
 
@@ -2148,7 +2148,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={contractForm.initialCommissionRate}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, initialCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
               />
             </label>
 
@@ -2161,7 +2161,7 @@ const PlatformAdminPage = ({ onOpenStoreAdmin }) => {
                 value={contractForm.monthlyCommissionRate}
                 disabled={contractForm.salesChannel !== 'partner'}
                 onChange={(event) => setContractForm((current) => ({ ...current, monthlyCommissionRate: event.target.value }))}
-                className="h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
               />
             </label>
 

@@ -130,7 +130,7 @@ const TimePeriodFilterCard = ({
     <select
       value={selectedPeriodId}
       onChange={(event) => onSelectedPeriodChange?.(event.target.value)}
-      className="mt-2 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-black text-gray-900 outline-none transition-colors focus:border-ui focus:ring-2 focus:ring-ui-100"
+      className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-2 h-11 w-full rounded-xl px-3 text-sm font-black text-gray-900 transition-colors outline-none focus:border-ui"
     >
       <option value="all">全時間帯</option>
       {periodOptions.map((periodOption) => (

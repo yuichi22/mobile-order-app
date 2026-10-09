@@ -198,7 +198,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       defaultValue={editingDiscount.name}
                       required
                       placeholder="例: ランチ値引き"
-                      className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-ui focus:ring-4 focus:ring-ui-100"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl px-6 text-2xl font-bold text-gray-800 transition-all placeholder:text-gray-200 outline-none focus:border-ui"
                     />
                   </div>
 
@@ -300,7 +300,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                           name="value"
                           defaultValue={editingDiscount.value}
                           required
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-6 pr-14 text-3xl font-black text-gray-800 outline-none transition-all focus:border-ui focus:ring-4 focus:ring-ui-100"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl pl-6 pr-14 text-3xl font-black text-gray-800 transition-all outline-none focus:border-ui"
                         />
                         <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-black text-gray-300">
                           {discountType === 'percent' ? '%' : '円'}
@@ -375,7 +375,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                       name="note"
                       defaultValue={editingDiscount.note}
                       placeholder="適用条件や補足など"
-                      className="h-32 w-full resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none transition-all focus:border-ui focus:ring-4 focus:ring-ui-100"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-32 w-full resize-none rounded-3xl p-6 text-lg font-medium text-gray-700 transition-all outline-none focus:border-ui"
                     />
                   </div>
                 </div>
@@ -409,8 +409,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                 <Percent size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済み割引</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">登録済み割引</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                   現在の登録数 / {discounts.length}件
                 </p>
               </div>
@@ -492,8 +492,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                     <td className="px-4 py-5 text-center">
                       <div className="flex items-center justify-center leading-none">
                         <div
-                          className="flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg ring-4 ring-white"
-                          style={{ backgroundColor: discount.type === 'percent' ? '#f97316' : '#64748b' }}
+                          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-900" /* 形式はアイコンの形で示す(色分けしない) */
                         >
                           {discount.type === 'manual' || discount.type === 'manual_percent' ? (
                             <Keyboard size={18} />

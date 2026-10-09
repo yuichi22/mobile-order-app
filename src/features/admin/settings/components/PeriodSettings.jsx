@@ -134,7 +134,7 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
                   value={editingItem.name}
                   onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                   required
-                  className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-ui focus:ring-4 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl px-6 text-2xl font-bold text-gray-800 transition-all placeholder:text-gray-200 outline-none focus:border-ui"
                   placeholder="例：ランチタイム"
                 />
               </div>
@@ -142,8 +142,8 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
               <div>
                 <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">提供時間設定</label>
                 <div className="grid max-w-md grid-cols-2 gap-4">
-                  <input type="time" value={editingItem.start} onChange={(event) => setEditingItem({ ...editingItem, start: event.target.value })} required className="h-16 w-full rounded-2xl border-2 border-gray-100 bg-white text-center font-mono text-2xl font-black outline-none transition-all focus:border-ui" />
-                  <input type="time" value={editingItem.end} onChange={(event) => setEditingItem({ ...editingItem, end: event.target.value })} required className="h-16 w-full rounded-2xl border-2 border-gray-100 bg-white text-center font-mono text-2xl font-black outline-none transition-all focus:border-ui" />
+                  <input type="time" value={editingItem.start} onChange={(event) => setEditingItem({ ...editingItem, start: event.target.value })} required className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl text-center font-mono text-2xl font-black transition-all outline-none focus:border-ui" />
+                  <input type="time" value={editingItem.end} onChange={(event) => setEditingItem({ ...editingItem, end: event.target.value })} required className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl text-center font-mono text-2xl font-black transition-all outline-none focus:border-ui" />
                 </div>
               </div>
 
@@ -189,8 +189,8 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
                 <Clock size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">提供時間帯管理</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">現在の登録数 / {periods.length}件</p>
+                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">提供時間帯管理</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">現在の登録数 / {periods.length}件</p>
               </div>
             </div>
             <button onClick={startCreating} className="flex items-center gap-3 whitespace-nowrap rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 outline-none">
@@ -229,7 +229,7 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
                       className="group cursor-pointer transition-colors hover:bg-ui-50/30"
                     >
                       <td className="px-4 py-5 text-center"><span className="font-mono text-base font-black text-gray-300">{String(index + 1).padStart(2, '0')}</span></td>
-                      <td className="px-4 py-5 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg ring-4 ring-white" style={{ backgroundColor: item.bannerColor || '#ccc' }}><IconComp size={18} /></div></td>
+                      <td className="px-4 py-5 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-900"><IconComp size={18} /></div></td>
                       <td className="px-4 py-5">
                         <div className="flex flex-col">
                           <span className="text-lg font-black leading-tight text-gray-800">{item.name}</span>

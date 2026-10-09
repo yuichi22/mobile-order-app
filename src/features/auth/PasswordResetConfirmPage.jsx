@@ -206,7 +206,7 @@ const PasswordResetConfirmPage = () => {
               <input
                 type="password"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-4 py-3 transition-all outline-none focus:border-ui"
                 placeholder="6文字以上で入力"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -218,7 +218,7 @@ const PasswordResetConfirmPage = () => {
               <input
                 type="password"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-4 py-3 transition-all outline-none focus:border-ui"
                 placeholder="もう一度入力"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}

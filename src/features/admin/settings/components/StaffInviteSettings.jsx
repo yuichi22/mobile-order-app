@@ -210,8 +210,8 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
               <Shield size={24} strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xl font-black leading-tight tracking-tight text-ui">スタッフ招待</h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">スタッフ招待</h3>
+              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
                 招待管理 / 有効な招待 {activeInviteCount} 件 / 登録人数 {teamMembers.length} 人
               </p>
             </div>
@@ -310,11 +310,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
               return (
                 <div
                   key={invite.id}
-                  className={`overflow-hidden rounded-[1.6rem] border border-gray-100 bg-white shadow-sm ${
-                    invite.role === USER_ROLES.MANAGER
-                      ? 'border-l-[6px] border-l-orange-400'
-                      : 'border-l-[6px] border-l-slate-500'
-                  }`}
+                  className="overflow-hidden rounded-[1.6rem] border border-gray-200 bg-white shadow-sm" /* 角丸に太い片側線は使わない。権限はチップで示す */
                 >
                   <div className="p-5">
                     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -466,7 +462,7 @@ const StaffInviteSettings = ({ storeId, ownerUser }) => {
                 value={deleteConfirmValue}
                 onChange={(event) => setDeleteConfirmValue(event.target.value)}
                 placeholder={deletingMember.email}
-                className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-base font-bold text-gray-800 outline-none transition-all focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-base font-bold text-gray-800 transition-all focus:border-red-400 outline-none focus:border-ui"
               />
             </div>
 

@@ -484,7 +484,7 @@ const DailyClosingCheckModal = ({
                   value: couponCounts[item.id] || '',
                   suffix: '枚'
                 })}
-                className="h-7 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-7 w-14 cursor-pointer rounded-lg px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-ui"
                 placeholder="0"
               />
               <span className="text-[9px] font-bold text-gray-500">枚</span>
@@ -674,7 +674,7 @@ const DailyClosingCheckModal = ({
                         value: changeFundAmountInput,
                         suffix: '円'
                       })}
-                      className="h-9 min-w-0 flex-1 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-ui0 focus:ring-2 focus:ring-gray-100"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-9 min-w-0 flex-1 cursor-pointer rounded-xl px-3 text-right text-sm font-black text-gray-900 focus:border-ui0 outline-none focus:border-ui"
                       placeholder="100000"
                     />
                     <button
@@ -815,7 +815,7 @@ const DailyClosingCheckModal = ({
                           value: denominations[item.key],
                           suffix: '枚'
                         })}
-                        className="h-10 w-20 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 w-20 cursor-pointer rounded-xl px-3 text-right text-sm font-black text-gray-900 outline-none focus:border-ui"
                         placeholder="0"
                       />
                       <span className="text-xs font-bold text-gray-500">枚</span>
@@ -878,7 +878,7 @@ const DailyClosingCheckModal = ({
                     value: cardActualAmountInput,
                     suffix: '円'
                   })}
-                  className="h-12 w-full cursor-pointer rounded-xl border border-ui-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full cursor-pointer rounded-xl px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui"
                   placeholder="0"
                 />
               </label>
@@ -937,7 +937,7 @@ const DailyClosingCheckModal = ({
                     value: qrActualAmountInput,
                     suffix: '円'
                   })}
-                  className="h-12 w-full cursor-pointer rounded-xl border border-ui-100 bg-white px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui focus:ring-2 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full cursor-pointer rounded-xl px-4 text-right text-lg font-black text-gray-900 outline-none focus:border-ui"
                   placeholder="0"
                 />
               </label>

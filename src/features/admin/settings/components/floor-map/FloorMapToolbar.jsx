@@ -9,8 +9,8 @@ export const FloorMapToolbar = ({ onSave, saveStatus = 'idle' }) => (
           <Layout size={24} strokeWidth={2.5} />
         </div>
         <div className="min-w-0">
-          <h3 className="text-xl font-black leading-tight tracking-tight text-ui">フロアテーブル設定</h3>
-          <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
+          <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">フロアテーブル設定</h3>
+          <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
             客席や設備の位置関係を確認しながら配置を編集できます
           </p>
         </div>

@@ -155,7 +155,7 @@ const PlatformSignupPage = () => {
                   <input
                     value={form.companyName}
                     onChange={(event) => updateField('companyName', event.target.value)}
-                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold outline-none focus:border-ui"
                     placeholder="例：株式会社〇〇"
                   />
                 </label>
@@ -165,7 +165,7 @@ const PlatformSignupPage = () => {
                   <input
                     value={form.storeName}
                     onChange={(event) => updateField('storeName', event.target.value)}
-                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold outline-none focus:border-ui"
                     placeholder="例：TABLE HAUS"
                   />
                 </label>
@@ -175,7 +175,7 @@ const PlatformSignupPage = () => {
                   <input
                     value={form.contactName}
                     onChange={(event) => updateField('contactName', event.target.value)}
-                    className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold outline-none focus:border-ui"
                     placeholder="例：山田 太郎"
                   />
                 </label>
@@ -187,7 +187,7 @@ const PlatformSignupPage = () => {
                       type="email"
                       value={form.email}
                       onChange={(event) => updateField('email', event.target.value)}
-                      className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold outline-none focus:border-ui"
                       placeholder="owner@example.com"
                     />
                   </label>
@@ -197,7 +197,7 @@ const PlatformSignupPage = () => {
                     <input
                       value={form.tel}
                       onChange={(event) => updateField('tel', event.target.value)}
-                      className="h-12 rounded-2xl border border-gray-200 px-4 text-sm font-bold outline-none focus:border-gray-900"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-bold outline-none focus:border-ui"
                       placeholder="090-0000-0000"
                     />
                   </label>
@@ -208,7 +208,7 @@ const PlatformSignupPage = () => {
                   <textarea
                     value={form.message}
                     onChange={(event) => updateField('message', event.target.value)}
-                    className="min-h-28 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold outline-none focus:border-gray-900"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 min-h-28 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
                     placeholder="例：QR注文を試したい、SNS画像URLからメニュー登録したい、レシートプリンター接続も確認したい"
                   />
                 </label>

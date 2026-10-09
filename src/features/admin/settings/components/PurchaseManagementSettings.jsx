@@ -1113,7 +1113,7 @@ const SupplierPurchaseCheckPanel = ({
                                         onChange={(event) => setQtyDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
                                         onFocus={(event) => event.target.select()}
                                         onKeyDown={handleQtyInputKeyDown}
-                                        className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                        className="border-2 border-gray-200 bg-white hover:border-gray-300 w-20 rounded-lg px-2 py-1 text-right font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none outline-none focus:border-ui"
                                       />
                                     </td>
                                     <td className="px-2 py-2 text-right">
@@ -1195,7 +1195,7 @@ const SupplierPurchaseCheckPanel = ({
                   value={browserKeyword}
                   onChange={(event) => setBrowserKeyword(event.target.value)}
                   placeholder="商品名・SKU・バーコードで検索"
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
               </div>
             )}
@@ -1301,7 +1301,7 @@ const SupplierPurchaseCheckPanel = ({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') saveMasterEdit();
                 }}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-lg font-black text-gray-800 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-3 py-2 text-right text-lg font-black text-gray-800 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none outline-none focus:border-ui"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -1393,7 +1393,7 @@ const SupplierPurchaseCheckPanel = ({
                   if (event.key === 'Enter') saveMinOrderAmount();
                 }}
                 placeholder="例: 30000"
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-base font-black text-gray-800"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-3 py-2 text-right text-base font-black text-gray-800 outline-none focus:border-ui"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -1577,7 +1577,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                       type="date"
                       value={etaDraft}
                       onChange={(event) => setEtaDraft(event.target.value)}
-                      className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5 font-bold text-gray-700"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 ml-2 rounded-lg px-2 py-1.5 font-bold text-gray-700 outline-none focus:border-ui"
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -1655,7 +1655,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                                 value={lineEtaDrafts[line.productId] ?? (line.eta || '')}
                                 onChange={(event) => setLineEtaDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
                                 disabled={line.canceled}
-                                className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 disabled:bg-gray-50"
+                                className="border-2 border-gray-200 bg-white hover:border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-700 disabled:bg-gray-50 outline-none focus:border-ui"
                               />
                               {!line.eta && !lineEtaDrafts[line.productId] && po.eta && (
                                 <span className="ml-1 text-[10px] font-bold text-gray-500">({formatDateText(po.eta)})</span>
@@ -1670,7 +1670,7 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                                   placeholder={String(remaining)}
                                   value={receiptDrafts[line.productId] ?? ''}
                                   onChange={(event) => setReceiptDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
-                                  className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-xs font-bold"
+                                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-20 rounded-lg px-2 py-1 text-right text-xs font-bold outline-none focus:border-ui"
                                 />
                               ) : (
                                 <span className="text-xs font-bold text-gray-300">-</span>

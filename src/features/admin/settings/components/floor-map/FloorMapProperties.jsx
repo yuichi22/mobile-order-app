@@ -70,7 +70,7 @@ export const FloorMapProperties = ({
                   value={selectedItem.label || ''}
                   onChange={(event) => updateSelectedItems({ label: event.target.value })}
                   placeholder="半角数字で入力"
-                  className="h-11 w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-3 text-center text-lg font-black text-gray-500 outline-none transition-colors focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl py-2 pl-10 pr-3 text-center text-lg font-black text-gray-500 transition-colors outline-none focus:border-ui"
                 />
               </div>
               <p className="text-[11px] font-bold leading-relaxed text-gray-500">
@@ -116,7 +116,7 @@ export const FloorMapProperties = ({
                   value={selectedItem.displayName || ''}
                   onChange={(event) => updateSelectedItems({ displayName: event.target.value })}
                   placeholder="例：窓側席 / カウンターA / 個室"
-                  className="h-11 w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-3 text-center text-sm font-black text-gray-800 outline-none transition-colors focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl py-2 pl-10 pr-3 text-center text-sm font-black text-gray-800 transition-colors outline-none focus:border-ui"
                 />
               </div>
               <p className="text-[11px] font-bold leading-relaxed text-gray-500">
@@ -126,7 +126,7 @@ export const FloorMapProperties = ({
 
             <section className="space-y-2.5">
               <label className={PANEL_SECTION_TITLE_CLASS}>座席数</label>
-              <div className="rounded-2xl border border-ui-100 bg-gradient-to-br from-ui via-white to-ui/70 p-3 shadow-sm">
+              <div className="rounded-2xl border border-ui-100 bg-ui-50 p-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"

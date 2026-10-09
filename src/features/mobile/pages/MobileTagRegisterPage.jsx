@@ -361,7 +361,7 @@ export default function MobileTagRegisterPage() {
       <span className="text-xs font-bold text-gray-500">{label}</span>
       <input value={form[key]} onChange={updateField(key)} inputMode={opts.inputMode} placeholder={opts.placeholder || ''}
         onFocus={opts.selectOnFocus ? (e) => e.target.select() : undefined}
-        className="mt-1 h-12 w-full rounded-xl border-2 border-gray-200 px-3 text-base" />
+        className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-1 h-12 w-full rounded-xl px-3 text-base outline-none focus:border-ui" />
     </label>
   );
 
@@ -405,7 +405,7 @@ export default function MobileTagRegisterPage() {
             <span className="text-xs font-bold text-gray-500">バーコード</span>
             <div className="mt-1 flex gap-2">
               <input value={form.barcode} onChange={(e) => applyBarcode(e.target.value)} inputMode="numeric"
-                className="h-12 flex-1 rounded-xl border-2 border-gray-200 px-3 text-base" />
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 flex-1 rounded-xl px-3 text-base outline-none focus:border-ui" />
               <button type="button" onClick={() => setScannerOpen(true)}
                 className="flex h-12 items-center gap-1 rounded-xl bg-gray-700 px-3 text-sm font-black text-white active:scale-95">
                 <Barcode size={16} /> スキャン

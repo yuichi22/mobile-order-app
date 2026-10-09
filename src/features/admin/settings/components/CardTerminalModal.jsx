@@ -163,31 +163,31 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
                 value={addr.postalCode}
                 onChange={(e) => setAddr((s) => ({ ...s, postalCode: e.target.value }))}
                 placeholder="郵便番号（例: 1500001）"
-                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               <input
                 value={addr.state}
                 onChange={(e) => setAddr((s) => ({ ...s, state: e.target.value }))}
                 placeholder="都道府県（例: 東京都）"
-                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               <input
                 value={addr.city}
                 onChange={(e) => setAddr((s) => ({ ...s, city: e.target.value }))}
                 placeholder="市区町村（例: 渋谷区神南）"
-                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               <input
                 value={addr.line1}
                 onChange={(e) => setAddr((s) => ({ ...s, line1: e.target.value }))}
                 placeholder="番地（例: 1-2-3）"
-                className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               <input
                 value={addr.line2}
                 onChange={(e) => setAddr((s) => ({ ...s, line2: e.target.value }))}
                 placeholder="建物名など（任意）"
-                className="col-span-2 h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 col-span-2 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
             </div>
             <button
@@ -220,14 +220,14 @@ const CardTerminalModal = ({ storeId, readers = [], state = 'idle', hasLocation 
               onChange={(e) => setRegistrationCode(e.target.value)}
               placeholder="登録コード（例: simulated-wpe）"
               disabled={submitting || !canRegister}
-              className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 disabled:opacity-50 outline-none focus:border-ui"
             />
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="端末名（任意・例: レジ横S700）"
               disabled={submitting || !canRegister}
-              className="h-11 w-full rounded-xl border-2 border-gray-100 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-900 disabled:opacity-50"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl px-3 text-sm font-bold text-gray-700 disabled:opacity-50 outline-none focus:border-ui"
             />
             <button
               type="button"

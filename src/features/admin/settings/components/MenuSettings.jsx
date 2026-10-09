@@ -78,7 +78,7 @@ const PreviewImage = ({
 
     {isSoldOut && (
       <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50">
-        <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-red-600">
+        <span className="bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-700">
           SOLD OUT
         </span>
       </div>
@@ -1019,7 +1019,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                       required
                       rows={2}
-                      className="min-h-16 w-full resize-none rounded-2xl border-2 border-gray-100 px-6 py-4 text-2xl font-bold leading-snug text-gray-800 outline-none transition-all focus:border-ui"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 min-h-16 w-full resize-none rounded-2xl px-6 py-4 text-2xl font-bold leading-snug text-gray-800 transition-all outline-none focus:border-ui"
                       placeholder={"例：厚切りトースト\nバター添え"}
                     />
                   </div>
@@ -1031,7 +1031,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                     <input
                       value={editingItem.kitchenName || ''}
                       onChange={(event) => setEditingItem({ ...editingItem, kitchenName: event.target.value })}
-                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-bold text-gray-800 outline-none transition-all focus:border-ui"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-lg font-bold text-gray-800 transition-all outline-none focus:border-ui"
                       placeholder="例：トースト / ラテ / セットドリンク"
                     />
                     <p className="mt-2 text-xs font-bold text-gray-500">
@@ -1048,7 +1048,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           value={editingItem.price}
                           onChange={(event) => setEditingItem({ ...editingItem, price: Number(event.target.value) })}
                           required
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-ui placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl pl-14 pr-6 text-2xl font-black text-gray-800 transition-all placeholder:text-xl placeholder:font-bold placeholder:text-gray-300 outline-none focus:border-ui"
                           placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
@@ -1068,7 +1068,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             takeoutPrice: event.target.value
                           })}
-                          className="h-16 w-full rounded-2xl border-2 border-gray-100 pl-14 pr-6 text-2xl font-black text-gray-800 outline-none transition-all focus:border-ui placeholder:text-xl placeholder:font-bold placeholder:text-gray-300"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl pl-14 pr-6 text-2xl font-black text-gray-800 transition-all placeholder:text-xl placeholder:font-bold placeholder:text-gray-300 outline-none focus:border-ui"
                           placeholder="税込価格"
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
@@ -1129,7 +1129,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   ...editingItem,
                                   webOrderImage: event.target.value
                                 })}
-                                className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-800 outline-none transition-all focus:border-gray-900"
+                                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-800 transition-all outline-none focus:border-ui"
                                 placeholder="https://…"
                               />
                               <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
@@ -1150,7 +1150,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       ? null
                                       : Number(event.target.value) * webOrderLeadUnitMinutes
                                   })}
-                                  className="h-12 w-28 rounded-2xl border-2 border-gray-100 px-4 text-lg font-black text-gray-800 outline-none transition-all focus:border-gray-900"
+                                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-28 rounded-2xl px-4 text-lg font-black text-gray-800 transition-all outline-none focus:border-ui"
                                   placeholder="3"
                                 />
                                 <select
@@ -1164,7 +1164,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                         : Number(webOrderLeadValue) * unit
                                     });
                                   }}
-                                  className="h-12 rounded-2xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none focus:border-gray-900"
+                                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 rounded-2xl px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                                 >
                                   <option value={60}>時間前まで</option>
                                   <option value={1440}>日前まで</option>
@@ -1285,7 +1285,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             costPrice: event.target.value
                           })}
-                          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-ui placeholder:text-base placeholder:font-bold placeholder:text-gray-300"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl pl-11 pr-5 text-lg font-black text-gray-800 placeholder:text-base placeholder:font-bold placeholder:text-gray-300 outline-none focus:border-ui"
                           placeholder={resolvedCostTaxModeHint}
                         />
                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
@@ -1304,7 +1304,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ...editingItem,
                           costTaxMode: event.target.value
                         })}
-                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                       >
                         <option value="inherit">基本設定に従う</option>
                         <option value="tax_included">税込</option>
@@ -1325,7 +1325,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                           ...editingItem,
                           costTaxRateType: event.target.value
                         })}
-                        className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                       >
                         <option value="inherit">基本設定に従う</option>
                         <option value="standard">標準税率</option>
@@ -1364,7 +1364,7 @@ const handleClearLimitedQuantity = async (event, item) => {
           ...editingItem,
           crossSellPriceLabelText: event.target.value
         })}
-        className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+        className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-sm font-bold text-gray-700 outline-none focus:border-ui"
         placeholder="例：セット価格"
       />
     </div>
@@ -1382,7 +1382,7 @@ const handleClearLimitedQuantity = async (event, item) => {
             ...editingItem,
             crossSellPrice: event.target.value
           })}
-          className="h-14 w-full rounded-2xl border-2 border-gray-100 pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
+          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl pl-11 pr-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
           placeholder="未設定"
         />
         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300">
@@ -1490,7 +1490,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               visibleDateMode: 'dateRange',
                               visibleFromDate: event.target.value
                             })}
-                            className="h-14 w-full rounded-2xl border-2 border-ui-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
                           />
                         </div>
 
@@ -1507,7 +1507,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               visibleDateMode: 'dateRange',
                               visibleToDate: event.target.value
                             })}
-                            className="h-14 w-full rounded-2xl border-2 border-ui-100 bg-white px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
                           />
                         </div>
                       </div>
@@ -1656,7 +1656,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             min="1"
                             value={editingItem.orderLimitPerOrder ?? ''}
                             onChange={(event) => setEditingItem({ ...editingItem, orderLimitPerOrder: event.target.value })}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
                             placeholder="未設定"
                           />
                           <span className="whitespace-nowrap text-sm font-bold text-gray-500">点まで</span>
@@ -1671,7 +1671,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             min="1"
                             value={editingItem.limitedQuantity ?? ''}
                             onChange={(event) => setEditingItem({ ...editingItem, limitedQuantity: event.target.value })}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-lg font-black text-gray-800 outline-none focus:border-ui"
                             placeholder="未設定"
                           />
                           <span className="whitespace-nowrap text-sm font-bold text-gray-500">点まで</span>
@@ -1718,7 +1718,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                         setEditingItem({ ...editingItem, image: event.target.value });
                         setImagePreview(event.target.value);
                       }}
-                      className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 font-mono text-sm text-gray-500 outline-none focus:border-ui"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-6 font-mono text-sm text-gray-500 outline-none focus:border-ui"
                       placeholder="https://..."
                     />
                   </div>
@@ -1733,7 +1733,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             ...editingItem,
                             photoLabelText: event.target.value
                           })}
-                          className="h-14 w-full rounded-2xl border-2 border-gray-100 px-6 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-6 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                           placeholder="例：期間限定"
                         />
                         <p className="mt-2 text-xs font-bold text-gray-300">
@@ -1775,7 +1775,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   <textarea
                     value={editingItem.description}
                     onChange={(event) => setEditingItem({ ...editingItem, description: event.target.value })}
-                    className="min-h-[160px] w-full flex-grow resize-none rounded-3xl border-2 border-gray-100 p-6 text-lg font-medium text-gray-700 outline-none focus:border-ui"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 min-h-[160px] w-full flex-grow resize-none rounded-3xl p-6 text-lg font-medium text-gray-700 outline-none focus:border-ui"
                     placeholder="商品のこだわりやおすすめポイントを入力してください"
                   />
                 </div>
@@ -1950,7 +1950,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                               value={group.name}
                               onChange={(event) => updateOptionGroup(groupIndex, 'name', event.target.value)}
                               placeholder="例：ライス"
-                              className="h-11 min-w-[180px] flex-1 rounded-xl border-2 border-gray-100 px-4 text-sm font-black text-gray-700 outline-none transition-all focus:border-ui"
+                              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 min-w-[180px] flex-1 rounded-xl px-4 text-sm font-black text-gray-700 transition-all outline-none focus:border-ui"
                             />
 
                             <select
@@ -1969,7 +1969,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   };
                                 }));
                               }}
-                              className="h-11 rounded-xl border-2 border-gray-100 px-3 text-xs font-black text-gray-600 outline-none focus:border-ui"
+                              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 rounded-xl px-3 text-xs font-black text-gray-600 outline-none focus:border-ui"
                             >
                               <option value="single">単一選択</option>
                               <option value="multiple">複数選択</option>
@@ -2037,7 +2037,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                     value={option.name}
                                     onChange={(event) => updateGroupOption(groupIndex, optionIndex, 'name', event.target.value)}
                                     placeholder="例：大盛り"
-                                    className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition-all focus:border-ui"
+                                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 min-w-0 flex-1 rounded-xl px-4 text-sm font-bold text-gray-700 transition-all outline-none focus:border-ui"
                                   />
 
                                   <button
@@ -2061,7 +2061,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       value={option.price}
                                       onChange={(event) => updateGroupOption(groupIndex, optionIndex, 'price', event.target.value)}
                                       placeholder="0"
-                                      className="h-10 w-full rounded-xl border border-gray-200 bg-white pr-8 text-right text-sm font-bold outline-none transition-all focus:border-ui"
+                                      className="border-2 border-gray-200 bg-white hover:border-gray-300 h-10 w-full rounded-xl pr-8 text-right text-sm font-bold transition-all outline-none focus:border-ui"
                                     />
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-ui">
                                       円
@@ -2086,13 +2086,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                 </div>
 
                 <div className={`flex items-center justify-between rounded-[2rem] border-2 p-6 shadow-sm ${
-                  editingItem.isSoldOut ? 'border-red-100 bg-red-50' : 'border-gray-200 bg-gray-100'
+                  editingItem.isSoldOut ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-100'
                 }`}>
                   <div className="flex items-center gap-4">
-                    <div className={`rounded-2xl p-3 shadow-sm ${editingItem.isSoldOut ? 'bg-white text-red-500' : 'bg-white text-gray-900'}`}>
+                    <div className={`rounded-2xl p-3 shadow-sm ${editingItem.isSoldOut ? 'bg-white text-amber-600' : 'bg-white text-gray-900'}`}>
                       <Utensils size={20} />
                     </div>
-                    <span className={`text-sm font-black uppercase tracking-widest ${editingItem.isSoldOut ? 'text-red-800' : 'text-gray-900'}`}>
+                    <span className={`text-sm font-black uppercase tracking-widest ${editingItem.isSoldOut ? 'text-amber-900' : 'text-gray-900'}`}>
                       売り切れ設定
                     </span>
                   </div>
@@ -2103,7 +2103,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                       onChange={(event) => setEditingItem({ ...editingItem, isSoldOut: event.target.checked })}
                       className="peer sr-only"
                     />
-                    <div className="h-8 w-14 rounded-full bg-gray-200 peer-checked:bg-red-500" />
+                    <div className="h-8 w-14 rounded-full bg-gray-200 peer-checked:bg-amber-500" />
                     <div className="absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform peer-checked:translate-x-6" />
                   </label>
                 </div>
@@ -2136,8 +2136,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                 <Utensils size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済みメニュー</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">登録済みメニュー</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                   現在の登録数 / {filteredMenuItems.length}件
                 </p>
               </div>
@@ -2150,7 +2150,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="商品名で検索"
-                  className="h-12 w-[220px] rounded-xl border border-gray-200 bg-white pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-[220px] rounded-xl pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
                 {keyword.trim() && (
                   <button
@@ -2302,7 +2302,7 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                             {item.isSoldOut && (
                               <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-                                <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black tracking-widest text-red-600">
+                                <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black tracking-widest text-amber-700">
                                   SOLD
                                 </span>
                               </div>
@@ -2369,7 +2369,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             <div
                               className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-xs font-black leading-none ${
                                 item.isSoldOut
-                                  ? 'border-red-100 bg-red-50 text-red-600'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-800'
                                   : 'border-gray-200 bg-gray-100 text-gray-900'
                               }`}
                             >
@@ -2392,7 +2392,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-xs font-black leading-none shadow-sm transition-colors active:scale-95 ${
                                     item.isSoldOut
                                       ? 'border-gray-200 bg-gray-100 text-gray-900 hover:bg-gray-100'
-                                      : 'border-red-100 bg-red-50 text-red-600 hover:bg-red-100'
+                                      : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100' // 売り切れ=アンバー(取り消せる)
                                   }`}
                                 >
                                   {item.isSoldOut ? '販売再開' : '売切にする'}
@@ -2607,8 +2607,8 @@ const handleClearLimitedQuantity = async (event, item) => {
                   <Filter size={20} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black tracking-tight text-ui">メニューの絞り込み</h3>
-                  <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">カテゴリや提供条件から一覧を絞り込めます。</p>
+                  <h3 className="text-xl font-black tracking-tight text-gray-900">メニューの絞り込み</h3>
+                  <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">カテゴリや提供条件から一覧を絞り込めます。</p>
                 </div>
               </div>
               <button

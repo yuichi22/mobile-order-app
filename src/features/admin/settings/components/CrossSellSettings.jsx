@@ -194,7 +194,7 @@ const CategoryVisibilityEditor = ({
                   }}
                   className={`rounded-xl border px-3 py-2 text-left transition-all ${
                     currentValue === option.value
-                      ? 'border-gray-200 bg-gray-100 text-gray-900 ring-2 ring-gray-200'
+                      ? 'border-ui bg-ui-50 text-ui ring-2 ring-ui-100'
                       : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -282,7 +282,7 @@ const GroupEditor = ({
                   }));
                 }}
                 placeholder="例：ドリンク"
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold outline-none transition-colors focus:border-gray-200 focus:bg-white"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold transition-colors outline-none focus:border-ui"
               />
               <span className="mt-1 block text-[11px] font-bold text-gray-500">
                 顧客画面では「ドリンクはいかがですか？」のように使われます。
@@ -305,7 +305,7 @@ const GroupEditor = ({
                       onClick={() => toggleCategory(group.id, category.id)}
                       className={`rounded-2xl border px-3 py-3 text-left transition-all ${
                         checked
-                          ? 'border-gray-200 bg-gray-100 text-gray-900 ring-2 ring-gray-200'
+                          ? 'border-ui bg-ui-50 text-ui ring-2 ring-ui-100'
                           : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'
                       }`}
                     >
@@ -409,7 +409,7 @@ const FlowStepEditor = ({
                     groupId: ''
                   }));
                 }}
-                className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm font-bold outline-none"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
               >
                 {STEP_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -432,7 +432,7 @@ const FlowStepEditor = ({
                       groupId: event.target.value
                     }));
                   }}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm font-bold outline-none"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
                 >
                   <option value="">選択してください</option>
                   {groups.map((group) => (
@@ -455,7 +455,7 @@ const FlowStepEditor = ({
                       categoryId: event.target.value
                     }));
                   }}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm font-bold outline-none"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
                 >
                   <option value="">選択してください</option>
                   {categories.map((category) => (
@@ -486,7 +486,7 @@ const FlowStepEditor = ({
                     ? '未入力なら「グループ名はいかがですか？」'
                     : '未入力なら「カテゴリー名はいかがですか？」'
                 }
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
               />
             </label>
 
@@ -507,7 +507,7 @@ const FlowStepEditor = ({
                     ? '未入力なら「上のタブからお好きなグループ名をお選びください。」'
                     : 'カテゴリー単体では未入力推奨'
                 }
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
               />
             </label>
 
@@ -566,7 +566,7 @@ const FlowStepEditor = ({
                       }));
                     }}
                     placeholder="戻る"
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
                   />
                 </label>
                 <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-relaxed text-amber-700">
@@ -587,7 +587,7 @@ const FlowStepEditor = ({
                     }));
                   }}
                   placeholder="おすすめを閉じる"
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
                 />
               </label>
             )}
@@ -821,7 +821,7 @@ const FlowEditor = ({
                   }));
                 }}
                 placeholder="例：ランチ料理からドリンク・デザート"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-gray-200 focus:ring-4 focus:ring-gray-200"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-ui"
               />
             </label>
 
@@ -901,7 +901,7 @@ const FlowEditor = ({
                       triggerGroupId: ''
                     }));
                   }}
-                  className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
                 >
                   <option value="category">カテゴリー</option>
                   <option value="group">グループ</option>
@@ -921,7 +921,7 @@ const FlowEditor = ({
                         triggerGroupId: event.target.value
                       }));
                     }}
-                    className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
                   >
                     <option value="">選択してください</option>
                     {groups.map((group) => (
@@ -944,7 +944,7 @@ const FlowEditor = ({
                         triggerCategoryId: event.target.value
                       }));
                     }}
-                    className="w-full rounded-2xl border border-ui-100 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-ui-100 focus:ring-4 focus:ring-ui-100"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-3 py-3 text-sm font-bold outline-none focus:border-ui"
                   >
                     <option value="">選択してください</option>
                     {categories.map((category) => (
@@ -1165,7 +1165,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 to-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-900 shadow-sm">

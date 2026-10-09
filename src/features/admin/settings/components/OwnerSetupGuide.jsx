@@ -78,7 +78,7 @@ const OwnerSetupGuide = ({
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-2xl font-black tracking-tight text-ui">
+                  <h3 className="text-2xl font-black tracking-tight text-gray-900">
                     {isReadyToLaunch ? '営業開始の準備が整いました' : '最初にここまで設定すると使い始めやすいです'}
                   </h3>
                 </div>
@@ -153,7 +153,7 @@ const OwnerSetupGuide = ({
                     <Sparkles size={22} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black tracking-tight text-ui">
+                    <h3 className="text-2xl font-black tracking-tight text-gray-900">
                       はじめに確認しておきたい項目
                     </h3>
                     <p className="mt-1 text-sm leading-relaxed text-ui/70">

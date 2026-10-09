@@ -290,7 +290,7 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
                     runSearch(value);
                   }}
                   placeholder="商品名 / バーコード / 品番 で検索"
-                  className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white pl-10 pr-3 text-sm font-bold text-gray-700 outline-none focus:border-gray-400"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-10 pr-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
               </div>
               <button

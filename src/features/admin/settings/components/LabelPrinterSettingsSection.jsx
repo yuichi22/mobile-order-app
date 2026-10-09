@@ -73,7 +73,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
   };
 
   const numberInputClass =
-    'h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900';
+    'h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition hover:border-gray-300 focus:border-ui';
 
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">

@@ -77,8 +77,8 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
               <Clock3 size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-ui">営業設定</h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-300">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">営業設定</h3>
+              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
                 営業時間 / 定休日 / ラストオーダー
               </p>
             </div>
@@ -140,7 +140,7 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
                             value={dayValue.open}
                             disabled={!dayValue.isOpen}
                             onChange={(event) => handleDayChange(day.key, 'open', event.target.value)}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-5 font-mono text-lg font-bold text-gray-700 outline-none transition-all focus:border-ui disabled:bg-gray-100 disabled:text-gray-300"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 font-mono text-lg font-bold text-gray-700 transition-all disabled:bg-gray-100 disabled:text-gray-300 outline-none focus:border-ui"
                           />
                         </label>
                         <label className="block">
@@ -150,7 +150,7 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
                             value={dayValue.close}
                             disabled={!dayValue.isOpen}
                             onChange={(event) => handleDayChange(day.key, 'close', event.target.value)}
-                            className="h-14 w-full rounded-2xl border-2 border-gray-100 bg-white px-5 font-mono text-lg font-bold text-gray-700 outline-none transition-all focus:border-ui disabled:bg-gray-100 disabled:text-gray-300"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 font-mono text-lg font-bold text-gray-700 transition-all disabled:bg-gray-100 disabled:text-gray-300 outline-none focus:border-ui"
                           />
                         </label>
                       </div>

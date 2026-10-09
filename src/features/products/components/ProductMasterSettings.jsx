@@ -914,7 +914,7 @@ const TableTextInput = forwardRef(({ value, onChange, type = 'text', className =
       autoCorrect={inputMode ? 'off' : undefined}
       spellCheck={inputMode ? false : undefined}
       className={classNames(
-        'h-9 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-sm font-bold text-gray-900 shadow-sm outline-none transition [appearance:textfield] focus:border-ui focus:ring-2 focus:ring-ui-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+        'h-9 w-full rounded-lg border-2 border-gray-200 bg-white px-2.5 text-sm font-bold text-gray-900 outline-none transition hover:border-gray-300 [appearance:textfield] focus:border-ui [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
         leftButton ? 'pl-14' : '',
         className
       )}
@@ -937,9 +937,9 @@ const TableSelect = ({ value, onChange, children, className = '', alertWhenEmpty
       value={value || ''}
       onChange={(event) => onChange(event.target.value)}
       className={classNames(
-        'h-9 w-full rounded-lg border px-2.5 text-sm font-black shadow-sm outline-none transition focus:border-ui focus:ring-2 focus:ring-ui-100',
+        'h-9 w-full rounded-lg border-2 px-2.5 text-sm font-black outline-none transition hover:border-gray-300 focus:border-ui',
         alertWhenEmpty && isEmpty
-          ? 'border-ui-100 bg-ui-50 text-ui'
+          ? 'border-amber-300 bg-amber-50 text-amber-900' // 未設定=注意(アンバー)
           : 'border-gray-200 bg-white text-gray-800',
         className
       )}
@@ -4940,7 +4940,7 @@ export const ShopifySettingsPanel = ({
               value={draft.shopDomain}
               onChange={(event) => update({ shopDomain: event.target.value })}
               placeholder="your-store.myshopify.com"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               メールアドレスではなく、xxxx.myshopify.com の形式で入力します。
@@ -4953,7 +4953,7 @@ export const ShopifySettingsPanel = ({
               value={draft.clientId}
               onChange={(event) => update({ clientId: event.target.value })}
               placeholder="Dev DashboardのクライアントID"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               Dev Dashboard &gt; 設定 &gt; 資格情報 のクライアントIDです。
@@ -4967,7 +4967,7 @@ export const ShopifySettingsPanel = ({
               value={draft.clientSecret}
               onChange={(event) => update({ clientSecret: event.target.value })}
               placeholder="Dev Dashboardのシークレット"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               パスワード相当の情報です。ログやスクリーンショットに出さないように扱います。
@@ -4982,7 +4982,7 @@ export const ShopifySettingsPanel = ({
               value={draft.locationId}
               onChange={(event) => update({ locationId: event.target.value })}
               placeholder="未取得なら空欄でOK"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
               次STEPでShopify APIからロケーション一覧を取得して設定します。
@@ -5195,7 +5195,7 @@ export const ShopifySettingsPanel = ({
                             value={mismatchDrafts[row.productId] ?? ''}
                             onChange={(event) => setMismatchDrafts((current) => ({ ...current, [row.productId]: event.target.value }))}
                             placeholder={String(row.pos ?? '')}
-                            className="h-9 w-20 rounded-lg border-2 border-gray-200 px-2 text-right text-sm font-bold outline-none focus:border-ui"
+                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-9 w-20 rounded-lg px-2 text-right text-sm font-bold outline-none focus:border-ui"
                           />
                           <button
                             type="button"
@@ -5408,8 +5408,8 @@ const SimpleTextInput = ({ label, value, onChange, type = 'text', disabled = fal
       className={classNames(
         'h-12 w-full rounded-2xl border-2 px-4 text-sm font-bold outline-none transition focus:border-ui',
         disabled
-          ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
-          : 'border-gray-100 bg-white text-gray-700'
+          ? 'cursor-default border-gray-200 bg-gray-50 text-gray-500'
+          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
       )}
     />
     {helpText && (
@@ -5437,7 +5437,7 @@ const SimpleOptionSelectInput = ({
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
       className={classNames(
-        'h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-ui',
+        'h-12 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition hover:border-gray-300 focus:border-ui',
         disabled ? 'cursor-not-allowed bg-gray-50 text-gray-500' : ''
       )}
     >
@@ -5486,8 +5486,8 @@ const SimpleTextareaInput = ({ label, value, onChange, rows = 6, disabled = fals
       className={classNames(
         'w-full resize-y rounded-2xl border-2 px-4 py-3 text-sm font-bold leading-relaxed outline-none transition focus:border-ui',
         disabled
-          ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
-          : 'border-gray-100 bg-white text-gray-700'
+          ? 'cursor-default border-gray-200 bg-gray-50 text-gray-500'
+          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
       )}
     />
   </label>
@@ -5646,7 +5646,7 @@ const PosModalSelect = ({
           <select
             value={createDraft[field.id] ?? ''}
             onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-            className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
           >
             <option value="">{field.placeholder || '選択してください'}</option>
             {(field.options || []).map((option) => (
@@ -5665,7 +5665,7 @@ const PosModalSelect = ({
             value={createDraft[field.id] ?? ''}
             rows={field.rows || 5}
             onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-            className="w-full resize-y rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 text-sm font-bold leading-relaxed text-gray-700 outline-none focus:border-ui"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full resize-y rounded-2xl px-4 py-3 text-sm font-bold leading-relaxed text-gray-700 outline-none focus:border-ui"
           />
         </label>
       );
@@ -5679,7 +5679,7 @@ const PosModalSelect = ({
           inputMode={field.type === 'number' ? 'decimal' : undefined}
           value={createDraft[field.id] ?? ''}
           onChange={(event) => setCreateDraft((current) => ({ ...current, [field.id]: event.target.value }))}
-          className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
         />
       </label>
     );
@@ -5715,7 +5715,7 @@ const PosModalSelect = ({
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder={searchPlaceholder}
                 autoFocus
-                className="h-12 min-w-0 flex-1 rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 min-w-0 flex-1 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
               />
               {(onCreate || onCreateSave) && (
                 <button
@@ -7446,7 +7446,7 @@ export const SimpleMasterPanel = ({
                   value={manualBrandKeyword}
                   onChange={(event) => setManualBrandKeyword(event.target.value)}
                   placeholder="ブランド名・かなで検索して追加"
-                  className="mt-3 h-11 w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-3 h-11 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
                 />
 
                 {manualBrandKeyword.trim() !== '' && (
@@ -7640,7 +7640,7 @@ export const SimpleMasterPanel = ({
                     }));
                     onSaved?.();
                   }}
-                  className="mt-1 h-11 w-full rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 outline-none transition focus:border-ui-100 disabled:bg-gray-50 disabled:text-gray-400"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-1 h-11 w-full rounded-2xl px-4 text-sm font-black text-gray-700 transition disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
                 >
                   {getMasterTaxRateOptions(defaultTaxRate).map((option) => (
                     <option key={option.id} value={option.id}>{option.label}</option>
@@ -8007,13 +8007,13 @@ export const SimpleMasterPanel = ({
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               placeholder={`${label}を検索`}
-              className="h-11 min-w-0 flex-1 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 min-w-0 flex-1 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
             />
             {label === 'ブランド' && productSalesAreas.length > 0 && (
               <select
                 value={salesAreaFilter}
                 onChange={(event) => setSalesAreaFilter(event.target.value)}
-                className="h-11 shrink-0 rounded-2xl border-2 border-gray-100 bg-gray-50 px-3 text-sm font-bold text-gray-700 outline-none focus:border-ui focus:bg-white sm:w-52"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 shrink-0 rounded-2xl px-3 text-sm font-bold text-gray-700 sm:w-52 outline-none focus:border-ui"
               >
                 <option value="">売り場で絞り込む</option>
                 {[...productSalesAreas]

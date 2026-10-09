@@ -107,7 +107,7 @@ const PasswordResetPage = () => {
               <input
                 type="email"
                 required
-                className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-3 outline-none transition-all focus:border-ui focus:bg-white"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-4 py-3 transition-all outline-none focus:border-ui"
                 placeholder="owner@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}

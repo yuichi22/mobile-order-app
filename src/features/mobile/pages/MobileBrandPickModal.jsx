@@ -77,7 +77,7 @@ export default function MobileBrandPickModal({ open, brands, candidates, default
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="ブランド名で検索 / 新規作成名を入力"
-            className="mb-2 h-11 w-full rounded-xl border-2 border-gray-200 px-3 text-base"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 mb-2 h-11 w-full rounded-xl px-3 text-base outline-none focus:border-ui"
           />
 
           <div className="space-y-1">

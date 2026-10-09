@@ -170,7 +170,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                   value={editingItem.name}
                   onChange={(event) => setEditingItem({ ...editingItem, name: event.target.value })}
                   required
-                  className="h-16 w-full rounded-2xl border-2 border-gray-100 px-6 text-2xl font-bold text-gray-800 outline-none transition-all placeholder:text-gray-200 focus:border-ui focus:ring-4 focus:ring-ui-100"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl px-6 text-2xl font-bold text-gray-800 transition-all placeholder:text-gray-200 outline-none focus:border-ui"
                   placeholder="例：おすすめ"
                 />
               </div>
@@ -253,7 +253,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                             ...editingItem,
                             serviceTimingDefault: event.target.value
                           })}
-                          className="h-12 w-full rounded-2xl border border-ui-100 bg-white px-4 text-sm font-black text-gray-700 outline-none focus:border-ui-100"
+                          className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-black text-gray-700 outline-none focus:border-ui"
                         >
                           <option value="before_meal">食前</option>
                           <option value="with_meal">食事と一緒に</option>
@@ -294,8 +294,8 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                 <Tag size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-ui">登録済みカテゴリ</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-300">
+                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">登録済みカテゴリ</h3>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                   現在の登録数 / {list.length}件
                 </p>
               </div>

@@ -106,7 +106,7 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
             type="date"
             value={formatDateInputValue(currentDate)}
             onChange={(event) => setCurrentDate(parseDateInputValue(event.target.value))}
-            className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 pointer-events-none absolute inset-0 h-full w-full opacity-0 outline-none focus:border-ui"
             tabIndex={-1}
             aria-hidden="true"
           />

@@ -4265,7 +4265,7 @@ export const PosTransactionHistory = ({
                 onChange={(event) => setCancelReason(event.target.value)}
                 placeholder={isReturnMode ? '返品理由（任意）' : '取消理由（任意）'}
                 rows={2}
-                className="mt-2 w-full rounded-xl border border-gray-200 p-2 text-sm font-bold outline-none focus:border-red-300"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-2 w-full rounded-xl p-2 text-sm font-bold focus:border-red-300 outline-none focus:border-ui"
               />
             </div>
 
@@ -4530,7 +4530,7 @@ export const PosTransactionHistory = ({
                       max={todayDateValue}
                       onChange={(e) => { setSearchFrom(e.target.value); setPeriodMode('custom'); }}
                       onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 absolute inset-0 h-full w-full cursor-pointer opacity-0 outline-none focus:border-ui"
                     />
                   </div>
                   <span className={`text-xs font-black ${periodMode === 'custom' ? 'text-white' : 'text-gray-500'}`}>〜</span>
@@ -4546,7 +4546,7 @@ export const PosTransactionHistory = ({
                       max={todayDateValue}
                       onChange={(e) => { setSearchTo(e.target.value); setPeriodMode('custom'); }}
                       onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      className="border-2 border-gray-200 bg-white hover:border-gray-300 absolute inset-0 h-full w-full cursor-pointer opacity-0 outline-none focus:border-ui"
                     />
                   </div>
                 </div>
@@ -4560,7 +4560,7 @@ export const PosTransactionHistory = ({
                   onChange={(e) => setSearchWord(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') executeHistorySearch(); }}
                   placeholder="商品名・バーコード・金額・伝票ID"
-                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-ui"
                 />
                 {searchWord && (
                   <button
@@ -4581,7 +4581,7 @@ export const PosTransactionHistory = ({
                 <select
                   value={searchDiscountId}
                   onChange={(e) => setSearchDiscountId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-ui"
                 >
                   <option value="all">すべての割引</option>
                   {discountOptions.map((d) => (

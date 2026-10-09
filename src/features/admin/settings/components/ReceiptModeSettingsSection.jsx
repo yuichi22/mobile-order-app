@@ -411,7 +411,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                   value={current.bridgeUrl || ''}
                   onChange={(event) => updateCurrent({ bridgeUrl: event.target.value })}
                   placeholder="http://localhost:8787"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                 />
               </label>
               <label className="block">
@@ -420,7 +420,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                   value={current.printerIp || ''}
                   onChange={(event) => updateCurrent({ printerIp: event.target.value })}
                   placeholder="192.168.0.100"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                 />
               </label>
               <label className="block">
@@ -430,7 +430,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
                   value={current.printerPort ?? 9100}
                   onChange={(event) => updateCurrent({ printerPort: Number(event.target.value) || 9100 })}
                   placeholder="9100"
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                 />
               </label>
             </div>
@@ -502,7 +502,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
               value={current.headerTitle || ''}
               onChange={(event) => updateCurrent({ headerTitle: event.target.value })}
               placeholder="例：領収書 / お買い上げありがとうございます"
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
           </label>
           <label className="block">
@@ -512,7 +512,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
               onChange={(event) => updateCurrent({ footerNote: event.target.value })}
               rows={2}
               placeholder="例：またのご来店をお待ちしております"
-              className="w-full rounded-2xl border-2 border-gray-100 px-4 py-3 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
           </label>
           <label className="block">
@@ -521,7 +521,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
               value={current.bannerImage || ''}
               onChange={(event) => updateCurrent({ bannerImage: event.target.value })}
               placeholder="https://..."
-              className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
           </label>
         </div>

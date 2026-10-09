@@ -885,7 +885,7 @@ const confirmDeleteCookingCategory = () => {
                   value={department.name || ''}
                   onChange={(event) => updateDepartmentNameDraft(department.id, event.target.value)}
                   onBlur={commitDepartmentDrafts}
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                   placeholder="例：物販"
                 />
 
@@ -897,7 +897,7 @@ const confirmDeleteCookingCategory = () => {
                   onChange={(event) => updateDepartmentRegisterModeDraft(department.id, event.target.value)}
                   onBlur={commitDepartmentDrafts}
                   disabled={registerModeLocked}
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
                 >
                   {REGISTER_MODE_OPTIONS.map((option) => (
                     <option
@@ -961,7 +961,7 @@ const confirmDeleteCookingCategory = () => {
                   value={register.name || ''}
                   onChange={(event) => updateRegisterNameDraft(register.id, event.target.value)}
                   onBlur={commitRegisterNameDraft}
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                   placeholder="例：メインレジ"
                 />
 
@@ -972,7 +972,7 @@ const confirmDeleteCookingCategory = () => {
                   value={register.departmentId || 'retail'}
                   onChange={(event) => updateRegisterDepartmentDraft(register.id, event.target.value)}
                   onBlur={commitRegisterNameDraft}
-                  className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                 >
                   {departmentDrafts.map((department) => (
                     <option key={department.id} value={department.id}>
@@ -997,7 +997,7 @@ const confirmDeleteCookingCategory = () => {
                     value={register.stripeReaderId || ''}
                     onChange={(event) => updateRegisterReaderDraft(register.id, event.target.value)}
                     disabled={cardReadersState === 'loading'}
-                    className="h-12 w-full rounded-2xl border-2 border-gray-100 bg-white px-4 text-sm font-bold text-gray-700 outline-none transition focus:border-gray-900 disabled:opacity-50"
+                    className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition disabled:opacity-50 outline-none focus:border-ui"
                   >
                     <option value="">未割当（このレジのカードは従来どおり手動）</option>
                     {cardReaders.map((reader) => (
@@ -1109,7 +1109,7 @@ const confirmDeleteCookingCategory = () => {
               <input
                 name="name"
                 required
-                className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 text-base font-bold text-gray-800 outline-none transition-all focus:border-ui"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-lg px-4 text-base font-bold text-gray-800 transition-all outline-none focus:border-ui"
                 placeholder="例: TEAM CAFE 東京店"
               />
             </div>
@@ -1119,7 +1119,7 @@ const confirmDeleteCookingCategory = () => {
                 <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">電話番号</label>
                 <input
                   name="tel"
-                  className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 text-base outline-none transition-all focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-lg px-4 text-base transition-all outline-none focus:border-ui"
                   placeholder="03-1234-5678"
                 />
               </div>
@@ -1128,7 +1128,7 @@ const confirmDeleteCookingCategory = () => {
                 <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">住所</label>
                 <input
                   name="address"
-                  className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 text-base outline-none transition-all focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-lg px-4 text-base transition-all outline-none focus:border-ui"
                   placeholder="東京都渋谷区..."
                 />
               </div>
@@ -1208,7 +1208,7 @@ const confirmDeleteCookingCategory = () => {
           <input
             name="customerLogoUrl"
             onChange={(event) => setCustomerLogoPreview(event.target.value)}
-            className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 font-mono text-xs text-gray-600 outline-none transition-all focus:border-ui"
+            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-lg px-4 font-mono text-xs text-gray-600 transition-all outline-none focus:border-ui"
             placeholder="https://..."
           />
 
@@ -1234,7 +1234,7 @@ const confirmDeleteCookingCategory = () => {
               type="text"
               value={customerThemeColor}
               onChange={(event) => setCustomerThemeColor(event.target.value)}
-              className="h-12 flex-1 rounded-lg border border-gray-300 bg-white px-4 font-mono text-sm outline-none transition-all focus:border-ui"
+              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 flex-1 rounded-lg px-4 font-mono text-sm transition-all outline-none focus:border-ui"
               placeholder={DEFAULT_CUSTOMER_THEME_COLOR}
             />
           </div>
@@ -1468,7 +1468,7 @@ const confirmDeleteCookingCategory = () => {
                   value={newKitchenName}
                   onChange={(event) => setNewKitchenName(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), addKitchen())}
-                  className="h-12 flex-grow rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium outline-none transition-all focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 flex-grow rounded-lg px-4 text-sm font-medium transition-all outline-none focus:border-ui"
                   placeholder="新しいキッチン名 (例: ドリンク場)"
                 />
                 <button
@@ -1701,7 +1701,7 @@ const confirmDeleteCookingCategory = () => {
                       addCookingCategory();
                     }
                   }}
-                  className="h-12 flex-grow rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium outline-none transition-all focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 flex-grow rounded-lg px-4 text-sm font-medium transition-all outline-none focus:border-ui"
                   placeholder="新しい調理分類名（例：パスタ）"
                 />
 
@@ -1741,7 +1741,7 @@ const confirmDeleteCookingCategory = () => {
                 <input
                   name="receiptBannerImage"
                   onChange={(event) => setBannerPreview(event.target.value)}
-                  className="h-12 w-full rounded-lg border border-gray-300 bg-white px-4 font-mono text-xs text-gray-600 outline-none transition-all focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-lg px-4 font-mono text-xs text-gray-600 transition-all outline-none focus:border-ui"
                   placeholder="https://..."
                 />
               </div>
@@ -1803,7 +1803,7 @@ const confirmDeleteCookingCategory = () => {
               <select
                 value={noOrderAutoVacateMinutes}
                 onChange={(event) => setNoOrderAutoVacateMinutes(Number(event.target.value || 0))}
-                className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-800 outline-none transition focus:border-ui focus:ring-4 focus:ring-ui-100"
+                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-800 transition outline-none focus:border-ui"
               >
                 <option value={0}>自動退席しない</option>
                 <option value={10}>10分後</option>
