@@ -152,9 +152,9 @@ export default function LabelPrintQueueRunner({ storeId, labelPrinterSettings })
         </span>
       )}
       {errorCount > 0 && (
-        <span className="inline-flex items-center gap-2 rounded-md bg-red-50 px-2 py-1 font-bold text-red-700">
+        <span className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-2 py-1 font-bold text-amber-800">
           <AlertTriangle size={13} /> ラベル印刷失敗 {errorCount}件（プリンタ接続を確認）
-          <button type="button" onClick={retryErrors} className="rounded bg-red-600 px-2 py-0.5 text-white active:scale-95">
+          <button type="button" onClick={retryErrors} className="rounded bg-amber-600 px-2 py-0.5 text-white active:scale-95">
             再印刷
           </button>
         </span>

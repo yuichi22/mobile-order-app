@@ -4484,7 +4484,7 @@ const ProductMasterTable = ({
                               activeClassName={
                                 isShopifyLinked
                                   ? (inventorySyncDisabled
-                                    ? 'bg-red-500 text-white shadow-sm shadow-red-200'
+                                    ? 'bg-amber-700 text-white shadow-sm' // 在庫連携OFF=注意(下書きのアンバーより濃く)
                                     : (SHOPIFY_BUTTON_CLASS[groupShopifyStatus] || SHOPIFY_BUTTON_CLASS.ACTIVE))
                                   : 'bg-gray-600 text-white shadow-sm shadow-gray-200'
                               }

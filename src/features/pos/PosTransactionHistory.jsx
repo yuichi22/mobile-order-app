@@ -4602,7 +4602,7 @@ export const PosTransactionHistory = ({
                     type="button"
                     onClick={() => setSearchCancelStatus(c.key)}
                     className={`flex-1 rounded-lg py-2 text-xs font-black transition-colors ${
-                      searchCancelStatus === c.key ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      searchCancelStatus === c.key ? 'bg-ui text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
                     {c.label}
