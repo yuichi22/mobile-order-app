@@ -3439,13 +3439,15 @@ const ProductMasterTable = ({
                   </div>
                 ))}
 
+                {/* 保存前の下書きを空に戻すだけなので赤にしない。行の削除(ゴミ箱)と取り違えないよう文字で示す */}
                 <button
                   type="button"
                   onClick={clearNewProductEntry}
-                  className="inline-flex h-8 w-full items-center justify-center rounded-full bg-red-50 text-red-500 transition hover:bg-red-100"
-                  title="新規入力をクリア"
+                  className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border-2 border-gray-200 bg-white text-[11px] font-black text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                  title="新規登録の入力をすべて空に戻します(保存済みの商品は消えません)"
                 >
-                  <Trash2 size={13} />
+                  <X size={13} strokeWidth={2.6} />
+                  入力をクリア
                 </button>
               </div>
             </div>
