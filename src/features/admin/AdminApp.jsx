@@ -58,7 +58,7 @@ const TabLoader = () => (
 );
 
 // 上のバーのファイルのタブ【AKUTOブランド基準 10-09】。選択中は下の画面(gray-100)とつながる。
-// 縁・根元の曲線・バーの下線=スチールブルー(管理画面の操作色)。POS/ORDER の区別は文字とアイコンで示す。
+// 縁・根元の曲線・バーの下線=--mode-line、選択中のタブと画面の地=--mode-bg(レジの種類で切り替え。下の REGISTER_MODE_TONE)。
 const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabel, title }) => (
   <button
     type="button"
@@ -68,14 +68,14 @@ const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabe
     title={title}
     className={`relative -mb-px flex h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-t-xl border border-b-0 px-4 text-sm font-black transition-colors ${
       active
-        ? 'border-ui bg-gray-100 text-gray-900'
-        : 'border-transparent text-gray-500 hover:border-ui/50 hover:text-gray-900'
+        ? 'border-[var(--mode-line)] bg-[var(--mode-bg)] text-gray-900'
+        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
     }`}
   >
     {active && (
       <>
-        <span aria-hidden className="pointer-events-none absolute bottom-0 -left-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 0 0, transparent 11.5px, #3B6E8F 11.5px, #3B6E8F 12.5px, #F3F4F6 12.5px)' }} />
-        <span aria-hidden className="pointer-events-none absolute bottom-0 -right-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 100% 0, transparent 11.5px, #3B6E8F 11.5px, #3B6E8F 12.5px, #F3F4F6 12.5px)' }} />
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -left-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 0 0, transparent 11.5px, var(--mode-line) 11.5px, var(--mode-line) 12.5px, var(--mode-bg) 12.5px)' }} />
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -right-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 100% 0, transparent 11.5px, var(--mode-line) 11.5px, var(--mode-line) 12.5px, var(--mode-bg) 12.5px)' }} />
       </>
     )}
     <Icon size={17} strokeWidth={2.5} />
@@ -83,6 +83,12 @@ const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabe
     {trailing}
   </button>
 );
+
+// レジの種類ごとの線と地【試作 10-09】。形は同じで、線の色と画面の地だけ変えて見分ける。
+const REGISTER_MODE_TONE = {
+  order: { '--mode-line': '#3B6E8F', '--mode-bg': '#EEF3F6' }, // ORDER=スチールブルーの線＋青みの地
+  pos: { '--mode-line': '#0B1220', '--mode-bg': '#F3F4F6' }, // POS=ミッドナイトの線＋グレーの地
+};
 
 const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const location = useLocation();
@@ -487,7 +493,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
   const isFixedPosLayout = activeAdminTab === 'pos';
 
-  const appShellClassName = 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-100 font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]';
+  const appShellClassName = 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--mode-bg)] font-sans text-gray-800 supports-[height:100svh]:h-[100svh] supports-[height:100svh]:max-h-[100svh]';
 
   const mainClassName = isFixedPosLayout
     ? showAdminHeader
@@ -502,7 +508,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   }
 
   return (
-    <div className={appShellClassName}>
+    <div className={appShellClassName} style={REGISTER_MODE_TONE[registerMode === 'pos' ? 'pos' : 'order']}>
       <UpdateBanner />
       {toast && (
         <NotificationToast
@@ -513,7 +519,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       )}
 
       {showAdminHeader && (
-        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-ui bg-white px-5 pt-[env(safe-area-inset-top)] print:hidden">
+        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-[var(--mode-line)] bg-white px-5 pt-[env(safe-area-inset-top)] print:hidden">
           <div className="grid min-h-[72px] grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="flex min-w-0 items-end gap-1 self-end pl-3">
               {/* レジのタブ。レジにいる間は ⇄ で POS/ORDER を切り替え、他のタブからは押すとレジに戻る。 */}
@@ -525,7 +531,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   onClick={() => switchRegisterMode(registerMode === 'order' ? 'pos' : 'order')}
                   ariaLabel={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
                   title={registerMode === 'order' ? 'POSレジへ切り替え' : 'ORDERレジへ切り替え'}
-                  trailing={<ArrowLeftRight size={15} strokeWidth={2.75} className="ml-1 text-ui" />}
+                  trailing={<ArrowLeftRight size={15} strokeWidth={2.75} className="ml-1 text-[var(--mode-line)]" />}
                 />
               )}
 
