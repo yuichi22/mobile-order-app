@@ -67,9 +67,10 @@ export const getElapsedLevel = (elapsedMinutes) => {
     return {
       level: 'danger',
       label: '遅延',
-      badgeClass: 'bg-red-500 text-white shadow-red-900/30',
-      textClass: 'text-red-400',
-      ringClass: 'ring-red-500/30'
+      // 経過時間の段階【AKUTOブランド基準】: 赤は呼び出しだけ。遅れはアンバーを濃くして示す
+      badgeClass: 'bg-amber-700 text-white shadow-amber-900/30',
+      textClass: 'text-amber-300',
+      ringClass: 'ring-amber-600/50'
     };
   }
 
@@ -78,7 +79,7 @@ export const getElapsedLevel = (elapsedMinutes) => {
       level: 'warning',
       label: '注意',
       badgeClass: 'bg-amber-500 text-white shadow-amber-900/30',
-      textClass: 'text-amber-300',
+      textClass: 'text-amber-200',
       ringClass: 'ring-amber-500/30'
     };
   }
@@ -87,9 +88,9 @@ export const getElapsedLevel = (elapsedMinutes) => {
     return {
       level: 'notice',
       label: '確認',
-      badgeClass: 'bg-orange-500 text-white shadow-orange-900/30',
-      textClass: 'text-orange-300',
-      ringClass: 'ring-orange-500/30'
+      badgeClass: 'bg-gray-600 text-white shadow-gray-900/30',
+      textClass: 'text-gray-300',
+      ringClass: 'ring-gray-500/30'
     };
   }
 
@@ -281,13 +282,13 @@ export const buildPendingItemSummary = (
 export const getStatusTheme = (status) => {
   switch (status) {
     case 'cooking':
-      return { border: 'border-orange-500', bg: 'bg-orange-50/30' };
+      return { border: 'border-amber-500', bg: 'bg-amber-50/30' };
     case 'serving':
-      return { border: 'border-green-500', bg: 'bg-green-50/30' };
+      return { border: 'border-gray-900', bg: 'bg-gray-50' };
     case 'completed':
-      return { border: 'border-slate-500', bg: 'bg-white' };
+      return { border: 'border-gray-500', bg: 'bg-white' };
     default:
-      return { border: 'border-blue-500', bg: 'bg-white' };
+      return { border: 'border-ui', bg: 'bg-white' };
   }
 };
 

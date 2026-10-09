@@ -133,7 +133,7 @@ const KitchenHeader = ({
             <button
               type="button"
               onClick={handleSwitchToSettings}
-              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-700 shadow-sm transition-all hover:border-ui-100 hover:bg-ui-50 hover:text-ui active:scale-95"
               aria-label="設定画面を開く"
               title="設定画面を開く"
             >
@@ -172,7 +172,7 @@ const KitchenHeader = ({
                   onClick={() => handleSetActiveKitchen(station.id)}
                   className={`h-9 shrink-0 rounded-xl px-3 text-xs font-black transition-all ${
                     isActive
-                      ? 'bg-orange-500 text-white shadow-md'
+                      ? 'bg-ui text-white shadow-md'
                       : 'text-gray-500 hover:bg-white hover:text-gray-800'
                   }`}
                 >
@@ -188,7 +188,7 @@ const KitchenHeader = ({
             className={`hidden h-11 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-black shadow-sm transition-all active:scale-95 md:flex ${
               viewMode === 'history'
                 ? 'border-gray-900 bg-gray-900 text-white'
-                : 'border-gray-100 bg-white text-gray-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+                : 'border-gray-100 bg-white text-gray-600 hover:border-ui-100 hover:bg-ui-50 hover:text-ui'
             }`}
           >
             <History size={17} strokeWidth={2.7} />
@@ -196,7 +196,7 @@ const KitchenHeader = ({
           </button>
 
           {soldOutCount > 0 && (
-            <div className="hidden h-11 items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 text-xs font-black text-red-500 xl:flex">
+            <div className="hidden h-11 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 text-xs font-black text-gray-700 xl:flex">
               <Ban size={14} />
               {soldOutCount} 件売り切れ
             </div>
@@ -213,8 +213,8 @@ const KitchenHeader = ({
               onTouchEnd={endLongPress}
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-all active:scale-95 ${
                 isSoundEnabled
-                  ? 'border-green-100 bg-green-50 text-green-500'
-                  : 'border-gray-100 bg-white text-gray-400 hover:bg-gray-50'
+                  ? 'border-gray-200 bg-gray-100 text-gray-900'
+                  : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'
               }`}
               aria-label={isSoundEnabled ? '通知音をオフにする。長押しで音量調整。' : '通知音をオンにする。長押しで音量調整。'}
               title="クリックでON/OFF、長押しで音量調整"
@@ -229,12 +229,12 @@ const KitchenHeader = ({
                     <div className="text-sm font-black text-gray-900">
                       通知音量
                     </div>
-                    <div className="mt-0.5 text-[11px] font-bold text-gray-400">
+                    <div className="mt-0.5 text-[11px] font-bold text-gray-500">
                       スライダーを動かすと試聴できます
                     </div>
                   </div>
 
-                  <div className="rounded-full bg-green-50 px-3 py-1 text-xs font-black text-green-600">
+                  <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-900">
                     {Math.round(Number(alertVolume || 0) * 100)}%
                   </div>
                 </div>
@@ -245,7 +245,7 @@ const KitchenHeader = ({
                   max="100"
                   value={Math.round(Number(alertVolume || 0) * 100)}
                   onChange={handleVolumeChange}
-                  className="w-full cursor-pointer accent-green-500"
+                  className="w-full cursor-pointer accent-gray-900"
                 />
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
@@ -268,7 +268,7 @@ const KitchenHeader = ({
                       }
                       playPreviewSoon();
                     }}
-                    className="h-10 rounded-2xl bg-green-500 text-xs font-black text-white shadow-sm transition-colors hover:bg-green-600"
+                    className="h-10 rounded-2xl bg-gray-900 text-xs font-black text-white shadow-sm transition-colors hover:bg-gray-900"
                   >
                     テスト再生
                   </button>

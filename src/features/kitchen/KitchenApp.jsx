@@ -707,14 +707,14 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
 
   if (authLoading || !effectiveStoreId) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-900">
+      <div className="flex h-screen items-center justify-center bg-gray-900">
         <LoadingSpinner size={48} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-900 font-sans text-gray-100">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-900 font-sans text-gray-100">
       <KitchenHeader
         currentTime={currentTime}
         viewMode={viewMode}
@@ -739,12 +739,12 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
       <div
         className={`flex min-h-0 flex-grow overflow-hidden ${
           sidebarPosition === 'left' ? 'flex-row-reverse' : 'flex-row'
-        } ${viewMode === 'history' ? 'bg-slate-800' : ''}`}
+        } ${viewMode === 'history' ? 'bg-gray-800' : ''}`}
       >
         <div className="flex min-h-0 flex-grow flex-col overflow-hidden">
           <div className="custom-scrollbar min-h-0 flex-grow overflow-y-auto overflow-x-hidden p-6">
             {sortedOrders.length === 0 ? (
-              <div className="flex h-full w-full flex-col items-center justify-center text-center text-slate-600 opacity-50">
+              <div className="flex h-full w-full flex-col items-center justify-center text-center text-gray-600 opacity-50">
                 <div className="mb-6 flex h-[100px] w-[100px] items-center justify-center">
                   {viewMode === 'active' ? (
                     <CheckCircle size={100} strokeWidth={1} />

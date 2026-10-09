@@ -49,29 +49,29 @@ const CompactRequestSection = ({
 }) => {
 
 const toneClassName = tone === 'call'
-  ? 'border-orange-300/60 bg-orange-500 text-white shadow-lg shadow-orange-950/30 ring-orange-300/40'
+  ? 'border-ui-100/60 bg-ui text-white shadow-lg shadow-gray-200/30 ring-ui-100/40'
   : tone === 'check'
-    ? 'border-emerald-300/60 bg-emerald-500 text-white shadow-lg shadow-emerald-950/30 ring-emerald-300/40'
-    : 'border-slate-700 bg-slate-900/75 text-slate-100 ring-slate-700/70';
+    ? 'border-gray-200/60 bg-gray-900 text-white shadow-lg shadow-gray-200/30 ring-gray-200/40'
+    : 'border-gray-700 bg-gray-900/75 text-gray-100 ring-gray-700/70';
 
 const childRowClassName = tone === 'call'
-  ? 'bg-orange-600/70 text-white'
+  ? 'bg-ui/70 text-white'
   : tone === 'check'
-    ? 'bg-emerald-600/70 text-white'
-    : 'bg-slate-950/60 text-slate-100';
+    ? 'bg-gray-900/70 text-white'
+    : 'bg-gray-950/60 text-gray-100';
 
 const headerHoverClassName = tone === 'call'
-  ? 'hover:bg-orange-600/40'
+  ? 'hover:bg-ui/40'
   : tone === 'check'
-    ? 'hover:bg-emerald-600/40'
-    : 'hover:bg-slate-800/80';
+    ? 'hover:bg-gray-900/40'
+    : 'hover:bg-gray-800/80';
 
 const subTextClassName = tone === 'default'
-  ? 'text-slate-400'
+  ? 'text-gray-500'
   : 'text-white/80';
 
 const expandIconClassName = tone === 'default'
-  ? 'text-slate-400'
+  ? 'text-gray-500'
   : 'text-white/80';
 
 
@@ -80,16 +80,16 @@ const expandIconClassName = tone === 'default'
 
   if (count === 0) {
     return (
-      <div className="rounded-2xl bg-slate-900/50 px-4 py-3">
+      <div className="rounded-2xl bg-gray-900/50 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             {icon}
-            <span className="truncate text-sm font-black text-slate-500">
+            <span className="truncate text-sm font-black text-gray-500">
               {emptyLabel}
             </span>
           </div>
 
-          <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-black text-slate-500">
+          <span className="rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-black text-gray-500">
             0
           </span>
         </div>
@@ -147,7 +147,7 @@ const expandIconClassName = tone === 'default'
                 event.stopPropagation();
                 onComplete(firstItem.id);
               }}
-              className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-slate-900 transition-colors hover:bg-slate-100"
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-gray-900 transition-colors hover:bg-gray-100"
             >
               完了
             </button>
@@ -160,19 +160,19 @@ const expandIconClassName = tone === 'default'
       </div>
 
       {expanded && shouldExpand && (
-        <div className="space-y-1 border-t border-slate-700/70 px-2.5 py-2.5">
+        <div className="space-y-1 border-t border-gray-700/70 px-2.5 py-2.5">
           {items.map((item) => (
             <div
               key={item.id}
               className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 ${childRowClassName}`}
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-black text-slate-100">
+                <div className="truncate text-sm font-black text-gray-100">
                   {getTableDisplayLabel(item)}
                 </div>
 
                 {item.createdAt?.toDate && (
-                  <div className="mt-0.5 text-xs font-bold text-slate-500">
+                  <div className="mt-0.5 text-xs font-bold text-gray-500">
                     {item.createdAt.toDate().toLocaleTimeString('ja-JP', {
                       hour: '2-digit',
                       minute: '2-digit'
@@ -184,7 +184,7 @@ const expandIconClassName = tone === 'default'
               <button
                 type="button"
                 onClick={() => onComplete(item.id)}
-                className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-black text-slate-900 transition-colors hover:bg-slate-100"
+                className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-black text-gray-900 transition-colors hover:bg-gray-100"
               >
                 完了
               </button>
@@ -235,10 +235,10 @@ const KitchenSidebar = ({
   const hasSelectedOrders = selectedOrderCount > 0;
 
   return (
-    <div className="z-10 flex w-[380px] shrink-0 flex-col border-l border-slate-700 bg-slate-800 shadow-2xl">
+    <div className="z-10 flex w-[380px] shrink-0 flex-col border-l border-gray-700 bg-gray-800 shadow-2xl">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {(calls.length > 0 || checks.length > 0) && (
-          <div className="shrink-0 space-y-2 border-b border-slate-700 bg-slate-950/80 p-3 animate-in slide-in-from-top-3 fade-in duration-300">
+          <div className="shrink-0 space-y-2 border-b border-gray-700 bg-gray-950/80 p-3 animate-in slide-in-from-top-3 fade-in duration-300">
             {calls.length > 0 && (
               <CompactRequestSection
                 title="スタッフ呼び出し"
@@ -278,7 +278,7 @@ const KitchenSidebar = ({
               として並んでしまうため、ここに別枠で出す。
             ⚠ 受け取りが近い順。日付をまたぐので「いつ渡すか」を必ず添える。 */}
         {takeoutOrders.length > 0 && (
-          <div className="shrink-0 border-b border-slate-700 bg-slate-950/80 p-3">
+          <div className="shrink-0 border-b border-gray-700 bg-gray-950/80 p-3">
             <button
               type="button"
               onClick={() => setExpandedRequestType((c) => (c === 'takeout' ? null : 'takeout'))}
@@ -299,13 +299,13 @@ const KitchenSidebar = ({
             {expandedRequestType === 'takeout' && (
               <div className="mt-2 max-h-[46vh] space-y-2 overflow-y-auto">
                 {takeoutOrders.map((order) => (
-                  <div key={order.id} className="rounded-xl bg-slate-900/80 p-3 text-slate-100">
+                  <div key={order.id} className="rounded-xl bg-gray-900/80 p-3 text-gray-100">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="text-sm font-black text-amber-300">
                           {formatPickupAt(order.pickupAt)}
                         </div>
-                        <div className="mt-0.5 truncate text-xs font-bold text-slate-300">
+                        <div className="mt-0.5 truncate text-xs font-bold text-gray-300">
                           {order.customerName} 様 / {order.customerTel}
                         </div>
                       </div>
@@ -314,14 +314,14 @@ const KitchenSidebar = ({
                           ¥{Number(order.totalAmount || 0).toLocaleString()}
                         </div>
                         {/* ⚠ 店頭払い。レジで受け取ることを必ず書く */}
-                        <div className="text-[10px] font-bold text-slate-400">店頭払い</div>
+                        <div className="text-[10px] font-bold text-gray-500">店頭払い</div>
                       </div>
                     </div>
 
-                    <ul className="mt-2 space-y-1 border-t border-slate-700 pt-2">
+                    <ul className="mt-2 space-y-1 border-t border-gray-700 pt-2">
                       {(order.items || []).map((i, idx) => (
                         <li key={idx} className="flex items-start justify-between gap-2 text-xs">
-                          <span className="flex-1 font-bold text-slate-200">
+                          <span className="flex-1 font-bold text-gray-200">
                             {String(i.name || '').replace(/\s*\n\s*/g, ' ')}
                           </span>
                           <span className="shrink-0 font-black text-amber-300">×{i.quantity}</span>
@@ -330,7 +330,7 @@ const KitchenSidebar = ({
                     </ul>
 
                     {order.note && (
-                      <p className="mt-2 rounded-lg bg-slate-800 px-2 py-1.5 text-[11px] font-bold leading-relaxed text-slate-300">
+                      <p className="mt-2 rounded-lg bg-gray-800 px-2 py-1.5 text-[11px] font-bold leading-relaxed text-gray-300">
                         {order.note}
                       </p>
                     )}
@@ -340,7 +340,7 @@ const KitchenSidebar = ({
                         <button
                           type="button"
                           onClick={() => onTakeoutStatusChange?.(order.id, 'ready')}
-                          className="flex-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-black text-white"
+                          className="flex-1 rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-black text-white"
                         >
                           準備できた
                         </button>
@@ -348,7 +348,7 @@ const KitchenSidebar = ({
                       <button
                         type="button"
                         onClick={() => onTakeoutStatusChange?.(order.id, 'handed')}
-                        className="flex-1 rounded-lg bg-slate-700 px-2 py-1.5 text-xs font-black text-slate-100"
+                        className="flex-1 rounded-lg bg-gray-700 px-2 py-1.5 text-xs font-black text-gray-100"
                       >
                         渡した
                       </button>
@@ -361,38 +361,38 @@ const KitchenSidebar = ({
         )}
 
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-900/70">
-          <div className="shrink-0 border-b border-slate-700 p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-900/70">
+          <div className="shrink-0 border-b border-gray-700 p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
                   <ClipboardList size={14} />
                   Pending
                 </div>
 
-                <h2 className="mt-1 text-base font-black text-slate-100">
+                <h2 className="mt-1 text-base font-black text-gray-100">
                   未完了商品の合計
                 </h2>
               </div>
 
-              <div className="shrink-0 rounded-2xl bg-slate-800 px-4 py-2.5 text-right">
+              <div className="shrink-0 rounded-2xl bg-gray-800 px-4 py-2.5 text-right">
                 <div className="text-2xl font-black leading-none tabular-nums text-white">
                   {summaryTotal}
                 </div>
-                <div className="mt-0.5 text-[10px] font-black text-slate-500">
+                <div className="mt-0.5 text-[10px] font-black text-gray-500">
                   点
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-800 p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-800 p-1">
               <button
                 type="button"
                 onClick={() => onSummaryModeChange?.('all')}
                 className={`rounded-xl py-2.5 text-sm font-black transition-all ${
                   summaryMode === 'all'
-                    ? 'bg-green-600 text-white shadow-sm ring-1 ring-green-400/60'
-                    : 'text-slate-400 hover:bg-slate-700'
+                    ? 'bg-ui text-white shadow-sm' /* 選択中=スチールブルー(暗い地でも見える) */
+                    : 'text-gray-500 hover:bg-gray-700'
                 }`}
               >
                 全体
@@ -403,8 +403,8 @@ const KitchenSidebar = ({
                 onClick={() => onSummaryModeChange?.('selected')}
                 className={`rounded-xl py-2.5 text-sm font-black transition-all ${
                 summaryMode === 'selected'
-                  ? 'bg-green-600 text-white shadow-sm ring-1 ring-green-400/60'
-                  : 'text-slate-400 hover:bg-slate-700'
+                  ? 'bg-ui text-white shadow-sm' /* 選択中=スチールブルー(暗い地でも見える) */
+                  : 'text-gray-500 hover:bg-gray-700'
                 }`}
               >
                 選択
@@ -419,8 +419,8 @@ const KitchenSidebar = ({
                   disabled={completedReadyCount === 0}
                   className={`flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3.5 text-sm font-black shadow-sm transition-all active:scale-[0.98] ${
                     completedReadyCount > 0
-                      ? 'border-blue-300 bg-white text-blue-700 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-800'
-                      : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none'
+                      ? 'border-ui-100 bg-white text-ui hover:border-ui hover:bg-ui-50 hover:text-ui'
+                      : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500 shadow-none'
                   }`}
                 >
                   <CheckCircle size={18} strokeWidth={2.8} />
@@ -432,7 +432,7 @@ const KitchenSidebar = ({
 
             {isSelectionMode && (
               <div className="mt-3 flex items-center justify-between gap-2">
-                <p className="min-w-0 text-xs font-bold text-slate-500">
+                <p className="min-w-0 text-xs font-bold text-gray-500">
                   伝票ヘッダーをタップして集計します
                   {hasSelectedOrders ? `（${selectedOrderCount}件選択中）` : ''}
                 </p>
@@ -441,7 +441,7 @@ const KitchenSidebar = ({
                   <button
                     type="button"
                     onClick={onClearSelectedOrders}
-                    className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-black text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                    className="flex shrink-0 items-center gap-1 rounded-lg bg-gray-800 px-2.5 py-1.5 text-xs font-black text-gray-500 transition-colors hover:bg-gray-700 hover:text-white"
                   >
                     <X size={13} />
                     クリア
@@ -459,8 +459,8 @@ const KitchenSidebar = ({
                   disabled={!hasSelectedOrders}
                   className={`flex h-12 w-full items-center justify-center rounded-2xl text-sm font-black shadow-lg transition-all active:scale-[0.98] ${
                     hasSelectedOrders
-                      ? 'bg-emerald-500 text-white shadow-emerald-950/20 hover:bg-emerald-600'
-                      : 'cursor-not-allowed bg-slate-800 text-slate-600 shadow-none'
+                      ? 'bg-gray-900 text-white shadow-gray-200/20 hover:bg-gray-900'
+                      : 'cursor-not-allowed bg-gray-800 text-gray-600 shadow-none'
                   }`}
                 >
                   選択中を提供待ちにする
@@ -472,18 +472,18 @@ const KitchenSidebar = ({
 
           <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
             {isSelectionMode && !hasSelectedOrders ? (
-              <div className="rounded-2xl border border-dashed border-slate-700 py-8 text-center text-sm font-bold text-slate-500">
+              <div className="rounded-2xl border border-dashed border-gray-700 py-8 text-center text-sm font-bold text-gray-500">
                 集計したい伝票のヘッダーをタップしてください
               </div>
             ) : !hasPendingSummaryItems ? (
-              <div className="rounded-2xl border border-dashed border-slate-700 py-8 text-center text-sm font-bold text-slate-500">
+              <div className="rounded-2xl border border-dashed border-gray-700 py-8 text-center text-sm font-bold text-gray-500">
                 未完了商品はありません
               </div>
             ) : (
               <>
                 {cookingCategorySummary.length > 0 && (
-                  <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-3">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <div className="rounded-2xl border border-gray-700 bg-gray-800/80 p-3">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
                       調理分類別
                     </div>
 
@@ -491,13 +491,13 @@ const KitchenSidebar = ({
                       {cookingCategorySummary.map((item) => (
                         <div
                           key={item.id || item.name}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-900/70 px-4 py-3 text-left"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl bg-gray-900/70 px-4 py-3 text-left"
                         >
-                          <span className="min-w-0 truncate text-sm font-black text-slate-100">
+                          <span className="min-w-0 truncate text-sm font-black text-gray-100">
                             {item.name}
                           </span>
 
-                          <span className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-xl bg-white px-2 text-sm font-black tabular-nums text-slate-900 shadow-sm">
+                          <span className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-xl bg-white px-2 text-sm font-black tabular-nums text-gray-900 shadow-sm">
                             {Number(item.quantity || 0)}
                           </span>
                         </div>
@@ -506,8 +506,8 @@ const KitchenSidebar = ({
                   </div>
                 )}
                 {itemSummary.length > 0 && (
-                  <div className="rounded-2xl border border-slate-700 bg-slate-900/40 p-3">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <div className="rounded-2xl border border-gray-700 bg-gray-900/40 p-3">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
                       商品別
                     </div>
 
@@ -515,22 +515,22 @@ const KitchenSidebar = ({
                           {itemSummary.map((item) => (
                             <div
                               key={item.id || item.name}
-                              className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm"
+                              className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left shadow-sm"
                             >
                               <button
                                 type="button"
                                 onClick={() => onMarkSummaryItemReady?.(item)}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-emerald-200 bg-emerald-50 text-emerald-600 transition-all hover:border-emerald-500 hover:bg-emerald-500 hover:text-white active:scale-95"
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-100 text-gray-900 transition-all hover:border-gray-900 hover:bg-gray-900 hover:text-white active:scale-95"
                                 title={`${item.name}を提供待ちにする`}
                               >
                                 <CheckCircle size={18} strokeWidth={2.8} />
                               </button>
 
-                              <span className="min-w-0 flex-1 truncate text-base font-black text-slate-900">
+                              <span className="min-w-0 flex-1 truncate text-base font-black text-gray-900">
                                 {item.name}
                               </span>
 
-                              <span className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 px-2 text-base font-black tabular-nums text-white shadow-sm">
+                              <span className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 px-2 text-base font-black tabular-nums text-white shadow-sm">
                                 {Number(item.quantity || 0)}
                               </span>
                             </div>
@@ -544,14 +544,14 @@ const KitchenSidebar = ({
         </div>
 
         {soldOutItems.length > 0 && (
-          <div className="shrink-0 border-t border-slate-700 bg-red-950/30 p-4">
+          <div className="shrink-0 border-t border-gray-700 bg-gray-800/40 p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-black text-red-300">
+              <div className="flex items-center gap-2 text-sm font-black text-gray-300">
                 <Ban size={15} />
                 売り切れ
               </div>
 
-              <span className="rounded-full bg-red-900/60 px-2.5 py-0.5 text-xs font-black text-red-100">
+              <span className="rounded-full bg-gray-700 px-2.5 py-0.5 text-xs font-black text-gray-100">
                 {soldOutItems.length}
               </span>
             </div>
@@ -562,7 +562,7 @@ const KitchenSidebar = ({
                   key={item.id}
                   type="button"
                   onClick={() => onRestore(item.id)}
-                  className="flex items-center gap-1 rounded-lg border border-red-800 bg-red-900/50 px-3 py-1.5 text-xs font-bold text-red-100 transition-all hover:border-green-600 hover:bg-green-600"
+                  className="flex items-center gap-1 rounded-lg border border-gray-600 bg-gray-800 px-3 py-1.5 text-xs font-bold text-gray-100 transition-all hover:border-gray-900 hover:bg-gray-900"
                 >
                   <span className="max-w-[170px] truncate">
                     {item.name}
