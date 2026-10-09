@@ -1220,6 +1220,8 @@ const ProductMasterTable = ({
   // 棚卸し進捗バー用: 在庫あり点数 と カウント済み点数(カウント集計, 別画面で進むため周期更新)。
   const [stocktakeProgress, setStocktakeProgress] = useState({ inStock: null, counted: null });
   const newProductNameInputRef = useRef(null);
+  // 新規登録を開いたら一覧の先頭(=入力欄)を見せる。スクロールした先で押しても、そのまま入力できるように
+  const productMasterSectionRef = useRef(null);
   const newProductClassificationRef = useRef(null);
   const newProductSkuInputRef = useRef(null);
   const newEntrySkuFieldRefs = useRef({});
@@ -4132,7 +4134,7 @@ const ProductMasterTable = ({
   );
 
   return (
-    <section className="rounded-[2rem] border border-gray-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
+    <section ref={productMasterSectionRef} className="rounded-[2rem] border border-gray-100 bg-white shadow-sm xl:min-h-[calc(100vh-13rem)]">
       {productMasterActionToast}
       {stockInHistoryModalNode}
       {inventoryAdjustModalNode}
@@ -4176,7 +4178,15 @@ const ProductMasterTable = ({
 
           <button
             type="button"
-            onClick={() => setShowNewProductEntry((current) => !current)}
+            onClick={() => {
+              const opening = !showNewProductEntry;
+              setShowNewProductEntry(opening);
+              if (!opening) return;
+              // 描画後に先頭(入力欄)へ移動。入力はブランド→商品名の順なのでカーソルは置かない
+              window.requestAnimationFrame(() => {
+                productMasterSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
             className={classNames(
               'inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition',
               showNewProductEntry
