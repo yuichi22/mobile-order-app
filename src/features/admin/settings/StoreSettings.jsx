@@ -3251,11 +3251,6 @@ export const StoreSettings = ({
         </nav>
 
         <div className="mt-auto flex-shrink-0 border-t border-gray-800/50 bg-[#0B1220] p-4">
-          {/* powered by AKUTO はレジ・キッチンの上のバーに置かず、ここ(他アプリのフッター相当)にまとめる */}
-          <div className="mb-3 flex items-center justify-center gap-1.5 text-[10px] font-bold text-gray-500">
-            powered by
-            <AkutoWordmark height={9} className="text-gray-500" />
-          </div>
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
@@ -3264,6 +3259,11 @@ export const StoreSettings = ({
             <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
             <span className="text-sm font-bold">ログアウト</span>
           </button>
+          {/* powered by AKUTO はレジ・キッチンの上のバーに置かず、ログアウトの下(他アプリのフッター相当)にまとめる */}
+          <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] font-bold text-gray-500">
+            powered by
+            <AkutoWordmark height={9} className="text-gray-500" />
+          </div>
         </div>
         </div>
       </aside>
