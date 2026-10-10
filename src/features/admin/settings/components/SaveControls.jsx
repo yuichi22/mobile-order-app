@@ -51,3 +51,29 @@ export const SaveBar = ({ saveLabel = '保存', loading = false, disabled = fals
     </div>
   </div>
 );
+
+// 変更があるときだけ画面の下に出るバー【AKUTOブランド基準 10-10】
+// ページ全体が1枚の設定・並び替え・表の直接編集など、「保存するまで確定しない」画面はすべてこれを使う。
+// 左=何が変わったか、右=［元に戻す］［保存］。変更が無いときは出さない(=押せない保存ボタンを並べない)。
+export const ChangesBar = ({
+  dirty,
+  onSave,
+  onDiscard,
+  loading = false,
+  disabled = false,
+  message = '保存していない変更があります',
+  saveLabel = '保存',
+  saveType = 'button',
+  form
+}) => {
+  if (!dirty && !loading) return null;
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 px-8 py-4 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] backdrop-blur-md animate-in slide-in-from-bottom-2 duration-200 md:left-56">
+      <div className="flex w-full flex-wrap items-center justify-end gap-3">
+        <div className="mr-auto text-sm font-black text-gray-900">{message}</div>
+        {onDiscard && <CancelButton label="元に戻す" onClick={onDiscard} disabled={loading} />}
+        <SaveButton type={saveType} form={form} onClick={onSave} label={saveLabel} loading={loading} disabled={disabled} />
+      </div>
+    </div>
+  );
+};

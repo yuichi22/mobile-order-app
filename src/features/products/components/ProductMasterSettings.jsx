@@ -1,5 +1,5 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
-import { SaveButton } from '../../admin/settings/components/SaveControls';
+import { CancelButton, ChangesBar, SaveButton } from '../../admin/settings/components/SaveControls';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -4749,6 +4749,7 @@ export const ShopifySettingsPanel = ({
   const [shopifyPriceSyncMode, setShopifyPriceSyncMode] = useState('taxIncluded');
   const [shopifyPriceSyncLoading, setShopifyPriceSyncLoading] = useState(true);
   const [shopifyPriceSyncSaving, setShopifyPriceSyncSaving] = useState(false);
+  const [savedPriceSyncMode, setSavedPriceSyncMode] = useState('taxIncluded');
 
   useEffect(() => {
     if (!storeId) {
@@ -4766,6 +4767,7 @@ export const ShopifySettingsPanel = ({
 
         const data = snapshot.exists() ? snapshot.data() : {};
         setShopifyPriceSyncMode(data.shopifyPriceSyncMode || 'taxIncluded');
+        setSavedPriceSyncMode(data.shopifyPriceSyncMode || 'taxIncluded');
       } catch (error) {
         console.error('Failed to load Shopify price sync mode', error);
       } finally {
@@ -4796,6 +4798,7 @@ export const ShopifySettingsPanel = ({
         { merge: true }
       );
 
+      setSavedPriceSyncMode(shopifyPriceSyncMode);
       onSaved?.('Shopify価格同期設定を保存しました。');
     } finally {
       setShopifyPriceSyncSaving(false);
@@ -4815,6 +4818,18 @@ export const ShopifySettingsPanel = ({
     autoSyncVariantPrice: false
   });
   const [saving, setSaving] = useState(false);
+
+  const baselineDraft = () => ({
+    shopDomain: settings?.shopDomain || '',
+    clientId: settings?.clientId || '',
+    clientSecret: settings?.clientSecret || '',
+    locationId: settings?.locationId || '',
+    syncEnabled: Boolean(settings?.syncEnabled),
+    inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
+    ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled),
+    autoSyncVariantCodes: Boolean(settings?.autoSyncVariantCodes),
+    autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice)
+  });
 
   useEffect(() => {
     setDraft({
@@ -4897,6 +4912,19 @@ export const ShopifySettingsPanel = ({
     }
   };
 
+  // EC連携は「ページ全体が1枚の設定」: 接続設定と価格同期を、変更があるときに出る下のバーでまとめて保存【10-10】
+  const draftDirty = JSON.stringify(draft) !== JSON.stringify(baselineDraft());
+  const priceSyncDirty = !shopifyPriceSyncLoading && shopifyPriceSyncMode !== savedPriceSyncMode;
+  const ecDirty = draftDirty || priceSyncDirty;
+  const saveAll = async () => {
+    if (priceSyncDirty) await saveShopifyPriceSyncMode();
+    if (draftDirty) await save();
+  };
+  const discardAll = () => {
+    setDraft(baselineDraft());
+    setShopifyPriceSyncMode(savedPriceSyncMode);
+  };
+
   return (
     <section className="rounded-[2rem] border border-gray-100 bg-white shadow-sm">
 
@@ -4919,7 +4947,6 @@ export const ShopifySettingsPanel = ({
             <option value="taxExcluded">税抜価格を同期する</option>
           </select>
 
-          <SaveButton onClick={saveShopifyPriceSyncMode} loading={shopifyPriceSyncSaving} disabled={shopifyPriceSyncLoading} />
         </div>
       </div>
 
@@ -5066,9 +5093,7 @@ export const ShopifySettingsPanel = ({
           現在の方式はShopify Dev DashboardのクライアントID/シークレットを保存する方式です。商品作成・在庫同期の実通信はCloud Functions側で追加します。
         </div>
 
-        <div className="flex justify-end">
-          <SaveButton onClick={save} loading={saving} />
-        </div>
+        {/* 保存は下のバー(接続設定と価格同期をまとめて保存) */}
 
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
           <div className="text-sm font-black text-gray-700">Shopify掲載商品と同期</div>
@@ -5394,6 +5419,7 @@ export const ShopifySettingsPanel = ({
           )}
         </div>
       </div>
+      <ChangesBar dirty={ecDirty} loading={saving || shopifyPriceSyncSaving} onSave={saveAll} onDiscard={discardAll} message="EC連携の設定を変更しました" />
     </section>
   );
 };
@@ -7016,15 +7042,28 @@ export const SimpleMasterPanel = ({
     };
   };
 
-  const handleSortModeButton = async () => {
+  // 「並び替え」は並び替えモードの切り替えだけ。確定は変更があるときに出る下のバーの「保存」【10-10】
+  const handleSortModeButton = () => {
     if (!isSortableMaster || saving) return;
-
     if (!sortEditMode) {
       setSortDraftItems(sortedItems);
       setSortEditMode(true);
       return;
     }
+    setSortEditMode(false);
+    setSortDraftItems([]);
+  };
 
+  const sortOrderDirty = sortEditMode && sortDraftItems.length > 0
+    && sortDraftItems.map((item) => String(item.id)).join('|') !== sortedItems.map((item) => String(item.id)).join('|');
+
+  const discardSortOrder = () => {
+    setSortEditMode(false);
+    setSortDraftItems([]);
+  };
+
+  const saveSortOrder = async () => {
+    if (!isSortableMaster || saving) return;
     setSaving(true);
     try {
       for (let index = 0; index < displayItems.length; index += 1) {
@@ -7581,38 +7620,8 @@ export const SimpleMasterPanel = ({
       <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-lg font-black text-gray-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
+            <div className="text-sm font-black text-gray-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
             <p className="mt-0.5 text-[11px] font-bold text-gray-500">左フォームは新規作成が基本です。右の一覧から選択するとそのまま編集でき、変更すると保存できます。</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {editingId ? (
-              <>
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving || !isDirty}
-                  className={classNames(
-                    'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black text-white shadow-lg transition',
-                    isDirty
-                      ? 'bg-ui shadow-gray-200/20 disabled:opacity-60'
-                      : 'cursor-not-allowed bg-gray-300 shadow-none'
-                  )}
-                >
-                  {saving ? <LoadingSpinner size={16} /> : isDirty ? <Save size={13} /> : <Check size={14} />}
-                  {isDirty ? '保存' : '編集'}
-                </button>
-                <button
-                  type="button"
-                  onClick={isDirty ? cancelEdit : clearSelection}
-                  disabled={saving}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-gray-100 px-4 text-sm font-black text-gray-500 transition hover:bg-gray-200 disabled:opacity-60"
-                >
-                  {isDirty ? 'キャンセル' : '選択解除'}
-                </button>
-              </>
-            ) : (
-              <SaveButton onClick={save} loading={saving} />
-            )}
           </div>
         </div>
 
@@ -7985,6 +7994,14 @@ export const SimpleMasterPanel = ({
           />
         </div>
 
+        {/* 一覧の中で1件を編集する型: フォームの最後に［キャンセル］［保存］【10-10】 */}
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-6">
+          {editingId && (
+            <CancelButton label={isDirty ? 'キャンセル' : '選択解除'} onClick={isDirty ? cancelEdit : clearSelection} disabled={saving} />
+          )}
+          <SaveButton onClick={save} loading={saving} disabled={editingId ? !isDirty : false} />
+        </div>
+
       </div>
 
       <div className="min-h-0 min-w-0 overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
@@ -8032,13 +8049,13 @@ export const SimpleMasterPanel = ({
                 type="button"
                 onClick={handleSortModeButton}
                 className={classNames(
-                  'inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-lg transition',
+                  'inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black transition',
                   sortEditMode
-                    ? 'bg-ui text-white shadow-gray-200/20'
-                    : 'bg-gray-900 text-white shadow-gray-900/10'
+                    ? 'border-2 border-ui bg-ui-50 text-ui shadow-none'
+                    : 'border-2 border-gray-200 bg-white text-gray-700 shadow-none hover:border-gray-300'
                 )}
               >
-                {sortEditMode ? '保存' : '並び替え'}
+                {sortEditMode ? '並び替えをやめる' : '並び替え'}
               </button>
             )}
           </div>
@@ -8121,6 +8138,7 @@ export const SimpleMasterPanel = ({
       </div>
 
       {brandMergeModalNode}
+      <ChangesBar dirty={sortOrderDirty} loading={saving && sortOrderDirty} onSave={saveSortOrder} onDiscard={discardSortOrder} message={`${label}の並び順を変更しました`} />
     </div>
   );
 };

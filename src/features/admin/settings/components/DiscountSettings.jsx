@@ -583,7 +583,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                 type="button"
                 onClick={confirmDelete}
                 disabled={isProcessing}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 font-black text-white transition-colors hover:bg-red-700 active:scale-95 disabled:opacity-60"
               >
               {isProcessing ? <LoadingSpinner size={20} /> : '削除する'}
               </button>
@@ -591,7 +591,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
                 type="button"
                 onClick={() => setDeletingDiscount(null)}
                 disabled={isProcessing}
-                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
+                className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:opacity-60"
               >
                 キャンセル
               </button>

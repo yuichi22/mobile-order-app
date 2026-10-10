@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SaveBar } from './SaveControls';
+import { ChangesBar } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
 import { Clock3, CreditCard, MoonStar, Save, Store, SunMedium } from 'lucide-react';
 
@@ -247,7 +247,13 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
             </section>
           </div>
 
-          <SaveBar saveType="submit" loading={isSaving} note={saveError ? <span className="text-amber-700">{saveError}</span> : null} />
+          <ChangesBar
+            dirty={JSON.stringify(draft) !== JSON.stringify(normalizedSettings) || Boolean(saveError)}
+            saveType="submit"
+            loading={isSaving}
+            onDiscard={() => { setDraft(normalizedSettings); setSaveError(''); }}
+            message={saveError ? <span className="text-amber-700">{saveError}</span> : '営業設定を変更しました'}
+          />
         </form>
       </div>
     </div>

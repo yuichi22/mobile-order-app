@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SaveBar } from './SaveControls';
+import { ChangesBar } from './SaveControls';
 import SettingsCard from './SettingsCard';
 import {
   doc,
@@ -990,6 +990,8 @@ const FlowEditor = ({
 const CrossSellSettings = ({ storeId, onSaved }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // 読み込み直後の値を基準に、変更があるときだけ下のバーを出す【10-10】
+  const [crossBaseline, setCrossBaseline] = useState(null);
 
   const [categories, setCategories] = useState([]);
   const [enabled, setEnabled] = useState(false);
@@ -1137,6 +1139,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
 
       setCategories(categoriesWithVisibility);
 
+      setCrossBaseline(JSON.stringify({ enabled, groups, flows, visibilityDraft }));
       onSaved?.();
 
       window.setTimeout(() => {
@@ -1147,6 +1150,16 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const crossSnapshot = JSON.stringify({ enabled, groups, flows, visibilityDraft });
+  useEffect(() => {
+    if (!loading && crossBaseline === null) setCrossBaseline(crossSnapshot);
+  }, [loading, crossBaseline, crossSnapshot]);
+  const crossDirty = crossBaseline !== null && crossSnapshot !== crossBaseline;
+  const discardCross = () => {
+    const base = JSON.parse(crossBaseline);
+    setEnabled(base.enabled); setGroups(base.groups); setFlows(base.flows); setVisibilityDraft(base.visibilityDraft);
   };
 
   if (!storeId) {
@@ -1301,7 +1314,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
         </section>
       )}
 
-      <SaveBar onSave={handleSave} loading={saving} />
+      <ChangesBar dirty={crossDirty} loading={saving} onSave={handleSave} onDiscard={discardCross} message="クロスセル設定を変更しました" />
     </div>
   );
 };

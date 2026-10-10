@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SaveBar } from './components/SaveControls';
+import { ChangesBar } from './components/SaveControls';
 import SettingsCard from './components/SettingsCard';
 import { AkutoWordmark } from '../../../shared/components/AkutoLogo';
 import {
@@ -938,6 +938,8 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
   const [settings, setSettings] = useState(() => mergeTaxPriceSettings());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // 読み込み直後の値を基準にして、変更があるときだけ下のバーを出す【10-10】
+  const [taxBaseline, setTaxBaseline] = useState(null);
 
   useEffect(() => {
     if (!storeId) {
@@ -1086,7 +1088,8 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       );
 
       if (typeof onSaved === 'function') {
-        onSaved('税・価格設定を保存しました。');
+setTaxBaseline(JSON.stringify({ settings, modeTax, storeTax }));
+                onSaved('税・価格設定を保存しました。');
       }
     } catch (error) {
       console.error('[tax price settings save error]', error);
@@ -1095,6 +1098,12 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       setSaving(false);
     }
   };
+
+  const taxSnapshot = JSON.stringify({ settings, modeTax, storeTax });
+  useEffect(() => {
+    if (!loading && taxBaseline === null) setTaxBaseline(taxSnapshot);
+  }, [loading, taxBaseline, taxSnapshot]);
+  const taxDirty = taxBaseline !== null && taxSnapshot !== taxBaseline;
 
   if (loading) {
     return (
@@ -1117,7 +1126,16 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
           Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
         </p>
       </SettingsCard>
-      <SaveBar onSave={handleSave} loading={saving} />
+      <ChangesBar
+        dirty={taxDirty}
+        loading={saving}
+        onSave={handleSave}
+        onDiscard={() => {
+          const base = JSON.parse(taxBaseline);
+          setSettings(base.settings); setModeTax(base.modeTax); setStoreTax(base.storeTax);
+        }}
+        message="税・価格設定を変更しました"
+      />
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div>
@@ -3206,7 +3224,7 @@ export const StoreSettings = ({
           <button
             type="button"
             onClick={() => setShowLogoutConfirm(true)}
-            className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-4 text-gray-500 transition-all duration-300 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
+            className="group flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
           >
             <LogOut size={20} className="transition-transform group-hover:-translate-x-1" />
             <span className="text-sm font-bold">ログアウト</span>
@@ -3401,14 +3419,14 @@ export const StoreSettings = ({
               <button
                 type="button"
                 onClick={logout}
-                className="w-full rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 font-black text-white transition-colors hover:bg-red-700 active:scale-95 disabled:opacity-60"
               >
                 ログアウト
               </button>
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
+                className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:opacity-60"
               >
                 キャンセル
               </button>

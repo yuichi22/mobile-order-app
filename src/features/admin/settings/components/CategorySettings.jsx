@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FormActions } from './SaveControls';
+import { ChangesBar, FormActions } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
 import {
   AlertTriangle,
@@ -90,7 +90,8 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
     }
   };
 
-  const moveCategory = async (fromIndex, direction) => {
+  // 並び替えは画面の上だけで動かし、下のバーの「保存」で確定する(押すたびに保存しない)【10-10】
+  const moveCategory = (fromIndex, direction) => {
     const toIndex = fromIndex + direction;
 
     if (toIndex < 0 || toIndex >= list.length || isProcessing) return;
@@ -98,17 +99,22 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
     const nextList = [...list];
     const [movedItem] = nextList.splice(fromIndex, 1);
     nextList.splice(toIndex, 0, movedItem);
+    setList(nextList);
+  };
 
+  const orderDirty = list.map((item) => String(item.id)).join('|') !== categories.map((item) => String(item.id)).join('|');
+
+  const saveOrder = async () => {
     setIsProcessing(true);
-
     try {
-      setList(nextList);
-      await onSave(nextList);
+      await onSave(list);
       onSaved?.();
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const discardOrder = () => setList(categories);
 
   const confirmDelete = async () => {
     if (!deletingCategory) return;
@@ -413,7 +419,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                 type="button"
                 onClick={confirmDelete}
                 disabled={isProcessing}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 font-black text-white transition-colors hover:bg-red-700 active:scale-95 disabled:opacity-60"
               >
               {isProcessing ? <LoadingSpinner size={20} /> : '削除する'}
               </button>
@@ -421,7 +427,7 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
                 type="button"
                 onClick={() => setDeletingCategory(null)}
                 disabled={isProcessing}
-                className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50"
+                className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:opacity-60"
               >
                 キャンセル
               </button>
@@ -429,6 +435,8 @@ const CategorySettings = ({ categories = [], menuItems = [], onSave, loading, on
           </div>
         </div>
       )}
+
+      <ChangesBar dirty={orderDirty && !editingItem} loading={isProcessing && orderDirty} onSave={saveOrder} onDiscard={discardOrder} message="カテゴリーの並び順を変更しました" />
     </div>
   );
 };

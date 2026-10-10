@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { FormActions } from './SaveControls';
+import { ChangesBar, FormActions } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
 import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
@@ -261,6 +261,7 @@ const MenuSettings = ({
   const webOrderPreviewImage =
     String(editingItem?.webOrderImage || '').trim() || imagePreview || editingItem?.image || '';
   const [sortDraftItems, setSortDraftItems] = useState([]);
+  const [menuOrderDirty, setMenuOrderDirty] = useState(false);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [filters, setFilters] = useState({
     categories: [],
@@ -368,7 +369,13 @@ const MenuSettings = ({
     ? sortDraftItems
     : visibleMenuItems;
 
+  // 絞り込むカテゴリーを変えたら、保存前の並び替えは捨てる(別カテゴリーの並びを混ぜない)
   useEffect(() => {
+    setMenuOrderDirty(false);
+  }, [activeSortCategoryId]);
+
+  useEffect(() => {
+    if (menuOrderDirty) return; // 保存前の並び替えは上書きしない
     if (isSingleCategorySortReady) {
       setSortDraftItems(visibleMenuItems);
       return;
@@ -376,7 +383,7 @@ const MenuSettings = ({
 
     setSortDraftItems([]);
     setIsSortMode(false);
-  }, [isSingleCategorySortReady, activeSortCategoryId, visibleMenuItems]);
+  }, [isSingleCategorySortReady, activeSortCategoryId, visibleMenuItems, menuOrderDirty]);
 
   const hasMoreMenuItems = filteredMenuItems.length > visibleMenuItems.length;
 
@@ -866,7 +873,7 @@ const handleClearLimitedQuantity = async (event, item) => {
     setDraggingItemId(null);
   };
 
-  const moveMenuItemImmediately = async (fromIndex, direction) => {
+  const moveMenuItemImmediately = (fromIndex, direction) => {
     const currentItems = displayMenuItems;
     const toIndex = fromIndex + direction;
 
@@ -877,23 +884,32 @@ const handleClearLimitedQuantity = async (event, item) => {
     const [movedItem] = nextItems.splice(fromIndex, 1);
     nextItems.splice(toIndex, 0, movedItem);
 
+    // 押すたびに保存せず、画面の上だけで動かす。下のバーの「保存」で確定【10-10】
     setSortDraftItems(nextItems);
-    setIsProcessing(true);
+    setMenuOrderDirty(true);
+  };
 
+  const saveMenuOrder = async () => {
+    setIsProcessing(true);
     try {
       await Promise.all(
-        nextItems.map((item, index) => (
+        sortDraftItems.map((item, index) => (
           onSave({
             ...item,
             sortOrder: (index + 1) * 1000
           })
         ))
       );
-
+      setMenuOrderDirty(false);
       onSaved?.();
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const discardMenuOrder = () => {
+    setMenuOrderDirty(false);
+    setSortDraftItems(visibleMenuItems);
   };
 
   const moveSortItem = (fromIndex, toIndex) => {
@@ -2452,10 +2468,10 @@ const handleClearLimitedQuantity = async (event, item) => {
               この操作は元に戻せません。
             </p>
             <div className="flex flex-col gap-3">
-              <button type="button" onClick={confirmDelete} disabled={isProcessing} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500 py-4 font-black text-white shadow-lg transition-all hover:bg-red-600">
+              <button type="button" onClick={confirmDelete} disabled={isProcessing} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 font-black text-white transition-colors hover:bg-red-700 active:scale-95 disabled:opacity-60">
               {isProcessing ? <LoadingSpinner size={20} /> : '削除する'}
               </button>
-              <button type="button" onClick={() => setDeletingMenu(null)} disabled={isProcessing} className="w-full rounded-2xl py-4 font-bold text-gray-500 transition-colors hover:bg-gray-50">
+              <button type="button" onClick={() => setDeletingMenu(null)} disabled={isProcessing} className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:opacity-60">
                 キャンセル
               </button>
             </div>
@@ -2727,6 +2743,8 @@ const handleClearLimitedQuantity = async (event, item) => {
           </div>
         </div>
       )}
+
+      <ChangesBar dirty={menuOrderDirty && !editingItem} loading={isProcessing && menuOrderDirty} onSave={saveMenuOrder} onDiscard={discardMenuOrder} message="メニューの並び順を変更しました" />
     </div>
   );
 };
