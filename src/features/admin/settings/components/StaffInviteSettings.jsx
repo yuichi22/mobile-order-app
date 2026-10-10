@@ -4,7 +4,7 @@
 // 送り方は「リンクをコピー」(POSの既定=アルバイトにLINEで渡す)と「メールで送る」(件名・本文は例文入りで編集)。
 // 招待は stores/{storeId}/staffInvites に作り(1回だけ使える・7日間)、/register?store_id=&invite= で受ける(従来どおり)。
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, Link2, Mail, UserPlus, X } from 'lucide-react';
+import { Copy, Link2, Mail, UserPlus, Users, X } from 'lucide-react';
 import {
   Timestamp,
   collection,
@@ -180,10 +180,25 @@ const StaffInviteSettings = ({ storeId, ownerUser, role, storeName = '' }) => {
   const canRemove = (m) => canManage && m.id !== ownerUser?.uid && (m.role === USER_ROLES.STAFF || m.role === USER_ROLES.MANAGER);
 
   return (
-    <div className="w-full max-w-3xl pb-20">
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h3 className="text-xl font-black tracking-tight text-gray-900">メンバー</h3>
-        <p className="mt-1 text-xs font-bold text-gray-500">レジ・管理画面を使える人。招待と削除はオーナーだけができます。</p>
+    <div className="w-full pb-20">
+      {/* 外枠はほかの設定画面と同じ(見出しの帯＋アイコン＋件数・全幅)。中身の並びは全アプリ共通 */}
+      <section className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8">
+          <div className="flex items-center gap-5">
+            <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
+              <Users size={24} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">メンバー</h3>
+              <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                メンバー {members.length}人 / 招待中 {pendingInvites.length}件
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8">
+        <p className="text-xs font-bold text-gray-500">レジ・管理画面を使える人。招待と削除はオーナーだけができます。</p>
 
         {/* メンバー一覧 */}
         <ul className="mt-3 divide-y divide-gray-100">
@@ -356,6 +371,7 @@ const StaffInviteSettings = ({ storeId, ownerUser, role, storeName = '' }) => {
 
         {notice && <div className="mt-3 rounded-xl bg-ui-50 px-3 py-2 text-sm font-bold text-ui">{notice}</div>}
         {error && <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{error}</div>}
+        </div>
       </section>
 
       {/* メンバーを外す(取り消せないので、メールアドレスの入力で確かめる) */}
