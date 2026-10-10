@@ -1,5 +1,5 @@
 //basicSettings.jsx
-import { SaveBar } from './SaveControls';
+import { ChangesBar } from './SaveControls';
 import SettingsCard from './SettingsCard';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -121,7 +121,8 @@ const getThemeColorWarnings = (color) => {
   return warnings;
 };
 
-const BasicSettings = ({
+const BasicSettingsInner = ({
+  onDiscard,
   settings,
   onSave,
   storeId,
@@ -702,6 +703,27 @@ const confirmDeleteCookingCategory = () => {
     });
   };
 
+  // 変更があるときだけ下のバーを出す【10-10】
+  // ・画面が持つ値(支払い方法・部門・色・レシート/ラベル・キッチン等)は、読み込み直後の値と比べる
+  //   (触る前は基準を追従させ、読み込み途中の値の揺れで「変更あり」にしない)
+  // ・店舗名/住所/電話はフォームの欄に直接入っているので、入力があったら変更あり
+  const [touched, setTouched] = useState(false);
+  const [textEdited, setTextEdited] = useState(false);
+  const [baseline, setBaseline] = useState(null);
+  const basicSnapshot = JSON.stringify({
+    departmentDrafts, registerDrafts, enabledPaymentMethods, allowTakeout, noOrderAutoVacateMinutes,
+    customerThemeColor, receiptModeDraft, labelPrinterDraft, kitchens, cookingCategoryDraft,
+    bannerPreview, customerLogoPreview
+  });
+  useEffect(() => {
+    if (!touched) setBaseline(basicSnapshot);
+  }, [basicSnapshot, touched]);
+  const isDirty = textEdited || (baseline !== null && basicSnapshot !== baseline);
+  const markTouched = () => { if (!touched) setTouched(true); };
+  const handleFormInput = (event) => {
+    if (['name', 'address', 'tel'].includes(event.target?.name)) setTextEdited(true);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -752,6 +774,8 @@ const confirmDeleteCookingCategory = () => {
       );
 
       onSaved?.();
+      setTextEdited(false);
+      setTouched(false);
 
       // 調理カテゴリは「ユーザーが実際に編集した時」だけ保存する。
       // 未編集のまま保存すると、ロード未完了時の空配列(persisted=[])をそのまま
@@ -1080,7 +1104,7 @@ const confirmDeleteCookingCategory = () => {
         <LabelPrinterSettingsSection settings={settings} onDraftChange={setLabelPrinterDraft} />
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit}>
+      <form ref={formRef} onSubmit={handleSubmit} onInput={handleFormInput} onPointerDownCapture={markTouched} onKeyDownCapture={markTouched}>
         <SettingSection
           title="店舗プロフィール"
           desc="画面に表示される店舗名や連絡先などの基本情報を設定します。"
@@ -1759,7 +1783,7 @@ const confirmDeleteCookingCategory = () => {
           </div>
         </SettingSection>
 
-        <SaveBar saveType="submit" loading={isSaving} disabled={!settings || cookingCategoriesLoading} />
+        <ChangesBar dirty={isDirty} saveType="submit" loading={isSaving} disabled={!settings || cookingCategoriesLoading} onDiscard={onDiscard} message="基本設定を変更しました" />
       
         {showOrderOnlySettings && (
         <SettingSection
@@ -1875,6 +1899,12 @@ const confirmDeleteCookingCategory = () => {
 
     </div>
   );
+};
+
+// 「元に戻す」は保存済みの値から作り直す(各欄の初期値は設定から作られるので、作り直せば元どおり)
+const BasicSettings = (props) => {
+  const [resetKey, setResetKey] = React.useState(0);
+  return <BasicSettingsInner key={resetKey} {...props} onDiscard={() => setResetKey((k) => k + 1)} />;
 };
 
 export default BasicSettings;
