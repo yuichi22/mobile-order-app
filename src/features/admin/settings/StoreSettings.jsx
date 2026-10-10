@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import SettingsCard from './components/SettingsCard';
 import { AkutoWordmark } from '../../../shared/components/AkutoLogo';
 import {
   AlertCircle,
@@ -1108,27 +1109,25 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Tax / Price</p>
-            <h3 className="mt-2 text-2xl font-black text-gray-900">税・価格設定</h3>
-            <p className="mt-2 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
-              Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
-            </p>
-          </div>
-
+      <SettingsCard
+        icon={Percent}
+        title="税・価格設定"
+        meta="税率・税抜価格基準・Shopify価格同期"
+        actions={
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-2xl bg-gray-900 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-black text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? '保存中...' : '保存する'}
           </button>
-        </div>
-
-      </div>
+        }
+      >
+        <p className="max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
+          Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
+        </p>
+      </SettingsCard>
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div>
@@ -2251,28 +2250,10 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-30 rounded-[2rem] border border-gray-200 bg-white p-8 shadow-sm shadow-gray-200/50">
-        <div className="flex items-start gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-ui-50 text-ui">
-            <Icon size={30} strokeWidth={2.5} />
-          </div>
+      {/* ページの見出し=全設定画面共通の帯(SettingsCard)。スクロールしても上に残す */}
+      <SettingsCard className="sticky top-0 z-30" icon={Icon} title={page.title} meta={page.description} />
 
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">
-              {page.eyebrow}
-            </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900">
-              {page.title}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
-              {page.description}
-            </p>
-          </div>
-
-        </div>
-      </div>
-
-      <div className="sticky top-[8.5rem] z-30 rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm shadow-gray-200/50">
+      <div className="sticky top-[6.75rem] z-30 rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm shadow-gray-200/50">
         <div className="flex flex-wrap gap-2 rounded-2xl bg-gray-100 p-1.5">
           {page.tabs.map((tab) => {
             const isActive = activeTab?.id === tab.id;

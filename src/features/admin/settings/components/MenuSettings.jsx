@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
+import { SettingsCardHeader } from './SettingsCard';
 import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
   AlertTriangle,
@@ -967,21 +968,11 @@ const handleClearLimitedQuantity = async (event, item) => {
     <div className="w-full pb-20">
       {editingItem ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="flex h-24 items-center justify-between border-b bg-gray-900 px-8 text-white">
-            <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-white/20 p-3 shadow-inner">
-                <Utensils size={24} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight">
-                  {editingItem.id ? 'メニューの編集' : '新しいメニューを追加'}
-                </h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-widest text-white/60">
-                  Configuration
-                </p>
-              </div>
-            </div>
-  <div className="flex items-center gap-2">
+          <SettingsCardHeader
+            icon={Utensils}
+            title={editingItem.id ? 'メニューの編集' : '新しいメニューを追加'}
+            meta={null}
+            actions={<><div className="flex items-center gap-2">
     <button
       type="submit"
       form="menu-item-edit-form"
@@ -995,14 +986,14 @@ const handleClearLimitedQuantity = async (event, item) => {
     <button
       type="button"
       onClick={closeEditor}
-      className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-white/90 transition-all hover:bg-white/20 active:scale-95"
+      className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-900 active:scale-95"
       aria-label="閉じる"
     >
       <span>閉じる</span>
       <X size={20} />
     </button>
-  </div>
-          </div>
+  </div></>}
+          />
 
           <form id="menu-item-edit-form" onSubmit={handleSave} className="bg-gray-50/30 p-8">
             <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 xl:grid-cols-12">

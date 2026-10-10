@@ -1,4 +1,5 @@
 //basicSettings.jsx
+import SettingsCard from './SettingsCard';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -782,24 +783,24 @@ const confirmDeleteCookingCategory = () => {
 
   return (
     <div className="mx-auto w-full max-w-6xl animate-in fade-in pb-32 duration-500">
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <h2 className="text-4xl font-black tracking-tight text-gray-900">基本設定</h2>
-          <span className="pb-1 text-2xl font-light text-gray-300">/</span>
-          <p className="pb-1.5 text-base font-bold text-gray-500">
-            店舗プロフィールと会計に関わる基本項目を設定できます
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => formRef.current?.requestSubmit()}
-          disabled={isSaving || !settings || cookingCategoriesLoading}
-          className="group flex shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-black disabled:opacity-60"
-        >
-          {isSaving ? <LoadingSpinner size={18} /> : <Save size={18} />}
-          保存
-        </button>
-      </div>
+      {/* ページの見出し=全設定画面共通の帯(SettingsCard) */}
+      <SettingsCard
+        className="mb-6"
+        icon={Store}
+        title="基本設定"
+        meta="店舗プロフィールと会計に関わる基本項目"
+        actions={
+          <button
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
+            disabled={isSaving || !settings || cookingCategoriesLoading}
+            className="group flex shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-black text-white transition-all hover:bg-black disabled:opacity-60"
+          >
+            {isSaving ? <LoadingSpinner size={18} /> : <Save size={18} />}
+            保存
+          </button>
+        }
+      />
 
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-5">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SettingsCardHeader } from './SettingsCard';
 import { Check, Copy, Download, Printer, QrCode } from 'lucide-react';
 import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -302,22 +303,12 @@ const QRGenerator = ({ storeId }) => {
   return (
     <div className="w-full animate-in fade-in duration-300 pb-20">
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
-        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none print:hidden">
-          <div className="flex items-center gap-5">
-            <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
-              <QrCode size={24} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">
-                QRコード発行
-              </h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
-                テーブル選択 / 共有URL / 印刷
-              </p>
-            </div>
-          </div>
-          <div className="min-w-[120px]" />
-        </div>
+        <SettingsCardHeader
+          icon={QrCode}
+          title={'QRコード発行'}
+          meta={'テーブル選択 / 共有URL / 印刷'}
+          actions={<><div className="min-w-[120px]" /></>}
+        />
 
         <div className="p-6 print:p-0 lg:p-8">
           <div className="space-y-6 print:block">

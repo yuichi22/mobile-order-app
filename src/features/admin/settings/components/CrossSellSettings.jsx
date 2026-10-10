@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import SettingsCard from './SettingsCard';
 import {
   doc,
   getDoc,
@@ -1165,23 +1166,11 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-900 shadow-sm">
-              <Sparkles size={24} />
-            </div>
-
-            <h2 className="text-xl font-black text-gray-900">
-              クロスセル設定
-            </h2>
-
-            <p className="mt-2 max-w-2xl text-sm font-bold leading-relaxed text-gray-500">
-              商品をカートに追加した後に、関連カテゴリーやグループへ自然に誘導します。
-              ランチのセットドリンク、デザート追加などに利用できます。
-            </p>
-          </div>
-
+      <SettingsCard
+        icon={Sparkles}
+        title="クロスセル設定"
+        meta="カートに入れた後に、関連する商品を提案します"
+        actions={
           <label className="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200">
             <div className="text-right">
               <p className="text-sm font-black text-gray-800">
@@ -1199,8 +1188,13 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
               className="h-5 w-5 accent-gray-900"
             />
           </label>
-        </div>
-      </div>
+        }
+      >
+        <p className="max-w-2xl text-sm font-bold leading-relaxed text-gray-500">
+          商品をカートに追加した後に、関連カテゴリーやグループへ自然に誘導します。
+          ランチのセットドリンク、デザート追加などに利用できます。
+        </p>
+      </SettingsCard>
 
       <div className="sticky top-0 z-10 -mx-1 mb-6 rounded-[2rem] border border-gray-100 bg-white/90 p-2 shadow-sm backdrop-blur">
         <div className="grid grid-cols-3 gap-2">

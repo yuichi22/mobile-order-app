@@ -3,6 +3,7 @@
 // 並び: メンバー一覧(役割のチップ) → 招待中 → 招待する。招待と削除はオーナーだけ(ほかは見るだけ)。
 // 送り方は「リンクをコピー」(POSの既定=アルバイトにLINEで渡す)と「メールで送る」(件名・本文は例文入りで編集)。
 // 招待は stores/{storeId}/staffInvites に作り(1回だけ使える・7日間)、/register?store_id=&invite= で受ける(従来どおり)。
+import { SettingsCardHeader } from './SettingsCard';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Copy, Link2, Mail, UserPlus, Users, X } from 'lucide-react';
 import {
@@ -183,19 +184,12 @@ const StaffInviteSettings = ({ storeId, ownerUser, role, storeName = '' }) => {
     <div className="w-full pb-20">
       {/* 外枠はほかの設定画面と同じ(見出しの帯＋アイコン＋件数・全幅)。中身の並びは全アプリ共通 */}
       <section className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8">
-          <div className="flex items-center gap-5">
-            <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
-              <Users size={24} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">メンバー</h3>
-              <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-                メンバー {members.length}人 / 招待中 {pendingInvites.length}件
-              </p>
-            </div>
-          </div>
-        </div>
+        <SettingsCardHeader
+          icon={Users}
+          title={'メンバー'}
+          meta={<>メンバー {members.length}人 / 招待中 {pendingInvites.length}件</>}
+          actions={null}
+        />
 
         <div className="p-8">
         <p className="text-xs font-bold text-gray-500">レジ・管理画面を使える人。招待と削除はオーナーだけができます。</p>

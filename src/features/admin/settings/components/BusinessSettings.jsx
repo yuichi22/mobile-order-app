@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SettingsCardHeader } from './SettingsCard';
 import { Clock3, CreditCard, MoonStar, Save, Store, SunMedium } from 'lucide-react';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
@@ -71,19 +72,12 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
   return (
     <div className="w-full animate-in fade-in duration-300 pb-20">
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none">
-          <div className="flex items-center gap-5">
-            <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
-              <Clock3 size={24} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">営業設定</h3>
-              <p className="mt-0.5 text-[10px] font-black tracking-[0.2em] text-gray-500">
-                営業時間 / 定休日 / ラストオーダー
-              </p>
-            </div>
-          </div>
-        </div>
+        <SettingsCardHeader
+          icon={Clock3}
+          title={'営業設定'}
+          meta={'営業時間 / 定休日 / ラストオーダー'}
+          actions={null}
+        />
 
         <form onSubmit={handleSubmit} className="p-8 lg:p-10">
           <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">

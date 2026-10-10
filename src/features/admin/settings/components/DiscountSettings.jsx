@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SettingsCardHeader } from './SettingsCard';
 import {
   AlertTriangle,
   Check,
@@ -160,30 +161,20 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
     <div className="w-full animate-in fade-in duration-300 pb-20">
       {editingDiscount ? (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className="flex h-24 items-center justify-between border-b bg-gray-900 px-8 text-white transition-none">
-            <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-white/20 p-3 shadow-inner">
-                <Percent size={24} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight">
-                  {editingDiscount.id ? '割引設定を編集' : '新しい割引を追加'}
-                </h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-widest text-white/60">
-                  Configuration
-                </p>
-              </div>
-            </div>
-            <button
+          <SettingsCardHeader
+            icon={Percent}
+            title={editingDiscount.id ? '割引設定を編集' : '新しい割引を追加'}
+            meta={null}
+            actions={<><button
               type="button"
               onClick={cancelEditing}
-              className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-white/90 transition-all hover:bg-white/20 active:scale-95"
+              className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-900 active:scale-95"
               aria-label="閉じる"
             >
               <span>閉じる</span>
               <X size={20} />
-            </button>
-          </div>
+            </button></>}
+          />
 
           <form onSubmit={handleSubmit} className="p-8">
             <div className="mx-auto max-w-4xl space-y-12">
@@ -403,27 +394,19 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
         </div>
       ) : (
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="flex h-24 items-center justify-between border-b bg-ui-50/50 px-8 transition-none">
-            <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
-                <Percent size={24} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">登録済み割引</h3>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-                  現在の登録数 / {discounts.length}件
-                </p>
-              </div>
-            </div>
-            <button
+          <SettingsCardHeader
+            icon={Percent}
+            title={'割引設定'}
+            meta={<>現在の登録数 / {discounts.length}件</>}
+            actions={<><button
               type="button"
               onClick={startCreating}
               className="flex items-center gap-3 rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 outline-none"
             >
               <Plus size={20} strokeWidth={3} />
               新しい割引を追加
-            </button>
-          </div>
+            </button></>}
+          />
 
           <div className="w-full overflow-x-auto">
             <table className="w-full table-fixed border-collapse text-left">

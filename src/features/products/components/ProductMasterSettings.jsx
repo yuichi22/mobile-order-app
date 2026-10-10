@@ -4143,17 +4143,24 @@ const ProductMasterTable = ({
       {labelQtyModalNode}
       {labelErrorModalNode}
       <LabelPrintQueueRunner storeId={storeId} labelPrinterSettings={labelPrinterSettings} />
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-white/95 px-5 py-3 backdrop-blur">
-        <div>
-          <h3 className="text-sm font-black text-gray-900">商品マスター</h3>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-gray-500">
-            <span>商品グループを見出しにし、SKU行では品番・バーコード・サイズ・価格などのバリアント情報を編集します。</span>
+      {/* 見出し=全設定画面共通の帯(SettingsCard と同じ形)。スクロールしても上に残す */}
+      <div className="sticky top-0 z-20 rounded-t-[2rem] bg-white">
+      <div className="flex min-h-24 flex-wrap items-center justify-between gap-4 rounded-t-[2rem] border-b bg-ui-50/50 px-8 py-4">
+        <div className="flex min-w-0 items-center gap-5">
+          <div className="shrink-0 rounded-2xl bg-gray-900 p-3 text-white">
+            <Package size={24} strokeWidth={2.5} />
+          </div>
+          <div className="min-w-0">
+          <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">商品マスター</h3>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-black tracking-[0.12em] text-gray-500">
+            <span>SKU行で品番・バーコード・サイズ・価格を編集</span>
             <span className="inline-flex items-center gap-1">
               <span className="text-[10px] font-black text-gray-500">カーソル移動</span>
               <span className="rounded-md border border-ui-100 bg-ui-50 px-1.5 py-0.5 text-[10px] font-black text-ui">Tab →</span>
               <span className="rounded-md border border-ui-100 bg-ui-50 px-1.5 py-0.5 text-[10px] font-black text-ui">Enter ↓</span>
             </span>
           </p>
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">{/* 折り返しても右寄せ */}
@@ -4200,6 +4207,7 @@ const ProductMasterTable = ({
             {showNewProductEntry ? '閉じる' : '新規登録'}
           </button>
         </div>
+      </div>
       </div>
       {activeStocktake && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3">
