@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChangesBar } from './components/SaveControls';
+import { ChangesBar, confirmLeaveIfUnsaved } from './components/SaveControls';
 import SettingsCard from './components/SettingsCard';
 import { AkutoWordmark } from '../../../shared/components/AkutoLogo';
 import {
@@ -3042,7 +3042,9 @@ export const StoreSettings = ({
   // 「キーワードあり→商品マスターへ強制移動」を再実行し、押したメニューから
   // 商品マスターへ引き戻してしまう。メニュー選択を最優先にするため、
   // 別メニューを選んだら検索キーワードをクリアして強制移動を解除する。
-  const handleSelectSettingsSubTab = (nextSubTab) => {
+  const handleSelectSettingsSubTab = async (nextSubTab) => {
+    // 保存していない変更があれば、別の設定へ移る前に確認する【10-10】
+    if (nextSubTab !== deferredSubTab && !(await confirmLeaveIfUnsaved())) return;
     if (
       settingsMode === 'pos' &&
       nextSubTab !== 'products' &&

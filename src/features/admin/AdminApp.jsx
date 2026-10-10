@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { confirmLeaveIfUnsaved } from './settings/components/SaveControls';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -62,7 +63,7 @@ const TabLoader = () => (
 const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabel, title }) => (
   <button
     type="button"
-    onClick={onClick}
+    onClick={async (event) => { if (await confirmLeaveIfUnsaved()) onClick?.(event); }}
     aria-current={active ? 'page' : undefined}
     aria-label={ariaLabel}
     title={title}
@@ -612,7 +613,8 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                if (!(await confirmLeaveIfUnsaved())) return;
                 const currentMode = registerMode === 'pos' ? 'pos' : 'order';
                 lastRegisterModeRef.current = currentMode;
                 saveStoredRegisterMode(currentMode);
@@ -661,11 +663,13 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   {!(activeAdminTab === 'pos' && registerMode === 'pos') && (
                     <button
                       type="button"
-                      onClick={
-                        activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
+                      onClick={async () => {
+                        if (!(await confirmLeaveIfUnsaved())) return;
+                        const go = activeAdminTab === 'settings' && settingsReturnMode === 'kitchen'
                           ? switchFromSettingsToRegister
-                          : (onSwitchToKitchen || onBack)
-                      }
+                          : (onSwitchToKitchen || onBack);
+                        go?.();
+                      }}
                       className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition-colors hover:bg-gray-800 active:scale-95"
                     >
                       {activeAdminTab === 'settings' && settingsReturnMode === 'kitchen' ? (
@@ -682,7 +686,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   {typeof onSwitchToServe === 'function' && (
                     <button
                       type="button"
-                      onClick={onSwitchToServe}
+                      onClick={async () => { if (await confirmLeaveIfUnsaved()) onSwitchToServe(); }}
                       className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition-colors hover:bg-gray-800 active:scale-95"
                     >
                       <Utensils size={18} strokeWidth={2.8} />

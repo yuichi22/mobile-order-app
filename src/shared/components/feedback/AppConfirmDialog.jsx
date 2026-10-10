@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 // AppConfirmHost をアプリルート(App.jsx)に1つだけマウントし、
 // 任意の場所から `if (!(await appConfirm('メッセージ'))) return;` の形で使う。
 // options: { title, okLabel, cancelLabel, tone: 'default' | 'danger' }
+// 【AKUTOブランド基準 10-10: ダイアログ】OK=黒(取り消せない操作だけ赤)・キャンセル=白地に枠・角丸12px・影なし
 
 let hostListener = null;
 
@@ -82,7 +83,7 @@ export const AppConfirmHost = () => {
           <button
             type="button"
             onClick={() => settle(false)}
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-200 px-5 text-sm font-black text-slate-600 transition hover:bg-slate-300"
+            className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-gray-200 bg-white px-5 text-sm font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
           >
             {cancelLabel}
           </button>
@@ -92,8 +93,8 @@ export const AppConfirmHost = () => {
             onClick={() => settle(true)}
             className={
               tone === 'danger'
-                ? 'inline-flex h-11 items-center justify-center rounded-2xl bg-rose-500 px-6 text-sm font-black text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-600'
-                : 'inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-6 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600'
+                ? 'inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-black text-white transition-colors hover:bg-red-700'
+                : 'inline-flex h-11 items-center justify-center rounded-xl bg-gray-900 px-6 text-sm font-black text-white transition-colors hover:bg-gray-800'
             }
           >
             {okLabel}

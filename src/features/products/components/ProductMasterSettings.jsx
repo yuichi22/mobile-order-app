@@ -8035,6 +8035,7 @@ export const SimpleMasterPanel = ({
           onCancel={closeForm}
           loading={saving}
           disabled={editingId ? !isDirty : false}
+          dirty={editingId ? isDirty : false}
           message={editingId ? `${label}を編集中` : `新しい${label}を追加中`}
         />
 
