@@ -123,7 +123,7 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
   { id: 'discount', mode: 'shared', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加（POS・ORDER共通）' },
-  { id: 'staff', mode: 'shared', group: '共通', label: 'スタッフ招待', icon: Users, desc: 'スタッフの招待と確認' },
+  { id: 'staff', mode: 'shared', group: '共通', label: 'メンバー', icon: Users, desc: 'メンバーの一覧と招待' },
   { id: 'taxPrice', mode: 'shared', group: '共通', label: '税・価格設定', icon: Percent, desc: '税率・税抜価格基準・Shopify価格同期方式' },
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
 ];
@@ -241,7 +241,7 @@ const buildOwnerSetupSteps = ({
   },
   {
     id: 'staff',
-    label: 'スタッフ招待',
+    label: 'メンバーの招待',
     desc: '必要に応じて、マネージャーやスタッフを招待して運用を始められます。',
     isRequired: false,
     isComplete: memberCount > 1,
@@ -3420,7 +3420,7 @@ export const StoreSettings = ({
           )}
 
           {deferredSubTab === 'staff' && canAccessSettingsSection(normalizedRole, 'staff') && (
-            <StaffInviteSettings storeId={storeId} ownerUser={currentUser} />
+            <StaffInviteSettings storeId={storeId} ownerUser={currentUser} role={normalizedRole} storeName={settings?.name || ''} />
           )}
 
           {deferredSubTab === 'layout' && canAccessSettingsSection(normalizedRole, 'layout') && (

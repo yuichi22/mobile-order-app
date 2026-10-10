@@ -9063,6 +9063,9 @@ export { crmLookupMember, crmRedeemPoints } from "./crmMember.js";
 // 携帯番号を主番号に入れ、手書きスタンプの途中分をポイントにする。
 export { crmSearchMembers, crmSetMemberPhone, crmGrantLegacyStamp, crmMemberLtv } from "./crmMember.js";
 
+// メンバー招待の「メールで送る」(全アプリ共通の メンバー と招待 10-10)
+export { sendStaffInviteEmail } from "./staffInvites.js";
+
 // 拠点の公式サイト向け読み取り専用API（メニュー・取扱ブランド）。
 // ⚠ 原価・在庫・仕入先・内部IDは返さない。詳細は publicSite.js の冒頭を参照。
 export { publicMenu, publicBrands, rebuildPublicSiteCache, runPublicSiteCacheNow } from "./publicSite.js";
