@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 // AppConfirmHost をアプリルート(App.jsx)に1つだけマウントし、
 // 任意の場所から `if (!(await appConfirm('メッセージ'))) return;` の形で使う。
 // options: { title, okLabel, cancelLabel, tone: 'default' | 'danger' }
-// 【AKUTOブランド基準 10-10: ダイアログ】OK=黒(取り消せない操作だけ赤)・キャンセル=白地に枠・角丸12px・影なし
+// 【AKUTOブランド基準 10-10: ダイアログ】縦に［実行=黒(取り消せない操作だけ赤)］［キャンセル=白地に枠］・角丸12px・影なし
 
 let hostListener = null;
 
@@ -79,25 +79,25 @@ export const AppConfirmHost = () => {
         <div className="max-h-[55vh] overflow-y-auto whitespace-pre-line px-6 pb-5 text-sm font-bold leading-relaxed text-slate-600">
           {current.message}
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3.5">
-          <button
-            type="button"
-            onClick={() => settle(false)}
-            className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-gray-200 bg-white px-5 text-sm font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
-          >
-            {cancelLabel}
-          </button>
+        <div className="flex flex-col gap-2 px-6 pb-6">
           <button
             type="button"
             autoFocus
             onClick={() => settle(true)}
             className={
               tone === 'danger'
-                ? 'inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-black text-white transition-colors hover:bg-red-700'
-                : 'inline-flex h-11 items-center justify-center rounded-xl bg-gray-900 px-6 text-sm font-black text-white transition-colors hover:bg-gray-800'
+                ? 'inline-flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-black text-white transition-colors hover:bg-red-700'
+                : 'inline-flex h-11 w-full items-center justify-center rounded-xl bg-gray-900 px-6 text-sm font-black text-white transition-colors hover:bg-gray-800'
             }
           >
             {okLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => settle(false)}
+            className="inline-flex h-11 w-full items-center justify-center rounded-xl border-2 border-gray-200 bg-white px-5 text-sm font-black text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
+          >
+            {cancelLabel}
           </button>
         </div>
       </div>
