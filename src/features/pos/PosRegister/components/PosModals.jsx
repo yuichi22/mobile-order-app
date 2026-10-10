@@ -456,6 +456,10 @@ export const PosModals = ({
                         取り消す
                       </button>
                     </div>
+                  ) : crmMember.registration && crmMember.registration.complete === false ? (
+                    <div className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-bold text-gray-700">
+                      友だち追加が終わると使えます。レジ画面のQRをご案内ください。
+                    </div>
                   ) : crmPointBlockedByPercent ? (
                     <div className="rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-gray-500">
                       %割引とポイントは併用できません。%割引の選択を外すと使えます。

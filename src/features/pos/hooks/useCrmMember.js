@@ -53,13 +53,14 @@ export const useCrmMember = (storeId) => {
    * silent=true は「商品/卓として見つからなかった値の“ついで照会”」用で、
    * 失敗しても既存の会員選択やエラー表示を壊さない。
    */
-  const lookupByCode = useCallback(async (rawCode, { silent = false } = {}) => {
+  const lookupByCode = useCallback(async (rawCode, { silent = false, recheck = false } = {}) => {
     const code = String(rawCode || '').replace(/^MB/i, '').replace(/\D/g, '');
     if (!code) return null;
     setBusy(true);
     if (!silent) setMessage('');
     try {
-      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code });
+      // recheck=true は「再照会」(友だち追加の直後)。Core が LINE に友だちを確認して保留ポイントを解放する
+      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, memberCode: code, ...(recheck ? { recheck: true } : {}) });
       const m = res.data || {};
       const next = {
         personId: m.personId,
@@ -69,7 +70,10 @@ export const useCrmMember = (storeId) => {
         rank: m.rank || null,
         memberCode: m.memberCode || null,
         pointsEnabled: m.pointsEnabled !== false,
-        redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
+        redeem: m.redeem || { yenPerPoint: 1, unit: 1 },
+        // 登録状態(友だち追加が済んでいるか)と友だち追加待ちのポイント(2026-10-10)
+        registration: m.registration || { complete: true },
+        heldPoints: Number(m.heldPoints || 0)
       };
       setMember(next);
       setMessage('');
@@ -90,12 +94,12 @@ export const useCrmMember = (storeId) => {
    * ⚠会計依頼は会員コードを持たないので、これが無いとレジに会員が出ず
    *   ポイント利用もできない（付与だけ裏で走る状態になる）。
    */
-  const lookupByPersonId = useCallback(async (personId, { fallbackName = null } = {}) => {
+  const lookupByPersonId = useCallback(async (personId, { fallbackName = null, recheck = false } = {}) => {
     const id = String(personId || '').trim();
     if (!id) return null;
     setBusy(true);
     try {
-      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, personId: id });
+      const res = await httpsCallable(functionsApi, 'crmLookupMember')({ storeId, personId: id, ...(recheck ? { recheck: true } : {}) });
       const m = res.data || {};
       const next = {
         personId: m.personId || id,
@@ -105,7 +109,9 @@ export const useCrmMember = (storeId) => {
         rank: m.rank || null,
         memberCode: m.memberCode || null,
         pointsEnabled: m.pointsEnabled !== false,
-        redeem: m.redeem || { yenPerPoint: 1, unit: 1 }
+        redeem: m.redeem || { yenPerPoint: 1, unit: 1 },
+        registration: m.registration || { complete: true },
+        heldPoints: Number(m.heldPoints || 0)
       };
       setMember(next);
       setMessage('');
@@ -133,9 +139,19 @@ export const useCrmMember = (storeId) => {
     return { ok: true, ...(res.data || {}) };
   }, [storeId]);
 
+  /** 再照会: 友だち追加の直後に Core へ確認し直す(登録完了→保留ポイント解放)。 */
+  const recheckMember = useCallback(async () => {
+    if (!member) return null;
+    if (member.memberCode) return lookupByCode(member.memberCode, { recheck: true });
+    if (member.personId) return lookupByPersonId(member.personId, { fallbackName: member.displayName, recheck: true });
+    return null;
+  }, [member, lookupByCode, lookupByPersonId]);
+
   // 会計で実際に使える上限(pt)。残高・支払残額・利用単位の3つで決まる。
   const maxUsablePoints = useCallback((payableYen) => {
     if (!member) return 0;
+    // 友だち追加が済んでいないLINE会員は使えない(Core も friend_required で拒否する)
+    if (member.registration && member.registration.complete === false) return 0;
     const yenPerPoint = Math.max(Number(member.redeem?.yenPerPoint) || 1, 1);
     const unit = Math.max(Math.floor(Number(member.redeem?.unit) || 1), 1);
     const byPayable = Math.floor(Math.max(0, Number(payableYen) || 0) / yenPerPoint);
@@ -157,6 +173,7 @@ export const useCrmMember = (storeId) => {
     redeemPoints,
     lookupByCode,
     lookupByPersonId,
+    recheckMember,
     clearMember
   };
 };

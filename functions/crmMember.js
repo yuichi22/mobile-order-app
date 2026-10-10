@@ -79,6 +79,9 @@ async function callCore(path, body, idempotencyKey) {
     if (err === "invalid_unit") {
       throw new HttpsError("invalid-argument", `${data?.unit}pt 単位でご利用いただけます。`);
     }
+    if (err === "friend_required") {
+      throw new HttpsError("failed-precondition", "友だち追加が終わるとポイントを使えます。レジ画面のQRをご案内ください。");
+    }
     throw new HttpsError("internal", `Core: ${err || res.status}`);
   }
   return data;
@@ -118,6 +121,8 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
     coreTenantId: link.coreTenantId,
     coreSpaceId: link.coreSpaceId,
     ...(memberCode ? { memberCode } : { personId }),
+    // 再照会(友だち追加の直後): Core が LINE に友だちを確認し、保留ポイントを残高へ移す
+    ...(request.data?.recheck === true ? { recheck: true } : {}),
   });
   return {
     ok: true,
@@ -130,6 +135,9 @@ export const crmLookupMember = onCall({ region: REGION }, async (request) => {
     // テナントのポイント設定。OFFでも残高>0なら使い切りまで利用可（旧Coreは未定義=true扱い）
     pointsEnabled: data.pointsEnabled !== false,
     redeem: data.redeem || { yenPerPoint: 1, unit: 1 },
+    // 登録状態(友だち追加が済んでいるか)と友だち追加待ちのポイント(2026-10-10)。旧Coreは未定義=完了扱い
+    registration: data.registration || { complete: true },
+    heldPoints: Number(data.heldPoints || 0),
   };
 });
 

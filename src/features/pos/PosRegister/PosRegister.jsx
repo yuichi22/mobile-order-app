@@ -152,7 +152,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     pointsToUse: crmPointsToUse,
     setPointsToUse: setCrmPointsToUse,
     maxUsablePoints: crmMaxUsablePoints,
-    redeemPoints: crmRedeemPoints
+    redeemPoints: crmRedeemPoints,
+    recheckMember: recheckCrmMember
   } = crm || fallbackCrm;
 
   // 会員検索（ポイントカードのご案内で、固定電話のお客様に携帯番号をお伺いする画面）。
@@ -2633,6 +2634,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         crmCodeInput={crmCodeInput}
         setCrmCodeInput={setCrmCodeInput}
         onLookupCrmMember={lookupCrmMemberByCode}
+        onRecheckCrmMember={recheckCrmMember}
         onClearCrmMember={clearCrmMember}
         onOpenMemberSearch={() => setMemberSearchOpen(true)}
       />

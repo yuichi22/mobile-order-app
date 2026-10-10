@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { memberBarStyle, rankTheme } from '../../utils/rankTheme';
+import { QRCodeSVG } from 'qrcode.react';
 import { Calculator, Check, ChevronLeft, Minus, Package, Plus, RotateCcw, ShoppingBag, Store, Trash2, User, Utensils } from 'lucide-react';
 import {
   formatOrderCustomerLabel,
@@ -70,6 +71,7 @@ export const PosRegisterLeft = ({
   crmCodeInput,
   setCrmCodeInput,
   onLookupCrmMember,
+  onRecheckCrmMember,
   onClearCrmMember,
   onOpenMemberSearch
 }) => {
@@ -119,7 +121,8 @@ export const PosRegisterLeft = ({
           未読込のときは会員番号の入力欄(スキャナは MB+番号 を自動で拾う)。 */}
       {canUseCrm && (
         crmMember ? (
-          /* ランクがあればカードと同じメタリック、無ければ従来の緑。 */
+          <>
+          {/* ランクがあればカードと同じメタリック、無ければ黒。 */}
           <div
             style={memberBarStyle(crmMember.rank)}
             className={`flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 text-white shadow-md ${
@@ -150,6 +153,35 @@ export const PosRegisterLeft = ({
               解除
             </button>
           </div>
+          {/* 友だち追加がまだ(登録未完了)の会員: ポイントは保留・利用不可。QRを読んでもらい「再照会」で解放する(2026-10-10) */}
+          {crmMember.registration && crmMember.registration.complete === false && (
+            <div className="flex shrink-0 items-center gap-3 border-b border-amber-100 bg-amber-50 px-4 py-2">
+              {crmMember.registration.addFriendUrl && (
+                <div className="shrink-0 rounded-lg bg-white p-1">
+                  <QRCodeSVG value={crmMember.registration.addFriendUrl} size={56} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-black text-gray-900">友だち追加で登録完了</div>
+                <div className="text-[11px] font-bold text-gray-600">
+                  {crmMember.registration.oaName ? `${crmMember.registration.oaName} を` : '公式アカウントを'}
+                  友だち追加していただくと、ポイントが付与・利用できます。
+                  {Number(crmMember.heldPoints || 0) > 0 && (
+                    <span className="tabular-nums"> 追加後に {Number(crmMember.heldPoints).toLocaleString()}pt が残高に加わります。</span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRecheckCrmMember?.()}
+                disabled={crmMemberBusy}
+                className="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-xs font-black text-white transition active:scale-95 disabled:opacity-50"
+              >
+                {crmMemberBusy ? '確認中' : '再照会'}
+              </button>
+            </div>
+          )}
+          </>
         ) : (
           <div className="shrink-0 border-b border-gray-200 bg-gray-100/60 px-4 py-2">
             <form
