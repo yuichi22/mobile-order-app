@@ -5868,15 +5868,15 @@ const PosModalSelect = ({
         onClick={() => setOpen(true)}
         className={classNames(
           compact
-            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-2.5 text-left text-sm font-black shadow-sm outline-none transition focus:border-ui focus:ring-2 focus:ring-ui-100'
-            : 'flex h-12 w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 text-left text-sm font-bold outline-none transition focus:border-ui',
+            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border-2 pl-2.5 pr-3.5 text-left text-sm font-black outline-none transition focus:border-ui' // ▼の右は14px(選択欄と同じ)
+            : 'flex h-12 w-full items-center justify-between gap-3 rounded-xl border-2 pl-4 pr-3.5 text-left text-sm font-bold outline-none transition focus:border-ui',
           disabled
             ? compact
               ? 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
               : 'cursor-default border-gray-100 bg-gray-50 text-gray-500'
             : compact
-              ? 'border-gray-200 bg-white text-gray-800 hover:border-ui-100'
-              : 'border-gray-100 bg-white text-gray-700 hover:border-ui-100'
+              ? 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
         )}
       >
         <span className={selectedOption ? 'truncate text-gray-800' : 'truncate text-gray-500'}>
