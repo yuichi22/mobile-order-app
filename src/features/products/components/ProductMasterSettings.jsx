@@ -1,6 +1,6 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { SettingsCardHeader } from '../../admin/settings/components/SettingsCard';
-import { CancelButton, ChangesBar, SaveButton } from '../../admin/settings/components/SaveControls';
+import { ChangesBar, FormActions, SaveButton } from '../../admin/settings/components/SaveControls';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -8016,11 +8016,15 @@ export const SimpleMasterPanel = ({
           />
         </div>
 
-        {/* 一覧の中で1件を編集する型: フォームの最後に［キャンセル］［保存］【10-10】 */}
-        <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-6">
-          <CancelButton onClick={closeForm} disabled={saving} />
-          <SaveButton onClick={save} loading={saving} disabled={editingId ? !isDirty : false} />
-        </div>
+        {/* 一覧の中で1件を編集する型: ［キャンセル］［保存］は画面下に固定したバー【10-10】 */}
+        <FormActions
+          saveType="button"
+          onSave={save}
+          onCancel={closeForm}
+          loading={saving}
+          disabled={editingId ? !isDirty : false}
+          message={editingId ? `${label}を編集中` : `新しい${label}を追加中`}
+        />
 
       </div>
       </div>

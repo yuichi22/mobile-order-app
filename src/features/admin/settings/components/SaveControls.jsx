@@ -2,7 +2,7 @@
 // - 文言は「保存」1語(保存と同時に別の動作もするときだけ「保存して〇〇」)
 // - 形: 黒の主ボタン・高さ44px・角丸12px・影なし・左に保存アイコン
 // - 置き場所は1ページに1か所:
-//   一覧の中で1件を編集する画面 → フォームの最後の右端(左に「キャンセル」)= <FormActions>
+//   一覧の中で1件を編集する画面 → 画面下に固定したバー(［キャンセル］［保存］)= <FormActions>
 //   ページ全体が1枚の設定 → 画面下に固定したバーの右端 = <SaveBar>(帯には置かない)
 //   表の中で直接書き換える(商品マスター) → 変更したときに出る「変更を保存」(各画面のまま)
 import React from 'react';
@@ -33,12 +33,15 @@ export const CancelButton = ({ label = 'キャンセル', onClick, disabled = fa
   </button>
 );
 
-// 一覧の中で1件を編集するフォームの最後
-export const FormActions = ({ onCancel, saveLabel = '保存', loading = false, disabled = false, onSave, saveType = 'submit', children = null }) => (
-  <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-6">
-    {children}
-    {onCancel && <CancelButton onClick={onCancel} disabled={loading} />}
-    <SaveButton type={saveType} onClick={onSave} label={saveLabel} loading={loading} disabled={disabled} />
+// 一覧の中で1件を編集するフォーム: ［キャンセル］［保存］は画面下に固定したバーに出す(長いフォームでもスクロール不要)【10-10】
+export const FormActions = ({ onCancel, saveLabel = '保存', loading = false, disabled = false, onSave, saveType = 'submit', children = null, message = null }) => (
+  <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 px-8 py-4 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] backdrop-blur-md md:left-56">
+    <div className="flex w-full flex-wrap items-center justify-end gap-3">
+      {message && <div className="mr-auto text-sm font-black text-gray-900">{message}</div>}
+      {children}
+      {onCancel && <CancelButton onClick={onCancel} disabled={loading} />}
+      <SaveButton type={saveType} onClick={onSave} label={saveLabel} loading={loading} disabled={disabled} />
+    </div>
   </div>
 );
 
