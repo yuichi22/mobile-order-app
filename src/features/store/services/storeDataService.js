@@ -232,6 +232,9 @@ export const saveShopifySettings = async (storeId, settings = {}) => {
     ecSalesSyncEnabled: Boolean(settings.ecSalesSyncEnabled),
     autoSyncVariantCodes: Boolean(settings.autoSyncVariantCodes),
     autoSyncVariantPrice: Boolean(settings.autoSyncVariantPrice),
+    // 「Shopify掲載商品と同期」の対象(公開中/下書き/非公開)。画面の選択を保存して次回も使う(2026-10-10)
+    productLinkSyncStatuses: (Array.isArray(settings.productLinkSyncStatuses) ? settings.productLinkSyncStatuses : ['ACTIVE'])
+      .filter((status) => ['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(status)),
     authMode: settings.authMode || 'devDashboard',
     accessToken: deleteField(),
     updatedAt: serverTimestamp()

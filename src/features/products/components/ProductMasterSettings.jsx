@@ -4561,6 +4561,11 @@ const ProductMasterTable = ({
 };
 
 
+const normalizeSyncStatuses = (value) => {
+  const list = Array.isArray(value) && value.length > 0 ? value : ['ACTIVE'];
+  return ['ACTIVE', 'DRAFT', 'ARCHIVED'].filter((x) => list.includes(x));
+};
+
 export const ShopifySettingsPanel = ({
   storeId,
   settings,
@@ -4571,7 +4576,6 @@ export const ShopifySettingsPanel = ({
   onSyncEcOrders,
   onSaved
 }) => {
-  const [syncStatuses, setSyncStatuses] = useState(['ACTIVE']);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [syncError, setSyncError] = useState('');
@@ -4720,13 +4724,6 @@ export const ShopifySettingsPanel = ({
     }
   };
 
-  const toggleSyncStatus = (status) => {
-    setSyncStatuses((current) => (
-      current.includes(status)
-        ? current.filter((s) => s !== status)
-        : [...current, status]
-    ));
-  };
 
   const runShopifyProductLinkSync = async () => {
     if (!onSyncProductLinks || syncRunning) return;
@@ -4816,9 +4813,21 @@ export const ShopifySettingsPanel = ({
     inventorySyncEnabled: false,
     ecSalesSyncEnabled: false,
     autoSyncVariantCodes: false,
-    autoSyncVariantPrice: false
+    autoSyncVariantPrice: false,
+    productLinkSyncStatuses: ['ACTIVE']
   });
   const [saving, setSaving] = useState(false);
+
+  // 同期の対象は設定として保存する(変えると下の保存バーが出る)
+  const syncStatuses = Array.isArray(draft.productLinkSyncStatuses) ? draft.productLinkSyncStatuses : ['ACTIVE'];
+  const toggleSyncStatus = (status) => {
+    setDraft((current) => {
+      const list = Array.isArray(current.productLinkSyncStatuses) ? current.productLinkSyncStatuses : ['ACTIVE'];
+      const next = list.includes(status) ? list.filter((x) => x !== status) : [...list, status];
+      // 並びを固定して比較のぶれをなくす
+      return { ...current, productLinkSyncStatuses: ['ACTIVE', 'DRAFT', 'ARCHIVED'].filter((x) => next.includes(x)) };
+    });
+  };
 
   const baselineDraft = () => ({
     shopDomain: settings?.shopDomain || '',
@@ -4829,7 +4838,8 @@ export const ShopifySettingsPanel = ({
     inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
     ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled),
     autoSyncVariantCodes: Boolean(settings?.autoSyncVariantCodes),
-    autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice)
+    autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice),
+    productLinkSyncStatuses: normalizeSyncStatuses(settings?.productLinkSyncStatuses)
   });
 
   useEffect(() => {
@@ -4842,9 +4852,10 @@ export const ShopifySettingsPanel = ({
       inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
       ecSalesSyncEnabled: Boolean(settings?.ecSalesSyncEnabled),
       autoSyncVariantCodes: Boolean(settings?.autoSyncVariantCodes),
-      autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice)
+      autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice),
+      productLinkSyncStatuses: normalizeSyncStatuses(settings?.productLinkSyncStatuses)
     });
-  }, [settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled, settings?.autoSyncVariantCodes, settings?.autoSyncVariantPrice]);
+  }, [settings?.productLinkSyncStatuses, settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled, settings?.autoSyncVariantCodes, settings?.autoSyncVariantPrice]);
 
   const update = (patch) => {
     setDraft((current) => ({
@@ -4901,6 +4912,7 @@ export const ShopifySettingsPanel = ({
         ecSalesSyncEnabled: Boolean(draft.ecSalesSyncEnabled),
         autoSyncVariantCodes: Boolean(draft.autoSyncVariantCodes),
         autoSyncVariantPrice: Boolean(draft.autoSyncVariantPrice),
+        productLinkSyncStatuses: syncStatuses,
         authMode: 'devDashboard'
       });
       onSaved?.();
@@ -5133,7 +5145,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runShopifyProductLinkSync}
               disabled={syncRunning || !onSyncProductLinks}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-800 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition hover:bg-gray-800 disabled:opacity-60"
             >
               {syncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {syncRunning ? '同期中…（数十秒かかります）' : 'Shopifyと同期する'}
@@ -5167,7 +5179,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runInventoryReconcile}
               disabled={reconcileRunning || !onReconcileInventory}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-700 px-5 text-sm font-black text-white transition hover:bg-gray-900 disabled:opacity-60"
             >
               {reconcileRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {reconcileRunning ? '突合中…（数十秒〜数分かかります）' : '在庫の差分を確認する'}
@@ -5275,7 +5287,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={runVariantDiffReport}
               disabled={variantDiffRunning || !onReportVariantDiff}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-700 px-5 text-sm font-black text-white transition hover:bg-gray-900 disabled:opacity-60"
             >
               {variantDiffRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {variantDiffRunning ? '突合中…（数十秒〜数分かかります）' : '価格・SKU・JANの差分を確認する'}
@@ -5386,7 +5398,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={() => runEcOrdersSync(false)}
               disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-900 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition hover:bg-gray-900 disabled:opacity-60"
             >
               {ecSyncRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
               {ecSyncRunning ? '取り込み中…' : '今すぐ取り込む'}
@@ -5395,7 +5407,7 @@ export const ShopifySettingsPanel = ({
               type="button"
               onClick={() => runEcOrdersSync(true)}
               disabled={ecSyncRunning || !onSyncEcOrders || !draft.ecSalesSyncEnabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border-2 border-gray-200 bg-gray-100 px-4 text-sm font-black text-gray-900 transition hover:bg-gray-100 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-gray-100 px-4 text-sm font-black text-gray-900 transition hover:bg-gray-100 disabled:opacity-60"
             >
               直近60日をバックフィル
             </button>
