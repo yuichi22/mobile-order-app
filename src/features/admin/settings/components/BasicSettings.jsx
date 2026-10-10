@@ -251,6 +251,9 @@ const BasicSettingsInner = ({
       departments: normalizedDepartments,
       registers: normalizedRegisters
     });
+    // 即時保存の操作(レジの追加・削除・この端末のレジ選択など)は保存済み。下のバーの基準を取り直す
+    setTouched(false);
+    setTextEdited(false);
 
     return normalizedRegisters;
   };
@@ -303,10 +306,6 @@ const BasicSettingsInner = ({
         }
       ];
     });
-  };
-
-  const commitDepartmentDrafts = async () => {
-    await saveRegisterDrafts(registerDrafts, departmentDrafts);
   };
 
   // レジ追加: POSレジは3台まで契約に含まれ、4台目以降は1台ごとに月額が加算される。
@@ -442,10 +441,6 @@ const BasicSettingsInner = ({
           : register
       ))
     ));
-  };
-
-  const commitRegisterNameDraft = async () => {
-    await saveRegisterDrafts(registerDrafts, departmentDrafts);
   };
 
   const buildDepartmentRegisterSettingsPayload = () => {
@@ -807,7 +802,8 @@ const confirmDeleteCookingCategory = () => {
   );
 
   return (
-    <div className="w-full animate-in fade-in pb-32 duration-500">
+    // 触った検知はページ全体で取る(レジ・部門の欄はフォームの外にあるため、フォームだけだと取りこぼす)
+    <div className="w-full animate-in fade-in pb-32 duration-500" onInput={handleFormInput} onChangeCapture={markTouched} onPointerDownCapture={markTouched} onKeyDownCapture={markTouched}>
       {/* ページの見出し=全設定画面共通の帯(SettingsCard) */}
       <SettingsCard
         className="mb-6"
@@ -893,7 +889,6 @@ const confirmDeleteCookingCategory = () => {
                 <input
                   value={department.name || ''}
                   onChange={(event) => updateDepartmentNameDraft(department.id, event.target.value)}
-                  onBlur={commitDepartmentDrafts}
                   className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                   placeholder="例：物販"
                 />
@@ -904,7 +899,6 @@ const confirmDeleteCookingCategory = () => {
                 <select
                   value={department.registerMode || allowedRegisterModes[0]}
                   onChange={(event) => updateDepartmentRegisterModeDraft(department.id, event.target.value)}
-                  onBlur={commitDepartmentDrafts}
                   disabled={registerModeLocked}
                   className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition disabled:bg-gray-50 disabled:text-gray-400 outline-none focus:border-ui"
                 >
@@ -969,7 +963,6 @@ const confirmDeleteCookingCategory = () => {
                 <input
                   value={register.name || ''}
                   onChange={(event) => updateRegisterNameDraft(register.id, event.target.value)}
-                  onBlur={commitRegisterNameDraft}
                   className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                   placeholder="例：メインレジ"
                 />
@@ -980,7 +973,6 @@ const confirmDeleteCookingCategory = () => {
                 <select
                   value={register.departmentId || 'retail'}
                   onChange={(event) => updateRegisterDepartmentDraft(register.id, event.target.value)}
-                  onBlur={commitRegisterNameDraft}
                   className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
                 >
                   {departmentDrafts.map((department) => (
@@ -1104,7 +1096,7 @@ const confirmDeleteCookingCategory = () => {
         <LabelPrinterSettingsSection settings={settings} onDraftChange={setLabelPrinterDraft} />
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} onInput={handleFormInput} onPointerDownCapture={markTouched} onKeyDownCapture={markTouched}>
+      <form ref={formRef} onSubmit={handleSubmit}>
         <SettingSection
           title="店舗プロフィール"
           desc="画面に表示される店舗名や連絡先などの基本情報を設定します。"
