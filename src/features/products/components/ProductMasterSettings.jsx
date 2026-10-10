@@ -1,4 +1,5 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
+import { SaveButton } from '../../admin/settings/components/SaveControls';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -4918,14 +4919,7 @@ export const ShopifySettingsPanel = ({
             <option value="taxExcluded">税抜価格を同期する</option>
           </select>
 
-          <button
-            type="button"
-            onClick={saveShopifyPriceSyncMode}
-            disabled={shopifyPriceSyncLoading || shopifyPriceSyncSaving}
-            className="inline-flex h-12 items-center justify-center rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {shopifyPriceSyncSaving ? '保存中...' : '保存する'}
-          </button>
+          <SaveButton onClick={saveShopifyPriceSyncMode} loading={shopifyPriceSyncSaving} disabled={shopifyPriceSyncLoading} />
         </div>
       </div>
 
@@ -5073,15 +5067,7 @@ export const ShopifySettingsPanel = ({
         </div>
 
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-gray-700 disabled:opacity-60"
-          >
-            {saving ? <LoadingSpinner size={14} /> : <Save size={16} />}
-            Shopify設定を保存
-          </button>
+          <SaveButton onClick={save} loading={saving} />
         </div>
 
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
@@ -7625,15 +7611,7 @@ export const SimpleMasterPanel = ({
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-lg shadow-gray-200/20 transition disabled:opacity-60"
-              >
-                {saving ? <LoadingSpinner size={16} /> : <Save size={13} />}
-                新規保存
-              </button>
+              <SaveButton onClick={save} loading={saving} />
             )}
           </div>
         </div>

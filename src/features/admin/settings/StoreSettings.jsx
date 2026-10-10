@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SaveBar } from './components/SaveControls';
 import SettingsCard from './components/SettingsCard';
 import { AkutoWordmark } from '../../../shared/components/AkutoLogo';
 import {
@@ -1111,21 +1112,12 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
         icon={Percent}
         title="税・価格設定"
         meta="税率・税抜価格基準・Shopify価格同期"
-        actions={
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-black text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? '保存中...' : '保存する'}
-          </button>
-        }
       >
         <p className="max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
           Akuto POSの商品価格は税抜を基準にします。税率はこの画面でカテゴリー階層ごとに管理し、保存時に配下商品へ全上書きします。
         </p>
       </SettingsCard>
+      <SaveBar onSave={handleSave} loading={saving} />
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div>

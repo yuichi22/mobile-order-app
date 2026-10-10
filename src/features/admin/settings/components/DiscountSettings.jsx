@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FormActions } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
 import {
   AlertTriangle,
@@ -373,22 +374,8 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
               </div>
             </div>
 
-            <div className="mt-12 flex justify-end gap-4 border-t border-gray-100 pt-10">
-              <button
-                type="button"
-                onClick={cancelEditing}
-                className="rounded-xl px-8 py-4 font-bold text-gray-500 transition-colors hover:bg-gray-100 outline-none"
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="flex items-center gap-3 rounded-xl bg-gray-900 px-12 py-4 font-black text-white shadow-xl shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
-              >
-              {isProcessing ? <LoadingSpinner size={24} /> : <Save size={20} />}
-                保存する
-              </button>
+            <div className="mt-12">
+              <FormActions onCancel={cancelEditing} loading={isProcessing} disabled={false} />
             </div>
           </form>
         </div>

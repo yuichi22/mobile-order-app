@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SaveBar } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
 import { Clock3, CreditCard, MoonStar, Save, Store, SunMedium } from 'lucide-react';
 
@@ -246,23 +247,7 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
             </section>
           </div>
 
-          <div className="mt-10 flex justify-end border-t border-gray-100 pt-8">
-            <div className="flex flex-col items-end gap-3">
-              {saveError && (
-                <p className="text-sm font-bold text-red-500">
-                  {saveError}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="inline-flex items-center gap-3 rounded-xl bg-gray-900 px-12 py-4 text-lg font-black text-white shadow-xl shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95 disabled:bg-ui-100"
-              >
-              {isSaving ? <LoadingSpinner size={22} /> : <Save size={22} strokeWidth={2.5} />}
-                保存して反映
-              </button>
-            </div>
-          </div>
+          <SaveBar saveType="submit" loading={isSaving} note={saveError ? <span className="text-amber-700">{saveError}</span> : null} />
         </form>
       </div>
     </div>

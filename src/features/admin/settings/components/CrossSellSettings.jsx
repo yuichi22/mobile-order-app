@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SaveBar } from './SaveControls';
 import SettingsCard from './SettingsCard';
 import {
   doc,
@@ -1300,23 +1301,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
         </section>
       )}
 
-      <div className="sticky bottom-4 z-20 flex justify-end">
-        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white/95 p-3 shadow-2xl backdrop-blur">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-gray-900 px-6 text-sm font-black text-white shadow-lg transition-transform active:scale-95 disabled:bg-gray-300"
-          >
-            {saving ? (
-              <LoadingSpinner size={18} colorClass="text-white" />
-            ) : (
-              <Save size={18} />
-            )}
-            {saving ? '保存中...' : '設定を保存'}
-          </button>
-        </div>
-      </div>
+      <SaveBar onSave={handleSave} loading={saving} />
     </div>
   );
 };

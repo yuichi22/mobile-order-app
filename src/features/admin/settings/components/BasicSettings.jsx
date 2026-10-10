@@ -1,4 +1,5 @@
 //basicSettings.jsx
+import { SaveBar } from './SaveControls';
 import SettingsCard from './SettingsCard';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -789,17 +790,6 @@ const confirmDeleteCookingCategory = () => {
         icon={Store}
         title="基本設定"
         meta="店舗プロフィールと会計に関わる基本項目"
-        actions={
-          <button
-            type="button"
-            onClick={() => formRef.current?.requestSubmit()}
-            disabled={isSaving || !settings || cookingCategoriesLoading}
-            className="group flex shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-black text-white transition-all hover:bg-black disabled:opacity-60"
-          >
-            {isSaving ? <LoadingSpinner size={18} /> : <Save size={18} />}
-            保存
-          </button>
-        }
       />
 
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -1769,19 +1759,7 @@ const confirmDeleteCookingCategory = () => {
           </div>
         </SettingSection>
 
-        <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white/80 p-6 backdrop-blur-md md:left-72">
-          <div className="flex w-full items-center justify-end gap-4">
-            <button
-              type="submit"
-              disabled={isSaving || !settings || cookingCategoriesLoading}
-              className="group flex items-center gap-3 rounded-xl bg-gray-900 px-10 py-4 text-base font-bold text-white shadow-xl transition-all hover:bg-black"
-            >
-                  {isSaving ? <LoadingSpinner size={20} /> : <Save size={20} />}
-              <span>設定を保存</span>
-              {!isSaving && <ArrowRight size={18} className="translate-x-0 opacity-70 transition-all group-hover:translate-x-1 group-hover:opacity-100" />}
-            </button>
-          </div>
-        </div>
+        <SaveBar saveType="submit" loading={isSaving} disabled={!settings || cookingCategoriesLoading} />
       
         {showOrderOnlySettings && (
         <SettingSection
