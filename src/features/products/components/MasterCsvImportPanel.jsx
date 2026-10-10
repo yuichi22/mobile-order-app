@@ -185,7 +185,6 @@ const MasterCsvMappingModal = ({
         <div className="border-b border-gray-100 bg-ui-50/80 px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Column Mapping</p>
               <h3 className="mt-1 text-2xl font-black tracking-tight text-gray-900">{label.title} 列の紐付け</h3>
               <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
                 {fileName || 'CSVファイル'} の先頭行をヘッダーとして読み取り、Akuto項目へ紐付けます。
@@ -571,7 +570,7 @@ const MasterCsvImportPanel = ({
               className={[
                 'rounded-2xl px-4 py-2 text-xs font-black transition',
                 brandDuplicateMode === 'skip'
-                  ? 'bg-gray-900 text-white'
+                  ? 'bg-ui text-white'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               ].join(' ')}
             >

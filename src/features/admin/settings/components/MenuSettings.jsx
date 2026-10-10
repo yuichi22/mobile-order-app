@@ -1598,7 +1598,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                             onClick={() => toggleArrayValue('cookingCategoryIds', cookingCategory.id)}
                             className={`flex min-h-[52px] min-w-[120px] items-center justify-center rounded-2xl border-2 px-5 text-sm font-black transition-all ${
                               selected
-                                ? 'scale-105 border-gray-900 bg-gray-900 text-white shadow-lg'
+                                ? 'scale-105 border-ui bg-ui text-white'
                                 : 'border-gray-100 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
                             }`}
                           >
@@ -2123,11 +2123,11 @@ const handleClearLimitedQuantity = async (event, item) => {
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="flex min-h-24 flex-wrap items-center justify-between gap-4 border-b bg-ui-50/50 px-8 py-5 transition-none lg:h-24 lg:flex-nowrap lg:py-0">
             <div className="flex items-center gap-5">
-              <div className="rounded-2xl bg-gray-900 p-3 text-white shadow-xl shadow-gray-200">
+              <div className="shrink-0 rounded-2xl bg-gray-900 p-3 text-white">
                 <Utensils size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">登録済みメニュー</h3>
+                <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">メニュー設定</h3>
                 <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                   現在の登録数 / {filteredMenuItems.length}件
                 </p>
@@ -2486,9 +2486,6 @@ const handleClearLimitedQuantity = async (event, item) => {
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ui">
-            Stock
-          </p>
           <h3 className="mt-1 truncate text-xl font-black text-gray-900">
             残数設定
           </h3>

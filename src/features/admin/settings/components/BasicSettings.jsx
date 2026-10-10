@@ -58,7 +58,7 @@ const SettingSection = ({ title, desc, icon, children }) => {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ui-50 text-ui">
             <SectionIcon size={16} strokeWidth={2.5} />
           </div>
-          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+          <h3 className="text-sm font-black text-gray-900">{title}</h3>
         </div>
         <p className="pl-10 text-sm font-medium leading-relaxed text-gray-500">{desc}</p>
       </div>
@@ -782,7 +782,7 @@ const confirmDeleteCookingCategory = () => {
   );
 
   return (
-    <div className="mx-auto w-full max-w-6xl animate-in fade-in pb-32 duration-500">
+    <div className="w-full animate-in fade-in pb-32 duration-500">
       {/* ページの見出し=全設定画面共通の帯(SettingsCard) */}
       <SettingsCard
         className="mb-6"
@@ -804,10 +804,7 @@ const confirmDeleteCookingCategory = () => {
 
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
-            Register Settings
-          </p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-900">
+          <h2 className="mt-1 text-sm font-black tracking-tight text-gray-900">
             レジ設定
           </h2>
           <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">
@@ -837,10 +834,7 @@ const confirmDeleteCookingCategory = () => {
         <div className="mb-5 rounded-2xl border border-gray-100 bg-gray-50 p-4">
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">
-                Departments
-              </p>
-              <h3 className="mt-1 text-lg font-black text-gray-900">
+              <h3 className="mt-1 text-sm font-black text-gray-900">
                 部門設定
               </h3>
               <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
@@ -1020,7 +1014,7 @@ const confirmDeleteCookingCategory = () => {
                   onClick={() => handleSelectActiveRegister(register)}
                   className={`mt-3 flex h-11 w-full items-center justify-center rounded-2xl text-sm font-black transition-all active:scale-95 ${
                     active
-                      ? 'bg-gray-900 text-white'
+                      ? 'bg-ui text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-950'
                   }`}
                 >
@@ -1492,7 +1486,7 @@ const confirmDeleteCookingCategory = () => {
                   </div>
 
                   <div className="min-w-0">
-                    <h3 className="text-lg font-black text-gray-900">
+                    <h3 className="text-sm font-black text-gray-900">
                       提供モード用QRコード
                     </h3>
                     <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">
@@ -1776,7 +1770,7 @@ const confirmDeleteCookingCategory = () => {
         </SettingSection>
 
         <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white/80 p-6 backdrop-blur-md md:left-72">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-4">
+          <div className="flex w-full items-center justify-end gap-4">
             <button
               type="submit"
               disabled={isSaving || !settings || cookingCategoriesLoading}

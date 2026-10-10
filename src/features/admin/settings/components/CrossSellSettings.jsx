@@ -788,7 +788,7 @@ const FlowEditor = ({
               </span>
             </div>
 
-            <h4 className="truncate text-xl font-black text-gray-900">
+            <h4 className="truncate text-sm font-black text-gray-900">
               {selectedFlow.name || `フロー ${selectedIndex + 1}`}
             </h4>
 
@@ -1208,13 +1208,13 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
                 onClick={() => setActiveSection(tab.id)}
                 className={`rounded-2xl px-4 py-3 text-left transition-all ${
                   isActive
-                    ? 'bg-gray-900 text-white shadow-lg shadow-gray-200'
+                    ? 'bg-ui text-white' // 選択中=スチールブルー
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 <div className="text-sm font-black leading-tight">{tab.label}</div>
                 <div className={`mt-1 text-[10px] font-bold leading-snug ${
-                  isActive ? 'text-gray-300' : 'text-gray-500'
+                  isActive ? 'text-white/80' : 'text-gray-500'
                 }`}>
                   {tab.description}
                 </div>
@@ -1232,7 +1232,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
           </div>
 
           <div>
-            <h3 className="text-lg font-black text-gray-900">
+            <h3 className="text-sm font-black text-gray-900">
               カテゴリー表示設定
             </h3>
             <p className="mt-1 text-sm font-bold text-gray-500">
@@ -1257,7 +1257,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
           </div>
 
           <div>
-            <h3 className="text-lg font-black text-gray-900">
+            <h3 className="text-sm font-black text-gray-900">
               グループ設定
             </h3>
             <p className="mt-1 text-sm font-bold text-gray-500">
@@ -1282,7 +1282,7 @@ const CrossSellSettings = ({ storeId, onSaved }) => {
           </div>
 
           <div>
-            <h3 className="text-lg font-black text-gray-900">
+            <h3 className="text-sm font-black text-gray-900">
               フロー設定
             </h3>
             <p className="mt-1 text-sm font-bold text-gray-500">

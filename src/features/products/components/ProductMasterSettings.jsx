@@ -3813,9 +3813,6 @@ const ProductMasterTable = ({
             <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
-                    Stock Movements
-                  </p>
                   <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">
                     入出庫履歴
                   </h3>
@@ -3892,9 +3889,6 @@ const ProductMasterTable = ({
             <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
-                    Inventory Adjustment
-                  </p>
                   <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">
                     在庫調整
                   </h3>
@@ -4024,7 +4018,6 @@ const ProductMasterTable = ({
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/55 px-5 py-10 backdrop-blur-sm">
           <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-2xl">
             <div className="border-b border-gray-100 bg-gray-50 px-6 py-5">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Label Print</p>
               <h3 className="mt-1 text-xl font-black tracking-tight text-gray-900">ラベル印刷</h3>
               <p className="mt-1 truncate text-xs font-bold text-gray-500">
                 {labelQtyModalProduct.name || labelQtyModalProduct.productGroupName || labelQtyModalProduct.sku || labelQtyModalProduct.id}
@@ -4908,8 +4901,7 @@ export const ShopifySettingsPanel = ({
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">Price Sync</p>
-          <h4 className="mt-2 text-lg font-black text-gray-900">Shopifyへ同期する価格</h4>
+          <h4 className="mt-2 text-sm font-black text-gray-900">Shopifyへ同期する価格</h4>
           <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             Akuto POSの税抜価格を基準に、Shopifyへ送る価格を税込・税抜のどちらにするかを設定します。
           </p>
@@ -5323,7 +5315,7 @@ export const ShopifySettingsPanel = ({
                     type="button"
                     onClick={() => setVariantDiffFilter(key)}
                     className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${
-                      variantDiffFilter === key ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 hover:text-gray-800'
+                      variantDiffFilter === key ? 'bg-ui text-white' : 'bg-white text-gray-500 hover:text-gray-800'
                     }`}
                   >
                     {label}
@@ -6009,7 +6001,7 @@ const ClassificationChoiceButton = ({
           ? 'hover:border-gray-900 hover:bg-gray-900 hover:text-white'
           : 'hover:border-ui-100 hover:bg-ui-50 hover:text-gray-950',
       active
-        ? 'border-gray-900 bg-gray-900 text-white shadow-lg shadow-gray-900/10'
+        ? 'border-ui bg-ui text-white shadow-gray-900/10'
         : 'border-gray-200 bg-white text-gray-800'
     )}
   >
@@ -6178,7 +6170,6 @@ const ProductClassificationControl = forwardRef(({
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">Product Classification</p>
             <h3 className="mt-1 text-xl font-black text-gray-900">商品分類を選択</h3>
             <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
               売場から順番に選ぶと、候補が自動で絞り込まれます。

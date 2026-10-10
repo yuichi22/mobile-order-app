@@ -345,7 +345,7 @@ const CsvImportStepCard = ({
           {number}
         </div>
         <div className="min-w-0">
-          <h3 className="text-lg font-black tracking-tight text-gray-900">{title}</h3>
+          <h3 className="text-sm font-black tracking-tight text-gray-900">{title}</h3>
           <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">{description}</p>
         </div>
       </div>
@@ -369,8 +369,7 @@ const CsvImportStepCard = ({
 const EcIntegrationComingSoonPanel = ({ title }) => (
   <section className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
     <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-5 py-8 text-center">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Coming Soon</p>
-      <h3 className="mt-2 text-xl font-black text-gray-900">{title}連携</h3>
+      <h3 className="mt-2 text-sm font-black text-gray-900">{title}連携</h3>
       <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
         このEC連携は今後の拡張用タブです。まずはShopify連携を完成させてから、同じproductGroup / SKU構造を使って順番に対応します。
       </p>
@@ -839,8 +838,7 @@ const CategoryTaxRulePanel = ({
   return (
     <div className="rounded-3xl border border-gray-200 bg-gray-50 p-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Tax Rule</p>
-        <h4 className="mt-2 text-lg font-black text-gray-900">{title}</h4>
+        <h4 className="mt-2 text-sm font-black text-gray-900">{title}</h4>
         <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">{description}</p>
       </div>
 
@@ -1131,8 +1129,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Tax Rates</p>
-          <h3 className="mt-2 text-xl font-black text-gray-900">使用する税率</h3>
+          <h3 className="mt-2 text-sm font-black text-gray-900">使用する税率</h3>
           <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             ここで決めた税率を、会計・レシート・粗利計算・商品マスタのすべてで使います。
             税率が改定されたときはこの値を変更してください（酒税などの個別税は商品価格に含めて扱います）。
@@ -1186,8 +1183,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Rounding</p>
-        <h3 className="mt-2 text-xl font-black text-gray-900">消費税の端数処理</h3>
+        <h3 className="mt-2 text-sm font-black text-gray-900">消費税の端数処理</h3>
         <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
           1円未満の消費税の扱いです。会計・レシート・日計はこのルールで計算します。
           商品・メニューの登録価格は税込として扱います（表示は総額表示に合わせています）。
@@ -1211,8 +1207,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       {showPos && (
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Category Tax Rules</p>
-          <h3 className="mt-2 text-xl font-black text-gray-900">カテゴリー別税率</h3>
+          <h3 className="mt-2 text-sm font-black text-gray-900">カテゴリー別税率</h3>
           <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
             カテゴリーグループ、カテゴリー、サブカテゴリーごとに税率を設定します。保存すると、対象配下の商品 taxRate と参考税込価格を全上書きします。
           </p>
@@ -1285,8 +1280,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
 
       {showOrder && (
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Cost Default</p>
-        <h3 className="mt-2 text-xl font-black text-gray-900">
+        <h3 className="mt-2 text-sm font-black text-gray-900">
           {bothModes ? '原価の既定（ORDERメニュー）' : '原価の既定'}
         </h3>
         <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
@@ -1329,8 +1323,7 @@ const TaxPriceSettings = ({ storeId, productMaster, onSaved }) => {
       )}
 
       <div className="rounded-[2rem] border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Invoice</p>
-        <h3 className="mt-2 text-xl font-black text-gray-900">インボイス登録番号</h3>
+        <h3 className="mt-2 text-sm font-black text-gray-900">インボイス登録番号</h3>
         <p className="mt-2 text-sm font-bold leading-relaxed text-gray-500">
           レシートに「登録番号 T…」として印字されます。
         </p>
@@ -1860,8 +1853,7 @@ const CsvImportWorkflowPanel = ({
 }) => (
   <div className="space-y-5">
     <div className="rounded-[2rem] border border-ui-100 bg-white p-6 shadow-sm">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">CSV Import Workflow</p>
-      <h2 className="mt-2 text-2xl font-black tracking-tight text-gray-900">CSV取込の順番</h2>
+      <h2 className="mt-2 text-sm font-black tracking-tight text-gray-900">CSV取込の順番</h2>
       <p className="mt-3 max-w-3xl text-sm font-bold leading-relaxed text-gray-500">
         商品CSVを正しく紐づけるために、先に補助マスターを登録します。推奨順は、仕入先 → ブランド → カテゴリーグループ/カテゴリー/サブカテゴリー → 商品です。
       </p>
@@ -2280,7 +2272,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
             <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
               {activeTab?.label}
             </p>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-gray-900">
+            <h2 className="mt-2 text-sm font-black tracking-tight text-gray-900">
               {activeTab?.label}
             </h2>
             <p className="mt-3 text-sm font-bold leading-relaxed text-gray-500">
@@ -2322,19 +2314,7 @@ const TimeSettings = ({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl border border-ui-100 bg-white p-4 shadow-sm">
-        <div className="mb-4">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-ui">
-            Time Settings
-          </p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-900">
-            時間帯設定
-          </h2>
-          <p className="mt-1 text-sm font-bold leading-relaxed text-gray-500">
-            提供時間帯と営業時間をまとめて管理します。
-          </p>
-        </div>
-
+      <SettingsCard icon={Clock} title="時間帯設定" meta="提供時間帯と営業時間をまとめて管理" bodyClassName="p-4">
         <div className="grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
           {tabs.map((tab) => {
             const active = activeTimeTab === tab.id;
@@ -2360,7 +2340,7 @@ const TimeSettings = ({
             );
           })}
         </div>
-      </div>
+      </SettingsCard>
 
       {activeTimeTab === 'period' ? (
         <PeriodSettings
@@ -2825,8 +2805,7 @@ const CsvExportWorkflowPanel = ({ storeId, productMaster }) => {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-ui">CSV Export</p>
-        <h2 className="text-2xl font-black tracking-tight text-gray-900">CSV出力</h2>
+        <h2 className="text-sm font-black tracking-tight text-gray-900">CSV出力</h2>
         <p className="text-sm leading-relaxed text-gray-500">
           取込と同じ項目で現在のマスターをCSV出力します。カテゴリー階層CSVはカテゴリーグループ・カテゴリー・サブカテゴリーを1本にまとめ、商品CSVは仕入先が商品側に無い場合にブランド側の仕入先名を補完します。
         </p>

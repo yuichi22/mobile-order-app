@@ -713,7 +713,6 @@ const StocktakePage = ({ storeId }) => {
 
         {lookupState === 'found' && scannedProduct && (
           <div className="rounded-3xl border border-gray-200 bg-white p-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">Scanned</p>
             <h2 className="mt-1 text-lg font-black text-gray-900">{scannedProduct.name || '名称未設定'}</h2>
             <div className="mt-3 space-y-1 text-sm font-bold text-gray-500">
               <p>品番: {scannedProduct.sku || scannedProduct.productCode || '-'}</p>

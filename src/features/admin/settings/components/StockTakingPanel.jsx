@@ -255,7 +255,7 @@ const StockTakingPanel = ({ storeId }) => {
   return (
     <div className="mt-5 space-y-5">
       <div className="rounded-3xl border border-gray-200 bg-white p-6">
-        <h3 className="text-lg font-black text-gray-900">棚卸しの進め方</h3>
+        <h3 className="text-sm font-black text-gray-900">棚卸しの進め方</h3>
         <ol className="mt-3 space-y-2 text-sm font-bold leading-relaxed text-gray-600">
           <li>1. まず倉庫の在庫をスキャンしてカウントします。</li>
           <li>2. 売場の在庫もスキャンしてカウントします。カウントしてから1時間、その商品が売れなければそのまま確定します。</li>

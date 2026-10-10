@@ -176,7 +176,7 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <SettingsCardHeader
             icon={Clock}
-            title={'時間帯設定'}
+            title={'提供時間帯'}
             meta={<>現在の登録数 / {periods.length}件</>}
             actions={<><button onClick={startCreating} className="flex items-center gap-3 whitespace-nowrap rounded-xl bg-gray-900 px-6 py-3.5 font-black text-white shadow-xl shadow-gray-200 transition-colors hover:bg-gray-800 active:scale-95 outline-none">
               <Plus size={20} strokeWidth={3} />

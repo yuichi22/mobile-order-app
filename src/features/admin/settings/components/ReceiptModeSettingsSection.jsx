@@ -220,7 +220,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
             <Printer size={22} />
           </div>
           <div>
-            <h3 className="text-lg font-black tracking-tight text-gray-900">レシート設定（レジモード別）</h3>
+            <h3 className="text-sm font-black tracking-tight text-gray-900">レシート設定（レジモード別）</h3>
             <p className="mt-0.5 text-xs font-bold text-gray-500">
               POSレジ・ORDERレジで、印刷方式・プリンタ・自動印刷・文言を分けて設定できます。上部またはフッターの「保存」で保存されます。
             </p>
@@ -235,7 +235,7 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
             type="button"
             onClick={() => setActiveMode(tab.id)}
             className={`h-9 rounded-full px-5 text-sm font-black transition-all ${
-              activeMode === tab.id ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              activeMode === tab.id ? 'bg-ui text-white' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             {tab.label}

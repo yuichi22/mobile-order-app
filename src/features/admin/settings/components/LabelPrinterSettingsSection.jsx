@@ -82,7 +82,7 @@ const LabelPrinterSettingsSection = ({ settings, onDraftChange }) => {
           <Barcode size={22} />
         </div>
         <div>
-          <h3 className="text-lg font-black tracking-tight text-gray-900">ラベルプリンタ設定（バーコード）</h3>
+          <h3 className="text-sm font-black tracking-tight text-gray-900">ラベルプリンタ設定（バーコード）</h3>
           <p className="mt-0.5 text-xs font-bold text-gray-500">
             東芝テック B-EV4T（LAN）へ印刷ブリッジ経由でバーコードラベルを印刷します。上部またはフッターの「保存」で保存されます。
           </p>
