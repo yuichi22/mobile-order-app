@@ -1,4 +1,5 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
+import { SettingsCardHeader } from '../../admin/settings/components/SettingsCard';
 import { CancelButton, ChangesBar, SaveButton } from '../../admin/settings/components/SaveControls';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -6413,6 +6414,8 @@ export const SimpleMasterPanel = ({
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
   const [sortEditMode, setSortEditMode] = useState(false);
   const [sortDraftItems, setSortDraftItems] = useState([]);
+  // 一覧を先に出し、追加・編集のときだけフォームに切り替える(割引・カテゴリーなどと同じ型)【10-10】
+  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     setEditingId('');
@@ -6423,6 +6426,7 @@ export const SimpleMasterPanel = ({
     setSelectedSnapshot(null);
     setSortEditMode(false);
     setSortDraftItems([]);
+    setFormOpen(false);
   }, [label]);
 
   const filteredItems = useMemo(() => {
@@ -6482,6 +6486,7 @@ export const SimpleMasterPanel = ({
     setDraft(nextDraft);
     setSelectedSnapshot(nextDraft);
     setIsEditing(false);
+    setFormOpen(true);
   };
 
   const reset = () => {
@@ -6493,6 +6498,16 @@ export const SimpleMasterPanel = ({
 
   const clearSelection = () => {
     reset();
+  };
+
+  const openCreate = () => {
+    reset();
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    reset();
+    setFormOpen(false);
   };
 
   const cancelEdit = () => {
@@ -6686,6 +6701,7 @@ export const SimpleMasterPanel = ({
       } else {
         reset();
       }
+      setFormOpen(false);
 
       onSaved?.();
     } finally {
@@ -7616,15 +7632,21 @@ export const SimpleMasterPanel = ({
   ), document.body) : null;
 
   return (
-    <div className="grid min-h-0 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-      <div className="max-h-[calc(100vh-15rem)] overflow-y-auto rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm xl:sticky xl:top-[9rem] xl:self-start">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-black text-gray-900">{editingId ? `${label}を編集` : `${label}を新規作成`}</div>
-            <p className="mt-0.5 text-[11px] font-bold text-gray-500">左フォームは新規作成が基本です。右の一覧から選択するとそのまま編集でき、変更すると保存できます。</p>
-          </div>
-        </div>
-
+    <div className="min-h-0 space-y-6">
+      {formOpen && (
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <SettingsCardHeader
+          icon={null}
+          title={editingId ? `${label}を編集` : `新しい${label}を追加`}
+          meta={editingId ? (draft.name || '') : null}
+          actions={
+            <button type="button" onClick={closeForm} className="flex h-11 items-center gap-2 rounded-full px-4 text-sm font-black text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-900" aria-label="閉じる">
+              <span>閉じる</span>
+              <X size={20} />
+            </button>
+          }
+        />
+        <div className="p-8">
         <div className="space-y-4">
           {fields.map((field) => (
             field.type === 'taxRateSelect' ? (
@@ -7996,21 +8018,33 @@ export const SimpleMasterPanel = ({
 
         {/* 一覧の中で1件を編集する型: フォームの最後に［キャンセル］［保存］【10-10】 */}
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-6">
-          {editingId && (
-            <CancelButton label={isDirty ? 'キャンセル' : '選択解除'} onClick={isDirty ? cancelEdit : clearSelection} disabled={saving} />
-          )}
+          <CancelButton onClick={closeForm} disabled={saving} />
           <SaveButton onClick={save} loading={saving} disabled={editingId ? !isDirty : false} />
         </div>
 
       </div>
+      </div>
+      )}
 
-      <div className="min-h-0 min-w-0 overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
-        <div className="sticky top-0 z-10 space-y-3 border-b border-gray-100 bg-white px-5 py-4">
+      {!formOpen && (
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        {/* 見出し=設定画面共通の帯の形(タイトル＋件数・右に主ボタン) */}
+        <div className="sticky top-0 z-10 space-y-4 border-b bg-[#F7F9FB] px-8 py-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-base font-black text-gray-900">{label}一覧</div>
-            <div className="rounded-2xl bg-gray-50 px-3 py-1.5 text-xs font-black text-gray-500">
-              {filteredItems.length.toLocaleString()} / {items.length.toLocaleString()}件
+            <div className="min-w-0">
+              <h3 className="text-xl font-black leading-tight tracking-tight text-gray-900">{label}</h3>
+              <div className="mt-0.5 text-[11px] font-black tracking-[0.12em] text-gray-500">
+                {filteredItems.length.toLocaleString()} / {items.length.toLocaleString()}件
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gray-900 px-5 text-sm font-black text-white transition-colors hover:bg-gray-800 active:scale-95"
+            >
+              <Plus size={18} strokeWidth={3} />
+              新しい{label}を追加
+            </button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -8136,6 +8170,7 @@ export const SimpleMasterPanel = ({
           )}
         </div>
       </div>
+      )}
 
       {brandMergeModalNode}
       <ChangesBar dirty={sortOrderDirty} loading={saving && sortOrderDirty} onSave={saveSortOrder} onDiscard={discardSortOrder} message={`${label}の並び順を変更しました`} />

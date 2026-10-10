@@ -2267,7 +2267,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
                 onClick={() => selectDummyTab(tab.id)}
                 className={`rounded-xl px-4 py-3 text-sm font-black transition-all ${
                   isActive
-                    ? 'bg-white text-ui shadow-sm'
+                    ? 'bg-ui text-white' // 選択中=スチールブルー(設定画面共通)
                     : 'text-gray-500 hover:bg-white/70 hover:text-gray-800'
                 }`}
               >
@@ -2336,8 +2336,8 @@ const TimeSettings = ({
                 onClick={() => setActiveTimeTab(tab.id)}
                 className={`rounded-xl px-4 py-3 text-left transition-all ${
                   active
-                    ? 'bg-white text-ui shadow-sm'
-                    : 'text-gray-500 hover:bg-white/60 hover:text-gray-600'
+                    ? 'bg-ui text-white'
+                    : 'text-gray-500 hover:bg-white/60 hover:text-gray-900'
                 }`}
               >
                 <div className="text-sm font-black">
