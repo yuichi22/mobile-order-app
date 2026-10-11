@@ -2255,8 +2255,9 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
       {/* ページの見出し=全設定画面共通の帯(SettingsCard)。スクロールしても上に残す */}
       <SettingsCard className="sticky top-0 z-30" icon={Icon} title={page.title} meta={page.description} />
 
-      <div className="sticky top-[6.75rem] z-30 rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm shadow-gray-200/50">
-        <div className="flex flex-wrap gap-2 rounded-2xl bg-gray-100 p-1.5">
+      <div className="sticky top-[6.75rem] z-30 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        {/* 画面の中の切り替え=丸ボタン(全アプリ共通・区切りボタンは使わない)【AKUTOブランド基準 10-11】 */}
+        <div className="flex flex-wrap gap-2">
           {page.tabs.map((tab) => {
             const isActive = activeTab?.id === tab.id;
 
@@ -2265,10 +2266,10 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
                 key={tab.id}
                 type="button"
                 onClick={() => selectDummyTab(tab.id)}
-                className={`rounded-xl px-4 py-3 text-sm font-black transition-all ${
+                className={`inline-flex h-10 items-center rounded-full px-5 text-sm font-black transition active:scale-95 ${
                   isActive
                     ? 'bg-ui text-white' // 選択中=スチールブルー(設定画面共通)
-                    : 'text-gray-500 hover:bg-white/70 hover:text-gray-800'
+                    : 'border-2 border-gray-200 bg-white text-gray-700 hover:border-gray-400'
                 }`}
               >
                 {tab.label}
@@ -2325,7 +2326,7 @@ const TimeSettings = ({
   return (
     <div className="space-y-5">
       <SettingsCard icon={Clock} title="時間帯設定" meta="提供時間帯と営業時間をまとめて管理" bodyClassName="p-4">
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
+        <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => {
             const active = activeTimeTab === tab.id;
 
@@ -2334,22 +2335,21 @@ const TimeSettings = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTimeTab(tab.id)}
-                className={`rounded-xl px-4 py-3 text-left transition-all ${
+                title={tab.description}
+                className={`inline-flex h-10 items-center rounded-full px-5 text-sm font-black transition active:scale-95 ${
                   active
                     ? 'bg-ui text-white'
-                    : 'text-gray-500 hover:bg-white/60 hover:text-gray-900'
+                    : 'border-2 border-gray-200 bg-white text-gray-700 hover:border-gray-400'
                 }`}
               >
-                <div className="text-sm font-black">
-                  {tab.label}
-                </div>
-                <div className="mt-1 hidden text-[11px] font-bold leading-relaxed opacity-70 md:block">
-                  {tab.description}
-                </div>
+                {tab.label}
               </button>
             );
           })}
         </div>
+        <p className="mt-3 text-xs font-bold leading-relaxed text-gray-500">
+          {tabs.find((tab) => tab.id === activeTimeTab)?.description}
+        </p>
       </SettingsCard>
 
       {activeTimeTab === 'period' ? (
