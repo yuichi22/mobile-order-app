@@ -8112,7 +8112,7 @@ export const SimpleMasterPanel = ({
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-15rem)] divide-y divide-gray-100 overflow-y-auto">
+        <div className="divide-y divide-gray-100">
           {displayItems.length === 0 ? (
             <div className="p-8 text-sm font-bold text-gray-500">
               {items.length === 0 ? 'まだ登録されていません。' : '検索条件に一致するデータがありません。'}

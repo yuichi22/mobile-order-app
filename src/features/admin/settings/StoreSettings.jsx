@@ -2255,7 +2255,8 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
       {/* ページの見出し=全設定画面共通の帯(SettingsCard)。スクロールしても上に残す */}
       <SettingsCard className="sticky top-0 z-30" icon={Icon} title={page.title} meta={page.description} />
 
-      <div className="sticky top-[6.75rem] z-30 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      {/* スクロールは画面全体の1つだけ(中の一覧に高さ制限を付けない=二重スクロールにしない)。上に残すのは見出しの帯だけ【10-11】 */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         {/* 画面の中の切り替え=丸ボタン(全アプリ共通・区切りボタンは使わない)。下のブロックとは20px空ける【AKUTOブランド基準 10-11】 */}
         <div className="mb-5 flex flex-wrap gap-2">
           {page.tabs.map((tab) => {
