@@ -204,6 +204,41 @@ export const receiveCheckoutRequest = onRequest(
   }
 );
 
+// ── Core(ポータルの配信)からの売り場マスタ照会 ──────────────────────────
+// ポイントアップの「対象売り場」の候補を、売上の実績ではなく POS の売り場マスタ
+// (stores/{storeId}/productSalesAreas)から出すためのS2S(2026-10-11)。
+// 売上がまだ無い店(suomi izumo 等)でも売り場を選べるようにする。認証・拠点逆引きは lookupPosProduct と同じ。
+export const listPosSalesAreas = onRequest(
+  { region: REGION, cors: false, invoker: "public" },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+    const secret = str(process.env.CORE_SALES_SECRET);
+    const authz = req.get("authorization") || "";
+    const bearer = authz.startsWith("Bearer ") ? authz.slice("Bearer ".length) : "";
+    if (!secret || !safeEqual(bearer, secret)) return res.status(401).json({ ok: false, error: "unauthorized" });
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const tenantId = str(body.tenantId);
+    const spaceId = str(body.spaceId);
+    if (!tenantId || !spaceId) return res.status(400).json({ ok: false, error: "invalid_request" });
+    try {
+      const linkSnap = await db.collection("coreLinks").doc(`${tenantId}__${spaceId}`).get();
+      const storeId = str(linkSnap.data()?.storeId);
+      if (!linkSnap.exists || !storeId) return res.status(404).json({ ok: false, error: "space_not_linked" });
+      const snap = await db.collection("stores").doc(storeId).collection("productSalesAreas").get();
+      const areas = snap.docs
+        .map((d) => ({ id: d.id, name: str(d.data()?.name), sortOrder: Number(d.data()?.sortOrder ?? 0) || 0, archived: d.data()?.isArchived === true }))
+        .filter((a) => a.name && !a.archived)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "ja"))
+        .map((a) => ({ id: a.id, name: a.name }));
+      return res.json({ ok: true, areas });
+    } catch (e) {
+      console.error("[listPosSalesAreas] error:", e);
+      return res.status(500).json({ ok: false, error: "internal" });
+    }
+  }
+);
+
 // ── Core(メガネカルテ)からの商品バーコード照会 ─────────────────────────
 // カルテ入力でフレーム等をスキャン→POS商品マスタからブランド・品番・価格を自動入力するためのS2S。
 // 認証・拠点逆引きは receiveCheckoutRequest と同じ(Bearer CORE_SALES_SECRET / coreLinks)。

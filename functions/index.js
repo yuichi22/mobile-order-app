@@ -9049,7 +9049,7 @@ export { refreshEntitlements } from "./entitlements.js";
 export { provisionStoreForSpace, onProvisionInviteUsed } from "./provisioning.js";
 
 // --- 会計依頼伝票 (groom「作業完了・お会計」→POSレジへの伝票受け口) ---
-export { receiveCheckoutRequest, lookupPosProduct } from "./checkoutRequests.js";
+export { receiveCheckoutRequest, lookupPosProduct, listPosSalesAreas } from "./checkoutRequests.js";
 
 // 拠点で使用中のレジ台数を Core(課金)へ通知する
 export { onBasicSettingsWriteSyncAppOptions } from "./appOptions.js";
