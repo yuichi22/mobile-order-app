@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, setDoc, whe
 import { Plus, Search, Star, X } from 'lucide-react';
 import { db } from '../../../shared/api/firebase/client';
 import { normalizeScannedCode } from '../../../shared/utils/halfWidth';
+import SearchField from '../../../shared/components/SearchField';
 
 // POSレジの「お気に入り(よく売る商品)」モーダル。
 // - 店舗共通(Firestore: stores/{id}/posShared/favorites.productIds) と
@@ -279,20 +280,17 @@ export const PosFavoritesModal = ({ storeId, open, onClose, onPickProduct }) => 
         <div className="fixed inset-0 z-[130] flex items-start justify-center bg-gray-900/40 p-5 pt-16 backdrop-blur-sm">
           <div className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex shrink-0 items-center gap-2 border-b border-gray-100 p-4">
-              <div className="relative flex-grow">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-                <input
-                  autoFocus
-                  value={searchTerm}
-                  onChange={(event) => {
-                    const value = normalizeScannedCode(event.target.value);
-                    setSearchTerm(value);
-                    runSearch(value);
-                  }}
-                  placeholder="商品名 / バーコード / 品番 で検索"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-10 pr-3 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-                />
-              </div>
+              <SearchField
+                className="flex-grow"
+                autoFocus
+                value={searchTerm}
+                onChange={(raw) => {
+                  const value = normalizeScannedCode(raw);
+                  setSearchTerm(value);
+                  runSearch(value);
+                }}
+                placeholder="商品名 / バーコード / 品番 で検索"
+              />
               <button
                 type="button"
                 onClick={closeSearch}

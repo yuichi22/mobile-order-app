@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, Plus, Camera } from 'lucide-react';
+import SearchField from '../../../shared/components/SearchField';
 
 // ブランド候補モーダル(モバイル)。ブランドタグ撮影・候補(製造元/品番/名称一致)・全ブランド検索・
 // 新規作成でブランドを確定する。onSelect(brand) / onCreate(name)->Promise<brand> / onScanBrandTag() を呼ぶ。
@@ -73,12 +74,7 @@ export default function MobileBrandPickModal({ open, brands, candidates, default
             </div>
           )}
 
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="ブランド名で検索 / 新規作成名を入力"
-            className="border-2 border-gray-200 bg-white hover:border-gray-300 mb-2 h-11 w-full rounded-xl px-3 text-base outline-none focus:border-ui"
-          />
+          <SearchField className="mb-2" value={keyword} onChange={setKeyword} placeholder="ブランド名で検索 / 新規作成名を入力" />
 
           <div className="space-y-1">
             {filtered.map((b) => (

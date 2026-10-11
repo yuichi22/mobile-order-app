@@ -13,6 +13,7 @@ import {
   setCrmMemberPhone,
   undoCrmMemberPhone
 } from '../services/crmMemberDirectoryService';
+import SearchField from '../../../shared/components/SearchField';
 
 // 既存会員の検索 → 携帯番号を主番号に登録 → 手動でのポイント付与（紙のカードなどからの移行）。
 // ポイントカードのご案内を始める前に必要になる店頭作業をここ1枚にまとめる。
@@ -801,16 +802,7 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
               onSubmit={(e) => { e.preventDefault(); runSearch(); }}
               className="flex shrink-0 items-center gap-2 px-5 py-3"
             >
-              <div className="relative min-w-0 flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  autoFocus
-                  placeholder="例: 0852211234 / 石原 / いしはら 東朝日町"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-9 pr-3 text-sm font-bold outline-none focus:border-ui"
-                />
-              </div>
+              <SearchField className="min-w-0 flex-1" value={q} onChange={setQ} autoFocus placeholder="例: 0852211234 / 石原 / いしはら 東朝日町" />
               <button
                 type="submit"
                 disabled={searching}

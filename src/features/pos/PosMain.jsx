@@ -2730,7 +2730,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           <div className="flex-1 rounded-xl bg-white px-4 py-3.5 shadow-sm">
             <form onSubmit={handleScanSubmit} className="flex items-center gap-2">
               <div className="relative flex-grow">
-                <Barcode className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                <Barcode className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   ref={inputRef}
                   type="text"
@@ -2738,7 +2738,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
                   onChange={(event) => { if (scanCandidates.length > 0) setScanCandidates([]); setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value)); }}
                   onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-lg pl-9 pr-10 text-base outline-none focus:border-ui"
+                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-11 pr-11 text-base font-bold outline-none focus:border-ui"
                   placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
                 {(scanInput !== '' || scanCandidates.length > 0) && (
@@ -2746,10 +2746,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => { setScanInput(''); setSearchResults([]); setScanCandidates([]); }}
-                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-600"
-                    aria-label="クリア"
+                    className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center"
+                    aria-label="検索語を消す"
                   >
-                    <X size={16} />
+                    {/* 検索窓の×は全アプリ共通の形(SearchField と同じ)【AKUTOブランド基準 10-11】 */}
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900">
+                      <X size={14} strokeWidth={2.5} />
+                    </span>
                   </button>
                 )}
                 {(scanCandidates.length > 0 || (registerMode === 'pos' && scanInput.trim().length >= 2 && (searchLoading || searchResults.length > 0))) && (

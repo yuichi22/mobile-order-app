@@ -37,6 +37,7 @@ import { subscribeToActiveStocktake } from '../../inventory/services/stocktakeDa
 import HangTagScanButton from './HangTagScanButton';
 import MobileHandoffQRButton from './MobileHandoffQRButton';
 import LabelPrintQueueRunner from './LabelPrintQueueRunner';
+import SearchField from '../../../shared/components/SearchField';
 
 const PRODUCT_MASTER_HEADER_SEARCH_LIMIT = 200;
 const PRODUCT_MASTER_HEADER_CANDIDATE_LIMIT = 500;
@@ -5751,13 +5752,7 @@ const PosModalSelect = ({
 
           {!createMode && (
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder={searchPlaceholder}
-                autoFocus
-                className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 min-w-0 flex-1 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-              />
+              <SearchField className="min-w-0 flex-1" value={keyword} onChange={setKeyword} placeholder={searchPlaceholder} autoFocus />
               {(onCreate || onCreateSave) && (
                 <button
                   type="button"
@@ -7510,12 +7505,7 @@ export const SimpleMasterPanel = ({
                   表記が違って候補に出ない重複（例: goodyear と グッドイヤー）は、ここで2つ以上選んで統合できます。
                 </p>
 
-                <input
-                  value={manualBrandKeyword}
-                  onChange={(event) => setManualBrandKeyword(event.target.value)}
-                  placeholder="ブランド名・かなで検索して追加"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-3 h-11 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-                />
+                <SearchField className="mt-3" value={manualBrandKeyword} onChange={setManualBrandKeyword} placeholder="ブランド名・かなで検索して追加" />
 
                 {manualBrandKeyword.trim() !== '' && (
                   <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/60 p-2">
@@ -8064,12 +8054,7 @@ export const SimpleMasterPanel = ({
             </button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder={`${label}を検索`}
-              className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 min-w-0 flex-1 rounded-2xl px-4 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-            />
+            <SearchField className="min-w-0 flex-1" value={keyword} onChange={setKeyword} placeholder={`${label}を検索`} />
             {label === 'ブランド' && productSalesAreas.length > 0 && (
               <select
                 value={salesAreaFilter}

@@ -22,6 +22,7 @@ import {
   buildReversalItems,
   buildReversalTransaction
 } from './corrections/correctionModel';
+import SearchField from '../../shared/components/SearchField';
 
 const formatInvoiceNumber = (value) => {
   const normalized = String(value || '').trim();
@@ -4553,26 +4554,14 @@ export const PosTransactionHistory = ({
               </div>
 
               {/* ワード（右端にクリアのバツ） */}
-              <div className="relative mb-3">
-                <input
-                  type="text"
-                  value={searchWord}
-                  onChange={(e) => setSearchWord(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') executeHistorySearch(); }}
-                  placeholder="商品名・バーコード・金額・伝票ID"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl py-2.5 pl-3 pr-9 text-sm font-bold text-gray-800 outline-none focus:border-ui"
-                />
-                {searchWord && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchWord('')}
-                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    aria-label="ワードをクリア"
-                  >
-                    <XCircle size={16} />
-                  </button>
-                )}
-              </div>
+              {/* Enter で検索(日本語変換の確定の Enter では検索しない) */}
+              <SearchField
+                className="mb-3"
+                value={searchWord}
+                onChange={setSearchWord}
+                onSubmit={() => executeHistorySearch()}
+                placeholder="商品名・バーコード・金額・伝票ID"
+              />
 
               {/* 支払方法での絞り込みは検索結果(右ペイン)の すべて/現金/カード/QR トグルで行う。 */}
 

@@ -36,6 +36,7 @@ import {
   normalizePhotoLabelColor,
   resolvePhotoLabelStyle
 } from '../../../../shared/constants/photoLabelColors';
+import SearchField from '../../../../shared/components/SearchField';
 
 const getPhotoLabelClassName = (labelSize = 'md') => {
   const sizeMap = {
@@ -2138,25 +2139,7 @@ const handleClearLimitedQuantity = async (event, item) => {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <div className="relative">
-                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
-                <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="商品名で検索"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-[220px] rounded-xl pl-11 pr-10 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-                />
-                {keyword.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setKeyword('')}
-                    className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 hover:text-gray-600 active:scale-95"
-                    aria-label="検索文字を消す"
-                  >
-                    <X size={14} strokeWidth={3} />
-                  </button>
-                )}
-              </div>
+              <SearchField className="w-[240px]" value={keyword} onChange={setKeyword} placeholder="商品名で検索" />
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(true)}

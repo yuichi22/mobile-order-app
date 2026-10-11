@@ -639,22 +639,24 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             <div className="flex min-w-0 justify-end gap-3">
               {activeAdminTab === 'settings' && registerMode === 'pos' ? (
                 <div className="relative w-full max-w-sm">
-                  <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
+                  <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     value={posSettingsProductKeyword}
                     onChange={(event) => setPosSettingsProductKeyword(event.target.value)}
                     onKeyDown={handleProductSearchScanKeyDown}
                     placeholder="商品検索"
-                    className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white pl-11 pr-11 text-sm font-bold text-gray-700 outline-none transition hover:border-gray-300 focus:border-ui"
+                    className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white pl-11 pr-11 text-base font-bold text-gray-900 outline-none transition placeholder:text-gray-400 hover:border-gray-300 focus:border-ui"
                   />
                   {posSettingsProductKeyword && (
                     <button
                       type="button"
                       onClick={clearPosProductKeyword}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 active:scale-95"
-                      aria-label="検索キーワードをクリア"
+                      className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center"
+                      aria-label="検索語を消す"
                     >
-                      <X size={16} strokeWidth={2.7} />
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900">
+                        <X size={14} strokeWidth={2.5} />
+                      </span>
                     </button>
                   )}
                 </div>

@@ -33,6 +33,7 @@ import {
   updateProductPurchaseSettings,
   updatePurchaseOrder
 } from '../../../store/services/storeDataService';
+import SearchField from '../../../../shared/components/SearchField';
 
 // ===== 共通ヘルパ =====
 
@@ -1190,13 +1191,7 @@ const SupplierPurchaseCheckPanel = ({
 
             {!browserLoading && scopedBrowserProducts.length > 0 && (
               <div className="px-6 py-3">
-                <input
-                  type="text"
-                  value={browserKeyword}
-                  onChange={(event) => setBrowserKeyword(event.target.value)}
-                  placeholder="商品名・SKU・バーコードで検索"
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 w-full rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none focus:border-ui"
-                />
+                <SearchField value={browserKeyword} onChange={setBrowserKeyword} placeholder="商品名・SKU・バーコードで検索" />
               </div>
             )}
 
