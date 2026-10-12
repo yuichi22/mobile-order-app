@@ -229,6 +229,9 @@ export const useCustomerLogic = (
   // どの storeId まで getDoc が確定したかを保持し、派生値で loaded を判定する
   // （effect 本体での同期 setState を避けるため）。
   const [basicSettingsLoadedStoreId, setBasicSettingsLoadedStoreId] = useState(null);
+  // 店舗の Core(AKUTO)連携 {coreTenantId, coreSpaceId}。LINE 会員証(ポイント)の案内リンクに使う(2026-10-12)。
+  // settings/* は公開読み取り。無い店(未連携)は null = 案内を出さない。
+  const [coreLink, setCoreLink] = useState(null);
   const [basicSettingsRetryNonce, setBasicSettingsRetryNonce] = useState(0);
   const basicSettingsLoaded = Boolean(storeId) && basicSettingsLoadedStoreId === storeId;
 
@@ -250,6 +253,10 @@ export const useCustomerLogic = (
 
         setBasicSettings(snapshot.exists() ? snapshot.data() : null);
         setBasicSettingsLoadedStoreId(storeId);
+        // Core 連携は別文書。失敗しても注文には影響させない(案内が出ないだけ)
+        getDoc(doc(db, 'stores', storeId, 'settings', 'terminal'))
+          .then((t) => { if (isMounted) setCoreLink(t.exists() && t.data()?.coreTenantId ? { coreTenantId: t.data().coreTenantId, coreSpaceId: t.data().coreSpaceId || null } : null); })
+          .catch(() => {});
       } catch (error) {
         console.error('Error loading basic settings:', error);
         if (!isMounted) return;
@@ -1127,6 +1134,7 @@ const {
     view,
     setView,
     basicSettings,
+    coreLink,
     sessionPartySize,
     sessionPartySizeLoaded,
     tableNumber: resolvedTableNumber,

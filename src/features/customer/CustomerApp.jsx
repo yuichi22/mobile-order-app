@@ -26,6 +26,7 @@ import MenuLayoutRenderer from './components/MenuLayoutRenderer';
 import CrossSellPrompt from './components/CrossSellPrompt';
 import { useCrossSellFlow } from './hooks/useCrossSellFlow';
 import { useCustomerLogic } from './components/useCustomerLogic';
+import { buildMemberCardUrl } from '../../shared/constants/akutoMemberCard';
 import { recordEntryEvent } from './utils/entryTelemetry';
 import InviteHintIllustration from './components/InviteHintIllustration';
 import Code128Barcode from '../../shared/components/Code128Barcode';
@@ -148,7 +149,8 @@ const CustomerApp = ({
     sessionCreatedAtMs,
     sessionKeepAliveAtMs,
     keepNoOrderSessionAlive,
-    leaveNoOrderSession
+    leaveNoOrderSession,
+    coreLink
   } = useCustomerLogic(
     sessionId,
     storeId,
@@ -241,6 +243,8 @@ const visibleCategories = useMemo(() => (
 ), [orderedCategories, visibleCategoryIds]);
 
 const customerThemeColor = basicSettings?.customerThemeColor || '#3B6E8F';
+// LINE 会員証(ポイント)への案内リンク。Core 連携の無い店は null(案内を出さない)
+const memberCardUrl = buildMemberCardUrl(coreLink);
 // 入店画面の背景: 店のテーマ色を白に12%だけ混ぜた色(お店の玄関で店の色に迎えられる。メニュー以降は使わない)
 const entryBackgroundColor = (() => {
   const hex = String(customerThemeColor || '').trim();
@@ -2406,6 +2410,24 @@ if (shouldWaitForSessionBeforeWelcome) {
             </div>
           </div>
 
+          {/* LINE 会員証(ポイント)の案内。AKUTO 連携のある店だけ。注文の流れは止めない(案内とリンクのみ・2026-10-12) */}
+          {memberCardUrl && (
+            <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <p className="text-sm font-black text-gray-900">LINE 会員証でポイントがたまります</p>
+              <p className="mt-1 text-xs font-bold text-gray-500">
+                お会計のときに LINE の会員証をいっしょにお見せください。
+              </p>
+              <a
+                href={memberCardUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 flex h-11 items-center justify-center rounded-xl bg-gray-100 text-sm font-black text-gray-900 transition active:scale-95"
+              >
+                会員証をつくる（お待ちの間に 1 分）
+              </a>
+            </div>
+          )}
+
           <h3 className="mb-4 px-1 font-bold text-gray-700">注文履歴</h3>
 
           <div className="space-y-4">
@@ -2516,6 +2538,11 @@ if (shouldWaitForSessionBeforeWelcome) {
               </div>
             )}
           </div>
+          {memberCardUrl && filteredOrderHistory.length > 0 && (
+            <p className="mt-4 px-1 text-center text-[11px] font-bold text-gray-500">
+              お会計時に LINE 会員証をご提示いただくと、ポイントがたまります。
+            </p>
+          )}
         </div>
 
         <div
