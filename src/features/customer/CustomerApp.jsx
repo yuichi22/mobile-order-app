@@ -2330,6 +2330,23 @@ if (shouldWaitForSessionBeforeWelcome) {
               </span>
             </p>
           </div>
+          {/* LINE 会員証(ポイント)の案内。AKUTO 連携のある店だけ。帯の直下=スクロールしなくても見える(2026-10-12) */}
+          {memberCardUrl && (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+              <p className="min-w-0 text-[12px] font-bold leading-snug text-gray-700">
+                LINE 会員証もいっしょにお見せください
+                <span className="block text-[11px] text-gray-500">ポイントがたまります</span>
+              </p>
+              <a
+                href={memberCardUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-9 shrink-0 items-center rounded-xl border-2 border-gray-200 bg-white px-3 text-xs font-black text-gray-900 transition active:scale-95"
+              >
+                会員証をつくる
+              </a>
+            </div>
+          )}
         </div>
 
         <div
@@ -2409,24 +2426,6 @@ if (shouldWaitForSessionBeforeWelcome) {
               </p>
             </div>
           </div>
-
-          {/* LINE 会員証(ポイント)の案内。AKUTO 連携のある店だけ。注文の流れは止めない(案内とリンクのみ・2026-10-12) */}
-          {memberCardUrl && (
-            <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <p className="text-sm font-black text-gray-900">LINE 会員証でポイントがたまります</p>
-              <p className="mt-1 text-xs font-bold text-gray-500">
-                お会計のときに LINE の会員証をいっしょにお見せください。
-              </p>
-              <a
-                href={memberCardUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 flex h-11 items-center justify-center rounded-xl bg-gray-100 text-sm font-black text-gray-900 transition active:scale-95"
-              >
-                会員証をつくる（お待ちの間に 1 分）
-              </a>
-            </div>
-          )}
 
           <h3 className="mb-4 px-1 font-bold text-gray-700">注文履歴</h3>
 
