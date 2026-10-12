@@ -2306,10 +2306,10 @@ if (shouldWaitForSessionBeforeWelcome) {
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 280, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[88vh] flex-col overflow-hidden rounded-t-[2.25rem] bg-white shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[92vh] flex-col overflow-hidden rounded-t-[2.25rem] bg-white shadow-2xl"
       >
         <div
-          className="flex shrink-0 cursor-grab touch-none justify-center bg-white px-6 pb-3 pt-3 active:cursor-grabbing"
+          className="flex shrink-0 cursor-grab touch-none justify-center bg-white px-6 pb-2 pt-2.5 active:cursor-grabbing"
           onPointerDown={(event) => historySheetDragControls.start(event)}
         >
           <div className="h-1.5 w-14 rounded-full bg-gray-200" />
@@ -2324,8 +2324,8 @@ if (shouldWaitForSessionBeforeWelcome) {
           ×
         </button>
 
-        <div className="shrink-0 border-b border-gray-100 px-6 pb-4 pt-3">
-          <div className="flex items-center gap-3 rounded-xl bg-[#0B1220] px-4 py-3">
+        <div className="shrink-0 border-b border-gray-100 px-6 pb-3 pt-2">
+          <div className="flex items-center gap-3 rounded-xl bg-[#0B1220] px-4 py-2.5">
             <Barcode size={22} className="shrink-0 text-[#D9C08A]" />
             <p className="text-lg font-black leading-snug text-white">
               レジ会計で提示してください
@@ -2337,7 +2337,7 @@ if (shouldWaitForSessionBeforeWelcome) {
         </div>
 
         <div
-          className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
+          className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-3"
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
           {/* 伝票は初期表示にバーコードが収まるよう詰める(2026-10-12)。並び: 伝票→ポイント案内→注文履歴 */}
@@ -2549,8 +2549,8 @@ if (shouldWaitForSessionBeforeWelcome) {
         </div>
 
         <div
-          className="shrink-0 space-y-2.5 border-t border-gray-100 bg-white px-4 pt-4"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+          className="shrink-0 space-y-2.5 border-t border-gray-100 bg-white px-4 pt-3"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
         >
           <button
             onClick={() => handleChangeView('menu')}
