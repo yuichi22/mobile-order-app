@@ -2423,6 +2423,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               bound={sessionCrmMembers?.[customerParticipantId || 'guest'] || null}
               myTotal={Number(myTotal || 0)}
               isOpen={isHistoryOpen}
+              memoryScope={coreLink?.coreTenantId || storeId}
             />
           )}
 

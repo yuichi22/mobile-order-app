@@ -13,7 +13,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functionsApi } from '../../../shared/api/firebase/client';
 
-const memoryKey = (storeId) => `akutoMember:${storeId}`;
+// 端末の記憶はグループ(Core テナント)単位。DECOLLE POINT はグループで1つなので、HAUS で紐づけたら decolle でも次回から自動(2026-10-13)
+const memoryKey = (scope) => `akutoMember:${scope}`;
 const readMemory = (storeId) => {
   try { const raw = localStorage.getItem(memoryKey(storeId)); return raw ? JSON.parse(raw) : null; } catch { return null; }
 };
@@ -26,7 +27,8 @@ const writeMemory = (storeId, member) => {
 const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === '1'; } catch { return false; } };
 const setSessionFlag = (key, on) => { try { if (on) sessionStorage.setItem(key, '1'); else sessionStorage.removeItem(key); } catch { /* noop */ } };
 
-export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, pointInfo, bound, myTotal, isOpen }) => {
+export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, pointInfo, bound, myTotal, isOpen, memoryScope }) => {
+  const scope = memoryScope || storeId;
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [bindToken, setBindToken] = useState(null); // { token, at }
@@ -42,21 +44,21 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
 
   // 紐づいたら端末に覚える(次回は自動)
   useEffect(() => {
-    if (bound?.personId && bound?.memberCode) writeMemory(storeId, { personId: bound.personId, memberCode: bound.memberCode, displayName: bound.displayName || null });
-  }, [storeId, bound?.personId, bound?.memberCode, bound?.displayName]);
+    if (bound?.personId && bound?.memberCode) writeMemory(scope, { personId: bound.personId, memberCode: bound.memberCode, displayName: bound.displayName || null });
+  }, [scope, bound?.personId, bound?.memberCode, bound?.displayName]);
 
   // b) 端末の記憶で自動でつけ直す(画面を開いた時に1回だけ。「今回はつけない」の後はしない)
   useEffect(() => {
     if (!isOpen || bound || triedAutoRef.current || !sessionId || !storeId) return;
     if (sessionFlag(skipKey)) return;
-    const mem = readMemory(storeId);
+    const mem = readMemory(scope);
     if (!mem?.personId || !mem?.memberCode) return;
     triedAutoRef.current = true;
     setBusy('auto');
     httpsCallable(functionsApi, 'crmApplyRememberedMember')({ storeId, sessionId, customerId, personId: mem.personId, memberCode: mem.memberCode })
-      .catch(() => { writeMemory(storeId, null); })
+      .catch(() => { writeMemory(scope, null); })
       .finally(() => setBusy(''));
-  }, [isOpen, bound, sessionId, storeId, customerId, skipKey]);
+  }, [isOpen, bound, sessionId, storeId, customerId, skipKey, scope]);
 
   // c) ボタン用の一時トークンを先に作る(25分で作り直し)
   useEffect(() => {
@@ -79,7 +81,7 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
     try {
       await httpsCallable(functionsApi, 'crmClearSessionMember')({ storeId, sessionId, customerId });
       setSessionFlag(skipKey, true);
-      if (forget) writeMemory(storeId, null);
+      if (forget) writeMemory(scope, null);
       setBindToken(null);
     } catch (e) {
       setMsg(e?.message || '解除できませんでした。');
@@ -101,7 +103,7 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
             : `お会計後に ${name}にたまります（今のご注文額は ¥${Number(myTotal || 0).toLocaleString()}）`}
           {mult > 1 && <span className="ml-1 text-[11px] font-bold text-gray-500">本日 {mult}倍</span>}
         </p>
-        <p className="mt-0.5 text-[11px] font-bold text-gray-500">レジで会員証を見せなくても、お会計が済むと自動でたまります。</p>
+        <p className="mt-0.5 text-[11px] font-bold text-gray-500">レジで会員証を見せなくても大丈夫です。この端末では次回からも自動でたまります。</p>
         <div className="mt-1.5 flex gap-4">
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: true })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">別の人にする</button>
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: false })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">今回はつけない</button>
