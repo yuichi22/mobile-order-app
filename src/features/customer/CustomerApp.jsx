@@ -2332,18 +2332,19 @@ if (shouldWaitForSessionBeforeWelcome) {
           </div>
           {/* LINE 会員証(ポイント)の案内。AKUTO 連携のある店だけ。帯の直下=スクロールしなくても見える(2026-10-12) */}
           {memberCardUrl && (
-            <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-              <p className="min-w-0 text-[12px] font-bold leading-snug text-gray-700">
-                LINE 会員証もいっしょにお見せください
-                <span className="block text-[11px] text-gray-500">ポイントがたまります</span>
+            <div className="mt-2 rounded-xl bg-gray-50 px-3 py-2.5">
+              <p className="text-[12px] font-bold leading-snug text-gray-700">
+                お会計のときに LINE 会員証もお見せください
+                <span className="block text-[11px] text-gray-500">お持ちでない方は 1 分で作れます</span>
               </p>
+              {/* 登録済みでも未登録でも同じ入口(ミニアプリ側で出し分け)。文言はユーザー指定(2026-10-12) */}
               <a
                 href={memberCardUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-9 shrink-0 items-center rounded-xl border-2 border-gray-200 bg-white px-3 text-xs font-black text-gray-900 transition active:scale-95"
+                className="mt-2 flex h-10 items-center justify-center rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-black text-gray-900 transition active:scale-95"
               >
-                会員証をつくる
+                ポイントを貯める会員証を開く
               </a>
             </div>
           )}
