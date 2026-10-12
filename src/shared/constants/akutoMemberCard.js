@@ -7,7 +7,9 @@ const BASE = PROJECT_ID === 'mobile-order-prod'
   ? 'https://miniapp.line.me/2011299491-tVTAmxfH?liffId=2011299491-tVTAmxfH'
   : 'https://liff.line.me/2010427516-dJa8I1jp?liffId=2010427516-dJa8I1jp';
 
-export const buildMemberCardUrl = ({ coreTenantId, coreSpaceId } = {}) => {
+export const buildMemberCardUrl = (link) => {
+  // ⚠null が来る(未連携・読み込み前)。分割代入の既定値は undefined にしか効かないので null を先に潰す
+  const { coreTenantId, coreSpaceId } = link || {};
   const tid = String(coreTenantId || '').trim();
   if (!tid) return null;
   const sid = String(coreSpaceId || '').trim();
