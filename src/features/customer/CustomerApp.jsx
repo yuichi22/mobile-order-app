@@ -2427,7 +2427,6 @@ if (shouldWaitForSessionBeforeWelcome) {
               bound={sessionCrmMembers?.[customerParticipantId || 'guest'] || null}
               myTotal={Number(myTotal || 0)}
               isOpen={isHistoryOpen}
-              themeColor={customerThemeColor}
             />
           )}
 

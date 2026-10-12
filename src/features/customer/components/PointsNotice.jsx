@@ -26,7 +26,7 @@ const writeMemory = (storeId, member) => {
 const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === '1'; } catch { return false; } };
 const setSessionFlag = (key, on) => { try { if (on) sessionStorage.setItem(key, '1'); else sessionStorage.removeItem(key); } catch { /* noop */ } };
 
-export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, pointInfo, bound, myTotal, isOpen, themeColor }) => {
+export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, pointInfo, bound, myTotal, isOpen }) => {
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [bindToken, setBindToken] = useState(null); // { token, at }
@@ -128,12 +128,14 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
       <p className="mt-0.5 text-[11px] font-bold text-gray-500">
         1pt＝{yenPerPoint}円。お持ちの方はお会計時に会員証をご提示ください。
       </p>
+      {/* ポイントがつく=価値が動く瞬間なので、会員証と同じ紺黒×シャンパン(2026-10-12 ユーザー決定)。
+          店のテーマ色の「メニューに戻る」とも、ふつうの黒ボタンとも見分けがつく */}
       <a
         href={bindHref}
         target="_blank"
         rel="noreferrer"
-        className="mt-2 flex h-10 items-center justify-center rounded-xl px-3 text-sm font-black text-white transition active:scale-95"
-        style={{ backgroundColor: themeColor || '#3B6E8F' }}
+        className="mt-2 flex h-10 items-center justify-center rounded-xl px-3 text-sm font-black transition active:scale-95"
+        style={{ backgroundColor: '#0B1220', color: '#D9C08A' }}
       >
         この注文にポイントをつける（LINE で）
       </a>
