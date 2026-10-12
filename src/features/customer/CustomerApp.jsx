@@ -2346,6 +2346,9 @@ if (shouldWaitForSessionBeforeWelcome) {
             ) : (
               <p className="text-2xl font-bold text-gray-900 tabular-nums">¥{Number(myTotal || 0).toLocaleString()}</p>
             )}
+            {!historyLoading && Number(myTotal || 0) === 0 && (
+              <p className="mt-0.5 text-[11px] font-bold text-gray-500">お支払いはありません</p>
+            )}
 
             {Number(grandTotal || 0) > Number(myTotal || 0) && (
               <div className="mt-4 border-t border-gray-100 pt-4">
