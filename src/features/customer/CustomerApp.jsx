@@ -2334,38 +2334,24 @@ if (shouldWaitForSessionBeforeWelcome) {
               </span>
             </p>
           </div>
-          {/* ポイント(DECOLLE POINT 等)の案内と「この注文にポイントをつける」。AKUTO 連携のある店だけ。
-              帯の直下=スクロールしなくても見える(2026-10-12)。中身は PointsNotice */}
-          {memberCardUrl && (
-            <PointsNotice
-              storeId={storeId}
-              sessionId={sessionId}
-              customerId={customerParticipantId || 'guest'}
-              memberCardUrl={memberCardUrl}
-              pointInfo={crmPointInfo}
-              bound={sessionCrmMembers?.[customerParticipantId || 'guest'] || null}
-              myTotal={Number(myTotal || 0)}
-              isOpen={isHistoryOpen}
-              themeColor={customerThemeColor}
-            />
-          )}
         </div>
 
         <div
           className="min-h-0 flex-1 overflow-y-auto px-6 py-4"
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
-          <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
-            <p className="mb-3 text-base font-black text-gray-900">
+          {/* 伝票は初期表示にバーコードが収まるよう詰める(2026-10-12)。並び: 伝票→ポイント案内→注文履歴 */}
+          <div className="mb-4 rounded-3xl bg-white px-5 pb-4 pt-4 text-center shadow-sm">
+            <p className="mb-1 text-xs font-black text-gray-500">
               お会計伝票
               {tableTitle && <span className="ml-2 text-gray-700">{tableTitle}</span>}
             </p>
-            <p className="mb-1 text-xs text-gray-500">あなたの注文金額</p>
+            <p className="mb-0.5 text-[11px] text-gray-500">あなたの注文金額</p>
             {historyLoading && filteredOrderHistory.length === 0 ? (
               // 読込中に「¥0」を確定値として見せない(二重注文の引き金になる)。
               <p className="text-2xl font-bold text-gray-500">確認中…</p>
             ) : (
-              <p className="text-3xl font-bold text-gray-900">¥{Number(myTotal || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">¥{Number(myTotal || 0).toLocaleString()}</p>
             )}
 
             {Number(grandTotal || 0) > Number(myTotal || 0) && (
@@ -2407,9 +2393,9 @@ if (shouldWaitForSessionBeforeWelcome) {
               </div>
             )}
 
-            <div className="mt-6 border-t border-dashed border-gray-200 pt-6">
-              <p className="mb-2 flex items-center justify-center gap-1 text-xs text-gray-500">
-                <Barcode size={16} />
+            <div className="mt-3 border-t border-dashed border-gray-200 pt-3">
+              <p className="mb-1.5 flex items-center justify-center gap-1 text-[11px] text-gray-500">
+                <Barcode size={14} />
                 お会計用バーコード
               </p>
               {/* 端末内で描画(外部画像サービスは両端余白が無く、枠いっぱいに伸ばすとリーダーが読めなかった)。 */}
@@ -2423,13 +2409,29 @@ if (shouldWaitForSessionBeforeWelcome) {
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-center text-[10px] text-gray-500">
+              <p className="mt-1.5 text-center text-[10px] text-gray-500">
                 お会計の際は、この画面をレジでお見せください
               </p>
             </div>
           </div>
 
-          <h3 className="mb-4 px-1 font-bold text-gray-700">注文履歴</h3>
+          {/* ポイント(DECOLLE POINT 等)の案内と「この注文にポイントをつける」。AKUTO 連携のある店だけ。
+              帯の直下=スクロールしなくても見える(2026-10-12)。中身は PointsNotice */}
+          {memberCardUrl && (
+            <PointsNotice
+              storeId={storeId}
+              sessionId={sessionId}
+              customerId={customerParticipantId || 'guest'}
+              memberCardUrl={memberCardUrl}
+              pointInfo={crmPointInfo}
+              bound={sessionCrmMembers?.[customerParticipantId || 'guest'] || null}
+              myTotal={Number(myTotal || 0)}
+              isOpen={isHistoryOpen}
+              themeColor={customerThemeColor}
+            />
+          )}
+
+          <h3 className="mb-4 mt-4 px-1 font-bold text-gray-700">注文履歴</h3>
 
           <div className="space-y-4">
             {filteredOrderHistory.map((order) => {
@@ -2557,12 +2559,14 @@ if (shouldWaitForSessionBeforeWelcome) {
           >
             メニューに戻る（追加注文）
           </button>
-          <button
-            onClick={() => handleCallStaff('accounting')}
-            className="h-12 w-full rounded-3xl border border-gray-200 bg-white text-sm font-bold text-gray-600 transition-transform active:scale-95"
-          >
-            スタッフにお会計を知らせる
-          </button>
+          {basicSettings?.showCheckoutNotifyButton === true && (
+            <button
+              onClick={() => handleCallStaff('accounting')}
+              className="h-12 w-full rounded-3xl border border-gray-200 bg-white text-sm font-bold text-gray-600 transition-transform active:scale-95"
+            >
+              スタッフにお会計を知らせる
+            </button>
+          )}
         </div>
       </motion.div>
     </>

@@ -489,6 +489,8 @@ const BasicSettingsInner = ({
   const [customerLogoPreview, setCustomerLogoPreview] = useState(null);
   const [customerThemeColor, setCustomerThemeColor] = useState(DEFAULT_CUSTOMER_THEME_COLOR);
   const [noOrderAutoVacateMinutes, setNoOrderAutoVacateMinutes] = useState(0);
+  // 顧客アプリのお会計画面に「スタッフにお会計を知らせる」を出すか(既定オフ。卓で支払う店向け・2026-10-12)
+  const [showCheckoutNotifyButton, setShowCheckoutNotifyButton] = useState(false);
 
   const [newCookingCategoryName, setNewCookingCategoryName] = useState('');
   const [editingCookingCategoryId, setEditingCookingCategoryId] = useState(null);
@@ -567,6 +569,7 @@ const BasicSettingsInner = ({
         : ['cash', 'card', 'qr']
     );
     setAllowTakeout(settings.allowTakeout !== false);
+    setShowCheckoutNotifyButton(settings.showCheckoutNotifyButton === true);
     setNoOrderAutoVacateMinutes(
       Math.max(0, Number(settings.noOrderAutoVacateMinutes ?? 0) || 0)
     );
@@ -707,7 +710,7 @@ const confirmDeleteCookingCategory = () => {
   const [baseline, setBaseline] = useState(null);
   const basicSnapshot = JSON.stringify({
     departmentDrafts, registerDrafts, enabledPaymentMethods, allowTakeout, noOrderAutoVacateMinutes,
-    customerThemeColor, receiptModeDraft, labelPrinterDraft, kitchens, cookingCategoryDraft,
+    customerThemeColor, showCheckoutNotifyButton, receiptModeDraft, labelPrinterDraft, kitchens, cookingCategoryDraft,
     bannerPreview, customerLogoPreview
   });
   useEffect(() => {
@@ -743,6 +746,7 @@ const confirmDeleteCookingCategory = () => {
         allowTakeout,
         noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
         customerThemeColor,
+        showCheckoutNotifyButton,
         // 非表示の項目は formData に含まれない。null で既存値を消さないよう保持する
         receiptBannerImage: formData.get('receiptBannerImage') ?? settings.receiptBannerImage ?? '',
         customerLogoUrl: formData.get('customerLogoUrl') ?? settings.customerLogoUrl ?? '',
@@ -1219,6 +1223,19 @@ const confirmDeleteCookingCategory = () => {
         </div>
 
         <div className="space-y-3 border-t border-gray-100 pt-6">
+          <label className="flex items-start gap-3 rounded-xl border-2 border-gray-200 bg-white px-4 py-3">
+            <input
+              type="checkbox"
+              checked={showCheckoutNotifyButton}
+              onChange={(event) => setShowCheckoutNotifyButton(event.target.checked)}
+              className="mt-1 h-4 w-4"
+            />
+            <span>
+              <span className="block text-sm font-black text-gray-900">お会計画面に「スタッフにお会計を知らせる」を出す</span>
+              <span className="block text-xs font-bold text-gray-500">卓で支払う店向け。レジで支払う店はオフのまま（お会計画面がすっきりします）。</span>
+            </span>
+          </label>
+
           <label className="ml-1 text-xs font-bold uppercase tracking-wider text-gray-500">
             顧客画面のテーマカラー
           </label>
