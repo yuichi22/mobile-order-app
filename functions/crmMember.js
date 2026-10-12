@@ -5,6 +5,8 @@
 // - crmRedeemPoints: ポイント利用 / 取消時の戻し（refund）
 // 店舗↔Core拠点の対応は settings/terminal のみを出所にする（クライアントの申告は信用しない）。
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import crypto from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -379,4 +381,72 @@ export const crmMemberLtv = onCall({ region: REGION }, async (request) => {
   // 大きな修正は Core が確認を求めてくる（200 で返るのでエラーにならない）。
   if (data?.requiresConfirm === true) return { ok: false, ...data };
   return { ok: true, ...data };
+});
+
+// ── テーブル注文(顧客アプリ)向け: 「この注文にポイントをつける」(2026-10-12) ──
+// 顧客は匿名ログイン。卓セッションが active であることだけを条件にする(他人の卓には紐づけられないよう
+// sessionId を知っている=その卓の QR を読んだ人、という前提。トークンは30分で失効)。
+
+/** 卓の注文主(customerId)用の一時トークンを作る。会員証(LIFF)に渡して Core→POS で完了させる。 */
+export const crmCreateBindToken = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId), sessionId = str(d.sessionId), customerId = str(d.customerId) || "guest";
+  if (!storeId || !sessionId) throw new HttpsError("invalid-argument", "storeId / sessionId required.");
+  const sessionSnap = await db.collection("stores").doc(storeId).collection("sessions").doc(sessionId).get();
+  if (!sessionSnap.exists || sessionSnap.data()?.status !== "active") throw new HttpsError("failed-precondition", "この卓のご利用は終了しています。");
+  const token = crypto.randomBytes(24).toString("base64url");
+  await db.collection("stores").doc(storeId).collection("crmBinds").doc(token).set({
+    sessionId, customerId, status: "pending", createdAt: new Date(), uid: request.auth?.uid || null,
+  });
+  return { ok: true, token };
+});
+
+/** 端末が覚えている会員(前回紐づけた人)を、この卓の注文主にもう一度つける。会員コードと person の一致を Core で確かめる。 */
+export const crmApplyRememberedMember = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId), sessionId = str(d.sessionId), customerId = str(d.customerId) || "guest";
+  const personId = str(d.personId), memberCode = str(d.memberCode).replace(/\D/g, "");
+  if (!storeId || !sessionId || !personId || !memberCode) throw new HttpsError("invalid-argument", "storeId / sessionId / personId / memberCode required.");
+  const sessionRef = db.collection("stores").doc(storeId).collection("sessions").doc(sessionId);
+  const sessionSnap = await sessionRef.get();
+  if (!sessionSnap.exists || sessionSnap.data()?.status !== "active") throw new HttpsError("failed-precondition", "この卓のご利用は終了しています。");
+  const link = await resolveCoreLink(storeId);
+  const data = await callCore("lookupCrmMember", { coreTenantId: link.coreTenantId, coreSpaceId: link.coreSpaceId, memberCode });
+  if (str(data.personId) !== personId) throw new HttpsError("failed-precondition", "会員情報が一致しません。もう一度 LINE からつけ直してください。");
+  const member = { personId, displayName: data.displayName || null, memberCode: data.memberCode || memberCode, boundAt: new Date().toISOString(), source: "device" };
+  await sessionRef.set({ crmMembers: { [customerId]: member } }, { merge: true });
+  return { ok: true, displayName: member.displayName };
+});
+
+/** この卓の注文主から会員を外す(「今回はつけない」「別の人にする」)。 */
+export const crmClearSessionMember = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const storeId = str(d.storeId), sessionId = str(d.sessionId), customerId = str(d.customerId) || "guest";
+  if (!storeId || !sessionId) throw new HttpsError("invalid-argument", "storeId / sessionId required.");
+  const sessionRef = db.collection("stores").doc(storeId).collection("sessions").doc(sessionId);
+  await sessionRef.set({ crmMembers: { [customerId]: FieldValue.delete() } }, { merge: true });
+  return { ok: true };
+});
+
+/** 公開情報: カード名義・付与率・利用レート・全員倍率(「このお会計で ◯pt」用)。5分キャッシュ。認証不要。 */
+const pointInfoCache = new Map(); // storeId -> { at, data }
+export const crmPublicPointInfo = onCall({ region: REGION }, async (request) => {
+  const storeId = str(request.data?.storeId);
+  if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  const hit = pointInfoCache.get(storeId);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.data;
+  let link;
+  try { link = await resolveCoreLink(storeId); } catch { return { ok: true, linked: false }; }
+  const data = await callCore("crmPointInfo", { coreTenantId: link.coreTenantId, coreSpaceId: link.coreSpaceId });
+  const out = {
+    ok: true, linked: true,
+    brandName: data.brandName || null,
+    pointsEnabled: data.pointsEnabled !== false,
+    pointsPerYen: Number(data.pointsPerYen || 0),
+    yenPerPoint: Number(data.yenPerPoint || 1),
+    campaignMultiplier: Number(data.campaignMultiplier || 1),
+    campaignName: data.campaignName || null,
+  };
+  pointInfoCache.set(storeId, { at: Date.now(), data: out });
+  return out;
 });

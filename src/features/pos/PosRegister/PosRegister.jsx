@@ -111,6 +111,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
   const [takeoutItemKeys, setTakeoutItemKeys] = useState(new Set());
   const [paidItemKeys, setPaidItemKeys] = useState(new Set());
+  const [sessionCrmMembers, setSessionCrmMembers] = useState({});
+  // スタッフが会員を解除したら、同じ卓では自動で載せ直さない(「この人ではない」の意思を尊重)
+  const crmAutoDismissedRef = useRef(false);
+  const crmAutoLoadedPersonRef = useRef('');
+  useEffect(() => { crmAutoDismissedRef.current = false; crmAutoLoadedPersonRef.current = ''; }, [sessionId]);
 
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
@@ -467,6 +472,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
       const sessionData = snapshot.data();
 
+      // 注文アプリで「この注文にポイントをつける」した会員 {customerId: {personId, displayName, memberCode}}(2026-10-12)
+      setSessionCrmMembers(sessionData.crmMembers && typeof sessionData.crmMembers === 'object' ? sessionData.crmMembers : {});
       setTableId(sessionData.tableId || null);
       setTableDisplayName(
         String(
@@ -2540,6 +2547,48 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     setCheckoutSelectionMode('all');
   };
 
+  // ── 注文に紐づく会員を自動で載せる(2026-10-12) ──
+  // 支払う人が一意に決まる時だけ自動: 選んだ注文の中で紐づき会員が1人なら載せる(ほかの方の注文を含んでいても)。
+  // 2人以上なら選ばせる(黙って片方に付けない)。レジで会員証を読み込んだらそちらが優先。
+  const selectedCustomerIds = useMemo(() => {
+    const ids = [];
+    for (const [cid, list] of Object.entries(ordersByCustomer)) {
+      const keys = list.flatMap((order) => getOrderItemKeys(order)).filter((key) => !paidItemKeys.has(key));
+      if (!keys.length) continue;
+      if (checkoutSelectionMode === 'custom') {
+        if (keys.some((key) => selectedItemKeys.has(key))) ids.push(cid);
+      } else {
+        ids.push(cid);
+      }
+    }
+    return ids;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordersByCustomer, paidItemKeys, checkoutSelectionMode, selectedItemKeys]);
+  const crmSessionCandidates = useMemo(() => {
+    const seen = new Map();
+    for (const cid of selectedCustomerIds) {
+      const m = sessionCrmMembers?.[cid];
+      if (m?.personId && !seen.has(m.personId)) seen.set(m.personId, { ...m, customerId: cid });
+    }
+    return [...seen.values()];
+  }, [selectedCustomerIds, sessionCrmMembers]);
+  const crmSelectionIncludesOthers = useMemo(
+    () => selectedCustomerIds.some((cid) => !sessionCrmMembers?.[cid]?.personId),
+    [selectedCustomerIds, sessionCrmMembers]
+  );
+  useEffect(() => {
+    if (crmMember || crmMemberBusy || crmAutoDismissedRef.current) return;
+    if (crmSessionCandidates.length !== 1) return;
+    const c = crmSessionCandidates[0];
+    if (crmAutoLoadedPersonRef.current === c.personId) return;
+    crmAutoLoadedPersonRef.current = c.personId;
+    lookupCrmMemberByPersonId?.(c.personId, { fallbackName: c.displayName || null });
+  }, [crmMember, crmMemberBusy, crmSessionCandidates, lookupCrmMemberByPersonId]);
+  const clearCrmMemberByStaff = () => { crmAutoDismissedRef.current = true; clearCrmMember(); };
+  const crmSessionNote = crmMember && crmSessionCandidates.some((c) => c.personId === crmMember.personId)
+    ? (crmSelectionIncludesOthers ? '注文に紐づく会員（ほかの方の注文を含みます）' : '注文に紐づく会員')
+    : '';
+
   const toggleSelectCustomer = (customerId) => {
     const targetOrders = ordersByCustomer[customerId] || [];
     if (targetOrders.length === 0) return;
@@ -2806,7 +2855,10 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         setCrmCodeInput={setCrmCodeInput}
         onLookupCrmMember={lookupCrmMemberByCode}
         onRecheckCrmMember={recheckCrmMember}
-        onClearCrmMember={clearCrmMember}
+        onClearCrmMember={clearCrmMemberByStaff}
+        crmSessionCandidates={crmSessionCandidates}
+        crmSessionNote={crmSessionNote}
+        onPickCrmCandidate={(c) => lookupCrmMemberByPersonId?.(c.personId, { fallbackName: c.displayName || null })}
         onOpenMemberSearch={() => setMemberSearchOpen(true)}
       />
       <PosRegisterRight

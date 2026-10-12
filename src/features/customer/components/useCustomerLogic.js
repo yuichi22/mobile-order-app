@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { httpsCallable } from 'firebase/functions';
 import { signInAnonymously } from 'firebase/auth';
 import { useCustomerReceipts } from '../hooks/useCustomerReceipts';
 import {
@@ -232,6 +233,10 @@ export const useCustomerLogic = (
   // 店舗の Core(AKUTO)連携 {coreTenantId, coreSpaceId}。LINE 会員証(ポイント)の案内リンクに使う(2026-10-12)。
   // settings/* は公開読み取り。無い店(未連携)は null = 案内を出さない。
   const [coreLink, setCoreLink] = useState(null);
+  // 卓セッションに紐づいた会員 {customerId: {personId, displayName, memberCode}}(「この注文にポイントをつける」の結果)
+  const [sessionCrmMembers, setSessionCrmMembers] = useState({});
+  // 公開のポイント情報(カード名義・付与率・倍率)。「このお会計で ◯pt」用
+  const [crmPointInfo, setCrmPointInfo] = useState(null);
   const [basicSettingsRetryNonce, setBasicSettingsRetryNonce] = useState(0);
   const basicSettingsLoaded = Boolean(storeId) && basicSettingsLoadedStoreId === storeId;
 
@@ -240,6 +245,15 @@ export const useCustomerLogic = (
   const [sessionPartySize, setSessionPartySize] = useState(null);
   const [sessionPartySizeLoaded, setSessionPartySizeLoaded] = useState(false);
   const [crossSellSettings, setCrossSellSettings] = useState(null);
+
+  useEffect(() => {
+    if (!storeId || !coreLink?.coreTenantId) return undefined;
+    let alive = true;
+    httpsCallable(functionsApi, 'crmPublicPointInfo')({ storeId })
+      .then((res) => { if (alive) setCrmPointInfo(res.data || null); })
+      .catch(() => { if (alive) setCrmPointInfo(null); });
+    return () => { alive = false; };
+  }, [storeId, coreLink?.coreTenantId]);
 
   useEffect(() => {
     if (!storeId) return undefined;
@@ -323,6 +337,7 @@ export const useCustomerLogic = (
       sessionRef,
       (snapshot) => {
         const data = snapshot.exists() ? snapshot.data() : null;
+        setSessionCrmMembers(data?.crmMembers && typeof data.crmMembers === 'object' ? data.crmMembers : {});
         const partySizeValue = data?.partySize;
         const numericPartySize = Number(partySizeValue);
 
@@ -1135,6 +1150,9 @@ const {
     setView,
     basicSettings,
     coreLink,
+    sessionCrmMembers,
+    crmPointInfo,
+    customerParticipantId,
     sessionPartySize,
     sessionPartySizeLoaded,
     tableNumber: resolvedTableNumber,

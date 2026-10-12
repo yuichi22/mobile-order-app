@@ -204,6 +204,49 @@ export const receiveCheckoutRequest = onRequest(
   }
 );
 
+// ── Core(会員証)からの「この注文にポイントをつける」完了通知 ─────────────────────
+// 注文アプリが crmCreateBindToken で作った一時トークン(stores/{storeId}/crmBinds/{token})を、
+// 会員証(LIFF)が本人の person と一緒に送ってくる。卓セッションの crmMembers[注文主] に記録し、
+// レジはそれを会員として自動で載せる(2026-10-12)。認証は他の S2S と同じ Bearer CORE_SALES_SECRET。
+export const completeCrmBind = onRequest(
+  { region: REGION, cors: false, invoker: "public" },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+    const secret = str(process.env.CORE_SALES_SECRET);
+    const authz = req.get("authorization") || "";
+    const bearer = authz.startsWith("Bearer ") ? authz.slice("Bearer ".length) : "";
+    if (!secret || !safeEqual(bearer, secret)) return res.status(401).json({ ok: false, error: "unauthorized" });
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const storeId = str(body.storeId);
+    const token = str(body.token);
+    const personId = str(body.personId);
+    if (!storeId || !token || !personId || token.length > 128) return res.status(400).json({ ok: false, error: "invalid_request" });
+    try {
+      const bindRef = db.collection("stores").doc(storeId).collection("crmBinds").doc(token);
+      const bindSnap = await bindRef.get();
+      const b = bindSnap.exists ? bindSnap.data() || {} : null;
+      const createdMs = b?.createdAt?.toMillis?.() ?? 0;
+      if (!b || b.status === "cancelled" || Date.now() - createdMs > 30 * 60 * 1000) {
+        return res.status(404).json({ ok: false, error: "bind_not_found" });
+      }
+      const sessionRef = db.collection("stores").doc(storeId).collection("sessions").doc(str(b.sessionId));
+      const sessionSnap = await sessionRef.get();
+      if (!sessionSnap.exists || sessionSnap.data()?.status !== "active") return res.status(404).json({ ok: false, error: "bind_not_found" });
+      const customerId = str(b.customerId) || "guest";
+      const now = new Date();
+      const member = { personId, displayName: str(body.displayName) || null, memberCode: str(body.memberCode) || null, boundAt: now.toISOString(), source: "line" };
+      await sessionRef.set({ crmMembers: { [customerId]: member } }, { merge: true });
+      await bindRef.set({ status: "done", personId, completedAt: now }, { merge: true });
+      const basic = await db.collection("stores").doc(storeId).collection("settings").doc("basic").get();
+      return res.json({ ok: true, storeName: str(basic.data()?.name) || null, customerId });
+    } catch (e) {
+      console.error("[completeCrmBind] error:", e);
+      return res.status(500).json({ ok: false, error: "internal" });
+    }
+  }
+);
+
 // ── Core(ポータルの配信)からの売り場マスタ照会 ──────────────────────────
 // ポイントアップの「対象売り場」の候補を、売上の実績ではなく POS の売り場マスタ
 // (stores/{storeId}/productSalesAreas)から出すためのS2S(2026-10-11)。

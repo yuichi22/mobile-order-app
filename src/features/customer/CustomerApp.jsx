@@ -27,6 +27,7 @@ import CrossSellPrompt from './components/CrossSellPrompt';
 import { useCrossSellFlow } from './hooks/useCrossSellFlow';
 import { useCustomerLogic } from './components/useCustomerLogic';
 import { buildMemberCardUrl } from '../../shared/constants/akutoMemberCard';
+import { PointsNotice } from './components/PointsNotice';
 import { recordEntryEvent } from './utils/entryTelemetry';
 import InviteHintIllustration from './components/InviteHintIllustration';
 import Code128Barcode from '../../shared/components/Code128Barcode';
@@ -150,7 +151,10 @@ const CustomerApp = ({
     sessionKeepAliveAtMs,
     keepNoOrderSessionAlive,
     leaveNoOrderSession,
-    coreLink
+    coreLink,
+    sessionCrmMembers,
+    crmPointInfo,
+    customerParticipantId
   } = useCustomerLogic(
     sessionId,
     storeId,
@@ -2330,23 +2334,20 @@ if (shouldWaitForSessionBeforeWelcome) {
               </span>
             </p>
           </div>
-          {/* LINE 会員証(ポイント)の案内。AKUTO 連携のある店だけ。帯の直下=スクロールしなくても見える(2026-10-12) */}
+          {/* ポイント(DECOLLE POINT 等)の案内と「この注文にポイントをつける」。AKUTO 連携のある店だけ。
+              帯の直下=スクロールしなくても見える(2026-10-12)。中身は PointsNotice */}
           {memberCardUrl && (
-            <div className="mt-2 rounded-xl bg-gray-50 px-3 py-2.5">
-              <p className="text-[12px] font-bold leading-snug text-gray-700">
-                お会計のときに LINE 会員証もお見せください
-                <span className="block text-[11px] text-gray-500">お持ちでない方は 1 分で作れます</span>
-              </p>
-              {/* 登録済みでも未登録でも同じ入口(ミニアプリ側で出し分け)。文言はユーザー指定(2026-10-12) */}
-              <a
-                href={memberCardUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 flex h-10 items-center justify-center rounded-xl border-2 border-gray-200 bg-white px-3 text-sm font-black text-gray-900 transition active:scale-95"
-              >
-                ポイントを貯める会員証を開く
-              </a>
-            </div>
+            <PointsNotice
+              storeId={storeId}
+              sessionId={sessionId}
+              customerId={customerParticipantId || 'guest'}
+              memberCardUrl={memberCardUrl}
+              pointInfo={crmPointInfo}
+              bound={sessionCrmMembers?.[customerParticipantId || 'guest'] || null}
+              myTotal={Number(myTotal || 0)}
+              isOpen={isHistoryOpen}
+              themeColor={customerThemeColor}
+            />
           )}
         </div>
 
@@ -2538,9 +2539,9 @@ if (shouldWaitForSessionBeforeWelcome) {
               </div>
             )}
           </div>
-          {memberCardUrl && filteredOrderHistory.length > 0 && (
+          {memberCardUrl && filteredOrderHistory.length > 0 && !sessionCrmMembers?.[customerParticipantId || 'guest'] && (
             <p className="mt-4 px-1 text-center text-[11px] font-bold text-gray-500">
-              お会計時に LINE 会員証をご提示いただくと、ポイントがたまります。
+              {crmPointInfo?.brandName || 'LINE 会員証'}をお持ちの方は、お会計時にご提示ください。
             </p>
           )}
         </div>

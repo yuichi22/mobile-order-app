@@ -71,6 +71,9 @@ export const PosRegisterLeft = ({
   crmCodeInput,
   setCrmCodeInput,
   onLookupCrmMember,
+  crmSessionCandidates = [],
+  crmSessionNote = '',
+  onPickCrmCandidate,
   onRecheckCrmMember,
   onClearCrmMember,
   onOpenMemberSearch
@@ -140,6 +143,7 @@ export const PosRegisterLeft = ({
               )}
               <span className="truncate text-sm font-black">
                 会員: {crmMember.displayName ? `${crmMember.displayName} 様` : '会員さま'}
+                {crmSessionNote && <span className="ml-2 text-[11px] font-bold text-white/70">{crmSessionNote}</span>}
               </span>
               <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-black">
                 利用可能 {Number(crmMember.pointBalance || 0).toLocaleString()}pt
@@ -182,6 +186,19 @@ export const PosRegisterLeft = ({
             </div>
           )}
           </>
+        ) : crmSessionCandidates.length > 1 ? (
+          <div className="shrink-0 border-b border-amber-100 bg-amber-50 px-4 py-2">
+            <div className="text-xs font-black text-gray-900">注文に紐づく会員が {crmSessionCandidates.length} 人います。どちらにポイントをつけますか</div>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {crmSessionCandidates.map((c) => (
+                <button key={c.personId} type="button" onClick={() => onPickCrmCandidate?.(c)}
+                  className="h-9 rounded-lg border-2 border-gray-200 bg-white px-3 text-xs font-black text-gray-900 transition active:scale-95">
+                  {c.displayName ? `${c.displayName} 様` : '会員さま'}
+                </button>
+              ))}
+            </div>
+            <div className="mt-1 text-[11px] font-bold text-gray-600">会員証を読み込めば、そちらが優先されます。</div>
+          </div>
         ) : (
           <div className="shrink-0 border-b border-gray-200 bg-gray-100/60 px-4 py-2">
             <form
