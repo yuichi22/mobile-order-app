@@ -96,10 +96,10 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
     return (
       <div className="mt-2 rounded-xl bg-gray-50 px-3 py-2.5">
         <p className="text-[13px] font-black leading-snug text-gray-900 tabular-nums">
-          {pts > 0 ? `${name}に ${pts.toLocaleString()}pt つきます` : `${name}の${brand}につきます`}
+          {pts > 0 ? `お会計後に ${name}に ${pts.toLocaleString()}pt たまります` : `お会計後に ${name}の${brand}にたまります`}
           {mult > 1 && <span className="ml-1 text-[11px] font-bold text-gray-500">本日 {mult}倍</span>}
         </p>
-        <p className="mt-0.5 text-[11px] font-bold text-gray-500">お会計で会員証を見せなくても、自動でたまります。</p>
+        <p className="mt-0.5 text-[11px] font-bold text-gray-500">レジで会員証を見せなくても、お会計が済むと自動でたまります。</p>
         <div className="mt-1.5 flex gap-4">
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: true })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">別の人にする</button>
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: false })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">今回はつけない</button>
