@@ -456,8 +456,15 @@ export const saveProductMasterItem = async (storeId, itemData) => {
     );
   }
 
+  // 在庫系フィールドは画面の下書きから受け取らない(下は「入庫/新規」の時だけDB最新値から書く)。
+  // 下書きは編集開始時点の行データなので、入庫後や販売後にそのまま保存すると在庫が古い値へ
+  // 巻き戻る(10/7 NANGA: 入庫4→保存で inventoryQuantity だけ0に戻り、販売でマイナス表示)。
   const {
     stockInQuantityDraft,
+    inventoryQuantity: _draftInventoryQuantity,
+    quantity: _draftQuantity,
+    inventoryUpdatedAt: _draftInventoryUpdatedAt,
+    inventorySource: _draftInventorySource,
     ...rawProductPayload
   } = itemData;
 
