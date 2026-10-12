@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { buildJoinUrl } from '../../../app/routing/appRouteState';
-import { auth, db, initializeAuth } from '../../../shared/api/firebase/client';
+import { auth, db, functionsApi, initializeAuth } from '../../../shared/api/firebase/client';
 import { getBusinessStatus } from '../../../shared/utils/businessHours';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { useBusinessSettings, useCategoryData, useMenuData, usePeriodData } from '../../store/hooks';
