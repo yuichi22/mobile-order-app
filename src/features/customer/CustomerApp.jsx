@@ -2309,22 +2309,15 @@ if (shouldWaitForSessionBeforeWelcome) {
         className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[92vh] flex-col overflow-hidden rounded-t-[2.25rem] bg-white shadow-2xl"
       >
         <div
-          className="flex shrink-0 cursor-grab touch-none justify-center bg-white px-6 pb-2 pt-2.5 active:cursor-grabbing"
+          className="flex shrink-0 cursor-grab touch-none justify-center bg-white px-6 pb-3 pt-3 active:cursor-grabbing"
           onPointerDown={(event) => historySheetDragControls.start(event)}
         >
           <div className="h-1.5 w-14 rounded-full bg-gray-200" />
         </div>
 
-        <button
-          type="button"
-          onClick={() => handleChangeView('menu')}
-          className="absolute right-3 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full text-2xl font-semibold leading-none text-gray-500 transition-colors hover:bg-gray-50"
-          aria-label="閉じてメニューに戻る"
-        >
-          ×
-        </button>
-
-        <div className="shrink-0 border-b border-gray-100 px-6 pb-3 pt-2">
+        {/* 右上の × は廃止(2026-10-12)。閉じる手段はつまみ・暗い背景・下の「メニューに戻る」の3つ。
+            帯の「閉じないでください」と × が並ぶ食い違いもなくす */}
+        <div className="shrink-0 border-b border-gray-100 px-6 pb-3 pt-1">
           <div className="flex items-center gap-3 rounded-xl bg-[#0B1220] px-4 py-2.5">
             <Barcode size={22} className="shrink-0 text-[#D9C08A]" />
             <p className="text-lg font-black leading-snug text-white">
