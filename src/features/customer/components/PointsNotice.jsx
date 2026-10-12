@@ -103,7 +103,7 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
             : `お会計後に ${name}にたまります（今のご注文額は ¥${Number(myTotal || 0).toLocaleString()}）`}
           {mult > 1 && <span className="ml-1 text-[11px] font-bold text-gray-500">本日 {mult}倍</span>}
         </p>
-        <p className="mt-0.5 text-[11px] font-bold text-gray-500">レジで会員証を見せなくても大丈夫です。この端末では次回からも自動でたまります。</p>
+        <p className="mt-0.5 text-[11px] font-bold text-gray-500">会員証の提示は不要です。この端末なら次回も自動です。</p>
         <div className="mt-1.5 flex gap-4">
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: true })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">別の人にする</button>
           <button type="button" disabled={!!busy} onClick={() => clearBound({ forget: false })} className="text-[11px] font-black text-gray-500 underline disabled:opacity-50">今回はつけない</button>
