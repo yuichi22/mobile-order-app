@@ -140,6 +140,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const [registerMode, setRegisterMode] = useState(() => getStoredRegisterMode());
   const lastRegisterModeRef = useRef(registerMode);
   const [currentPosSessionId, setCurrentPosSessionId] = useState(null);
+  const [posCheckoutCustomerSuffix, setPosCheckoutCustomerSuffix] = useState('');
   const [lastPaymentData, setLastPaymentData] = useState(null);
   const [posSettingsSubTab, setPosSettingsSubTab] = useState(null);
   const [posSettingsProductKeyword, setPosSettingsProductKeyword] = useState('');
@@ -321,8 +322,10 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     return () => unsubscribe();
   }, [user, storeId, activeAdminTab]);
 
-  const handlePosScan = (id) => {
+  // options.customerSuffix: お会計バーコードに含まれる本人ID末尾。会計画面でその人の分を選択済みにする。
+  const handlePosScan = (id, options = {}) => {
     setPaymentResultToast(null);
+    setPosCheckoutCustomerSuffix(typeof options?.customerSuffix === 'string' ? options.customerSuffix : '');
     setCurrentPosSessionId(id);
     setPosView('register');
   };
@@ -729,6 +732,7 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
                   sessionId={currentPosSessionId}
                   activeSessions={activeSessions}
                   onSwitchSession={handlePosScan}
+                  initialCustomerSuffix={posCheckoutCustomerSuffix}
                   onBack={() => setPosView('scan')}
                   onComplete={handlePosComplete}
                   onPaymentResult={handlePaymentResultToast}

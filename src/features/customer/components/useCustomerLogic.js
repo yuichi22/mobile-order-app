@@ -1116,6 +1116,8 @@ const {
 
   return {
     user,
+    // お会計バーコードに本人(注文の customerId)を含め、レジでその人の分を選べるようにする。
+    customerParticipantId,
     loading,
     contentLoading,
     menuItems: filteredMenuItems,

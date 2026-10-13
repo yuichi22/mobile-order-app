@@ -30,6 +30,7 @@ import { useCrmMember, CRM_MEMBER_SCAN_PATTERN } from '../hooks/useCrmMember';
 import TerminalPaymentModal from '../terminal/TerminalPaymentModal';
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import { isImeKeyEvent } from '../../../shared/hooks/useScannerBufferedInput';
+import { matchesCustomerSuffix, parseCheckoutBarcodeValue } from '../../../shared/utils/checkoutBarcode';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../store/services/storeDataService';
 import { getAuth } from 'firebase/auth';
@@ -96,7 +97,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
     .map((entry) => entry.value);
 };
 
-export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId, crm, activeSessions = [], onSwitchSession }) => {
+export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId, crm, activeSessions = [], onSwitchSession, initialCustomerSuffix = '' }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,6 +225,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const resolveScannedSession = async (value) => {
       const { activeSessions: sessions } = sessionSwitchStateRef.current;
       const lowered = value.toLowerCase();
+      if (lowered === String(sessionId).toLowerCase()) return { id: sessionId };
       const hit = (sessions || []).find((session) => (
         String(session.id).toLowerCase() === lowered
         || String(session.tableId || '').trim().toLowerCase() === lowered
@@ -243,12 +245,28 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
     const switchTo = async (value) => {
       const state = sessionSwitchStateRef.current;
-      const target = await resolveScannedSession(value);
-      if (!target || String(target.id) === String(sessionId)) {
+      const { sessionId: scannedSessionId, customerSuffix } = parseCheckoutBarcodeValue(value);
+      const target = await resolveScannedSession(scannedSessionId);
+      if (!target) {
         state.setCrmCodeInput?.('');
         return;
       }
       if (state.blocked) return;
+
+      // 同じ卓の別のお客様: 卓はそのままで、選択をその人の分へ切り替える。
+      if (String(target.id) === String(sessionId)) {
+        state.setCrmCodeInput?.('');
+        if (!customerSuffix) return;
+        if (state.inProgress) {
+          const ok = await appConfirm(
+            '会計の入力途中です。\n読み取ったお客様の分に選択を切り替えますか？\n（入力中の金額・割引などは破棄されます）',
+            { title: '会計の切り替え', okLabel: '切り替える', cancelLabel: 'このまま続ける' }
+          );
+          if (!ok) return;
+        }
+        if (state.selectCustomer?.(customerSuffix)) state.clearCrmMember?.(); // 前のお客様の会員を持ち越さない
+        return;
+      }
       const targetLabel = String(target.tableDisplayName || target.tableName || target.displayName || target.tableNumber || '次の卓').trim();
       if (state.inProgress) {
         const ok = await appConfirm(
@@ -262,7 +280,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       }
       state.clearCrmMember?.(); // 前のお客様の会員を持ち越さない
       state.setCrmCodeInput?.('');
-      state.onSwitchSession?.(target.id);
+      state.onSwitchSession?.(target.id, { customerSuffix });
     };
 
     const handleKeyDown = (event) => {
@@ -279,12 +297,15 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         if (!continuing || buffer.length < MIN_SCAN_LENGTH || CRM_MEMBER_SCAN_PATTERN.test(buffer)) return;
         // 横取りするのは「利用中の卓に当たる」か「セッションIDの形(英字を含む20文字)」の時だけ。
         // 数字だけの会員番号(会員番号欄へのスキャン)は従来どおり会員照会へ流す。
+        const parsed = parseCheckoutBarcodeValue(buffer);
         const lowered = buffer.toLowerCase();
-        const knownSession = (sessionSwitchStateRef.current.activeSessions || []).some((session) => (
-          String(session.id).toLowerCase() === lowered
-          || String(session.tableId || '').trim().toLowerCase() === lowered
-        ));
-        const looksLikeSessionId = /^[A-Za-z0-9]{20}$/.test(buffer) && /[A-Za-z]/.test(buffer);
+        const loweredSessionId = parsed.sessionId.toLowerCase();
+        const knownSession = String(sessionId).toLowerCase() === loweredSessionId
+          || (sessionSwitchStateRef.current.activeSessions || []).some((session) => (
+            String(session.id).toLowerCase() === loweredSessionId
+            || String(session.tableId || '').trim().toLowerCase() === lowered
+          ));
+        const looksLikeSessionId = /^[A-Za-z0-9]{20}$/.test(parsed.sessionId) && /[A-Za-z]/.test(parsed.sessionId);
         if (!knownSession && !looksLikeSessionId) return;
         event.preventDefault();
         event.stopPropagation();
@@ -318,25 +339,6 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const [orderRetailCart, setOrderRetailCart] = useState([]);
   const [orderRetailMessage, setOrderRetailMessage] = useState(null);
 
-  // 会計画面でのお会計バーコード読取(卓の切り替え)が参照する最新状態。
-  useEffect(() => {
-    sessionSwitchStateRef.current = {
-      activeSessions,
-      onSwitchSession,
-      // 決済処理中(送信中/カード端末待ち)は切り替えない。
-      blocked: isPaymentSubmitting || isPaymentFlowLocked || Boolean(term.modal),
-      // 何か手を付けている会計は確認してから切り替える。
-      inProgress: String(paymentAmount || '').trim() !== ''
-        || paidItemKeys.size > 0
-        || discountType !== 'none'
-        || Boolean(selectedDiscount)
-        || orderRetailCart.length > 0
-        || Boolean(paymentMethod),
-      currentLabel: tableDisplayName || 'この卓',
-      clearCrmMember,
-      setCrmCodeInput
-    };
-  });
 
   const { discounts } = useDiscountData(storeId) || { discounts: [] };
   const { settings } = useStoreSettings(storeId);
@@ -2541,6 +2543,50 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const targetItemKeys = targetOrders.flatMap((order) => getOrderItemKeys(order));
     toggleItemKeyGroup(targetItemKeys);
   };
+
+  // お会計バーコードの本人ID(末尾)でお客様を特定し、その人の未払い分だけを選択する(トグルではなく置き換え)。
+  // 当たらない/未払いが無い時は false(選択は変えない＝卓全体のまま)。
+  const selectCustomerBySuffix = (suffix) => {
+    const customerKey = Object.keys(ordersByCustomer).find((key) => matchesCustomerSuffix(key, suffix));
+    if (!customerKey) return false;
+    const targetItemKeys = ordersByCustomer[customerKey]
+      .flatMap((order) => getOrderItemKeys(order))
+      .filter((key) => allPayableItemKeys.has(key));
+    if (targetItemKeys.length === 0) return false;
+    setCheckoutSelectionMode('custom');
+    setSelectedItemKeys(new Set(targetItemKeys));
+    return true;
+  };
+
+  // レジ一覧でお会計バーコードを読んで開いた時: 注文の読み込み完了後に一度だけ、その人の分を選択済みにする。
+  const initialCustomerAppliedRef = useRef(false);
+  useEffect(() => {
+    if (initialCustomerAppliedRef.current || !initialCustomerSuffix || loading) return;
+    initialCustomerAppliedRef.current = true;
+    selectCustomerBySuffix(initialCustomerSuffix);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 読み込み完了時の一度きり
+  }, [loading, initialCustomerSuffix]);
+
+  // 会計画面でのお会計バーコード読取(卓の切り替え)が参照する最新状態。
+  useEffect(() => {
+    sessionSwitchStateRef.current = {
+      activeSessions,
+      onSwitchSession,
+      // 決済処理中(送信中/カード端末待ち)は切り替えない。
+      blocked: isPaymentSubmitting || isPaymentFlowLocked || Boolean(term.modal),
+      // 何か手を付けている会計は確認してから切り替える。
+      inProgress: String(paymentAmount || '').trim() !== ''
+        || paidItemKeys.size > 0
+        || discountType !== 'none'
+        || Boolean(selectedDiscount)
+        || orderRetailCart.length > 0
+        || Boolean(paymentMethod),
+      currentLabel: tableDisplayName || 'この卓',
+      clearCrmMember,
+      setCrmCodeInput,
+      selectCustomer: selectCustomerBySuffix
+    };
+  });
 
   const isInitialLoading = loading && !processingAction;
   // 会計表示への切替時、先読み済み(キャッシュ)で即座に読み込めるケースまで全画面ローディングを

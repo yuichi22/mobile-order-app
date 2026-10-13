@@ -8,6 +8,7 @@ import { db, functionsApi } from '../../shared/api/firebase/client';
 import { queryDocsWithRestFallback } from '../../shared/api/firebase/scanQuery';
 import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
+import { parseCheckoutBarcodeValue } from '../../shared/utils/checkoutBarcode';
 import { useCrmMember } from './hooks/useCrmMember';
 import PosMemberSearchModal from './components/PosMemberSearchModal';
 import { memberBarStyle, rankTheme } from './utils/rankTheme';
@@ -2315,24 +2316,27 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // ⚠以前は入力値をそのまま sessionId として渡していたため、会員番号や打ち間違いでも
   //   「どこの卓でもない空の会計伝票」が開いてしまっていた。当たらなければ遷移しない。
   const resolveOrderScan = async (value) => {
+    // お会計バーコードは "<sessionId>.<本人ID末尾>"。本人が分かれば会計画面でその人の分を選択済みにする。
+    const { sessionId: scannedSessionId, customerSuffix } = parseCheckoutBarcodeValue(value);
     // 大文字小文字は区別しない(リーダー設定やCaps Lockで英字の大小が反転して届くことがある)。
     const lowered = value.toLowerCase();
+    const loweredSessionId = scannedSessionId.toLowerCase();
     const matched = displaySessions.find((session) => (
-      String(session.id).toLowerCase() === lowered
+      String(session.id).toLowerCase() === loweredSessionId
       || String(session.tableId || '').trim().toLowerCase() === lowered
       || String(session.tableNumber || '').trim().toLowerCase() === lowered
     ));
     if (matched) {
-      onScanSession(matched.id);
+      onScanSession(matched.id, { customerSuffix });
       return;
     }
 
     // 購読が追いついていない直後のセッションもあるので、実データも一度だけ確認する。
-    if (storeId && value && !value.includes('/')) {
+    if (storeId && scannedSessionId && !scannedSessionId.includes('/')) {
       try {
-        const snapshot = await getDoc(doc(db, 'stores', storeId, 'sessions', value));
+        const snapshot = await getDoc(doc(db, 'stores', storeId, 'sessions', scannedSessionId));
         if (snapshot.exists() && snapshot.data()?.status === 'active') {
-          onScanSession(value);
+          onScanSession(scannedSessionId, { customerSuffix });
           return;
         }
       } catch (error) {

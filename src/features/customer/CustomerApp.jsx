@@ -29,6 +29,7 @@ import { useCustomerLogic } from './components/useCustomerLogic';
 import { recordEntryEvent } from './utils/entryTelemetry';
 import InviteHintIllustration from './components/InviteHintIllustration';
 import Code128Barcode from '../../shared/components/Code128Barcode';
+import { buildCheckoutBarcodeValue } from '../../shared/utils/checkoutBarcode';
 
 const formatOrderTime = (value) => {
   try {
@@ -108,6 +109,7 @@ const CustomerApp = ({
     setActiveCategory,
     cart,
     myOrderHistory,
+    customerParticipantId,
 
     // ここに追加
     customerReceipts,
@@ -2390,7 +2392,7 @@ if (shouldWaitForSessionBeforeWelcome) {
               {/* 端末内で描画(外部画像サービスは両端余白が無く、枠いっぱいに伸ばすとリーダーが読めなかった)。 */}
               <div className="w-full rounded border border-gray-100 bg-white py-3">
                 {sessionId ? (
-                  <Code128Barcode value={sessionId} height={96} />
+                  <Code128Barcode value={buildCheckoutBarcodeValue(sessionId, customerParticipantId)} height={96} />
                 ) : (
                   <div className="flex h-24 items-center justify-center text-xs font-bold text-gray-300">
                     バーコード準備中
