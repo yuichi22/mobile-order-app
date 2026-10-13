@@ -99,8 +99,8 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
       <div className="mt-2 rounded-xl bg-gray-50 px-3 py-2.5">
         <p className="text-[13px] font-black leading-snug text-gray-900 tabular-nums">
           {pts > 0
-            ? `お会計後に ${name}に ${pts.toLocaleString()}pt たまります`
-            : `お会計後に ${name}にたまります（今のご注文額は ¥${Number(myTotal || 0).toLocaleString()}）`}
+            ? `お会計後、${name}に ${pts.toLocaleString()}pt たまります`
+            : `お会計後、${name}にたまります（今のご注文額は ¥${Number(myTotal || 0).toLocaleString()}）`}
           {mult > 1 && <span className="ml-1 text-[11px] font-bold text-gray-500">本日 {mult}倍</span>}
         </p>
         <p className="mt-0.5 text-[11px] font-bold text-gray-500">会員証の提示は不要です。次回もこの端末なら自動でたまります。</p>
