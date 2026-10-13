@@ -247,7 +247,8 @@ const visibleCategories = useMemo(() => (
 
 const customerThemeColor = basicSettings?.customerThemeColor || '#3B6E8F';
 // LINE 会員証(ポイント)への案内リンク。Core 連携の無い店は null(案内を出さない)
-const memberCardUrl = buildMemberCardUrl(coreLink);
+// 店の基本設定のスイッチ(既定オフ)が入っている店だけ出す(2026-10-13)。本番は全社ポイント開始時に店ごとにオン
+const memberCardUrl = basicSettings?.showPointsNotice === true ? buildMemberCardUrl(coreLink) : null;
 // 入店画面の背景: 店のテーマ色を白に12%だけ混ぜた色(お店の玄関で店の色に迎えられる。メニュー以降は使わない)
 const entryBackgroundColor = (() => {
   const hex = String(customerThemeColor || '').trim();

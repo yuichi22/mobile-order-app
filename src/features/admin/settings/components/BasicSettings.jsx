@@ -491,6 +491,8 @@ const BasicSettingsInner = ({
   const [noOrderAutoVacateMinutes, setNoOrderAutoVacateMinutes] = useState(0);
   // 顧客アプリのお会計画面に「スタッフにお会計を知らせる」を出すか(既定オフ。卓で支払う店向け・2026-10-12)
   const [showCheckoutNotifyButton, setShowCheckoutNotifyButton] = useState(false);
+  // 顧客アプリのお会計画面にポイントの案内と「この注文にポイントをつける」を出すか(既定オフ。全社ポイント開始時に店ごとにオン・2026-10-13)
+  const [showPointsNotice, setShowPointsNotice] = useState(false);
 
   const [newCookingCategoryName, setNewCookingCategoryName] = useState('');
   const [editingCookingCategoryId, setEditingCookingCategoryId] = useState(null);
@@ -570,6 +572,7 @@ const BasicSettingsInner = ({
     );
     setAllowTakeout(settings.allowTakeout !== false);
     setShowCheckoutNotifyButton(settings.showCheckoutNotifyButton === true);
+    setShowPointsNotice(settings.showPointsNotice === true);
     setNoOrderAutoVacateMinutes(
       Math.max(0, Number(settings.noOrderAutoVacateMinutes ?? 0) || 0)
     );
@@ -710,7 +713,7 @@ const confirmDeleteCookingCategory = () => {
   const [baseline, setBaseline] = useState(null);
   const basicSnapshot = JSON.stringify({
     departmentDrafts, registerDrafts, enabledPaymentMethods, allowTakeout, noOrderAutoVacateMinutes,
-    customerThemeColor, showCheckoutNotifyButton, receiptModeDraft, labelPrinterDraft, kitchens, cookingCategoryDraft,
+    customerThemeColor, showCheckoutNotifyButton, showPointsNotice, receiptModeDraft, labelPrinterDraft, kitchens, cookingCategoryDraft,
     bannerPreview, customerLogoPreview
   });
   useEffect(() => {
@@ -747,6 +750,7 @@ const confirmDeleteCookingCategory = () => {
         noOrderAutoVacateMinutes: Math.max(0, Number(noOrderAutoVacateMinutes) || 0),
         customerThemeColor,
         showCheckoutNotifyButton,
+        showPointsNotice,
         // 非表示の項目は formData に含まれない。null で既存値を消さないよう保持する
         receiptBannerImage: formData.get('receiptBannerImage') ?? settings.receiptBannerImage ?? '',
         customerLogoUrl: formData.get('customerLogoUrl') ?? settings.customerLogoUrl ?? '',
@@ -1223,6 +1227,19 @@ const confirmDeleteCookingCategory = () => {
         </div>
 
         <div className="space-y-3 border-t border-gray-100 pt-6">
+          <label className="flex items-start gap-3 rounded-xl border-2 border-gray-200 bg-white px-4 py-3">
+            <input
+              type="checkbox"
+              checked={showPointsNotice}
+              onChange={(event) => setShowPointsNotice(event.target.checked)}
+              className="mt-1 h-4 w-4"
+            />
+            <span>
+              <span className="block text-sm font-black text-gray-900">お会計画面にポイントの案内と「この注文にポイントをつける」を出す</span>
+              <span className="block text-xs font-bold text-gray-500">AKUTO と連携している店だけ有効。全社ポイントを始める店からオンにします（オフの店は何も出ません）。</span>
+            </span>
+          </label>
+
           <label className="flex items-start gap-3 rounded-xl border-2 border-gray-200 bg-white px-4 py-3">
             <input
               type="checkbox"
