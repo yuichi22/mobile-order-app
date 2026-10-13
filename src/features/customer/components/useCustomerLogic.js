@@ -1152,7 +1152,6 @@ const {
     coreLink,
     sessionCrmMembers,
     crmPointInfo,
-    customerParticipantId,
     sessionPartySize,
     sessionPartySizeLoaded,
     tableNumber: resolvedTableNumber,

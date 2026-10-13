@@ -153,8 +153,7 @@ const CustomerApp = ({
     leaveNoOrderSession,
     coreLink,
     sessionCrmMembers,
-    crmPointInfo,
-    customerParticipantId
+    crmPointInfo
   } = useCustomerLogic(
     sessionId,
     storeId,
