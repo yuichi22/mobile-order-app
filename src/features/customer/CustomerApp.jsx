@@ -28,6 +28,7 @@ import { useCrossSellFlow } from './hooks/useCrossSellFlow';
 import { useCustomerLogic } from './components/useCustomerLogic';
 import { recordEntryEvent } from './utils/entryTelemetry';
 import InviteHintIllustration from './components/InviteHintIllustration';
+import Code128Barcode from '../../shared/components/Code128Barcode';
 
 const formatOrderTime = (value) => {
   try {
@@ -2386,15 +2387,12 @@ if (shouldWaitForSessionBeforeWelcome) {
                 <Barcode size={16} />
                 お会計用バーコード
               </p>
-              <div className="relative h-24 w-full overflow-hidden rounded border border-gray-100 bg-white">
+              {/* 端末内で描画(外部画像サービスは両端余白が無く、枠いっぱいに伸ばすとリーダーが読めなかった)。 */}
+              <div className="w-full rounded border border-gray-100 bg-white py-3">
                 {sessionId ? (
-                  <img
-                    src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(sessionId)}&code=Code128&translate-esc=on`}
-                    alt={sessionId}
-                    className="h-32 w-full object-fill mix-blend-multiply"
-                  />
+                  <Code128Barcode value={sessionId} height={96} />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-xs font-bold text-gray-300">
+                  <div className="flex h-24 items-center justify-center text-xs font-bold text-gray-300">
                     バーコード準備中
                   </div>
                 )}

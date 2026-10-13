@@ -2315,10 +2315,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // ⚠以前は入力値をそのまま sessionId として渡していたため、会員番号や打ち間違いでも
   //   「どこの卓でもない空の会計伝票」が開いてしまっていた。当たらなければ遷移しない。
   const resolveOrderScan = async (value) => {
+    // 大文字小文字は区別しない(リーダー設定やCaps Lockで英字の大小が反転して届くことがある)。
+    const lowered = value.toLowerCase();
     const matched = displaySessions.find((session) => (
-      String(session.id) === value
-      || String(session.tableId || '').trim() === value
-      || String(session.tableNumber || '').trim() === value
+      String(session.id).toLowerCase() === lowered
+      || String(session.tableId || '').trim().toLowerCase() === lowered
+      || String(session.tableNumber || '').trim().toLowerCase() === lowered
     ));
     if (matched) {
       onScanSession(matched.id);
@@ -2363,7 +2365,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // バッファ式ハンドラ(posScanKeyDown)がスキャン速度を検出してカートへ流す。
   useGlobalBarcodeScanner({
     // 別タブ(日計/分析/設定)へ移動中は keep-alive で裏に残るため、非アクティブ時は捕捉しない。
-    active: isActive && (registerMode === 'pos' || isTakeoutMode),
+    // ORDER(イートイン)もお会計バーコード/卓番号を検索窓にカーソルが無くても読めるようにする。
+    active: isActive,
     onScan: processScannedValue
   });
 
@@ -2737,7 +2740,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                   value={scanInput}
                   // POSは商品名(日本語)でも検索するため生テキスト。ORDERは卓番号/バーコードなので従来通り正規化。
                   onChange={(event) => { if (scanCandidates.length > 0) setScanCandidates([]); setScanInput(registerMode === 'pos' ? event.target.value : normalizeScannedCode(event.target.value)); }}
-                  onKeyDown={registerMode === 'pos' ? posScanKeyDown : undefined}
+                  onKeyDown={posScanKeyDown}
                   className="border-2 border-gray-200 bg-white hover:border-gray-300 h-11 w-full rounded-xl pl-11 pr-11 text-base font-bold outline-none focus:border-ui"
                   placeholder={registerMode === 'pos' ? '商品名 / 品番 / バーコードで検索・スキャン...' : '卓番号・バーコードをスキャン...'}
                 />
