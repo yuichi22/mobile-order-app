@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { encodeCode128B } from '../utils/code128';
+import { encodeCode128 } from '../utils/code128';
 
 // 規格上の両端余白(10モジュール以上)。スマホ画面の枠に詰めて描くとリーダーが端を見失うため多めに取る。
 const QUIET_ZONE_MODULES = 12;
@@ -7,7 +7,7 @@ const QUIET_ZONE_MODULES = 12;
 // Code128 を SVG で描く。横幅いっぱいに伸ばしてもバー幅の比率は崩れない(横方向は一様拡大)。
 // 背景は白で塗る(スマホの暗い背景やダークモードでも読めるように)。
 const Code128Barcode = ({ value, height = 88, className = '', showText = true }) => {
-  const widths = useMemo(() => encodeCode128B(value), [value]);
+  const widths = useMemo(() => encodeCode128(value), [value]);
   if (!widths) return null;
 
   const totalModules = widths.reduce((sum, width) => sum + width, 0) + QUIET_ZONE_MODULES * 2;

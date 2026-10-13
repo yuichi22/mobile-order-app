@@ -2392,7 +2392,8 @@ if (shouldWaitForSessionBeforeWelcome) {
               {/* 端末内で描画(外部画像サービスは両端余白が無く、枠いっぱいに伸ばすとリーダーが読めなかった)。 */}
               <div className="w-full rounded border border-gray-100 bg-white py-3">
                 {sessionId ? (
-                  <Code128Barcode value={buildCheckoutBarcodeValue(sessionId, customerParticipantId)} height={96} />
+                  // 会員カード並みのサイズ(短い中身＋太いバー)。横幅いっぱいに伸ばすより読み取りが安定する。
+                  <Code128Barcode value={buildCheckoutBarcodeValue(sessionId, customerParticipantId)} height={84} className="mx-auto max-w-[300px]" />
                 ) : (
                   <div className="flex h-24 items-center justify-center text-xs font-bold text-gray-300">
                     バーコード準備中

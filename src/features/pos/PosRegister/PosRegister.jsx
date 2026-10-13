@@ -30,7 +30,7 @@ import { useCrmMember, CRM_MEMBER_SCAN_PATTERN } from '../hooks/useCrmMember';
 import TerminalPaymentModal from '../terminal/TerminalPaymentModal';
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import { isImeKeyEvent } from '../../../shared/hooks/useScannerBufferedInput';
-import { matchesCustomerSuffix, parseCheckoutBarcodeValue } from '../../../shared/utils/checkoutBarcode';
+import { isShortCheckoutBarcode, matchesCustomerToken, parseCheckoutBarcodeValue, sessionMatchesCheckoutScan } from '../../../shared/utils/checkoutBarcode';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../../inventory/services/stocktakeDataService';
 import { pushInventoryToShopify } from '../../store/services/storeDataService';
 import { getAuth } from 'firebase/auth';
@@ -97,7 +97,7 @@ const allocateAmountByWeight = (targetAmount, weights) => {
     .map((entry) => entry.value);
 };
 
-export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId, crm, activeSessions = [], onSwitchSession, initialCustomerSuffix = '' }) => {
+export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, onCheckoutAmountEntered, storeId, crm, activeSessions = [], onSwitchSession, initialCustomerToken = '' }) => {
   const { settings: storeSettings } = useStoreSettings(storeId);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -222,16 +222,20 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     const SCAN_GAP_MS = 80;
     const MIN_SCAN_LENGTH = 8;
 
-    const resolveScannedSession = async (value) => {
+    // parsed: parseCheckoutBarcodeValue の結果。raw: 読み取った文字列(卓IDでの照合用)。
+    const resolveScannedSession = async (parsed, raw) => {
       const { activeSessions: sessions } = sessionSwitchStateRef.current;
-      const lowered = value.toLowerCase();
-      if (lowered === String(sessionId).toLowerCase()) return { id: sessionId };
+      const lowered = String(raw || '').toLowerCase();
+      if (sessionMatchesCheckoutScan(sessionId, parsed)) return { id: sessionId };
+      // 卓番号が複数の卓に当たる(ごくまれ)時は推測で切り替えない。
+      if (parsed.sessionCode && (sessions || []).filter((session) => sessionMatchesCheckoutScan(session.id, parsed)).length > 1) return null;
       const hit = (sessions || []).find((session) => (
-        String(session.id).toLowerCase() === lowered
+        sessionMatchesCheckoutScan(session.id, parsed)
         || String(session.tableId || '').trim().toLowerCase() === lowered
       ));
       if (hit) return hit;
-      // 購読が追いついていない直後のセッション(Firestore自動IDの形)は実データで確かめる。
+      // 購読が追いついていない直後のセッション(旧形式=Firestore自動IDの形)は実データで確かめる。
+      const value = parsed.sessionId;
       if (storeId && /^[A-Za-z0-9]{20}$/.test(value)) {
         try {
           const snapshot = await getDoc(doc(db, 'stores', storeId, 'sessions', value));
@@ -245,8 +249,9 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
     const switchTo = async (value) => {
       const state = sessionSwitchStateRef.current;
-      const { sessionId: scannedSessionId, customerSuffix } = parseCheckoutBarcodeValue(value);
-      const target = await resolveScannedSession(scannedSessionId);
+      const parsed = parseCheckoutBarcodeValue(value);
+      const { customerToken } = parsed;
+      const target = await resolveScannedSession(parsed, value);
       if (!target) {
         state.setCrmCodeInput?.('');
         return;
@@ -256,7 +261,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       // 同じ卓の別のお客様: 卓はそのままで、選択をその人の分へ切り替える。
       if (String(target.id) === String(sessionId)) {
         state.setCrmCodeInput?.('');
-        if (!customerSuffix) return;
+        if (!customerToken) return;
         if (state.inProgress) {
           const ok = await appConfirm(
             '会計の入力途中です。\n読み取ったお客様の分に選択を切り替えますか？\n（入力中の金額・割引などは破棄されます）',
@@ -264,7 +269,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           );
           if (!ok) return;
         }
-        if (state.selectCustomer?.(customerSuffix)) state.clearCrmMember?.(); // 前のお客様の会員を持ち越さない
+        if (state.selectCustomer?.(customerToken)) state.clearCrmMember?.(); // 前のお客様の会員を持ち越さない
         return;
       }
       const targetLabel = String(target.tableDisplayName || target.tableName || target.displayName || target.tableNumber || '次の卓').trim();
@@ -280,7 +285,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       }
       state.clearCrmMember?.(); // 前のお客様の会員を持ち越さない
       state.setCrmCodeInput?.('');
-      state.onSwitchSession?.(target.id, { customerSuffix });
+      state.onSwitchSession?.(target.id, { customerToken });
     };
 
     const handleKeyDown = (event) => {
@@ -295,18 +300,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         const buffer = state.buffer;
         state.buffer = '';
         if (!continuing || buffer.length < MIN_SCAN_LENGTH || CRM_MEMBER_SCAN_PATTERN.test(buffer)) return;
-        // 横取りするのは「利用中の卓に当たる」か「セッションIDの形(英字を含む20文字)」の時だけ。
+        // 横取りするのは「お会計バーコード(OC+10桁)」「利用中の卓に当たる」「旧形式のセッションIDの形」の時だけ。
         // 数字だけの会員番号(会員番号欄へのスキャン)は従来どおり会員照会へ流す。
         const parsed = parseCheckoutBarcodeValue(buffer);
         const lowered = buffer.toLowerCase();
-        const loweredSessionId = parsed.sessionId.toLowerCase();
-        const knownSession = String(sessionId).toLowerCase() === loweredSessionId
+        const knownSession = sessionMatchesCheckoutScan(sessionId, parsed)
           || (sessionSwitchStateRef.current.activeSessions || []).some((session) => (
-            String(session.id).toLowerCase() === loweredSessionId
+            sessionMatchesCheckoutScan(session.id, parsed)
             || String(session.tableId || '').trim().toLowerCase() === lowered
           ));
         const looksLikeSessionId = /^[A-Za-z0-9]{20}$/.test(parsed.sessionId) && /[A-Za-z]/.test(parsed.sessionId);
-        if (!knownSession && !looksLikeSessionId) return;
+        if (!knownSession && !looksLikeSessionId && !isShortCheckoutBarcode(buffer)) return;
         event.preventDefault();
         event.stopPropagation();
         void switchTo(buffer);
@@ -2544,11 +2548,12 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     toggleItemKeyGroup(targetItemKeys);
   };
 
-  // お会計バーコードの本人ID(末尾)でお客様を特定し、その人の未払い分だけを選択する(トグルではなく置き換え)。
-  // 当たらない/未払いが無い時は false(選択は変えない＝卓全体のまま)。
-  const selectCustomerBySuffix = (suffix) => {
-    const customerKey = Object.keys(ordersByCustomer).find((key) => matchesCustomerSuffix(key, suffix));
-    if (!customerKey) return false;
+  // お会計バーコードの本人番号でお客様を特定し、その人の未払い分だけを選択する(トグルではなく置き換え)。
+  // 当たらない・未払いが無い・番号が複数人に当たる(まれ)時は false(勝手に選ばない＝卓全体のまま)。
+  const selectCustomerByToken = (token) => {
+    const matchedKeys = Object.keys(ordersByCustomer).filter((key) => matchesCustomerToken(key, token));
+    if (matchedKeys.length !== 1) return false;
+    const [customerKey] = matchedKeys;
     const targetItemKeys = ordersByCustomer[customerKey]
       .flatMap((order) => getOrderItemKeys(order))
       .filter((key) => allPayableItemKeys.has(key));
@@ -2561,11 +2566,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   // レジ一覧でお会計バーコードを読んで開いた時: 注文の読み込み完了後に一度だけ、その人の分を選択済みにする。
   const initialCustomerAppliedRef = useRef(false);
   useEffect(() => {
-    if (initialCustomerAppliedRef.current || !initialCustomerSuffix || loading) return;
+    if (initialCustomerAppliedRef.current || !initialCustomerToken || loading) return;
     initialCustomerAppliedRef.current = true;
-    selectCustomerBySuffix(initialCustomerSuffix);
+    selectCustomerByToken(initialCustomerToken);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 読み込み完了時の一度きり
-  }, [loading, initialCustomerSuffix]);
+  }, [loading, initialCustomerToken]);
 
   // 会計画面でのお会計バーコード読取(卓の切り替え)が参照する最新状態。
   useEffect(() => {
@@ -2584,7 +2589,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
       currentLabel: tableDisplayName || 'この卓',
       clearCrmMember,
       setCrmCodeInput,
-      selectCustomer: selectCustomerBySuffix
+      selectCustomer: selectCustomerByToken
     };
   });
 

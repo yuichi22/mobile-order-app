@@ -18,7 +18,16 @@ const PATTERNS = [
 ];
 
 const START_B = 104;
+const START_C = 105;
+const CODE_C = 99; // セットB中: 以降セットC(数字2桁を1文字に詰める)
+const CODE_B = 100; // セットC中: 以降セットB
 const STOP = 106;
+
+const toWidths = (startCode, codes) => {
+  const checksum = codes.reduce((sum, code, index) => sum + code * (index + 1), startCode) % 103;
+  return [startCode, ...codes, checksum, STOP]
+    .flatMap((code) => PATTERNS[code].split('').map(Number));
+};
 
 // 符号化できない文字(ASCII 32〜126 以外)を含む場合は null。
 export const encodeCode128B = (text) => {
@@ -32,7 +41,45 @@ export const encodeCode128B = (text) => {
     codes.push(code - 32);
   }
 
-  const checksum = codes.reduce((sum, code, index) => sum + code * (index + 1), START_B) % 103;
-  return [START_B, ...codes, checksum, STOP]
-    .flatMap((code) => PATTERNS[code].split('').map(Number));
+  return toWidths(START_B, codes);
+};
+
+// 数字の連続(4桁以上)をセットCで2桁ずつ詰める。会員カード("MB"+12桁)のように
+// 英字の前置き+数字の値は、セットBのみより大幅に短く(=バーが太く)なりスマホ画面でも読みやすい。
+export const encodeCode128 = (text) => {
+  const value = String(text ?? '');
+  if (!value) return null;
+  if ([...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) > 126)) return null;
+
+  // 全体が偶数桁の数字ならセットCだけで済む。
+  if (/^(\d\d)+$/.test(value)) {
+    const codes = value.match(/\d\d/g).map(Number);
+    return toWidths(START_C, codes);
+  }
+
+  const codes = [];
+  let set = 'B';
+  let index = 0;
+  while (index < value.length) {
+    const digitRun = value.slice(index).match(/^\d+/)?.[0] || '';
+    if (digitRun.length >= 4) {
+      // 奇数桁は先頭1桁をセットBで出してから偶数桁をセットCで詰める。
+      let run = digitRun;
+      if (run.length % 2 === 1) {
+        if (set !== 'B') { codes.push(CODE_B); set = 'B'; }
+        codes.push(run.charCodeAt(0) - 32);
+        run = run.slice(1);
+        index += 1;
+      }
+      if (set !== 'C') { codes.push(CODE_C); set = 'C'; }
+      run.match(/\d\d/g).forEach((pair) => codes.push(Number(pair)));
+      index += run.length;
+      continue;
+    }
+    if (set !== 'B') { codes.push(CODE_B); set = 'B'; }
+    codes.push(value.charCodeAt(index) - 32);
+    index += 1;
+  }
+
+  return toWidths(START_B, codes);
 };

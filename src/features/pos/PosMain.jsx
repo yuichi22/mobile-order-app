@@ -8,7 +8,7 @@ import { db, functionsApi } from '../../shared/api/firebase/client';
 import { queryDocsWithRestFallback } from '../../shared/api/firebase/scanQuery';
 import { httpsCallable } from 'firebase/functions';
 import { normalizeScannedCode } from '../../shared/utils/halfWidth';
-import { parseCheckoutBarcodeValue } from '../../shared/utils/checkoutBarcode';
+import { parseCheckoutBarcodeValue, sessionMatchesCheckoutScan } from '../../shared/utils/checkoutBarcode';
 import { useCrmMember } from './hooks/useCrmMember';
 import PosMemberSearchModal from './components/PosMemberSearchModal';
 import { memberBarStyle, rankTheme } from './utils/rankTheme';
@@ -2316,18 +2316,23 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   // ⚠以前は入力値をそのまま sessionId として渡していたため、会員番号や打ち間違いでも
   //   「どこの卓でもない空の会計伝票」が開いてしまっていた。当たらなければ遷移しない。
   const resolveOrderScan = async (value) => {
-    // お会計バーコードは "<sessionId>.<本人ID末尾>"。本人が分かれば会計画面でその人の分を選択済みにする。
-    const { sessionId: scannedSessionId, customerSuffix } = parseCheckoutBarcodeValue(value);
+    // お会計バーコード("OC"+卓番号+本人番号 / 旧: sessionId[.本人ID末尾])。本人が分かれば会計画面でその人の分を選択済みにする。
+    const parsed = parseCheckoutBarcodeValue(value);
+    const { sessionId: scannedSessionId, customerToken } = parsed;
     // 大文字小文字は区別しない(リーダー設定やCaps Lockで英字の大小が反転して届くことがある)。
+    // 卓番号が複数の卓に当たる(ごくまれ)時は推測で開かない。
+    if (parsed.sessionCode && displaySessions.filter((session) => sessionMatchesCheckoutScan(session.id, parsed)).length > 1) {
+      setScanNotFound(value);
+      return;
+    }
     const lowered = value.toLowerCase();
-    const loweredSessionId = scannedSessionId.toLowerCase();
     const matched = displaySessions.find((session) => (
-      String(session.id).toLowerCase() === loweredSessionId
+      sessionMatchesCheckoutScan(session.id, parsed)
       || String(session.tableId || '').trim().toLowerCase() === lowered
       || String(session.tableNumber || '').trim().toLowerCase() === lowered
     ));
     if (matched) {
-      onScanSession(matched.id, { customerSuffix });
+      onScanSession(matched.id, { customerToken });
       return;
     }
 
@@ -2336,7 +2341,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       try {
         const snapshot = await getDoc(doc(db, 'stores', storeId, 'sessions', scannedSessionId));
         if (snapshot.exists() && snapshot.data()?.status === 'active') {
-          onScanSession(scannedSessionId, { customerSuffix });
+          onScanSession(scannedSessionId, { customerToken });
           return;
         }
       } catch (error) {
