@@ -724,7 +724,11 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
               {posView === 'register' && currentPosSessionId && (
                 <PosRegisterPage
+                  // 会計画面のまま別の卓のお会計バーコードを読んだ時は作り直す(前の卓の入力・割引を持ち越さない)。
+                  key={currentPosSessionId}
                   sessionId={currentPosSessionId}
+                  activeSessions={activeSessions}
+                  onSwitchSession={handlePosScan}
                   onBack={() => setPosView('scan')}
                   onComplete={handlePosComplete}
                   onPaymentResult={handlePaymentResultToast}
