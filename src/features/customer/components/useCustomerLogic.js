@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  getDocFromServer,
   onSnapshot,
   setDoc
 } from 'firebase/firestore';
@@ -333,6 +334,25 @@ export const useCustomerLogic = (
 
     const sessionRef = doc(db, 'stores', storeId, 'sessions', sessionId);
 
+    // LINE(会員証)へ飛んで戻った直後、iOS Safari では購読の接続が切れたままで会員の紐づけ
+    // (crmMembers)が届かないことがある(2026-10-15 実機: リロードしないとボタンが消えない)。
+    // 画面が見えるようになった時にサーバーから読み直す(紐づけは数秒遅れて書かれるので数回)。
+    let visTimers = [];
+    const refetchSession = async () => {
+      try {
+        const snap = await getDocFromServer(sessionRef);
+        const data = snap.exists() ? snap.data() : null;
+        setSessionCrmMembers(data?.crmMembers && typeof data.crmMembers === 'object' ? data.crmMembers : {});
+      } catch { /* オフライン等は購読に任せる */ }
+    };
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      visTimers.forEach(clearTimeout);
+      visTimers = [0, 2500, 6000, 12000].map((ms) => setTimeout(refetchSession, ms));
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+
     const unsubscribe = onSnapshot(
       sessionRef,
       (snapshot) => {
@@ -356,7 +376,12 @@ export const useCustomerLogic = (
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+      visTimers.forEach(clearTimeout);
+    };
   }, [storeId, sessionId]);
 
   useEffect(() => {

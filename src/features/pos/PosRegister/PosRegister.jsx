@@ -116,6 +116,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const crmAutoDismissedRef = useRef(false);
   const crmAutoLoadedPersonRef = useRef('');
   useEffect(() => { crmAutoDismissedRef.current = false; crmAutoLoadedPersonRef.current = ''; }, [sessionId]);
+  // テーブル表示へ戻る(=この画面を離れる)時は会員の紐づけを消す。会員の状態は親(AdminApp)が持つので、
+  // 消さないと卓一覧の上に前の卓の会員バーが残る(2026-10-15 ユーザー要望)。
+  // ⚠マウント時には消さない: 卓一覧で会員証を先に読んでから卓を開く流れを壊さないため。
+  const clearCrmMemberRef = useRef(null);
+  useEffect(() => () => { try { clearCrmMemberRef.current?.(); } catch { /* noop */ } }, []);
 
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
@@ -163,6 +168,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     redeemPoints: crmRedeemPoints,
     recheckMember: recheckCrmMember
   } = crm || fallbackCrm;
+  clearCrmMemberRef.current = clearCrmMember;
 
   // 会員検索（ポイントカードのご案内で、固定電話のお客様に携帯番号をお伺いする画面）。
   // ⚠開いている時だけマウントする(前のお客様の検索結果を持ち越さない)。
