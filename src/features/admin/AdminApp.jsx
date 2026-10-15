@@ -75,8 +75,15 @@ const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabe
   >
     {active && (
       <>
-        <span aria-hidden className="pointer-events-none absolute bottom-0 -left-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 0 0, transparent 11.5px, var(--mode-line) 11.5px, var(--mode-line) 12.5px, var(--mode-bg) 12.5px)' }} />
-        <span aria-hidden className="pointer-events-none absolute bottom-0 -right-[13px] h-3 w-[13px]" style={{ background: 'radial-gradient(circle at 100% 0, transparent 11.5px, var(--mode-line) 11.5px, var(--mode-line) 12.5px, var(--mode-bg) 12.5px)' }} />
+        {/* 根元の曲線【10-15】: グラデーションで描くと、iPad など拡大率が整数でない画面で縦線とずれて交差する。
+            角丸の「枠線」で描き、ほかの線と同じく画面の点に揃えて描かせる。
+            外側の四角=画面の地(バーの下線とタブの縦線の下端を隠す・1px広くして継ぎ目を消す)、内側=バーの地に縁2辺＋角丸12px。内側の端1pxをタブの縦線に重ねる */}
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -left-[13px] h-3 w-[14px] bg-[var(--mode-bg)]">
+          <span className="absolute inset-y-0 -left-px w-[14px] rounded-br-xl border-b border-r border-[var(--mode-line)] bg-white" />
+        </span>
+        <span aria-hidden className="pointer-events-none absolute bottom-0 -right-[13px] h-3 w-[14px] bg-[var(--mode-bg)]">
+          <span className="absolute inset-y-0 -right-px w-[14px] rounded-bl-xl border-b border-l border-[var(--mode-line)] bg-white" />
+        </span>
       </>
     )}
     <Icon size={17} strokeWidth={2.5} />
