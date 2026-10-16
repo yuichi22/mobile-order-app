@@ -765,7 +765,7 @@ const addGrossProfitSummary = (summary, transaction) => {
     summary.grossProfitTaxExcluded += grossProfitTaxExcluded;
 
     // 正確な個別原価ではなく「原価率(掛け率)で推計」した分を別途集計(粗利には含まれている)。
-    if (item.costSource && item.costSource !== 'product_cost') {
+    if (item.costSource && !['product_cost', 'stock_layer'].includes(item.costSource)) {
       summary.estimatedCostItemCount += quantity;
       summary.estimatedCostSalesTaxIncluded += salesTaxIncludedAmount;
       summary.estimatedCostSalesTaxExcluded += salesTaxExcludedAmount;

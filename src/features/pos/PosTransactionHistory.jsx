@@ -1283,6 +1283,8 @@ export const PosTransactionHistory = ({
           sourceType: item.sourceType || '',
           index,
           quantity: cQty,
+          // 返品で在庫へ戻さなかった分は、入庫ロット原価(costLayers)を消化したままにする。
+          stockRestored: shouldRestoreStock,
           grossAmount: grossPortion,
           amount: Math.round(grossPortion * netRatio) // 割引後の返金額
         });
@@ -1455,6 +1457,7 @@ export const PosTransactionHistory = ({
             itemIndex: entry.index,
             quantity: entry.quantity,
             amount: entry.amount,
+            stockRestored: entry.stockRestored,
             reversalTransactionId: reversalRef.id,
             businessDate: today,
             reason: cancelReason.trim()

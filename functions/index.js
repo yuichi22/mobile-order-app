@@ -9076,6 +9076,15 @@ export { publicMenu, publicBrands, rebuildPublicSiteCache, runPublicSiteCacheNow
 //   クライアントから来た値は一切信じない。詳細は takeoutOrders.js の冒頭を参照。
 export { createTakeoutOrder } from "./takeoutOrders.js";
 
+// 入庫ロット原価(先入先出)。入庫でロットを作り、売上で古い順に消化して明細の原価を書き直す。
+// 詳細は costLayers.js の冒頭を参照。
+export {
+  createCostLayerOnStockIn,
+  allocateTransactionCostLayers,
+  trimCostLayersOnStockMovement,
+  trimCostLayersOnStocktakeComplete
+} from "./costLayers.js";
+
 // === Shopify在庫 push アウトボックス(確実に反映するキュー方式) ===
 // 課題: クライアントの即時push(fire-and-forget)は通信断/タブ閉じで落ちると、
 //       翌朝03:00のリコンサイル(Shopify on_hand を正とする)に「差分」とみなされ POS が上書きされ、
