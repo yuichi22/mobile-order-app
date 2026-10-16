@@ -37,6 +37,26 @@ import {
   resolvePhotoLabelStyle
 } from '../../../../shared/constants/photoLabelColors';
 import SearchField from '../../../../shared/components/SearchField';
+import { computeMenuCostRate } from '../../../../shared/utils/menuCostRate';
+
+// 価格の下に出す原価率。原価未設定なら代わりにアラートを出す（日計の粗利に入らないため）。
+const CostRateBadge = ({ item, settings, className = '' }) => {
+  const { status, rate } = computeMenuCostRate(item, settings);
+  if (status === 'missing') {
+    return (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-black leading-none text-amber-600 ${className}`}>
+        <AlertTriangle size={12} />
+        原価未設定
+      </span>
+    );
+  }
+  if (status !== 'ok') return null;
+  return (
+    <span className={`text-[11px] font-black leading-none text-gray-500 tabular-nums ${className}`}>
+      原価率 {rate.toFixed(1)}%
+    </span>
+  );
+};
 
 const getPhotoLabelClassName = (labelSize = 'md') => {
   const sizeMap = {
@@ -1062,6 +1082,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                         />
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-300">¥</span>
                       </div>
+                      <div className="mt-2"><CostRateBadge item={editingItem} settings={basicSettings} /></div>
                     </div>
 
                     <div>
@@ -1348,7 +1369,7 @@ const handleClearLimitedQuantity = async (event, item) => {
                   </div>
 
                   <p className="mt-4 text-xs font-bold leading-relaxed text-gray-500">
-                    注文作成時にこの原価を保存し、日計で粗利を集計する予定です。過去注文の粗利が後から変わらないようにします。
+                    注文作成時にこの原価を保存し、日計・分析の粗利と原価率はその保存値で集計します。原価を変えても変更前の注文の原価率は変わりません。
                   </p>
                 </div>
 
@@ -2339,8 +2360,11 @@ const handleClearLimitedQuantity = async (event, item) => {
 
                         <div className="flex shrink-0 flex-col gap-2 border-t border-gray-100 pt-3 lg:min-w-[520px] lg:border-t-0 lg:pt-0">
                           <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 border-t border-gray-100 pt-3 lg:border-t-0 lg:pt-0 lg:justify-end">
-                            <div className="inline-flex h-10 min-w-[92px] items-center justify-end px-2 text-base font-black leading-none text-gray-900 tabular-nums">
-                              ¥{Number(item.price || 0).toLocaleString()}
+                            <div className="inline-flex h-10 min-w-[92px] flex-col items-end justify-center gap-1 px-2">
+                              <span className="text-base font-black leading-none text-gray-900 tabular-nums">
+                                ¥{Number(item.price || 0).toLocaleString()}
+                              </span>
+                              <CostRateBadge item={item} settings={basicSettings} />
                             </div>
 
                             <div
