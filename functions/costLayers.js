@@ -412,22 +412,24 @@ export const allocateTransactionCostLayers = onDocumentWritten(
 );
 
 // 在庫を絶対値で合わせた結果、ロット残が在庫を超えたら古い順に落とす(ロス・EC販売などで消えた分)。
-const trimLayersToInventory = async (storeRef, productId) => {
+// snapshotItemRef(棚卸し明細)を渡すと、落とした後のロット残を明細の costLayerSnapshot に控える(在高レポートの根拠)。
+const trimLayersToInventory = async (storeRef, productId, { snapshotItemRef = null } = {}) => {
   const db = getDb();
   await db.runTransaction(async (tx) => {
     const productSnap = await tx.get(storeRef.collection('products').doc(productId));
     if (!productSnap.exists) return;
+    const itemSnap = snapshotItemRef ? await tx.get(snapshotItemRef) : null;
     const product = productSnap.data() || {};
     const inventory = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
     const layers = await readOpenLayers(tx, storeRef, productId);
     let excess = layers.reduce((s, l) => s + (Number(l.remainingQuantity) || 0), 0) - inventory;
-    if (excess <= 0) return;
     let trimmed = 0;
     for (const layer of layers) {
       if (excess <= 0) break;
       const cut = Math.min(Number(layer.remainingQuantity) || 0, excess);
+      layer.remainingQuantity = (Number(layer.remainingQuantity) || 0) - cut;
       tx.update(layer.ref, {
-        remainingQuantity: (Number(layer.remainingQuantity) || 0) - cut,
+        remainingQuantity: layer.remainingQuantity,
         trimmedQuantity: FieldValue.increment(cut),
         updatedAt: FieldValue.serverTimestamp()
       });
@@ -435,6 +437,22 @@ const trimLayersToInventory = async (storeRef, productId) => {
       trimmed += cut;
     }
     bumpOpenQuantity(tx, storeRef, productId, -trimmed);
+
+    // カウントされた商品だけ控える(未カウント=在庫0にした商品へ明細を作らない)。
+    if (itemSnap?.exists) {
+      tx.set(snapshotItemRef, {
+        costLayerSnapshot: layers
+          .filter((l) => (Number(l.remainingQuantity) || 0) > 0)
+          .map((l) => ({
+            layerId: l.id,
+            remainingQuantity: Number(l.remainingQuantity) || 0,
+            unitCostTaxIncluded: l.unitCostTaxIncluded ?? null,
+            unitCostTaxExcluded: l.unitCostTaxExcluded ?? null,
+            costSource: l.costSource ?? null,
+            receivedAtMs: layerTime(l)
+          }))
+      }, { merge: true });
+    }
   });
 };
 
@@ -451,17 +469,22 @@ export const trimCostLayersOnStockMovement = onDocumentCreated(
   }
 );
 
-// 棚卸し確定(在庫を数えた数で上書き) → ロット残のある商品だけ在庫に合わせる。
+// 棚卸し確定(在庫を数えた数で上書き) → ロット残のある商品だけ在庫に合わせ、確定時点のロット残を明細へ控える。
+// 在高レポート(stocktakeValuation.js)は控えたロット原価で評価し、ロットより多い分・控えの無い商品
+// (ロットなし・この機能より前の棚卸し)は現在の原価で埋める。
+// 最後に stocktake.costLayerSnapshotAt を立てる(=控えの書き込み完了。画面の「反映待ち」表示に使う)。
 export const trimCostLayersOnStocktakeComplete = onDocumentWritten(
-  { region: REGION, database: DB_ID, document: 'stores/{storeId}/stocktakes/{stocktakeId}' },
+  { region: REGION, database: DB_ID, document: 'stores/{storeId}/stocktakes/{stocktakeId}', timeoutSeconds: 540 },
   async (event) => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
     if (after.status !== 'completed' || before.status === 'completed') return;
     const storeRef = getDb().collection('stores').doc(event.params.storeId);
+    const stocktakeRef = storeRef.collection('stocktakes').doc(event.params.stocktakeId);
     const snap = await storeRef.collection('costLayerProducts').where('openQuantity', '>', 0).get();
     for (const d of snap.docs) {
-      await trimLayersToInventory(storeRef, d.id);
+      await trimLayersToInventory(storeRef, d.id, { snapshotItemRef: stocktakeRef.collection('items').doc(d.id) });
     }
+    await stocktakeRef.set({ costLayerSnapshotAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );

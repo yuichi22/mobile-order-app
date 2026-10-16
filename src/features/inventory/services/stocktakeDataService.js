@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../../../shared/api/firebase/client';
+import { positiveRate, summarizeStocktakeValuation } from './stocktakeValuation';
 
 export const isValidStoreId = (storeId) => Boolean(storeId && typeof storeId === 'string');
 
@@ -620,19 +621,20 @@ const chunkArray = (arr, size) => {
   return out;
 };
 
-const positiveRate = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
-
 // 完了棚卸しの「売り場別 在高(上代/原価)集計」を算出する(棚卸し完了日時点の数量を使用)。
-// 数量=warehouse+storefront、上代=アイテムのスナップ売価、原価=掛け率連鎖
-// (商品原価 > 商品掛け率 > ブランド > 仕入先 > 売り場)。原価未解決の商品は0扱いで件数を返す。
+// 数量=warehouse+storefront、上代=アイテムのスナップ売価。
+// 原価=確定時に控えた入庫ロット原価。ロットより多い分・ロットの無い商品は現在の掛け率連鎖
+// (商品原価 > 商品掛け率 > ブランド > 仕入先 > 売り場)で埋める(詳細は stocktakeValuation.js)。
+// 原価未解決の商品は0扱いで件数を返す。
 // taxMode: 'excluded'(税抜, 既定) | 'included'(税込)。
+// costLayerSnapshotReady=false は「確定直後で functions がロット原価をまだ控えていない」(現在原価で仮集計)。
 export const computeStocktakeValuation = async (storeId, stocktakeId, { taxMode = 'excluded' } = {}) => {
   if (!isValidStoreId(storeId) || !stocktakeId) throw new Error('invalid arguments');
 
-  const itemsSnapshot = await getDocs(stocktakeItemsRef(storeId, stocktakeId));
+  const [stocktakeSnap, itemsSnapshot] = await Promise.all([
+    getDoc(stocktakeDocRef(storeId, stocktakeId)),
+    getDocs(stocktakeItemsRef(storeId, stocktakeId))
+  ]);
   const items = itemsSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 
   // カウント済み商品だけ取得(documentId in, 30件ずつ並列)。
@@ -648,59 +650,13 @@ export const computeStocktakeValuation = async (storeId, stocktakeId, { taxMode 
     getDocs(storeCollectionRef(storeId, 'suppliers')),
     getDocs(storeCollectionRef(storeId, 'productSalesAreas'))
   ]);
-  const brandMap = new Map(brandsSnap.docs.map((d) => [d.id, d.data()]));
-  const supplierMap = new Map(suppliersSnap.docs.map((d) => [d.id, d.data()]));
-  const areaNameMap = new Map(areasSnap.docs.map((d) => [d.id, d.data().name || d.id]));
-  const areaRateMap = new Map(areasSnap.docs.map((d) => [d.id, positiveRate(d.data().defaultCostRate)]));
-
-  const priceField = taxMode === 'included' ? 'priceTaxIncluded' : 'priceTaxExcluded';
-  const costField = taxMode === 'included' ? 'costTaxIncluded' : 'costTaxExcluded';
-
-  const resolveUnitCost = (product, unitPrice) => {
-    const direct = Number(product[costField]);
-    if (Number.isFinite(direct) && direct > 0) return { cost: direct, has: true };
-    const brand = product.brandId ? brandMap.get(String(product.brandId)) : null;
-    const supplier = brand?.supplierId ? supplierMap.get(String(brand.supplierId)) : null;
-    let rate = positiveRate(product.supplierCostRate)
-      ?? positiveRate(brand?.defaultCostRate)
-      ?? positiveRate(supplier?.defaultCostRate);
-    if (rate == null && product.salesAreaId) rate = areaRateMap.get(String(product.salesAreaId)) ?? null;
-    if (rate != null && Number.isFinite(unitPrice)) return { cost: unitPrice * Math.min(100, rate) / 100, has: true };
-    return { cost: 0, has: false };
-  };
-
-  const areaAgg = new Map();
-  let totalRetail = 0;
-  let totalCost = 0;
-  let totalQty = 0;
-  let totalNoCost = 0;
-
-  for (const it of items) {
-    const qty = Math.max(Number(it.warehouseQuantity || 0) + Number(it.storefrontShelfQuantity || 0), 0);
-    if (qty <= 0) continue; // マイナス在庫は在高に含めない
-    const product = productMap.get(it.id) || {};
-    const unitPrice = Number(it[priceField] ?? product[priceField] ?? 0) || 0;
-    const areaId = String(product.salesAreaId || 'salesarea_999');
-    const areaName = areaNameMap.get(areaId) || product.salesAreaName || '未設定';
-    const { cost, has } = resolveUnitCost(product, unitPrice);
-
-    if (!areaAgg.has(areaId)) areaAgg.set(areaId, { areaId, name: areaName, qty: 0, retail: 0, cost: 0, noCostItems: 0 });
-    const agg = areaAgg.get(areaId);
-    agg.qty += qty;
-    agg.retail += unitPrice * qty;
-    agg.cost += cost * qty;
-    if (!has) agg.noCostItems += 1;
-
-    totalRetail += unitPrice * qty;
-    totalCost += cost * qty;
-    totalQty += qty;
-    if (!has) totalNoCost += 1;
-  }
-
-  return {
+  const result = summarizeStocktakeValuation(items, productMap, {
     taxMode,
-    areas: [...areaAgg.values()].sort((a, b) => b.retail - a.retail),
-    total: { qty: totalQty, retail: totalRetail, cost: totalCost, noCostItems: totalNoCost },
-    itemCount: items.length
-  };
+    brandMap: new Map(brandsSnap.docs.map((d) => [d.id, d.data()])),
+    supplierMap: new Map(suppliersSnap.docs.map((d) => [d.id, d.data()])),
+    areaNameMap: new Map(areasSnap.docs.map((d) => [d.id, d.data().name || d.id])),
+    // 売り場の掛け率は costRate(売り場設定の「原価率 %」。POS・functions と同じフィールド)。
+    areaRateMap: new Map(areasSnap.docs.map((d) => [d.id, positiveRate(d.data().costRate)]))
+  });
+  return { ...result, costLayerSnapshotReady: Boolean(stocktakeSnap.data()?.costLayerSnapshotAt) };
 };

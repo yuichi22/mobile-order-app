@@ -67,13 +67,13 @@ const downloadCsv = (content, filename) => {
 const yen = (value) => `¥${Math.round(Number(value) || 0).toLocaleString()}`;
 
 const buildValuationCsv = (valuation, taxLabel) => {
-  const header = ['売り場', '点数', `上代合計(${taxLabel})`, `原価合計(${taxLabel})`, '原価不明件数'];
+  const header = ['売り場', '点数', `上代合計(${taxLabel})`, `原価合計(${taxLabel})`, '原価不明件数', '入庫ロット原価点数', '現在原価で補完点数'];
   const lines = [header.map(csvEscape).join(',')];
   valuation.areas.forEach((a) => {
-    lines.push([a.name, a.qty, Math.round(a.retail), Math.round(a.cost), a.noCostItems].map(csvEscape).join(','));
+    lines.push([a.name, a.qty, Math.round(a.retail), Math.round(a.cost), a.noCostItems, a.lotQty, a.currentCostQty].map(csvEscape).join(','));
   });
   const t = valuation.total;
-  lines.push(['合計', t.qty, Math.round(t.retail), Math.round(t.cost), t.noCostItems].map(csvEscape).join(','));
+  lines.push(['合計', t.qty, Math.round(t.retail), Math.round(t.cost), t.noCostItems, t.lotQty, t.currentCostQty].map(csvEscape).join(','));
   return lines.join('\r\n');
 };
 
@@ -351,6 +351,7 @@ const StockTakingPanel = ({ storeId }) => {
         <p className="text-sm font-black text-gray-900">棚卸し 在高レポート（売り場別・税抜）</p>
         <p className="mt-1 text-xs font-bold leading-relaxed text-gray-500">
           過去の棚卸しを選ぶと、完了日時点の在庫で売り場別の上代合計・原価合計を集計します。
+          原価は入庫時の原価（入庫ロット）で評価し、ロットより多い分とロットの無い在庫は現在の原価で埋めます。
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -415,6 +416,14 @@ const StockTakingPanel = ({ storeId }) => {
                 </tbody>
               </table>
             </div>
+            <p className="mt-2 text-[11px] font-bold leading-relaxed text-gray-500">
+              原価の内訳: 入庫ロット原価 {valuation.total.lotQty.toLocaleString()}点 / 現在の原価で補完 {valuation.total.currentCostQty.toLocaleString()}点
+            </p>
+            {!valuation.costLayerSnapshotReady ? (
+              <p className="mt-1 text-[11px] font-bold leading-relaxed text-ui">
+                ※ この棚卸しには入庫ロット原価の控えがありません（確定直後の反映待ち、または機能導入前の棚卸し）。全量を現在の原価で集計しています。確定直後の場合は少し待ってから集計し直してください。
+              </p>
+            ) : null}
             {valuation.total.noCostItems > 0 ? (
               <p className="mt-2 text-[11px] font-bold leading-relaxed text-ui">
                 ※ 原価（掛け率）が未設定の商品が {valuation.total.noCostItems.toLocaleString()} 件あり、その分の原価は0で集計しています。掛け率を入力すると原価合計が正確になります。
