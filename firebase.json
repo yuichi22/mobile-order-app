@@ -3,7 +3,8 @@
     "source": "functions",
     "runtime": "nodejs22",
     "predeploy": [
-      "node \"$PROJECT_DIR/scripts/guard-functions-env.mjs\""
+      "node \"$PROJECT_DIR/scripts/guard-functions-env.mjs\"",
+      "node \"$PROJECT_DIR/scripts/guard-prod-deploy.mjs\" functions"
     ]
   },
   "firestore": [

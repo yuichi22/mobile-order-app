@@ -7,6 +7,7 @@
 - 配信は `npm run deploy:dev:verify` / `npm run deploy:prod:verify` を使う（build＋deploy＋配信一致チェックまで一括）。build と deploy を別々に叩かない。
 - Firestore ルールは `firebase deploy --only firestore:rules` が**複数DB構成で no-op**。firebaserules REST API で `(default)` と `main` の両DBへリリースし、GETで実測確認すること。
 - Functions は `--only functions:<名前>` で単一関数のみ置換する（他セッションのWIP流出防止）。
+- **prod の Functions も main から出す。** `functions.predeploy` でも `scripts/guard-prod-deploy.mjs functions` が動き、main以外のブランチ / functions/ の未コミット変更 / origin/main より古い main のいずれかで中止する（`--only functions:名前` でも functions/ 全体がアップロードされ、共有コードのWIPが本番で動くため）。
 - **worktree から functions を出す前に `functions/.env*` があるか確認する。** `.env` は gitignore なので
   worktree には付いてこない。無いまま出すと**環境変数ゼロの関数が公開され**、Core連携（会員・ポイント・
   決済）が止まる。2026-10-06 に prod で実際に起きた。`firebase.json` の functions.predeploy

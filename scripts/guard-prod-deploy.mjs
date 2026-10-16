@@ -1,4 +1,6 @@
-// prod Hosting デプロイの門番。firebase.json の hosting.predeploy から呼ばれる。
+// prod デプロイの門番。firebase.json の hosting.predeploy / functions.predeploy から呼ばれる。
+//   node scripts/guard-prod-deploy.mjs            … Hosting 用
+//   node scripts/guard-prod-deploy.mjs functions  … Functions 用(②の未コミット検査の対象が functions/ になる)
 //
 // 背景(2026-09-05): 複数セッション並行開発で、作業ブランチから deploy:prod を叩くと
 // ブランチHEAD全体(未承認コミットやWIP)が本番公開される事故が実際に起きた。
@@ -9,6 +11,8 @@
 import { execSync } from 'node:child_process';
 
 const project = process.env.GCLOUD_PROJECT || '';
+const target = process.argv[2] === 'functions' ? 'functions' : 'hosting';
+const label = target === 'functions' ? 'functions' : 'Hosting';
 
 // dev やエミュレータは素通し。プロジェクトが特定できない場合は安全側(prod扱い)に倒す。
 if (project && project !== 'mobile-order-prod') process.exit(0);
@@ -20,7 +24,7 @@ if (process.env.AKUTO_FORCE_PROD_DEPLOY === '1') {
 
 const sh = (cmd) => execSync(cmd, { encoding: 'utf8' }).trim();
 const fail = (lines) => {
-  console.error('\n🛑 prod デプロイを中止しました。');
+  console.error(`\n🛑 prod の ${label} デプロイを中止しました。`);
   lines.forEach((l) => console.error('   ' + l));
   console.error('   (緊急時のみ AKUTO_FORCE_PROD_DEPLOY=1 で迂回可)\n');
   process.exit(1);
@@ -36,12 +40,17 @@ if (branch !== 'main') {
   ]);
 }
 
-// ② Hosting に載るファイルに未コミット変更があれば止める(WIP巻き込み防止)。
-//    functions/ は Hosting デプロイに含まれないので対象外(他セッションのWIPを許容)。
-const dirty = sh('git status --porcelain -- src public index.html vite.config.js package.json');
+// ② デプロイに載るファイルに未コミット変更があれば止める(WIP巻き込み防止)。
+//    Hosting: functions/ は載らないので対象外(他セッションのWIPを許容)。
+//    Functions: --only functions:名前 でも functions/ 全体がアップロードされ、共有コード(index.js 等)の
+//    WIPも本番で動くため functions/ を検査する。.env は gitignore なのでここには出ない。
+const dirtyPaths = target === 'functions'
+  ? 'functions'
+  : 'src public index.html vite.config.js package.json';
+const dirty = sh(`git status --porcelain -- ${dirtyPaths}`);
 if (dirty) {
   fail([
-    'Hosting ビルドに載るファイルに未コミットの変更があります:',
+    `${label} デプロイに載るファイルに未コミットの変更があります:`,
     ...dirty.split('\n').slice(0, 10).map((l) => '  ' + l),
     'コミットするか退避してから deploy:prod してください(ビルドは作業ツリーの内容で作られます)。'
   ]);
@@ -61,4 +70,4 @@ try {
   // origin/main が無い環境では比較しない
 }
 
-console.log(`✅ prod デプロイ保護: main / クリーン / origin と同期済み (${sh('git rev-parse --short HEAD')})`);
+console.log(`✅ prod ${label} デプロイ保護: main / クリーン / origin と同期済み (${sh('git rev-parse --short HEAD')})`);
