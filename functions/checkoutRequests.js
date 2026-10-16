@@ -212,6 +212,9 @@ export const completeCrmBind = onRequest(
   { region: REGION, cors: false, invoker: "public" },
   async (req, res) => {
     if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+    // 注文アプリがお会計画面を開いた時の空打ち(認証前に 200 で返してインスタンスだけ起こす。2026-10-16)
+    // ⚠no-cors の fetch では独自ヘッダーが落ちるのでクエリで受ける
+    if (String(req.query?.warmup || "") === "1") return res.status(200).json({ ok: true, warm: true });
     const secret = str(process.env.CORE_SALES_SECRET);
     const authz = req.get("authorization") || "";
     const bearer = authz.startsWith("Bearer ") ? authz.slice("Bearer ".length) : "";

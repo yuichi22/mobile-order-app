@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functionsApi } from '../../../shared/api/firebase/client';
+import { warmMemberCardFunctions } from '../../../shared/constants/akutoMemberCard';
 
 // 端末の記憶はグループ(Core テナント)単位。DECOLLE POINT はグループで1つなので、HAUS で紐づけたら decolle でも次回から自動(2026-10-13)
 const memoryKey = (scope) => `akutoMember:${scope}`;
@@ -59,6 +60,14 @@ export const PointsNotice = ({ storeId, sessionId, customerId, memberCardUrl, po
       .catch(() => { writeMemory(scope, null); })
       .finally(() => setBusy(''));
   }, [isOpen, bound, sessionId, storeId, customerId, skipKey, scope]);
+
+  // 会員証側の関数を先に起こしておく(お会計画面を開いた時に1回。ボタンを押す頃には温まっている)
+  const warmedRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen || bound || !enabled || warmedRef.current) return;
+    warmedRef.current = true;
+    warmMemberCardFunctions();
+  }, [isOpen, bound, enabled]);
 
   // c) ボタン用の一時トークンを先に作る(25分で作り直し)
   useEffect(() => {

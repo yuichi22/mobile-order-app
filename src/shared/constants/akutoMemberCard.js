@@ -15,3 +15,23 @@ export const buildMemberCardUrl = (link) => {
   const sid = String(coreSpaceId || '').trim();
   return `${BASE}&tenantId=${encodeURIComponent(tid)}${sid ? `&spaceId=${encodeURIComponent(sid)}` : ''}`;
 };
+
+// 会員証(Core)と POS の関数の置き場。お会計画面を開いた時に空打ちして、
+// ボタンを押す頃には関数が起きている状態にする(コールドスタート=実測 1.7〜4.6秒 の回避。2026-10-16)。
+const CORE_PROJECT = PROJECT_ID === 'mobile-order-prod' ? 'suomin-prod' : 'suomin-9ff5a';
+export const CORE_FUNCTIONS_BASE = `https://asia-northeast1-${CORE_PROJECT}.cloudfunctions.net`;
+export const POS_FUNCTIONS_BASE = PROJECT_ID ? `https://asia-northeast1-${PROJECT_ID}.cloudfunctions.net` : '';
+
+/** 関数を起こすだけの空打ち。応答は見ない(no-cors・text/plain=プリフライト無し)。 */
+export const warmMemberCardFunctions = () => {
+  const ping = (url, body) => {
+    try {
+      fetch(url, { method: 'POST', mode: 'no-cors', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body }).catch(() => {});
+    } catch { /* noop */ }
+  };
+  // onCall は {data:{warmup:true}} を見て即返す(Content-Type が text/plain でも本文は JSON として読まれる)
+  ping(`${CORE_FUNCTIONS_BASE}/getMyPointCard`, JSON.stringify({ data: { warmup: true } }));
+  ping(`${CORE_FUNCTIONS_BASE}/captureLineCustomer`, JSON.stringify({ data: { warmup: true } }));
+  // onRequest 側はクエリで空打ちを受ける(no-cors では独自ヘッダーが送れない)
+  if (POS_FUNCTIONS_BASE) ping(`${POS_FUNCTIONS_BASE}/completeCrmBind?warmup=1`, '{}');
+};
