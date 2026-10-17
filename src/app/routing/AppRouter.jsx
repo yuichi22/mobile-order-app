@@ -13,6 +13,14 @@ import {
 import { isStoreStopped } from '../../shared/utils/storeAccess';
 import { buildSessionUrl, buildPendingCustomerEntryUrl, getRouteState } from './appRouteState';
 import SlugEntryRedirect from './SlugEntryRedirect';
+import MobileModeSwitcher from '../../shared/components/MobileModeSwitcher';
+import {
+  IS_PHONE_AT_BOOT,
+  MOBILE_MODES,
+  applyDesktopViewport,
+  loadMobileMode,
+  saveMobileMode
+} from '../../shared/utils/mobileDeviceMode';
 
 const loadLoginPage = () => import('../../features/auth/pages/LoginPage');
 const loadRegisterPage = () => import('../../features/auth/pages/RegisterPage');
@@ -94,22 +102,18 @@ const AppRouter = () => {
   const activeStoreId = currentUser && !currentUser.isAnonymous
     ? (isSuperAdmin && urlStoreId ? urlStoreId : contextStoreId)
     : (urlStoreId || contextStoreId);
-  const isMobileViewport = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-
-    return window.matchMedia('(max-width: 767px)').matches;
-  }, []);
-
+  // スマホは最後に選んだ画面(提供/オーダー/PC版)から始める。初回は提供モード。
   const [mode, setMode] = useState(() => {
     if (routeState.mode !== 'launcher') return routeState.mode;
 
-    if (isMobileViewport) return 'serve';
+    if (IS_PHONE_AT_BOOT) return loadMobileMode() || 'serve';
 
     return 'admin';
   });
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
+    if (IS_PHONE_AT_BOOT) saveMobileMode(nextMode);
 
     const params = new URLSearchParams(location.search);
 
@@ -154,6 +158,28 @@ const AppRouter = () => {
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
   }, [resolvedMode, isSuperAdmin, normalizedRole]);
+
+  // スマホの画面切り替え: 権限で使える画面だけ出す。PC版のときだけ viewport を PC 幅にする。
+  const mobileAllowedModes = useMemo(() => MOBILE_MODES.filter((m) => (
+    m === 'admin' ? canAccessAdminPanel(normalizedRole) : canAccessKitchen(normalizedRole)
+  )), [normalizedRole]);
+  const isStaffOrderPath = location.pathname === '/staff-order';
+  const mobileCurrentMode = isStaffOrderPath ? 'staffOrder' : effectiveMode;
+  const showMobileSwitcher = IS_PHONE_AT_BOOT && Boolean(currentUser) && !currentUser.isAnonymous
+    && MOBILE_MODES.includes(mobileCurrentMode);
+  const mobileSwitcher = (variant) => (showMobileSwitcher ? (
+    <MobileModeSwitcher
+      currentMode={mobileCurrentMode}
+      allowedModes={mobileAllowedModes}
+      onSelect={switchMode}
+      variant={variant}
+    />
+  ) : null);
+
+  useEffect(() => {
+    if (!IS_PHONE_AT_BOOT) return;
+    applyDesktopViewport(showMobileSwitcher && mobileCurrentMode === 'admin');
+  }, [showMobileSwitcher, mobileCurrentMode]);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -323,7 +349,7 @@ const AppRouter = () => {
 
     return (
       <Suspense fallback={<RouteLoader />}>
-        <StaffOrderPage storeId={activeStoreId} />
+        <StaffOrderPage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
       </Suspense>
     );
   }
@@ -484,14 +510,14 @@ const AppRouter = () => {
       case 'serve':
         return (
           <Suspense fallback={<RouteLoader />}>
-            <ServePage storeId={activeStoreId} />
+            <ServePage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
           </Suspense>
         );
 
       case 'staffOrder':
         return (
           <Suspense fallback={<RouteLoader />}>
-            <StaffOrderPage storeId={activeStoreId} />
+            <StaffOrderPage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
           </Suspense>
         );
 
@@ -502,6 +528,7 @@ const AppRouter = () => {
               onBack={() => switchMode('launcher')}
               onSwitchToKitchen={() => switchMode('kitchen')}
             />
+            {mobileSwitcher('desktop')}
           </Suspense>
         );
 
