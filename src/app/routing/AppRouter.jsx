@@ -14,6 +14,7 @@ import { isStoreStopped } from '../../shared/utils/storeAccess';
 import { buildSessionUrl, buildPendingCustomerEntryUrl, getRouteState } from './appRouteState';
 import SlugEntryRedirect from './SlugEntryRedirect';
 import MobileModeSwitcher from '../../shared/components/MobileModeSwitcher';
+import { useCoreEntitlements } from '../../shared/hooks/useCoreEntitlements';
 import {
   IS_PHONE_AT_BOOT,
   MOBILE_MODES,
@@ -150,19 +151,28 @@ const AppRouter = () => {
   const resolvedTableToken = routeState.tableToken || navigationState.entryTableToken || null;
   const resolvedSessionId = routeState.sessionId;
 
+  // POSのみの契約(ORDERなし)はスマホで提供・オーダーを出さない(開いたらPC版へ)。
+  // 契約情報が無い店舗は管理画面と同じくフェイルオープン。
+  const coreEnt = useCoreEntitlements(activeStoreId);
+  const posOnlyContract = coreEnt.hasData && coreEnt.pos && !coreEnt.order;
+
   const effectiveMode = useMemo(() => {
+    if (IS_PHONE_AT_BOOT && posOnlyContract && (resolvedMode === 'serve' || resolvedMode === 'staffOrder')) {
+      return canAccessAdminPanel(normalizedRole) ? 'admin' : 'launcher';
+    }
     if (resolvedMode === 'kitchen' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'serve' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'staffOrder' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'platform' && !isSuperAdmin) return 'launcher';
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
-  }, [resolvedMode, isSuperAdmin, normalizedRole]);
+  }, [resolvedMode, isSuperAdmin, normalizedRole, posOnlyContract]);
 
-  // スマホの画面切り替え: 権限で使える画面だけ出す。PC版のときだけ viewport を PC 幅にする。
-  const mobileAllowedModes = useMemo(() => MOBILE_MODES.filter((m) => (
-    m === 'admin' ? canAccessAdminPanel(normalizedRole) : canAccessKitchen(normalizedRole)
-  )), [normalizedRole]);
+  // スマホの画面切り替え: 権限と契約で使える画面だけ出す。PC版のときだけ viewport を PC 幅にする。
+  const mobileAllowedModes = useMemo(() => MOBILE_MODES.filter((m) => {
+    if (m === 'admin') return canAccessAdminPanel(normalizedRole);
+    return !posOnlyContract && canAccessKitchen(normalizedRole);
+  }), [normalizedRole, posOnlyContract]);
   const isStaffOrderPath = location.pathname === '/staff-order';
   const mobileCurrentMode = isStaffOrderPath ? 'staffOrder' : effectiveMode;
   const showMobileSwitcher = IS_PHONE_AT_BOOT && Boolean(currentUser) && !currentUser.isAnonymous

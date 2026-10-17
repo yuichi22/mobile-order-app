@@ -12,7 +12,8 @@ const MODE_OPTIONS = {
 const MobileModeSwitcher = ({ currentMode, allowedModes, onSelect, variant = 'header' }) => {
   const [open, setOpen] = useState(false);
   const options = allowedModes.filter((mode) => MODE_OPTIONS[mode]);
-  if (options.length < 2) return null;
+  // 今の画面以外に移れる先が無ければ出さない(今の画面が契約外で選択肢に無いときは、移り先が1つでも出す)
+  if (!options.some((mode) => mode !== currentMode)) return null;
 
   // PC版は PC 幅を縮小表示しているので、ボタンもシートも大きく描いて画面上で読める大きさにする。
   const isDesktop = variant === 'desktop';
