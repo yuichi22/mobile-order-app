@@ -88,7 +88,8 @@ const getVisibleMobileItems = (order, activeKitchenId, menuItemLookup = {}) => {
     .filter((item) => resolveKitchenStatus(item) !== 'served');
 };
 
-const ServeMode = ({ storeId }) => {
+// headerAction: スマホの画面切り替えボタン(AppRouter から渡す。スマホ以外は null)
+const ServeMode = ({ storeId, headerAction = null }) => {
   const { storeId: authStoreId, loading: authLoading } = useAuth();
   const effectiveStoreId = storeId || authStoreId;
   const kdsData = useKitchenBoard(effectiveStoreId || null);
@@ -202,6 +203,7 @@ const ServeMode = ({ storeId }) => {
               </p>
             </div>
           </div>
+          {headerAction}
         </div>
 
         <div className="mx-auto mt-3 flex w-full max-w-3xl gap-2 overflow-x-auto pb-1">

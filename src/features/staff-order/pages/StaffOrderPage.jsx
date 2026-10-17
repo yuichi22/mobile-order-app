@@ -873,7 +873,8 @@ const getReplacementCategoryIds = (replacementItems = []) => (
   ))
 );
 
-const StaffOrderPage = ({ storeId }) => {
+// headerAction: スマホの画面切り替えボタン(AppRouter から渡す。スマホ以外は null)
+const StaffOrderPage = ({ storeId, headerAction = null }) => {
   const { currentUser, role, profileName, loading: authLoading } = useAuth();
   const normalizedRole = normalizeUserRole(role);
   const canUseStaffOrder = hasMinimumRole(normalizedRole, USER_ROLES.STAFF);
@@ -1783,16 +1784,19 @@ const StaffOrderPage = ({ storeId }) => {
             </p>
           </div>
 
-          {selectedTable && (
-            <button
-              type="button"
-              onClick={clearTableSelection}
-              className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm active:scale-95"
-            >
-              <ArrowLeft size={18} />
-              テーブル選択
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {selectedTable && (
+              <button
+                type="button"
+                onClick={clearTableSelection}
+                className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-4 text-sm font-black text-white shadow-sm active:scale-95"
+              >
+                <ArrowLeft size={18} />
+                テーブル選択
+              </button>
+            )}
+            {headerAction}
+          </div>
         </div>
       </header>
 

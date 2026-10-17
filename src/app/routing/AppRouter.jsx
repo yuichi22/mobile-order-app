@@ -13,6 +13,15 @@ import {
 import { isStoreStopped } from '../../shared/utils/storeAccess';
 import { buildSessionUrl, buildPendingCustomerEntryUrl, getRouteState } from './appRouteState';
 import SlugEntryRedirect from './SlugEntryRedirect';
+import MobileModeSwitcher from '../../shared/components/MobileModeSwitcher';
+import { useCoreEntitlements } from '../../shared/hooks/useCoreEntitlements';
+import {
+  IS_PHONE_AT_BOOT,
+  MOBILE_MODES,
+  applyDesktopViewport,
+  loadMobileMode,
+  saveMobileMode
+} from '../../shared/utils/mobileDeviceMode';
 
 const loadLoginPage = () => import('../../features/auth/pages/LoginPage');
 const loadRegisterPage = () => import('../../features/auth/pages/RegisterPage');
@@ -94,22 +103,18 @@ const AppRouter = () => {
   const activeStoreId = currentUser && !currentUser.isAnonymous
     ? (isSuperAdmin && urlStoreId ? urlStoreId : contextStoreId)
     : (urlStoreId || contextStoreId);
-  const isMobileViewport = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-
-    return window.matchMedia('(max-width: 767px)').matches;
-  }, []);
-
+  // スマホは最後に選んだ画面(提供/オーダー/PC版)から始める。初回は提供モード。
   const [mode, setMode] = useState(() => {
     if (routeState.mode !== 'launcher') return routeState.mode;
 
-    if (isMobileViewport) return 'serve';
+    if (IS_PHONE_AT_BOOT) return loadMobileMode() || 'serve';
 
     return 'admin';
   });
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
+    if (IS_PHONE_AT_BOOT) saveMobileMode(nextMode);
 
     const params = new URLSearchParams(location.search);
 
@@ -146,14 +151,45 @@ const AppRouter = () => {
   const resolvedTableToken = routeState.tableToken || navigationState.entryTableToken || null;
   const resolvedSessionId = routeState.sessionId;
 
+  // POSのみの契約(ORDERなし)はスマホで提供・オーダーを出さない(開いたらPC版へ)。
+  // 契約情報が無い店舗は管理画面と同じくフェイルオープン。
+  const coreEnt = useCoreEntitlements(activeStoreId);
+  const posOnlyContract = coreEnt.hasData && coreEnt.pos && !coreEnt.order;
+
   const effectiveMode = useMemo(() => {
+    if (IS_PHONE_AT_BOOT && posOnlyContract && (resolvedMode === 'serve' || resolvedMode === 'staffOrder')) {
+      return canAccessAdminPanel(normalizedRole) ? 'admin' : 'launcher';
+    }
     if (resolvedMode === 'kitchen' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'serve' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'staffOrder' && !canAccessKitchen(normalizedRole)) return 'launcher';
     if (resolvedMode === 'platform' && !isSuperAdmin) return 'launcher';
     if (resolvedMode === 'admin' && !canAccessAdminPanel(normalizedRole)) return 'launcher';
     return resolvedMode;
-  }, [resolvedMode, isSuperAdmin, normalizedRole]);
+  }, [resolvedMode, isSuperAdmin, normalizedRole, posOnlyContract]);
+
+  // スマホの画面切り替え: 権限と契約で使える画面だけ出す。PC版のときだけ viewport を PC 幅にする。
+  const mobileAllowedModes = useMemo(() => MOBILE_MODES.filter((m) => {
+    if (m === 'admin') return canAccessAdminPanel(normalizedRole);
+    return !posOnlyContract && canAccessKitchen(normalizedRole);
+  }), [normalizedRole, posOnlyContract]);
+  const isStaffOrderPath = location.pathname === '/staff-order';
+  const mobileCurrentMode = isStaffOrderPath ? 'staffOrder' : effectiveMode;
+  const showMobileSwitcher = IS_PHONE_AT_BOOT && Boolean(currentUser) && !currentUser.isAnonymous
+    && MOBILE_MODES.includes(mobileCurrentMode);
+  const mobileSwitcher = (variant) => (showMobileSwitcher ? (
+    <MobileModeSwitcher
+      currentMode={mobileCurrentMode}
+      allowedModes={mobileAllowedModes}
+      onSelect={switchMode}
+      variant={variant}
+    />
+  ) : null);
+
+  useEffect(() => {
+    if (!IS_PHONE_AT_BOOT) return;
+    applyDesktopViewport(showMobileSwitcher && mobileCurrentMode === 'admin');
+  }, [showMobileSwitcher, mobileCurrentMode]);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -323,7 +359,7 @@ const AppRouter = () => {
 
     return (
       <Suspense fallback={<RouteLoader />}>
-        <StaffOrderPage storeId={activeStoreId} />
+        <StaffOrderPage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
       </Suspense>
     );
   }
@@ -484,14 +520,14 @@ const AppRouter = () => {
       case 'serve':
         return (
           <Suspense fallback={<RouteLoader />}>
-            <ServePage storeId={activeStoreId} />
+            <ServePage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
           </Suspense>
         );
 
       case 'staffOrder':
         return (
           <Suspense fallback={<RouteLoader />}>
-            <StaffOrderPage storeId={activeStoreId} />
+            <StaffOrderPage storeId={activeStoreId} headerAction={mobileSwitcher('header')} />
           </Suspense>
         );
 
@@ -502,6 +538,7 @@ const AppRouter = () => {
               onBack={() => switchMode('launcher')}
               onSwitchToKitchen={() => switchMode('kitchen')}
             />
+            {mobileSwitcher('desktop')}
           </Suspense>
         );
 
