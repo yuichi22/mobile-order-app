@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeftRight, Check, ClipboardList, Monitor, Utensils, X } from 'lucide-react';
 
 // スマホ用の画面切り替え【10-17】。提供モード・オーダー端末のヘッダー右上と、PC版の左下に出す。
@@ -32,7 +33,9 @@ const MobileModeSwitcher = ({ currentMode, allowedModes, onSelect, variant = 'he
         切替
       </button>
 
-      {open && (
+      {/* シートは body 直下に描く: 置き場所のヘッダーに backdrop-blur があると fixed がヘッダー基準になり、
+          シートがヘッダーの下端から上へ伸びて上部が画面外に切れる */}
+      {open && createPortal(
         <div
           className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 print:hidden"
           onClick={() => setOpen(false)}
@@ -81,7 +84,8 @@ const MobileModeSwitcher = ({ currentMode, allowedModes, onSelect, variant = 'he
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
