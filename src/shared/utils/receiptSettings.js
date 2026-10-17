@@ -14,6 +14,13 @@ export const DRAWER_OPEN_OPTIONS = [
 ];
 export const normalizeDrawerOpenOn = (value) => (value === 'cash' ? 'cash' : 'all');
 
+// 会計なしで「ドロワーを開く」を押せる人【10-17】。既定は全員(スタッフ以上)。
+export const DRAWER_MANUAL_OPEN_OPTIONS = [
+  { id: 'all', label: '全員', desc: 'スタッフを含め、レジを使う全員が開けます。' },
+  { id: 'manager', label: '責任者のみ', desc: '店長・オーナーだけが開けます。' }
+];
+export const normalizeDrawerManualOpenBy = (value) => (value === 'manager' ? 'manager' : 'all');
+
 // 印刷方式の正規化。'bridge'/'star' のみ有効。
 // 旧 'browser'(AirPrint) は廃止し 'star' へ寄せる（Webではブラウザ印刷で代替されるため挙動は維持）。
 export const normalizeReceiptPrintMethod = (method, fallback = 'star') => {
@@ -38,7 +45,8 @@ export const buildDefaultModeReceiptSettings = (legacyPrinterSettings = {}) => (
   headerTitle: '',
   footerNote: '',
   bannerImage: '',
-  drawerOpenOn: 'all'
+  drawerOpenOn: 'all',
+  drawerManualOpenBy: 'all'
 });
 
 // 設定doc + モード から、そのモードの実効レシート設定を返す（無ければlegacyへフォールバック）。
@@ -50,7 +58,8 @@ export const getReceiptModeSettings = (settings = {}, mode = 'pos') => {
     ...base,
     ...saved,
     printMethod: normalizeReceiptPrintMethod(saved.printMethod, base.printMethod),
-    drawerOpenOn: normalizeDrawerOpenOn(saved.drawerOpenOn)
+    drawerOpenOn: normalizeDrawerOpenOn(saved.drawerOpenOn),
+    drawerManualOpenBy: normalizeDrawerManualOpenBy(saved.drawerManualOpenBy)
   };
 };
 

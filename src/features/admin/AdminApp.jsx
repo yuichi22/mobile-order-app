@@ -33,7 +33,6 @@ import {
   resolveReceiptMode,
   shouldOpenDrawerForPayment
 } from '../../shared/utils/receiptPrinting';
-import CashDrawerButton from '../pos/components/CashDrawerButton';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
 import { useCoreEntitlements } from '../../shared/hooks/useCoreEntitlements';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
@@ -672,16 +671,6 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
-              {/* 会計なしでドロワーを開く(両替・釣銭補充など)。iPadアプリ・店長以上のみ */}
-              {activeAdminTab === 'pos' && canViewAnalytics && isCashDrawerSupported() && (
-                <CashDrawerButton
-                  storeId={storeId}
-                  user={user}
-                  settings={storeSettings}
-                  mode={registerMode}
-                  onResult={(result) => setToast(result.type === 'error' ? { ...result, dismissible: true, autoCloseMs: 0 } : result)}
-                />
-              )}
               {activeAdminTab === 'settings' && registerMode === 'pos' ? (
                 <div className="relative w-full max-w-sm">
                   <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />

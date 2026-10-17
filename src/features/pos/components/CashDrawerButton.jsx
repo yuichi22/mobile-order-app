@@ -3,10 +3,16 @@ import { createPortal } from 'react-dom';
 import { Archive, X } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
+import { useAuth } from '../../../app/providers/useAuth';
 import { db } from '../../../shared/api/firebase/client';
-import { describeDrawerError, openCashDrawer } from '../../../shared/utils/receiptPrinting';
+import { describeDrawerError, isCashDrawerSupported, openCashDrawer } from '../../../shared/utils/receiptPrinting';
+import { getReceiptModeSettings } from '../../../shared/utils/receiptSettings';
+import { hasMinimumRole, USER_ROLES } from '../../../shared/utils/roles';
+import { useStoreSettings } from '../../store/hooks';
 
-// 会計なしでキャッシュドロワーを開く【10-17】。iPadアプリ・店長以上だけに出す(表示判定は呼び出し側)。
+// 会計なしでキャッシュドロワーを開く【10-17】。POSレジの「割引・売掛/保留/クリア」の並びと、
+// ORDERレジの利用中テーブルの帯に置く。表示は iPadアプリだけで、押せる人はレシート設定の
+// 「ドロワーを開く(手動)」(全員 / 責任者のみ。既定は全員)に従う。
 // 会計を伴わない開放は現金管理の穴になるため、理由を選ばせて stores/{storeId}/cashDrawerLogs に残す
 // (開けなかった試行も ok:false で残す)。日計の現金差額を確かめるときの手がかり。
 const REASONS = [
@@ -15,11 +21,18 @@ const REASONS = [
   { id: 'other', label: 'その他' }
 ];
 
-const CashDrawerButton = ({ storeId, user, settings, mode, onResult }) => {
+const CashDrawerButton = ({ storeId, mode = 'pos', className = '', iconSize = 15, onResult }) => {
+  const { currentUser: user, role } = useAuth();
+  const { settings } = useStoreSettings(storeId);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('exchange');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const minimumRole = getReceiptModeSettings(settings, mode).drawerManualOpenBy === 'manager'
+    ? USER_ROLES.MANAGER
+    : USER_ROLES.STAFF;
+  if (!storeId || !isCashDrawerSupported() || !hasMinimumRole(role, minimumRole)) return null;
 
   const close = () => {
     if (busy) return;
@@ -45,9 +58,10 @@ const CashDrawerButton = ({ storeId, user, settings, mode, onResult }) => {
         note: reason === 'other' ? note.trim() : '',
         ok: !error,
         error: error ? describeDrawerError(error) : '',
-        registerMode: mode || 'pos',
+        registerMode: mode,
         uid: user?.uid || '',
         userName: user?.displayName || user?.email || '',
+        role: role || '',
         createdAt: serverTimestamp()
       });
     } catch (logError) {
@@ -57,19 +71,15 @@ const CashDrawerButton = ({ storeId, user, settings, mode, onResult }) => {
     setOpen(false);
     setNote('');
     onResult?.(error
-      ? { type: 'error', message: 'ドロワーを開けませんでした', description: describeDrawerError(error) }
+      ? { type: 'error', message: `ドロワーを開けませんでした: ${describeDrawerError(error)}` }
       : { type: 'success', message: 'ドロワーを開きました' });
   };
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-11 shrink-0 items-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-4 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 active:scale-95"
-      >
-        <Archive size={18} strokeWidth={2.5} />
-        ドロワーを開く
+      <button type="button" onClick={() => setOpen(true)} className={className}>
+        <Archive size={iconSize} />
+        ドロワー
       </button>
 
       {open && createPortal(
