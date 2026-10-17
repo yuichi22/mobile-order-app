@@ -41,6 +41,7 @@ import { useTableMenuOverrides } from './hooks/useTableMenuOverrides';
 import PosTransactionHistoryPage from './pages/PosTransactionHistoryPage';
 import UncodedSaleModal from './components/UncodedSaleModal';
 import PosFavoritesModal from './components/PosFavoritesModal';
+import CashDrawerButton from './components/CashDrawerButton';
 import { PosModals } from './PosRegister/components/PosModals';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
 import { useTerminalCardPayment } from './terminal/useTerminalCardPayment';
@@ -2468,13 +2469,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     <div className="flex min-h-0 min-w-0 flex-col bg-white">
       <div className={`shrink-0 border-b border-gray-100 px-4 pb-4 ${registerMode === 'pos' ? 'pt-3' : 'pt-4'}`}>
         {registerMode === 'pos' ? (
-          // POSは税込合計を右の会計パネルに集約。ここは 割引・売掛 / 保留 / クリア の3ボタン横並び。
-          <div className="grid grid-cols-3 gap-2">
+          // POSは税込合計を右の会計パネルに集約。ここは 割引・売掛 / 保留 / クリア (+ドロワー) の横並び。
+          // ドロワーは iPadアプリ・権限があるときだけ出るので、grid ではなく flex で等分する。
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setShowTakeoutDiscountModal(true)}
               disabled={takeoutCart.length === 0}
-              className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border text-xs font-black transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
                 takeoutDiscountAmount > 0
                   ? 'border-ui bg-ui-50 text-ui'
                   : 'border-ui-100 bg-white text-ui hover:bg-ui-50'
@@ -2487,7 +2489,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               type="button"
               onClick={holdCurrentPosCart}
               disabled={takeoutCart.length === 0}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PauseCircle size={15} />
               保留する
@@ -2504,11 +2506,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                 setPosMessage('仮伝票をクリアしました。', 'success');
               }}
               disabled={takeoutCart.length === 0}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-500 shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-500 shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X size={15} />
               クリア
             </button>
+            <CashDrawerButton
+              storeId={storeId}
+              mode="pos"
+              onResult={(result) => setPosMessage(result.message, result.type)}
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
+            />
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
@@ -2862,6 +2870,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <ClipboardList size={15} />
                     スタッフ注文
                   </button>
+                  <CashDrawerButton
+                    storeId={storeId}
+                    mode={registerMode}
+                    onResult={(result) => setPosMessage(result.message, result.type)}
+                    className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-xs font-black text-gray-800 transition-colors hover:bg-gray-50 active:scale-95"
+                  />
                 </div>
               )}
             </div>

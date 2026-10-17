@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle, FileText, Printer } from 'lucide-react';
-import { issueReceipt, openCashDrawer, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
+import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { appConfirm } from '../../shared/components/feedback/AppConfirmDialog';
 import { buildTenderText } from '../../shared/utils/posReceiptPrint';
 import { getIdToken } from 'firebase/auth';
@@ -16,7 +16,7 @@ const formatPaymentMethod = (method) => {
 };
 
 export const PosReceipt = ({ data, onNext, storeId }) => {
-  const { settings, loading: settingsLoading } = useStoreSettings(storeId);
+  const { settings } = useStoreSettings(storeId);
   const [issuedReceipt, setIssuedReceipt] = useState({
     receiptId: data.receiptId || '',
     receiptNo: data.receiptNo || ''
@@ -24,19 +24,8 @@ export const PosReceipt = ({ data, onNext, storeId }) => {
   const [recipientName, setRecipientName] = useState(data.recipientName || '');
   const [isIssuingReceipt, setIsIssuingReceipt] = useState(false);
 
-  // 会計確定（この完了画面の表示）時に、支払い方法を問わずキャッシュドロワーを開く。
-  // レシート印刷とは独立。履歴の再印刷はこの画面を経由しないため開かない。
-  // ネイティブ(iPad)以外は openCashDrawer 内で no-op。1会計につき一度だけ実行する。
-  // 設定の初期値には starIdentifier が無く、空だと毎回8秒の自動探索が走るため、
-  // 店舗設定の読み込み完了を待ってから一度だけ実行する。
-  const drawerOpenedRef = useRef(false);
-  useEffect(() => {
-    if (drawerOpenedRef.current || settingsLoading) return;
-    drawerOpenedRef.current = true;
-    openCashDrawer({ settings, mode: resolveReceiptMode(data) }).catch((error) => {
-      console.error('[cash drawer open error]', error);
-    });
-  }, [settingsLoading, settings, data]);
+  // ドロワーの自動開放は AdminApp の会計結果(handlePaymentResultToast)へ移した【10-17】。
+  // この完了画面は現在表示されない(会計完了は通知に一本化)ため、ここで開くと開かないままになっていた。
 
   const handleIssueReceipt = async () => {
     if (issuedReceipt.receiptNo || isIssuingReceipt) return;
