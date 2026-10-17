@@ -3,7 +3,7 @@ import { Check, Printer, Search, Bluetooth, Wifi, Download } from 'lucide-react'
 import { Capacitor } from '@capacitor/core';
 
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
-import { RECEIPT_PRINT_METHODS, buildReceiptModeDraft } from '../../../../shared/utils/receiptSettings';
+import { DRAWER_OPEN_OPTIONS, RECEIPT_PRINT_METHODS, buildReceiptModeDraft } from '../../../../shared/utils/receiptSettings';
 import { StarPrinter } from '../../../../shared/plugins/starPrinter';
 import { checkPrintBridgeHealth, printTestViaBridge } from '../../../../shared/api/printBridge';
 import {
@@ -494,6 +494,28 @@ const ReceiptModeSettingsSection = ({ settings, onDraftChange }) => {
           />
           <span className="text-sm font-black text-gray-700">会計時に自動でレシートを印刷する</span>
         </label>
+
+        {/* 会計完了でキャッシュドロワーを開く条件【10-17】(iPadアプリ+Starプリンタのドロワー接続口) */}
+        <div className="rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
+          <span className="mb-2 block text-sm font-black text-gray-700">会計完了でドロワーを開く</span>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {DRAWER_OPEN_OPTIONS.map((option) => {
+              const selected = (current.drawerOpenOn || 'all') === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => updateCurrent({ drawerOpenOn: option.id })}
+                  className={`rounded-xl border-2 px-3 py-2 text-left transition-colors ${selected ? 'border-ui bg-white' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                >
+                  <span className={`block text-sm font-black ${selected ? 'text-ui' : 'text-gray-700'}`}>{option.label}</span>
+                  <span className="block text-[11px] font-bold text-gray-500">{option.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-gray-500">iPadアプリでStarプリンタにドロワーをつないでいるときに動きます。</p>
+        </div>
 
         <div className="grid gap-4">
           <label className="block">

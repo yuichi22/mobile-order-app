@@ -321,6 +321,12 @@ service cloud.firestore {
           || (isStoreStaff(storeId) && request.resource.data.type == 'sale');
         allow update, delete: if false;
       }
+      // 会計なしでキャッシュドロワーを開いた記録(POSの「ドロワーを開く」)。開けるのは店長以上なので作成も店長以上。
+      // 現金管理の記録のため変更・削除は不可。
+      match /cashDrawerLogs/{logId} {
+        allow read, create: if isPlatformAdmin() || isStoreManager(storeId);
+        allow update, delete: if false;
+      }
       match /stocktakes/{stocktakeId} {
         allow read, write: if isPlatformAdmin() || isStoreStaff(storeId);
 

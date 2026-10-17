@@ -25,7 +25,15 @@ import NotificationToast from '../../shared/components/feedback/NotificationToas
 import UpdateBanner from '../../shared/components/UpdateBanner';
 import { buildPosReceiptPrintPayload } from '../../shared/utils/posReceiptPrint';
 import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowserPrint';
-import { issueReceipt, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
+import {
+  describeDrawerError,
+  isCashDrawerSupported,
+  issueReceipt,
+  openCashDrawer,
+  resolveReceiptMode,
+  shouldOpenDrawerForPayment
+} from '../../shared/utils/receiptPrinting';
+import CashDrawerButton from '../pos/components/CashDrawerButton';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
 import { useCoreEntitlements } from '../../shared/hooks/useCoreEntitlements';
 import { useGlobalBarcodeScanner } from '../../shared/hooks/useGlobalBarcodeScanner';
@@ -358,6 +366,17 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
 
     setPaymentResultToast(payload);
 
+    // 会計完了でキャッシュドロワーを開く【10-17】。会計結果はこの通知に一本化されている(旧完了画面 PosReceipt は
+    // 表示されない)ため、ここで開く。開く条件はレシート設定の「ドロワーを開く」(すべて/現金を含む会計だけ)。
+    // iPadアプリ以外は何もしない。開けなかったら閉じるまで消えない通知で理由を出す。
+    const drawerMode = resolveReceiptMode(payload, registerMode);
+    if (isCashDrawerSupported() && shouldOpenDrawerForPayment(payload, storeSettings, drawerMode)) {
+      openCashDrawer({ settings: storeSettings, mode: drawerMode }).catch((error) => {
+        console.error('[cash drawer open error]', error);
+        setToast({ type: 'error', message: 'ドロワーを開けませんでした', description: describeDrawerError(error), dismissible: true, autoCloseMs: 0 });
+      });
+    }
+
     // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
     if (payload.transactionId && payload.sessionId && resolveReceiptMode(payload, registerMode) === 'order') {
       ensurePaymentResultMobileReceipt(payload).catch((error) => {
@@ -524,7 +543,10 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       {toast && (
         <NotificationToast
           message={toast.message}
+          description={toast.description}
           type={toast.type}
+          dismissible={toast.dismissible}
+          autoCloseMs={toast.autoCloseMs ?? 3000}
           onClose={() => setToast(null)}
         />
       )}
@@ -650,6 +672,16 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
             </button>
 
             <div className="flex min-w-0 justify-end gap-3">
+              {/* 会計なしでドロワーを開く(両替・釣銭補充など)。iPadアプリ・店長以上のみ */}
+              {activeAdminTab === 'pos' && canViewAnalytics && isCashDrawerSupported() && (
+                <CashDrawerButton
+                  storeId={storeId}
+                  user={user}
+                  settings={storeSettings}
+                  mode={registerMode}
+                  onResult={(result) => setToast(result.type === 'error' ? { ...result, dismissible: true, autoCloseMs: 0 } : result)}
+                />
+              )}
               {activeAdminTab === 'settings' && registerMode === 'pos' ? (
                 <div className="relative w-full max-w-sm">
                   <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />

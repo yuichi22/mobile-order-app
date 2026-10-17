@@ -51,9 +51,32 @@ const resolveStarConnection = (settings, resolvedMode) => {
   };
 };
 
-// 会計確定時にキャッシュドロワー(釣銭機)を開く。支払い方法を問わず常時開く。
+// キャッシュドロワー(釣銭機)を開く。会計完了時(AdminApp の会計結果)と、手動の「ドロワーを開く」から呼ぶ。
 // 印刷とは独立したネイティブコマンドのため、レシート印刷の有無/タイミングと切り離せる。
-// ネイティブ(iPad)以外では何もしない。失敗はドロワーが開かないだけなので呼び出し側で握りつぶす。
+// ネイティブ(iPad)以外では何もしない。失敗は呼び出し側で画面に出す(describeDrawerError)。
+export const isCashDrawerSupported = () => Capacitor.isNativePlatform();
+
+// 会計結果(onPaymentResult の payload)でドロワーを開くか。レシート設定の drawerOpenOn に従う。
+// 'cash' は現金の入金・お釣り(金券お釣りの現金マイナスを含む)がある会計だけ開く。
+export const shouldOpenDrawerForPayment = (payment, settings, mode) => {
+  const cfg = getReceiptModeSettings(settings, resolveReceiptMode(mode ?? payment, 'pos'));
+  if (cfg.drawerOpenOn !== 'cash') return true;
+  const data = payment || {};
+  if (data.paymentMethod === 'cash' || data.method === 'cash') return true;
+  if (Number(data.changeAmount || data.change || 0) > 0 || Number(data.voucherChangeAmount || 0) > 0) return true;
+  return Array.isArray(data.payments) && data.payments.some((p) => p?.method === 'cash' && Number(p.amount || 0) !== 0);
+};
+
+// ドロワーを開けなかった理由を、スタッフ向けの一言にする。
+export const describeDrawerError = (error) => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || error || '');
+  if (code === 'UNIMPLEMENTED' || /not implemented/i.test(message)) {
+    return 'このアプリにはドロワーを開く機能がありません。アプリを最新版に更新してください。';
+  }
+  return message || 'プリンタに接続できませんでした。プリンタの電源・接続を確認してください。';
+};
+
 export const openCashDrawer = async ({ settings, mode } = {}) => {
   if (!Capacitor.isNativePlatform()) return { method: 'noop' };
   const resolvedMode = resolveReceiptMode(mode, 'pos');
