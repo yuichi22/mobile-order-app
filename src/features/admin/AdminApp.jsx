@@ -61,18 +61,25 @@ const TabLoader = () => (
 // 上のバーのファイルのタブ【AKUTOブランド基準 10-09】。選択中は下の画面(gray-100)とつながる。
 // 縁・根元の曲線・バーの下線=--mode-line、選択中のタブと画面の地=--mode-bg(レジの種類で切り替え。下の REGISTER_MODE_TONE)。
 const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabel, title }) => (
-  <button
-    type="button"
-    onClick={async (event) => { if (await confirmLeaveIfUnsaved()) onClick?.(event); }}
-    aria-current={active ? 'page' : undefined}
-    aria-label={ariaLabel}
-    title={title}
-    className={`relative -mb-px flex h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-t-xl border border-b-0 px-4 text-sm font-black transition-colors ${
-      active
-        ? 'border-[var(--mode-line)] bg-[var(--mode-bg)] text-gray-900'
-        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
-    }`}
-  >
+  // 根元の曲線の基準は外側の div【10-17】: <button> の中に絶対配置すると、iPad(Safari/WebKit)では
+  // ボタン独自の中身の並べ方の影響で曲線が1px下にずれ、バーの下線と段違いになる(Chrome では揃う)。
+  <div className="relative -mb-px flex shrink-0">
+    <button
+      type="button"
+      onClick={async (event) => { if (await confirmLeaveIfUnsaved()) onClick?.(event); }}
+      aria-current={active ? 'page' : undefined}
+      aria-label={ariaLabel}
+      title={title}
+      className={`flex h-12 items-center gap-2 whitespace-nowrap rounded-t-xl border border-b-0 px-4 text-sm font-black transition-colors ${
+        active
+          ? 'border-[var(--mode-line)] bg-[var(--mode-bg)] text-gray-900'
+          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
+      }`}
+    >
+      <Icon size={17} strokeWidth={2.5} />
+      {label}
+      {trailing}
+    </button>
     {active && (
       <>
         {/* 根元の曲線【10-15】: グラデーションで描くと、iPad など拡大率が整数でない画面で縦線とずれて交差する。
@@ -86,10 +93,7 @@ const FileTab = ({ active, icon: Icon, label, onClick, trailing = null, ariaLabe
         </span>
       </>
     )}
-    <Icon size={17} strokeWidth={2.5} />
-    {label}
-    {trailing}
-  </button>
+  </div>
 );
 
 // レジの種類ごとの線と地【試作 10-09】。形は同じで、線の色と画面の地だけ変えて見分ける。
