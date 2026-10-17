@@ -530,7 +530,10 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
       )}
 
       {showAdminHeader && (
-        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full border-b border-[var(--mode-line)] bg-white px-5 pt-[env(safe-area-inset-top)] print:hidden">
+        // shrink-0【10-17】: 下の main は高さを 100dvh-72px で固定しているため、iOSアプリでステータスバー分の
+        // safe-area 余白が足されると縦にはみ出し、ヘッダーまで押し縮められる。枠(下線)だけが2〜3px上に詰まり、
+        // 中のタブとその根元の曲線が下線より下にずれて段違いになっていた(Safari/PC は余白0なので目立たない)。
+        <header className="sticky top-0 z-40 box-border min-h-[72px] w-full shrink-0 border-b border-[var(--mode-line)] bg-white px-5 pt-[env(safe-area-inset-top)] print:hidden">
           <div className="grid min-h-[72px] grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="flex min-w-0 items-end gap-1 self-end pl-3">
               {/* レジのタブ。レジにいる間は ⇄ で POS/ORDER を切り替え、他のタブからは押すとレジに戻る。 */}
