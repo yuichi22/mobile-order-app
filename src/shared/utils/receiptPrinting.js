@@ -19,6 +19,34 @@ export const resolveReceiptMode = (input, fallback = 'pos') => {
 
 export const isAutoPrintEnabled = (settings, mode) => Boolean(getReceiptModeSettings(settings, mode).autoPrint);
 
+// 会計完了で自動印刷するか。iPadアプリ(Star直結)と印刷ブリッジのときだけ。
+// PC/ブラウザの Star 方式はブラウザ印刷画面で代替になるため、会計のたびに自動で開かない(手動の「レシート印刷」で出す)。
+export const shouldAutoPrintReceipt = (settings, mode) => {
+  const cfg = getReceiptModeSettings(settings, resolveReceiptMode(mode, 'pos'));
+  return Boolean(cfg.autoPrint) && (Capacitor.isNativePlatform() || cfg.printMethod === 'bridge');
+};
+
+// Star プリンタ(Bluetooth)への命令を1本ずつ順番に送る【10-18】。
+// 会計完了でドロワー開放とレシート印刷が同時に走ると、後の接続が
+// 「The device is in use by another process」で弾かれる(Bluetooth は同時に1接続のみ)。
+// 前の命令の完了(成否問わず)を待ってから次を送り、それでも使用中なら少し待って1回だけやり直す。
+let starQueue = Promise.resolve();
+const isDeviceBusyError = (error) => /in use|busy/i.test(String(error?.message || error || ''));
+const runStarExclusive = (task) => {
+  const run = async () => {
+    try {
+      return await task();
+    } catch (error) {
+      if (!isDeviceBusyError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return task();
+    }
+  };
+  const result = starQueue.then(run, run);
+  starQueue = result.catch(() => {});
+  return result;
+};
+
 const enrichPayload = (data, settings, cfg) => ({
   ...buildPosReceiptPrintPayload(data, settings),
   headerTitle: cfg.headerTitle || '',
@@ -81,7 +109,7 @@ export const openCashDrawer = async ({ settings, mode } = {}) => {
   if (!Capacitor.isNativePlatform()) return { method: 'noop' };
   const resolvedMode = resolveReceiptMode(mode, 'pos');
   const { identifier, interface: starInterface } = resolveStarConnection(settings, resolvedMode);
-  await StarPrinter.openDrawer({ identifier, interface: starInterface });
+  await runStarExclusive(() => StarPrinter.openDrawer({ identifier, interface: starInterface }));
   return { method: 'starNative', mode: resolvedMode };
 };
 
@@ -95,12 +123,12 @@ export const printPayloadByMode = async ({ payload, settings, mode }) => {
   // （iPadからは印刷ブリッジ localhost:8787 に到達できないため、モードによらずStarを使う）
   if (Capacitor.isNativePlatform()) {
     const { identifier: starIdentifier, interface: starInterface } = resolveStarConnection(settings, resolvedMode);
-    await StarPrinter.printReceipt({
+    await runStarExclusive(() => StarPrinter.printReceipt({
       // 用紙幅は端末に繋がっているプリンタの物理特性なので、店舗設定ではなく端末設定から渡す。
       receipt: { ...payload, paperColumns: getDevicePaperColumns() },
       identifier: starIdentifier,
       interface: starInterface
-    });
+    }));
     return { method: 'starNative', mode: resolvedMode };
   }
 
