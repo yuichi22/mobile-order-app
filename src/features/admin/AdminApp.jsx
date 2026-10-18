@@ -31,6 +31,7 @@ import {
   issueReceipt,
   openCashDrawer,
   resolveReceiptMode,
+  shouldAutoPrintReceipt,
   shouldOpenDrawerForPayment
 } from '../../shared/utils/receiptPrinting';
 import { lazyWithRetry, preloadOnIdle } from '../../shared/utils/lazyWithRetry';
@@ -377,10 +378,18 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
     }
 
     // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
-    if (payload.transactionId && payload.sessionId && resolveReceiptMode(payload, registerMode) === 'order') {
-      ensurePaymentResultMobileReceipt(payload).catch((error) => {
+    const mobileReceiptReady = payload.transactionId && payload.sessionId && drawerMode === 'order'
+      ? ensurePaymentResultMobileReceipt(payload).catch((error) => {
         console.error('[admin pos mobile receipt issue error]', error);
-      });
+        return payload;
+      })
+      : Promise.resolve(payload);
+
+    // 会計時の自動レシート印刷【10-18】。レシート設定「会計時に自動でレシートを印刷する」が ON のとき。
+    // 旧完了画面の廃止後どこからも呼ばれておらず、自動では出ていなかった。
+    // ドロワー開放とはプリンタへの送信を順番待ちにしている(receiptPrinting の runStarExclusive)。
+    if (shouldAutoPrintReceipt(storeSettings, drawerMode)) {
+      mobileReceiptReady.then((printableToast) => printPaymentResultReceipt(printableToast || payload, drawerMode));
     }
   };
 
@@ -442,22 +451,26 @@ const AdminApp = ({ onBack, onSwitchToKitchen, onSwitchToServe }) => {
   const handlePrintPaymentResultReceipt = async () => {
     if (!paymentResultToast || isPaymentResultReceiptPrinting) return;
 
-    setIsPaymentResultReceiptPrinting(true);
-
-    let printableToast = paymentResultToast;
     const receiptMode = resolveReceiptMode(paymentResultToast, registerMode);
-
-    try {
-      // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
-      // 発行に失敗(招待無効など)しても物理レシート印刷は止めない。
-      if (receiptMode === 'order') {
-        try {
-          printableToast = await ensurePaymentResultMobileReceipt();
-        } catch (mobileReceiptError) {
-          console.error('[admin pos mobile receipt issue error]', mobileReceiptError);
-          printableToast = paymentResultToast;
-        }
+    let printableToast = paymentResultToast;
+    // 電子(QR)領収書はORDER(セッション/注文)会計専用。POS会計では発行しない。
+    // 発行に失敗(招待無効など)しても物理レシート印刷は止めない。
+    if (receiptMode === 'order') {
+      try {
+        printableToast = await ensurePaymentResultMobileReceipt();
+      } catch (mobileReceiptError) {
+        console.error('[admin pos mobile receipt issue error]', mobileReceiptError);
+        printableToast = paymentResultToast;
       }
+    }
+    await printPaymentResultReceipt(printableToast, receiptMode);
+  };
+
+  // 会計結果のレシートを印刷する(手動の「レシート印刷」と自動印刷の共通処理)。
+  // 失敗したらブラウザ印刷へ切り替えるか確認する。
+  const printPaymentResultReceipt = async (printableToast, receiptMode) => {
+    setIsPaymentResultReceiptPrinting(true);
+    try {
       await issueReceipt({
         data: printableToast,
         settings: storeSettings,
