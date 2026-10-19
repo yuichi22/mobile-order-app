@@ -1791,6 +1791,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         lineDiscountTotal: Number(takeoutLineDiscountTotal) || 0,
         lineDiscountItems: takeoutLineDiscountItems,
         storeId,
+        // ドロワー開放条件・自動印刷はレジモード別設定を見る。isTakeout だけだと POSレジの会計も
+        // ORDER 扱いになり、POS側の「現金を含む会計だけ」が効かなかった【10-19】。
+        registerMode: registerMode === 'pos' ? 'pos' : 'order',
         isTakeout: true,
         orderType: 'takeout',
         serviceType: 'takeout'
