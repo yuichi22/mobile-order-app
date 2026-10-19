@@ -3369,12 +3369,20 @@ export const PosTransactionHistory = ({
                   )}
                   {isExpired ? (
                     <span className="self-center text-[11px] font-bold text-gray-500">送信元から再送で復活</span>
+                  ) : isClaimed && !claimedByOwn ? (
+                    // 呼出したレジが戻さずに離れても止まらないよう、他のレジから引き継げる
+                    <button
+                      type="button"
+                      onClick={() => onClaimCheckoutRequest?.(request, { takeover: true })}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 shadow-sm hover:bg-gray-50"
+                    >
+                      引き継いで呼出
+                    </button>
                   ) : (
                     <button
                       type="button"
-                      disabled={isClaimed && !claimedByOwn}
                       onClick={() => onClaimCheckoutRequest?.(request)}
-                      className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
+                      className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-gray-800"
                     >
                       呼出
                     </button>
