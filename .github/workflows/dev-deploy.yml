@@ -1,0 +1,48 @@
+name: Dev Deploy (manual)
+
+# dev本体(mobile-order-dev-5f7fd.web.app)への手動デプロイ。GitHub の Actions タブ → Dev Deploy (manual) → Run workflow。
+# dev本体は「mainに入った統合済みの状態」を置く場所なので、main を選んだときだけ動く。
+# ブランチごとの確認は PR のプレビューチャネル(preview-deploy.yml)を使う。
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: dev-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # main 以外のブランチで Run workflow しても何もしない
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore .env.development from secret
+        run: printf '%s' "$ENV_DEV" > .env.development
+        env:
+          ENV_DEV: ${{ secrets.ENV_DEV }}
+
+      - name: Build (dev mode)
+        run: npm run build:dev
+
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOBILE_ORDER_DEV }}
+          projectId: mobile-order-dev-5f7fd
+          target: app
+          channelId: live
+
+      - name: Verify deployed build matches (check-deploy)
+        run: node scripts/check-deploy.mjs dev
