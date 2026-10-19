@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, ChevronDown, Delete, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, CircleCheck, Delete, Search, Undo2, X } from 'lucide-react';
 
 import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog';
 import { rankTheme } from '../utils/rankTheme';
@@ -567,7 +567,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
         ) : (
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5 text-xs font-black text-gray-900">
-              <Check size={15} strokeWidth={3} className="shrink-0" />
+              <CircleCheck size={15} strokeWidth={2.8} className="shrink-0" />
               <span>
                 携帯番号が主番号に登録されています
                 {member.phoneLast4 && <span className="tabular-nums">（下4桁 {member.phoneLast4}）</span>}
