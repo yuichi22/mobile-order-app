@@ -29,7 +29,7 @@ export const useCrmMember = (storeId) => {
   // この会計で使うポイント数(pt)。会計の割引明細(voucher_payment)として流し込む。
   const [pointsToUse, setPointsToUse] = useState(0);
 
-  // ⚠会員照会は「レジ → この中継 → Core」の2段。どちらもしばらく使われないと
+  // ⚠会員照会・会員検索は「レジ → この中継 → Core」の2段。どちらもしばらく使われないと
   //   コンテナが落ち、朝イチの1件目だけ起動待ちで待たされる。
   //   レジを開いた時に1回だけ空打ちして、両方を起こしておく（お客様は引かない）。
   //   失敗しても何もしない（暖機は「できたら得」なだけで、会計を止める理由にならない）。
@@ -39,6 +39,8 @@ export const useCrmMember = (storeId) => {
     warmedRef.current = true;
     warmedStores.add(storeId);
     httpsCallable(functionsApi, 'crmLookupMember')({ storeId, warmup: true }).catch(() => {});
+    // 会員検索は別の関数（POS・Core とも）なので、こちらも起こして検索用の一覧を読ませておく。
+    httpsCallable(functionsApi, 'crmSearchMembers')({ storeId, warmup: true }).catch(() => {});
   }, [storeId]);
 
   const clearMember = useCallback(() => {

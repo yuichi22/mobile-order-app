@@ -216,6 +216,23 @@ export const crmSearchMembers = onCall({ region: REGION }, async (request) => {
   const storeId = str(request.data?.storeId);
   const q = str(request.data?.q);
   if (!storeId) throw new HttpsError("invalid-argument", "storeId required.");
+  // ウォームアップ: レジの起動時に1回だけ叩き、この関数と Core の検索（一覧の読み込みまで）を起こしておく。
+  // ⚠crmLookupMember の暖機とは別の関数なので、あちらを起こしても検索は速くならない。
+  //   失敗しても握りつぶす（暖機は「できたら得」なだけ）。
+  if (request.data?.warmup === true) {
+    await assertStoreStaff(request, storeId);
+    const warmLink = await resolveCoreLink(storeId);
+    try {
+      await callCore("searchCrmMembers", {
+        coreTenantId: warmLink.coreTenantId,
+        coreSpaceId: warmLink.coreSpaceId,
+        warmup: true,
+      });
+    } catch {
+      return { ok: true, warmed: false };
+    }
+    return { ok: true, warmed: true };
+  }
   if (q.replace(/[\s\u3000]+/g, "").length < 3) {
     throw new HttpsError("invalid-argument", "3文字以上で検索してください。");
   }
