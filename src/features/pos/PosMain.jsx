@@ -299,6 +299,15 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [checkoutRequests, setCheckoutRequests] = useState([]);
   // 呼出中(カートに展開済み)の会計依頼。会計確定時に paid 化と取引docへの紐付けに使う。
   const [activeCheckoutRequest, setActiveCheckoutRequest] = useState(null);
+  // 購読コールバックから「いま呼出中の伝票」と自レジ・レジ名を参照するための ref。
+  const takeoverWatchRef = useRef({ requestId: null, ownRegisterId: 'pos', registers: [] });
+  useEffect(() => {
+    takeoverWatchRef.current = {
+      requestId: activeCheckoutRequest?.id || null,
+      ownRegisterId: activeRegister?.id || 'pos',
+      registers: storeSettings?.registers || []
+    };
+  }, [activeCheckoutRequest?.id, activeRegister?.id, storeSettings?.registers]);
 
   useEffect(() => {
     if (registerMode !== 'pos' || !storeId) return undefined;
@@ -337,6 +346,22 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         return (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0);
       });
       setCheckoutRequests(rows);
+
+      // 呼出中の予約会計が他レジに引き継がれたら、このレジのカートから外す
+      // (そのまま会計すると二重売上になるため。会計直前にも再確認している)。
+      const watch = takeoverWatchRef.current;
+      const live = watch.requestId ? rows.find((row) => row.id === watch.requestId) : null;
+      if (live && live.status === 'claimed' && live.claimedBy && live.claimedBy !== watch.ownRegisterId) {
+        const toName = watch.registers.find((register) => register.id === live.claimedBy)?.name || '他のレジ';
+        watch.requestId = null;
+        setActiveCheckoutRequest(null);
+        setTakeoutCart((current) => current.filter((item) => !String(item.id || '').startsWith(`groomreq:${live.id}:`)));
+        setPosProductMessage({
+          message: `${live.customerName ? `${live.customerName} 様` : '予約会計'} は ${toName} に引き継がれました。`,
+          type: 'error',
+          key: nowMs
+        });
+      }
     }, (error) => {
       console.error('[PosMain] checkoutRequests subscribe failed', error);
     });
@@ -1192,9 +1217,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
 
   // groom会計依頼を呼び出してカートに展開する(pending→claimed)。
   // 他レジとの競合はトランザクションの status/claimedBy 検査で防ぐ。
-  const claimCheckoutRequest = async (request) => {
+  // takeover: 他レジが呼出中のまま離れた伝票を、このレジへ引き継ぐ(元のレジのカートからは外れる)。
+  const claimCheckoutRequest = async (request, { takeover = false } = {}) => {
     if (!storeId || !request?.id) return;
     const registerId = activeRegister?.id || 'pos';
+
+    if (takeover) {
+      const fromName = (storeSettings?.registers || []).find((register) => register.id === request.claimedBy)?.name || '他のレジ';
+      if (!(await appConfirm(`${fromName} で呼出中の予約会計を、このレジに引き継ぎますか？\n${fromName} のカートからは外れます。`, { okLabel: '引き継ぐ' }))) {
+        return;
+      }
+    }
 
     if (takeoutCart.length > 0 && !(await appConfirm('現在の仮伝票を置き換えて、予約会計を呼び出しますか？', { okLabel: '呼び出す' }))) {
       return;
@@ -1208,14 +1241,17 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         if (!data || data.status === 'paid' || data.status === 'cancelled') {
           throw new Error('この伝票はすでに処理済みです。');
         }
-        if (data.status === 'claimed' && data.claimedBy && data.claimedBy !== registerId) {
+        const claimedByOther = data.status === 'claimed' && data.claimedBy && data.claimedBy !== registerId;
+        // 引き継ぎは「確認時点と同じレジが呼出中」の場合だけ(その間に別レジが取った分は奪わない)。
+        if (claimedByOther && !(takeover && data.claimedBy === request.claimedBy)) {
           throw new Error('他のレジで処理中です。');
         }
         tx.update(requestRef, {
           status: 'claimed',
           claimedBy: registerId,
           claimedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          ...(claimedByOther ? { takenOverFrom: data.claimedBy, takenOverAt: serverTimestamp() } : {})
         });
       });
     } catch (error) {
@@ -1799,6 +1835,30 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
         serviceType: 'takeout'
       };
 
+      // groom会計依頼の呼出中で、その明細がまだカートに残っている場合のみ紐付ける
+      // (呼出後に明細を全て消して別の会計をしたケースでは paid 化しない)。
+      const groomRequestForPayment = activeCheckoutRequest &&
+        takeoutCart.some((item) => String(item.id || '').startsWith(`groomreq:${activeCheckoutRequest.id}:`))
+        ? activeCheckoutRequest
+        : null;
+
+      // 予約会計は、決済の前にまだこのレジが呼出中かを確かめる
+      // (他レジに引き継がれた/会計済みの伝票を二重に売り上げないため)。
+      if (groomRequestForPayment) {
+        const requestSnap = await getDoc(doc(db, 'stores', storeId, 'checkoutRequests', groomRequestForPayment.id));
+        const latest = requestSnap.exists() ? requestSnap.data() : null;
+        const ownId = activeRegister?.id || 'pos';
+        if (!latest || latest.status !== 'claimed' || (latest.claimedBy && latest.claimedBy !== ownId)) {
+          setPosMessage(
+            latest?.status === 'paid'
+              ? 'この予約会計はすでに会計済みです。'
+              : 'この予約会計は他のレジに引き継がれました。予約会計の明細をカートから外してからお会計してください。',
+            'error'
+          );
+          return;
+        }
+      }
+
       // --- カード会計: この端末に割り当てた Stripe リーダーで決済 ---
       // レジに reader 割当があり支払いにカードが含まれる時のみ端末へ送る。
       // 未割当レジ/現金/QR/売掛は従来どおり(端末を通さない)。分割はカード分のみ。
@@ -1819,13 +1879,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           return;
         }
       }
-
-      // groom会計依頼の呼出中で、その明細がまだカートに残っている場合のみ紐付ける
-      // (呼出後に明細を全て消して別の会計をしたケースでは paid 化しない)。
-      const groomRequestForPayment = activeCheckoutRequest &&
-        takeoutCart.some((item) => String(item.id || '').startsWith(`groomreq:${activeCheckoutRequest.id}:`))
-        ? activeCheckoutRequest
-        : null;
 
       const batch = writeBatch(db);
 
