@@ -158,6 +158,9 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneErr, setPhoneErr] = useState('');
   const [phoneDone, setPhoneDone] = useState(null); // { changeId, undoableUntilMs }
+  // 携帯が主番号に入っている人は、入力欄を「番号を変更する」の後ろにしまう。
+  // 常に出しておくと、まだ登録が必要に見えてしまう。
+  const [phoneEditOpen, setPhoneEditOpen] = useState(false);
 
   const [amount, setAmount] = useState('');
   // 累計のお買い上げ金額(LTV)の内訳・履歴・修正。開いた時だけ読む。
@@ -206,6 +209,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
       });
       setPhoneDone({ changeId: res.changeId, undoableUntilMs: Number(res.undoableUntilMs || 0) });
       setPhoneInput('');
+      setPhoneEditOpen(false);
       setNow(Date.now());
     } catch (e) {
       // ⚠「別のお客様に登録済み」(phone_taken)は Core が索引を付け替えずに弾いた合図。
@@ -561,12 +565,28 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             </span>
           </div>
         ) : (
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-gray-900">
-            <Check size={15} strokeWidth={3} />
-            携帯番号が主番号に登録されています
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5 text-xs font-black text-gray-900">
+              <Check size={15} strokeWidth={3} className="shrink-0" />
+              <span>
+                携帯番号が主番号に登録されています
+                {member.phoneLast4 && <span className="tabular-nums">（下4桁 {member.phoneLast4}）</span>}
+              </span>
+            </div>
+            {!phoneEditOpen && (
+              <button
+                type="button"
+                onClick={() => setPhoneEditOpen(true)}
+                className="h-11 shrink-0 px-1 text-xs font-black text-gray-500"
+              >
+                番号を変更する
+              </button>
+            )}
           </div>
         )}
 
+        {(member.needsMobile || phoneEditOpen) && (
+        <div className={member.needsMobile ? '' : 'mt-2'}>
         <form
           onSubmit={(e) => { e.preventDefault(); registerPhone(); }}
           className="flex items-center gap-2"
@@ -583,13 +603,30 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
             disabled={phoneBusy || !/^0[789]0\d{8}$/.test(phoneInput.replace(/\D/g, ''))}
             className="h-11 shrink-0 rounded-xl bg-gray-900 px-4 text-xs font-black text-white disabled:opacity-40"
           >
-            {phoneBusy ? '登録中…' : '主番号に登録'}
+            {phoneBusy ? '登録中…' : member.needsMobile ? '主番号に登録' : '主番号を変更'}
           </button>
         </form>
         <p className="mt-1.5 text-[11px] font-bold text-gray-500">
-          今までのお電話番号は残ります（どちらの番号でもお客様を特定できます）。
-          お電話番号の変更がないかも併せてお伺いしてください。
+          {member.needsMobile ? (
+            <>
+              今までのお電話番号は残ります（どちらの番号でもお客様を特定できます）。
+              お電話番号の変更がないかも併せてお伺いしてください。
+            </>
+          ) : (
+            '新しい携帯番号が主番号になり、今の番号も残ります（どちらの番号でもお客様を特定できます）。'
+          )}
         </p>
+        {!member.needsMobile && (
+          <button
+            type="button"
+            onClick={() => { setPhoneEditOpen(false); setPhoneInput(''); setPhoneErr(''); }}
+            className="mt-1 h-11 px-1 text-xs font-black text-gray-500"
+          >
+            変更しない
+          </button>
+        )}
+        </div>
+        )}
         {phoneErr && <div className="mt-1.5 text-[11px] font-bold text-red-600">{phoneErr}</div>}
 
         {phoneDone && undoRemaining > 0 && (
