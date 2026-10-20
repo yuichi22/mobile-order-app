@@ -496,6 +496,16 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutDiscountQuantities({});
   };
 
+  // 仮伝票の商品が全部なくなったら(×で取消・数量0・クリア・保留など経路を問わず)割引設定も外す。
+  // 残すと次に入れた商品へ前の割引が黙って掛かってしまう。
+  // (effect ではなく描画中に「空になった瞬間」を検出して直す: React 推奨の前回値比較パターン)
+  const isTakeoutCartEmpty = takeoutCart.length === 0;
+  const [wasTakeoutCartEmpty, setWasTakeoutCartEmpty] = useState(isTakeoutCartEmpty);
+  if (wasTakeoutCartEmpty !== isTakeoutCartEmpty) {
+    setWasTakeoutCartEmpty(isTakeoutCartEmpty);
+    if (isTakeoutCartEmpty) clearTakeoutDiscount();
+  }
+
   // 連続スキャン時に「どの行に入ったか」を見せる: 追加行をハイライトし、画面外なら自動スクロール。
   // 同じ商品を連続で読んでも毎回発火するよう、idを毎回新しいオブジェクトに包んで持つ。
   const [lastAddedCartItem, setLastAddedCartItem] = useState(null);

@@ -1730,6 +1730,20 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const effectiveTotalPayableItemCount = Number(totalPayableItemCount || 0) + Number(orderRetailCart.length || 0);
   const isEmptyCheckout = !hasOrderItems && !hasCheckoutAmount;
 
+  // 未会計の商品を全部取消したら割引設定も外す(残すと復旧・追加した商品へ前の割引が黙って掛かる)。
+  // (effect ではなく描画中に「空になった瞬間」を検出して直す: React 推奨の前回値比較パターン)
+  const hasNoPayableItems = !loading && effectiveTotalPayableItemCount === 0;
+  const [hadNoPayableItems, setHadNoPayableItems] = useState(hasNoPayableItems);
+  if (hadNoPayableItems !== hasNoPayableItems) {
+    setHadNoPayableItems(hasNoPayableItems);
+    if (hasNoPayableItems) {
+      setDiscountType('none');
+      setDiscountValue(0);
+      setDiscountQuantities({});
+      setSelectedDiscount(null);
+    }
+  }
+
   const handleAbortSession = () => {
     if (isEmptyCheckout) {
       executeAbortSession({ reason: 'empty_exit' });
