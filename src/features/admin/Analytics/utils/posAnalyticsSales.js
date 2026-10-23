@@ -2,7 +2,8 @@
 //
 // 入力は「物販部門スライス」(splitTransactionsByDepartment で物販部門に絞った取引)を想定する。
 // 物販/飲食の切り分けは日計と同一(departmentAttribution)。ここでは物販内の
-// 売り場/カテゴリーグループ/カテゴリー/サブカテゴリーへの分解と、選択分類での絞り込みを担う。
+// 売り場/カテゴリーグループ(画面では「部門」)/カテゴリー/サブカテゴリー/ブランドへの分解と、
+// 選択分類での絞り込みを担う。
 //
 // 売り場・グループ・カテゴリーが未設定の物販明細も「未設定」バケットに必ず含め、
 // リスト合計が物販の明細合計(値引き前)と一致する(＝取りこぼさない)ようにする。
@@ -22,13 +23,16 @@ export const getItemLineTotal = (item = {}) => {
   return num(item.unitPrice) * Math.max(num(item.quantity), 0);
 };
 
-// アイテム→分類 { areaId/Name, groupId/Name, categoryId/Name, subCategoryId/Name }。
-// productById: Map(productId -> {subCategoryId, subCategoryName}) 。明細に無いサブカテゴリを補完。
+// アイテム→分類 { areaId/Name, groupId/Name, categoryId/Name, subCategoryId/Name, brandId/Name }。
+// productById: Map(productId -> {subCategoryId, subCategoryName, brandId, brandName}) 。
+//   明細に無いサブカテゴリと、2026-10 以前の明細に無いブランドを商品から補完する。
+// brandNameById: Map(brandId -> ブランド名)。ブランドマスタの現在名を優先する(改名に追従)。
 export const buildPosItemResolver = ({
   salesAreas = [],
   productCategories = [],
   productCategoryGroups = [],
-  productById = null
+  productById = null,
+  brandNameById = null
 } = {}) => {
   const areaResolver = buildItemSalesAreaResolver({ salesAreas, productCategories, productCategoryGroups });
   const catMap = new Map();
@@ -44,7 +48,13 @@ export const buildPosItemResolver = ({
     const product = productById ? productById.get(String(item.productId || '')) : null;
     const subCategoryId = String(item.subCategoryId || product?.subCategoryId || '').trim();
     const subCategoryName = String(item.subCategoryName || product?.subCategoryName || '').trim();
-    return { areaId, areaName, groupId, groupName, categoryId, categoryName, subCategoryId, subCategoryName };
+    const brandId = String(item.brandId || product?.brandId || '').trim();
+    const brandName = String(
+      (brandId && brandNameById ? brandNameById.get(brandId) : '') || item.brandName || product?.brandName || ''
+    ).trim();
+    return {
+      areaId, areaName, groupId, groupName, categoryId, categoryName, subCategoryId, subCategoryName, brandId, brandName
+    };
   };
 };
 
@@ -54,19 +64,42 @@ export const buildPosItemResolver = ({
 // 束ね直す。グルーピングとドリルダウンの絞り込み(inArea/inGroup)を同じキーで一致させる。
 const areaKeyOf = (c) => String(c?.areaName || '').trim() || String(c?.areaId || '').trim() || '__no_area__';
 const groupKeyOf = (c) => String(c?.groupName || '').trim() || String(c?.groupId || '').trim() || '__no_group__';
+// ブランドも名前優先(id だけの古い商品と名前だけの古い商品を束ねる)。
+const brandKeyOf = (c) => String(c?.brandName || '').trim() || String(c?.brandId || '').trim() || '__no_brand__';
+
+// 「未設定」バケットの id。これらの行からは下の階層へ掘り下げない。
+export const UNSET_IDS = new Set(['__no_area__', '__no_group__', '__no_category__', '__no_sub__', '__no_brand__']);
 
 // 各階層のキー(未設定は専用バケットに寄せる)。
 const KEY = {
   area: (c) => ({ id: areaKeyOf(c), name: c.areaName || '売り場未設定' }),
   group: (c) => ({ id: groupKeyOf(c), name: c.groupName || 'グループ未設定' }),
   category: (c) => ({ id: c.categoryId || '__no_category__', name: c.categoryName || 'カテゴリー未設定' }),
-  subCategory: (c) => ({ id: c.subCategoryId || '__no_sub__', name: c.subCategoryName || 'サブカテゴリ未設定' })
+  subCategory: (c) => ({ id: c.subCategoryId || '__no_sub__', name: c.subCategoryName || 'サブカテゴリ未設定' }),
+  brand: (c) => ({ id: brandKeyOf(c), name: c.brandName || 'ブランド未設定' })
 };
 
+const inArea = (areaKey) => (cls) => areaKeyOf(cls) === String(areaKey);
+const inGroup = (groupKey) => (cls) => groupKeyOf(cls) === String(groupKey);
+const inCategory = (categoryId) => (cls) => String(cls.categoryId || '__no_category__') === String(categoryId);
+
+// タブの scope({areaId, groupId, categoryId})を分類の判定関数にする。空なら null(=全件)。
+export const buildScopeMatcher = (scope = {}) => {
+  const checks = [];
+  if (scope?.areaId != null) checks.push(inArea(scope.areaId));
+  if (scope?.groupId != null) checks.push(inGroup(scope.groupId));
+  if (scope?.categoryId != null) checks.push(inCategory(scope.categoryId));
+  if (checks.length === 0) return null;
+  return (cls) => checks.every((check) => check(cls));
+};
+
+// 選択は scope 付き。ブランドは部門をまたぐので、「この部門の中のこのブランド」に絞る。
 const itemMatchesSelection = (cls, selection) => {
   if (!selection || !selection.level || selection.level === 'all') return true;
   const keyOf = KEY[selection.level];
   if (!keyOf) return true;
+  const inScope = buildScopeMatcher(selection.scope);
+  if (inScope && !inScope(cls)) return false;
   return String(keyOf(cls).id) === String(selection.id || '');
 };
 
@@ -128,12 +161,18 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
           // 原価・粗利は「原価が登録済みの明細」だけを対象に日計と同じスナップショットで合算する。
           costTaxExcluded: 0,
           grossProfitTaxExcluded: 0,
-          trackedSalesExcl: 0
+          trackedSalesExcl: 0,
+          // 下の階層が1件でも設定済みか。未設定だけなら掘り下げボタンを出さない。
+          hasChild: { group: false, category: false, subCategory: false, brand: false }
         });
       }
       const entry = map.get(id);
       entry.total += getItemLineTotal(item);
       entry.quantity += Math.max(num(item.quantity), 0);
+      if (!UNSET_IDS.has(String(KEY.group(cls).id))) entry.hasChild.group = true;
+      if (cls.categoryId) entry.hasChild.category = true;
+      if (cls.subCategoryId) entry.hasChild.subCategory = true;
+      if (!UNSET_IDS.has(brandKeyOf(cls))) entry.hasChild.brand = true;
 
       // 原価スナップショット(costPrice)がある明細のみ原価/粗利を積む(日計 addGrossProfitSummary と同基準)。
       const hasCost = item.costPrice !== null
@@ -164,21 +203,23 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
     .sort((left, right) => right.total - left.total);
 };
 
-const inArea = (areaKey) => (cls) => areaKeyOf(cls) === String(areaKey);
-const inGroup = (groupKey) => (cls) => groupKeyOf(cls) === String(groupKey);
-const inCategory = (categoryId) => (cls) => String(cls.categoryId || '__no_category__') === String(categoryId);
-
 export const buildAreaBreakdown = (slices, resolvePosItem) =>
   buildBreakdown(slices, resolvePosItem, 'area');
 
+// 下位の一覧はタブの scope(掘り下げてきた売場・部門・カテゴリー)すべてで絞る。
+// 行の選択(itemMatchesSelection)も同じ scope で絞るので、一覧とグラフ・ABCの数字が揃う。
 export const buildGroupBreakdown = (slices, resolvePosItem, scope = {}) =>
-  buildBreakdown(slices, resolvePosItem, 'group', scope.areaId != null ? inArea(scope.areaId) : null);
+  buildBreakdown(slices, resolvePosItem, 'group', buildScopeMatcher(scope));
 
-export const buildCategoryBreakdown = (slices, resolvePosItem, groupId) =>
-  buildBreakdown(slices, resolvePosItem, 'category', inGroup(groupId));
+export const buildCategoryBreakdown = (slices, resolvePosItem, scope = {}) =>
+  buildBreakdown(slices, resolvePosItem, 'category', buildScopeMatcher(scope));
 
-export const buildSubCategoryBreakdown = (slices, resolvePosItem, categoryId) =>
-  buildBreakdown(slices, resolvePosItem, 'subCategory', inCategory(categoryId));
+export const buildSubCategoryBreakdown = (slices, resolvePosItem, scope = {}) =>
+  buildBreakdown(slices, resolvePosItem, 'subCategory', buildScopeMatcher(scope));
+
+// 部門などの scope 内のブランド別売上。売上の多い順。
+export const buildBrandBreakdown = (slices, resolvePosItem, scope = {}) =>
+  buildBreakdown(slices, resolvePosItem, 'brand', buildScopeMatcher(scope));
 
 // 物販明細の合計(値引き前)。売上合計(値引き後)との差の説明用。
 export const sumGrossItemTotal = (slices = []) => {
