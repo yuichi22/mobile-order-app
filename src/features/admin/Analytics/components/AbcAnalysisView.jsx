@@ -39,7 +39,11 @@ const AbcAnalysisView = ({
   abcAnalysis,
   abcThresholds,
   setAbcThresholds,
-  showSettings
+  showSettings,
+  // 画面によってランクのまとめと商品の表を離して置けるよう、片方だけ描画できるようにする。
+  showSummary = true,
+  showTable = true,
+  pageStep = PAGE_STEP
 }) => {
   const items = abcAnalysis?.items || [];
   const summary = abcAnalysis?.summary || {};
@@ -47,9 +51,9 @@ const AbcAnalysisView = ({
 
   // ランク絞り込み＋段階表示。全件見られるが、大量時はDOMを抑えて必要な分だけ描画する。
   const [rankFilter, setRankFilter] = useState('all');
-  const [visibleCount, setVisibleCount] = useState(PAGE_STEP);
+  const [visibleCount, setVisibleCount] = useState(pageStep);
   // 期間変更(件数変化)や絞り込み変更で先頭に戻す。
-  useEffect(() => { setVisibleCount(PAGE_STEP); }, [rankFilter, items.length]);
+  useEffect(() => { setVisibleCount(pageStep); }, [rankFilter, items.length, pageStep]);
 
   const filteredItems = rankFilter === 'all' ? items : items.filter((item) => item.rank === rankFilter);
   const shownItems = filteredItems.slice(0, visibleCount);
@@ -162,169 +166,179 @@ const AbcAnalysisView = ({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
-        {(['A', 'B', 'C']).map((rank) => {
-          const meta = RANK_META[rank];
-          const data = summary[rank] || { count: 0, sales: 0, items: [] };
-          const share = abcTotalSales > 0 ? (data.sales / abcTotalSales) * 100 : 0;
-
-          return (
-            <div key={rank} className={`flex flex-col justify-between rounded-xl border p-4 ${meta.cardClassName}`}>
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <div className="text-lg font-bold opacity-80">{meta.title}</div>
-                </div>
-                <div className={`${meta.badgeClassName} rounded px-2 py-0.5 text-xs font-bold text-white`}>{rank}ランク</div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-2xl font-bold">
-                  {data.items.length}
-                  <span className="ml-1 text-sm font-normal opacity-70">商品</span>
-                  <span className="mx-2 opacity-40">/</span>
-                  {formatCurrency(data.sales)}
-                </div>
-                <div className="mt-1 text-sm opacity-70">売上構成比 {share.toFixed(1)}%</div>
-                <div className="rounded-lg bg-white/60 px-3 py-2 text-[11px] leading-relaxed text-gray-600">
-                  {meta.summary}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mb-6 flex h-6 w-full overflow-hidden rounded-full bg-gray-100 shadow-inner">
-        {(['A', 'B', 'C']).map((rank) => {
-          const data = summary[rank];
-          const width = abcTotalSales > 0 && data ? (data.sales / abcTotalSales) * 100 : 0;
-          if (width === 0) return null;
-
-          return (
-            <div
-              key={rank}
-              title={`${rank}ランク: ${width.toFixed(1)}%`}
-              style={{ width: `${width}%` }}
-              className={`${RANK_META[rank].barClassName} h-full transition-all duration-500 hover:opacity-90`}
-            />
-          );
-        })}
-      </div>
-
-      {/* ランク絞り込み＋表示件数 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {rankTabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setRankFilter(tab.key)}
-            className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
-              rankFilter === tab.key
-                ? 'bg-gray-900 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            {tab.label} {tab.count}
-          </button>
-        ))}
-        <span className="ml-auto text-xs font-bold text-gray-500">
-          全{filteredItems.length.toLocaleString()}件中 {shownItems.length.toLocaleString()}件表示
-        </span>
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border bg-white print:overflow-visible">
-        <table className="relative w-full text-left">
-          <thead className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-600 uppercase shadow-sm">
-            <tr>
-              <th className="p-3">ランク</th>
-              <th className="p-3">商品名</th>
-              <th className="p-3 text-right">売上</th>
-              <th className="p-3 text-right">注文数</th>
-              <th className="p-3 text-right">売上構成比</th>
-              <th className="p-3 text-right">累計構成比</th>
-              <th className="p-3 text-right">推奨アクション</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredItems.length === 0 && (
-              <tr>
-                <td colSpan="7" className="p-4 text-center text-gray-500">
-                  対象データがありません
-                </td>
-              </tr>
-            )}
-
-            {shownItems.map((item, idx) => {
-              const meta = RANK_META[item.rank] || RANK_META.C;
-              const rankColor =
-                item.rank === 'A'
-                  ? 'bg-amber-100 text-amber-800'
-                  : item.rank === 'B'
-                    ? 'bg-ui-50 text-ui'
-                    : 'bg-gray-100 text-gray-600';
-              const share = abcTotalSales > 0 ? (item.sales / abcTotalSales) * 100 : 0;
+      {showSummary && (
+        <>
+          <div className="mb-6 grid grid-cols-3 gap-4">
+            {(['A', 'B', 'C']).map((rank) => {
+              const meta = RANK_META[rank];
+              const data = summary[rank] || { count: 0, sales: 0, items: [] };
+              const share = abcTotalSales > 0 ? (data.sales / abcTotalSales) * 100 : 0;
 
               return (
-                <tr key={`${item.name}-${idx}`} className="hover:bg-gray-50">
-                  <td className="p-3">
-                    <span className={`inline-block w-8 rounded py-0.5 text-center text-xs font-bold ${rankColor}`}>{item.rank}</span>
-                  </td>
-                  <td className="p-3 text-sm font-bold text-gray-800">
-                    {item.name}
-                    {rankFilter === 'all' && idx < 3 && (
-                      <span className="ml-2 text-[10px] font-normal text-amber-500">
-                        上位 {idx + 1}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right font-mono text-sm">{formatCurrency(item.sales)}</td>
-                  <td className="p-3 text-right font-mono text-sm text-gray-500">{item.count}</td>
-                  <td className="p-3 text-right font-mono text-xs text-gray-500">{share.toFixed(1)}%</td>
-                  <td className="p-3 text-right font-mono text-xs">
-                    <div className="flex items-center justify-end gap-2">
-                      <span className="w-12">{item.percentage.toFixed(1)}%</span>
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200">
-                        <div
-                          className={`h-full ${meta.barClassName}`}
-                          style={{ width: `${item.percentage}%` }}
-                        />
-                      </div>
+                <div key={rank} className={`flex flex-col justify-between rounded-xl border p-4 ${meta.cardClassName}`}>
+                  <div className="mb-3 flex items-start justify-between">
+                    <div>
+                      <div className="text-lg font-bold opacity-80">{meta.title}</div>
                     </div>
-                  </td>
-                  <td className="p-3 text-right">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.chipClassName}`}>
-                      {meta.action}
-                    </span>
-                  </td>
-                </tr>
+                    <div className={`${meta.badgeClassName} rounded px-2 py-0.5 text-xs font-bold text-white`}>{rank}ランク</div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold">
+                      {data.items.length}
+                      <span className="ml-1 text-sm font-normal opacity-70">商品</span>
+                      <span className="mx-2 opacity-40">/</span>
+                      {formatCurrency(data.sales)}
+                    </div>
+                    <div className="mt-1 text-sm opacity-70">売上構成比 {share.toFixed(1)}%</div>
+                    <div className="rounded-lg bg-white/60 px-3 py-2 text-[11px] leading-relaxed text-gray-600">
+                      {meta.summary}
+                    </div>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      {hasMore && (
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => setVisibleCount((current) => current + PAGE_STEP)}
-            className="rounded-full bg-gray-100 px-4 py-2 text-xs font-black text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            さらに{PAGE_STEP}件表示
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisibleCount(filteredItems.length)}
-            className="rounded-full bg-gray-900 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800"
-          >
-            全{filteredItems.length.toLocaleString()}件表示
-          </button>
-        </div>
+          <div className="mb-6 flex h-6 w-full overflow-hidden rounded-full bg-gray-100 shadow-inner">
+            {(['A', 'B', 'C']).map((rank) => {
+              const data = summary[rank];
+              const width = abcTotalSales > 0 && data ? (data.sales / abcTotalSales) * 100 : 0;
+              if (width === 0) return null;
+
+              return (
+                <div
+                  key={rank}
+                  title={`${rank}ランク: ${width.toFixed(1)}%`}
+                  style={{ width: `${width}%` }}
+                  className={`${RANK_META[rank].barClassName} h-full transition-all duration-500 hover:opacity-90`}
+                />
+              );
+            })}
+          </div>
+        </>
       )}
 
-      <div className="mt-2 text-right text-xs text-gray-500">
-        Aランクは {abcThresholds.a}% まで、Bランクは {abcThresholds.b}% までの累計売上構成比で判定しています。
-      </div>
+      {showTable && (
+        <>
+          {/* ランク絞り込み＋表示件数 */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {rankTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setRankFilter(tab.key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+                  rankFilter === tab.key
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {tab.label} {tab.count}
+              </button>
+            ))}
+            <span className="ml-auto text-xs font-bold text-gray-500">
+              全{filteredItems.length.toLocaleString()}件中 {shownItems.length.toLocaleString()}件表示
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border bg-white print:overflow-visible">
+            <table className="relative w-full text-left">
+              <thead className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-600 uppercase shadow-sm">
+                <tr>
+                  <th className="p-3">ランク</th>
+                  <th className="p-3">商品名</th>
+                  <th className="p-3 text-right">売上</th>
+                  <th className="p-3 text-right">注文数</th>
+                  <th className="p-3 text-right">売上構成比</th>
+                  <th className="p-3 text-right">累計構成比</th>
+                  <th className="p-3 text-right">推奨アクション</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan="7" className="p-4 text-center text-gray-500">
+                      対象データがありません
+                    </td>
+                  </tr>
+                )}
+
+                {shownItems.map((item, idx) => {
+                  const meta = RANK_META[item.rank] || RANK_META.C;
+                  const rankColor =
+                    item.rank === 'A'
+                      ? 'bg-amber-100 text-amber-800'
+                      : item.rank === 'B'
+                        ? 'bg-ui-50 text-ui'
+                        : 'bg-gray-100 text-gray-600';
+                  const share = abcTotalSales > 0 ? (item.sales / abcTotalSales) * 100 : 0;
+
+                  return (
+                    <tr key={`${item.name}-${idx}`} className="hover:bg-gray-50">
+                      <td className="p-3">
+                        <span className={`inline-block w-8 rounded py-0.5 text-center text-xs font-bold ${rankColor}`}>{item.rank}</span>
+                      </td>
+                      <td className="p-3 text-sm font-bold text-gray-800">
+                        {item.name}
+                        {rankFilter === 'all' && idx < 3 && (
+                          <span className="ml-2 text-[10px] font-normal text-amber-500">
+                            上位 {idx + 1}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-mono text-sm">{formatCurrency(item.sales)}</td>
+                      <td className="p-3 text-right font-mono text-sm text-gray-500">{item.count}</td>
+                      <td className="p-3 text-right font-mono text-xs text-gray-500">{share.toFixed(1)}%</td>
+                      <td className="p-3 text-right font-mono text-xs">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="w-12">{item.percentage.toFixed(1)}%</span>
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className={`h-full ${meta.barClassName}`}
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.chipClassName}`}>
+                          {meta.action}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {hasMore && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:hidden">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((current) => current + pageStep)}
+                className="rounded-full bg-gray-100 px-4 py-2 text-xs font-black text-gray-700 transition-colors hover:bg-gray-200"
+              >
+                さらに{pageStep}件表示
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleCount(filteredItems.length)}
+                className="rounded-full bg-gray-900 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800"
+              >
+                全{filteredItems.length.toLocaleString()}件表示
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {showSummary && (
+        <div className="mt-2 text-right text-xs text-gray-500">
+          Aランクは {abcThresholds.a}% まで、Bランクは {abcThresholds.b}% までの累計売上構成比で判定しています。
+        </div>
+      )}
     </div>
   );
 };

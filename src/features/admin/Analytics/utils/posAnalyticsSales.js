@@ -82,13 +82,15 @@ const KEY = {
 const inArea = (areaKey) => (cls) => areaKeyOf(cls) === String(areaKey);
 const inGroup = (groupKey) => (cls) => groupKeyOf(cls) === String(groupKey);
 const inCategory = (categoryId) => (cls) => String(cls.categoryId || '__no_category__') === String(categoryId);
+const inSubCategory = (subCategoryId) => (cls) => String(cls.subCategoryId || '__no_sub__') === String(subCategoryId);
 
-// タブの scope({areaId, groupId, categoryId})を分類の判定関数にする。空なら null(=全件)。
+// タブの scope({areaId, groupId, categoryId, subCategoryId})を分類の判定関数にする。空なら null(=全件)。
 export const buildScopeMatcher = (scope = {}) => {
   const checks = [];
   if (scope?.areaId != null) checks.push(inArea(scope.areaId));
   if (scope?.groupId != null) checks.push(inGroup(scope.groupId));
   if (scope?.categoryId != null) checks.push(inCategory(scope.categoryId));
+  if (scope?.subCategoryId != null) checks.push(inSubCategory(scope.subCategoryId));
   if (checks.length === 0) return null;
   return (cls) => checks.every((check) => check(cls));
 };
@@ -163,7 +165,9 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
           grossProfitTaxExcluded: 0,
           trackedSalesExcl: 0,
           // 下の階層が1件でも設定済みか。未設定だけなら掘り下げボタンを出さない。
-          hasChild: { group: false, category: false, subCategory: false, brand: false }
+          hasChild: { group: false, category: false, subCategory: false, brand: false },
+          // 商品に紐づく明細があるか。商品をまだ読んでいない段階で「ブランドがあり得るか」の目安に使う。
+          hasProduct: false
         });
       }
       const entry = map.get(id);
@@ -173,6 +177,7 @@ const buildBreakdown = (slices, resolvePosItem, level, scope) => {
       if (cls.categoryId) entry.hasChild.category = true;
       if (cls.subCategoryId) entry.hasChild.subCategory = true;
       if (!UNSET_IDS.has(brandKeyOf(cls))) entry.hasChild.brand = true;
+      if (item.productId) entry.hasProduct = true;
 
       // 原価スナップショット(costPrice)がある明細のみ原価/粗利を積む(日計 addGrossProfitSummary と同基準)。
       const hasCost = item.costPrice !== null
