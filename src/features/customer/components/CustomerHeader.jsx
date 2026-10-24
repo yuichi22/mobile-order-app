@@ -36,7 +36,7 @@ const CustomerHeader = ({
   }, [activeCategory]);
 
   return (
-    <div className="sticky top-0 z-30 bg-white/95 shadow-sm backdrop-blur-md">
+    <div className="sticky top-0 z-30 bg-white shadow-sm">
       {view === 'menu' && (
         <>
           <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
