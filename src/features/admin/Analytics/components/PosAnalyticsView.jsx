@@ -34,22 +34,32 @@ const getInitialTaxMode = () => {
 };
 
 // 階層の順序と、1つ下へのドリルダウン定義。カテゴリーグループは画面では「部門」と呼ぶ。
-// 売場 → 部門 → ブランド が主の流れ。部門からはカテゴリーへも掘り下げられる。
+// 売場 → 部門 → カテゴリー → サブカテゴリー の各カードから、その範囲のブランド別も開ける。
 // 下の階層が未設定の明細しか無い行にはボタンを出さない(=その手前で止まる)。
 const DRILL = {
-  area: [{ deeper: 'group', scopeKey: 'areaId', label: '部門別' }],
+  area: [
+    { deeper: 'group', scopeKey: 'areaId', label: '部門別' },
+    { deeper: 'brand', scopeKey: 'areaId', label: 'ブランド別' }
+  ],
   group: [
     { deeper: 'brand', scopeKey: 'groupId', label: 'ブランド別' },
     { deeper: 'category', scopeKey: 'groupId', label: 'カテゴリ別' }
   ],
-  category: [{ deeper: 'subCategory', scopeKey: 'categoryId', label: 'サブカテゴリ別' }],
-  subCategory: [],
+  category: [
+    { deeper: 'subCategory', scopeKey: 'categoryId', label: 'サブカテゴリ別' },
+    { deeper: 'brand', scopeKey: 'categoryId', label: 'ブランド別' }
+  ],
+  subCategory: [{ deeper: 'brand', scopeKey: 'subCategoryId', label: 'ブランド別' }],
   brand: []
 };
 
-const drillOptionsFor = (kind, entry) => (DRILL[kind] || []).filter((rule) => (
-  !UNSET_IDS.has(String(entry.id)) && entry.hasChild?.[rule.deeper]
-));
+// 売場タブでは商品を読まない(全商品分になり重い)ので、ブランドは「商品の明細があるか」で判断する。
+// 部門・カテゴリー・サブカテゴリーのタブはその範囲の商品を読むので、実際にブランドがあるかで判断できる。
+const drillOptionsFor = (kind, entry) => (DRILL[kind] || []).filter((rule) => {
+  if (UNSET_IDS.has(String(entry.id))) return false;
+  if (rule.deeper === 'brand' && kind === 'area') return entry.hasChild?.brand || entry.hasProduct;
+  return entry.hasChild?.[rule.deeper];
+});
 
 const KIND_ICON = { area: Store, group: Layers, category: LayoutGrid, subCategory: LayoutGrid, brand: Tag };
 
@@ -388,10 +398,10 @@ const PosAnalyticsView = ({
   const shownList = activeList.slice(0, visibleCount);
   const hiddenCount = activeList.length - shownList.length;
 
-  // 商品から補完が要るタブ: サブカテゴリ(明細に無い)、部門・ブランド(2026-10 以前の明細にブランドが無い)。
-  // 部門タブでも読むのは、各部門の「ブランド別＞」を出すか(ブランドが1件でもあるか)の判定に要るため。
-  const needsProductInfo = ['subCategory', 'group', 'brand'].includes(activeTab.kind);
-  const needsBrand = activeTab.kind === 'group' || activeTab.kind === 'brand';
+  // 商品から補完が要るタブ: サブカテゴリ(明細に無い)、ブランド(2026-10 以前の明細にブランドが無い)。
+  // 部門・カテゴリータブでも読むのは、各行の「ブランド別＞」を出すか(ブランドが1件でもあるか)の判定に要るため。
+  const needsProductInfo = ['subCategory', 'group', 'category', 'brand'].includes(activeTab.kind);
+  const needsBrand = activeTab.kind !== 'area';
 
   useEffect(() => {
     if (!needsBrand || !storeId || brandMasterRequestedRef.current) return;
@@ -424,7 +434,7 @@ const PosAnalyticsView = ({
     (sourceSlices || []).forEach((tx) => {
       (Array.isArray(tx.items) ? tx.items : []).forEach((it) => {
         if (!it.productId) return;
-        // 部門・ブランドのタブはブランドが明細に無いものだけ補完すればよい。
+        // サブカテゴリ以外のタブはブランドが明細に無いものだけ補完すればよい。
         if (activeTabKind !== 'subCategory' && (it.brandId || it.brandName)) return;
         if (inScope && !inScope(resolvePosItem(it))) return;
         ids.add(String(it.productId));
@@ -484,7 +494,7 @@ const PosAnalyticsView = ({
     if (!rule) return;
     const scope = { ...(activeTab.scope || {}), [rule.scopeKey]: entry.id };
     // 同じ部門名が別の売場にもあり得るので、タブ id は scope 全体で作る。
-    const id = `${rule.deeper}:${[scope.areaId, scope.groupId, scope.categoryId].filter((v) => v != null).join('/')}`;
+    const id = `${rule.deeper}:${[scope.areaId, scope.groupId, scope.categoryId, scope.subCategoryId].filter((v) => v != null).join('/')}`;
     const tab = {
       id,
       kind: rule.deeper,
@@ -496,10 +506,11 @@ const PosAnalyticsView = ({
     activateTab(id);
   };
 
+  // 開いているタブを閉じたら、1つ前(左隣)のタブへ戻る。別のタブを閉じた時は今のタブのまま。
   const closeTab = (tabId) => {
+    const index = tabs.findIndex((t) => t.id === tabId);
     setDrillTabs((prev) => prev.filter((t) => t.id !== tabId));
-    setActiveTabId((prev) => (prev === tabId ? baseTab.id : prev));
-    setSelection({ level: 'all' });
+    if (activeTab.id === tabId) activateTab((tabs[index - 1] || baseTab).id);
   };
 
   const canDrill = (DRILL[activeTab.kind] || []).length > 0;
@@ -653,11 +664,34 @@ const PosAnalyticsView = ({
         )}
       </div>
 
-      <div className="mt-6">
-        {/* 売上推移の上に構成比の100%分割バー。選択が無い時のみ表示、全階層で同じ挙動。 */}
-        {selection.level === 'all' && (
+      {/* 一覧の構成比。選択が無い時のみ表示、全階層で同じ挙動。 */}
+      {selection.level === 'all' && (
+        <div className="mt-6">
           <CompositionBar items={activeList} title={`${activeTab.label} 売上割合`} />
-        )}
+        </div>
+      )}
+
+      {/* 商品別の表はカードのすぐ下に置く。カードを選ぶとその範囲の商品にすぐ絞られて見える。
+          時間帯グラフとABCのランクのまとめはその下。 */}
+      <div className="print:break-inside-avoid mt-2">
+        <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
+          商品別（ABC）
+          {selection.level !== 'all' && (
+            <span className="rounded-full bg-ui-50 px-2 py-0.5 text-[10px] font-black text-ui">{selection.name}</span>
+          )}
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
+        </div>
+        <AbcAnalysisView
+          abcAnalysis={analytics.abcAnalysis}
+          abcThresholds={abcThresholds}
+          setAbcThresholds={setAbcThresholds}
+          showSettings={false}
+          showSummary={false}
+          pageStep={LIST_STEP}
+        />
+      </div>
+
+      <div className="mt-8">
         <AnalyticsChartSection
           chartData={analytics.chartData}
           isDayOfWeekMode={isDayOfWeekMode}
@@ -666,7 +700,7 @@ const PosAnalyticsView = ({
         />
       </div>
 
-      {/* アイテム別 ABC 分析 */}
+      {/* アイテム別 ABC 分析(ランクのまとめ) */}
       <div className="print:break-inside-avoid mt-2">
         <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
           ABC分析（アイテム別）
@@ -677,6 +711,7 @@ const PosAnalyticsView = ({
           abcThresholds={abcThresholds}
           setAbcThresholds={setAbcThresholds}
           showSettings={false}
+          showTable={false}
         />
       </div>
     </div>
