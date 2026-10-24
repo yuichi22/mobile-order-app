@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
-import { Store, Globe, ChevronRight, X, LayoutGrid, Layers, TicketPercent, TrendingUp, AlignLeft } from 'lucide-react';
+import { Store, Globe, ChevronRight, X, LayoutGrid, Layers, Tag, TicketPercent, TrendingUp, AlignLeft } from 'lucide-react';
 
 import { db } from '../../../../shared/api/firebase/client';
 import { useAnalyticsSummary } from '../hooks/useAnalyticsSummary';
@@ -14,7 +14,10 @@ import {
   buildGroupBreakdown,
   buildCategoryBreakdown,
   buildSubCategoryBreakdown,
-  sumGrossItemTotal
+  buildBrandBreakdown,
+  buildScopeMatcher,
+  sumGrossItemTotal,
+  UNSET_IDS
 } from '../utils/posAnalyticsSales';
 
 const yen = (value) => `¥${Number(value || 0).toLocaleString()}`;
@@ -30,15 +33,30 @@ const getInitialTaxMode = () => {
   }
 };
 
-// 階層の順序と、1つ下へのドリルダウン定義。
+// 階層の順序と、1つ下へのドリルダウン定義。カテゴリーグループは画面では「部門」と呼ぶ。
+// 売場 → 部門 → ブランド が主の流れ。部門からはカテゴリーへも掘り下げられる。
+// 下の階層が未設定の明細しか無い行にはボタンを出さない(=その手前で止まる)。
 const DRILL = {
-  area: { deeper: 'group', scopeKey: 'areaId', suffix: 'グループ' },
-  group: { deeper: 'category', scopeKey: 'groupId', suffix: 'カテゴリ' },
-  category: { deeper: 'subCategory', scopeKey: 'categoryId', suffix: 'サブカテゴリ' },
-  subCategory: null
+  area: [{ deeper: 'group', scopeKey: 'areaId', label: '部門別' }],
+  group: [
+    { deeper: 'brand', scopeKey: 'groupId', label: 'ブランド別' },
+    { deeper: 'category', scopeKey: 'groupId', label: 'カテゴリ別' }
+  ],
+  category: [{ deeper: 'subCategory', scopeKey: 'categoryId', label: 'サブカテゴリ別' }],
+  subCategory: [],
+  brand: []
 };
 
-const KIND_ICON = { area: Store, group: Layers, category: LayoutGrid, subCategory: LayoutGrid };
+const drillOptionsFor = (kind, entry) => (DRILL[kind] || []).filter((rule) => (
+  !UNSET_IDS.has(String(entry.id)) && entry.hasChild?.[rule.deeper]
+));
+
+const KIND_ICON = { area: Store, group: Layers, category: LayoutGrid, subCategory: LayoutGrid, brand: Tag };
+
+// 長い一覧(部門によってはブランドが数百件)は上位から段階表示する。
+const LIST_STEP = 20;
+// 売上割合バーは上位だけ色分けし、残りは「その他」にまとめる。
+const COMPOSITION_TOP = 10;
 
 const SummaryCards = ({ salesIncl, salesExcl, totalTax, customerCount, avgIncl, avgExcl, taxMode, onTaxModeChange }) => {
   const isExcl = taxMode === 'tax_excluded';
@@ -142,7 +160,7 @@ const FinancialPanel = ({ financial, grossItemTotal }) => {
   );
 };
 
-const SalesRow = ({ entry, active, onSelect, onDrill }) => (
+const SalesRow = ({ entry, active, onSelect, drillOptions = [], onDrill }) => (
   <div className={`flex items-center justify-between rounded-xl px-2 py-2 transition ${
     active ? 'bg-ui-50 ring-2 ring-ui-100' : 'bg-gray-50 hover:bg-gray-100'
   }`}>
@@ -166,14 +184,19 @@ const SalesRow = ({ entry, active, onSelect, onDrill }) => (
       </div>
       <span className="shrink-0 text-sm font-black text-gray-900">{yen(entry.total)}</span>
     </button>
-    {onDrill && (
-      <button
-        type="button"
-        onClick={onDrill}
-        className="ml-1 flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-ui-50 hover:text-ui"
-      >
-        詳細<ChevronRight size={13} />
-      </button>
+    {drillOptions.length > 0 && (
+      <div className="ml-1 flex shrink-0 flex-col gap-1">
+        {drillOptions.map((rule) => (
+          <button
+            key={rule.deeper}
+            type="button"
+            onClick={() => onDrill(rule)}
+            className="flex items-center justify-end gap-0.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-gray-500 shadow-sm transition hover:bg-ui-50 hover:text-ui"
+          >
+            {rule.label}<ChevronRight size={13} />
+          </button>
+        ))}
+      </div>
     )}
   </div>
 );
@@ -190,10 +213,25 @@ const COMPOSITION_PALETTE = [
 ];
 
 // 一覧の構成比を横いっぱいの100%分割バーで表示（高さを取らない）。
+// 件数が多いときは上位 COMPOSITION_TOP 件＋「その他」にまとめる。
+const OTHERS_COLOR = '#9ca3af';
 const CompositionBar = ({ items = [], title = '売上割合' }) => {
-  const list = (Array.isArray(items) ? items : []).filter((i) => Number(i.total || 0) > 0);
-  const total = list.reduce((sum, i) => sum + Number(i.total || 0), 0);
-  const colorOf = (index) => COMPOSITION_PALETTE[index % COMPOSITION_PALETTE.length];
+  const positive = (Array.isArray(items) ? items : []).filter((i) => Number(i.total || 0) > 0);
+  const total = positive.reduce((sum, i) => sum + Number(i.total || 0), 0);
+  const rest = positive.slice(COMPOSITION_TOP);
+  const list = rest.length > 1
+    ? [
+        ...positive.slice(0, COMPOSITION_TOP),
+        {
+          id: '__others__',
+          name: `その他 ${rest.length}件`,
+          total: rest.reduce((sum, i) => sum + Number(i.total || 0), 0)
+        }
+      ]
+    : positive;
+  const colorOf = (index) => (list[index]?.id === '__others__'
+    ? OTHERS_COLOR
+    : COMPOSITION_PALETTE[index % COMPOSITION_PALETTE.length]);
 
   return (
     <div className="print:break-inside-avoid mb-6">
@@ -264,24 +302,29 @@ const PosAnalyticsView = ({
     setTaxMode(next);
     try { window.localStorage.setItem(AMOUNT_MODE_KEY, next); } catch { /* 記憶不可の環境は無視 */ }
   };
-  // サブカテゴリ用 productId→{subCategoryId,subCategoryName}。サブカテゴリにドリルした時のみ、
-  // その期間に売れた商品だけを遅延取得する（全商品先読みは重いので廃止）。
-  const [subcatProductMap, setSubcatProductMap] = useState(() => new Map());
+  // productId→{subCategoryId,subCategoryName,brandId,brandName}。サブカテゴリ・部門・ブランドの
+  // タブを開いた時だけ、その期間にそのタブの範囲で売れた商品だけを遅延取得する（全商品先読みは重いので廃止）。
+  const [productInfoMap, setProductInfoMap] = useState(() => new Map());
   const loadedProductIdsRef = useRef(new Set());
+  // ブランドマスタ(brandId→現在の名前)。ブランドを使うタブを初めて開いた時に1度だけ読む。
+  const [brandNameById, setBrandNameById] = useState(null);
+  const brandMasterRequestedRef = useRef(false);
 
   const resolvePosItem = useMemo(
-    () => buildPosItemResolver({ salesAreas, productCategories, productCategoryGroups, productById: subcatProductMap }),
-    [salesAreas, productCategories, productCategoryGroups, subcatProductMap]
+    () => buildPosItemResolver({
+      salesAreas, productCategories, productCategoryGroups, productById: productInfoMap, brandNameById
+    }),
+    [salesAreas, productCategories, productCategoryGroups, productInfoMap, brandNameById]
   );
 
   // EC(Shopify)取引スライス。AnalyticsDashboard から ecOrders 由来で渡る。
   const EC_SLICES = useMemo(() => ecSlices || [], [ecSlices]);
   const hasEc = EC_SLICES.length > 0;
-  const sourceSlices = viewMode === 'store'
+  const sourceSlices = useMemo(() => (viewMode === 'store'
     ? (posSlices || [])
     : viewMode === 'ec'
       ? EC_SLICES
-      : [...(posSlices || []), ...EC_SLICES]; // 'all' = 店舗+EC
+      : [...(posSlices || []), ...EC_SLICES]), [viewMode, posSlices, EC_SLICES]); // 'all' = 店舗+EC
 
   // 物販の内訳(値引き/販促/売掛/粗利)は日計と同じ集計で期間合計を出す。
   const financial = useMemo(
@@ -312,7 +355,7 @@ const PosAnalyticsView = ({
   });
 
   const baseTab = viewMode === 'ec'
-    ? { id: 'group', kind: 'group', label: 'カテゴリーグループ別' }
+    ? { id: 'group', kind: 'group', label: '部門別' }
     : { id: 'area', kind: 'area', label: '売場別' };
   const tabs = [baseTab, ...drillTabs];
   const activeTab = tabs.find((t) => t.id === activeTabId) || baseTab;
@@ -329,22 +372,62 @@ const PosAnalyticsView = ({
     switch (activeTab.kind) {
       case 'area': return buildAreaBreakdown(sourceSlices, resolvePosItem);
       case 'group': return buildGroupBreakdown(sourceSlices, resolvePosItem, activeTab.scope || {});
-      case 'category': return buildCategoryBreakdown(sourceSlices, resolvePosItem, activeTab.scope?.groupId);
-      case 'subCategory': return buildSubCategoryBreakdown(sourceSlices, resolvePosItem, activeTab.scope?.categoryId);
+      case 'category': return buildCategoryBreakdown(sourceSlices, resolvePosItem, activeTab.scope || {});
+      case 'subCategory': return buildSubCategoryBreakdown(sourceSlices, resolvePosItem, activeTab.scope || {});
+      case 'brand': return buildBrandBreakdown(sourceSlices, resolvePosItem, activeTab.scope || {});
       default: return [];
     }
   }, [activeTab, sourceSlices, resolvePosItem]);
 
-  // サブカテゴリタブを開いた時だけ、その期間にそのカテゴリで売れた商品(productId)を遅延取得する。
-  // 明細に subCategory が無いため商品から補完する。全商品(数万件)先読みは廃止し、必要分のみ。
-  const subcatCategoryId = activeTab.kind === 'subCategory' ? String(activeTab.scope?.categoryId || '') : '';
-  useEffect(() => {
-    if (!subcatCategoryId || !storeId) return undefined;
+  // 長い一覧は上位から段階表示。タブが変わったら先頭に戻す。
+  // 表示件数は「どの一覧の件数か」とセットで持ち、一覧が替わったら初期件数に戻る。
+  const listKey = `${viewMode}:${activeTab.id}`;
+  const [visible, setVisible] = useState({ key: listKey, count: LIST_STEP });
+  const visibleCount = visible.key === listKey ? visible.count : LIST_STEP;
+  const showMore = () => setVisible({ key: listKey, count: visibleCount + LIST_STEP });
+  const shownList = activeList.slice(0, visibleCount);
+  const hiddenCount = activeList.length - shownList.length;
 
+  // 商品から補完が要るタブ: サブカテゴリ(明細に無い)、部門・ブランド(2026-10 以前の明細にブランドが無い)。
+  // 部門タブでも読むのは、各部門の「ブランド別＞」を出すか(ブランドが1件でもあるか)の判定に要るため。
+  const needsProductInfo = ['subCategory', 'group', 'brand'].includes(activeTab.kind);
+  const needsBrand = activeTab.kind === 'group' || activeTab.kind === 'brand';
+
+  useEffect(() => {
+    if (!needsBrand || !storeId || brandMasterRequestedRef.current) return;
+    brandMasterRequestedRef.current = true;
+    getDocs(collection(db, 'stores', storeId, 'brands'))
+      .then((snap) => {
+        const map = new Map();
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const name = String(data.name || data.brandName || '').trim();
+          if (name) map.set(String(docSnap.id), name);
+        });
+        setBrandNameById(map);
+      })
+      .catch((error) => {
+        // 読めなくても商品・明細のブランド名で出せる。次にタブを開いた時に再試行する。
+        brandMasterRequestedRef.current = false;
+        console.error('Failed to load brands (Analytics):', error);
+      });
+  }, [needsBrand, storeId]);
+
+  // タブを開いた時だけ、その範囲で売れた商品(productId)を遅延取得する。全商品(数万件)先読みは廃止し、必要分のみ。
+  const activeTabKind = activeTab.kind;
+  const activeTabScope = activeTab.scope;
+  useEffect(() => {
+    if (!needsProductInfo || !storeId) return undefined;
+
+    const inScope = buildScopeMatcher(activeTabScope || {});
     const ids = new Set();
     (sourceSlices || []).forEach((tx) => {
       (Array.isArray(tx.items) ? tx.items : []).forEach((it) => {
-        if (String(it.categoryId || '') === subcatCategoryId && it.productId) ids.add(String(it.productId));
+        if (!it.productId) return;
+        // 部門・ブランドのタブはブランドが明細に無いものだけ補完すればよい。
+        if (activeTabKind !== 'subCategory' && (it.brandId || it.brandName)) return;
+        if (inScope && !inScope(resolvePosItem(it))) return;
+        ids.add(String(it.productId));
       });
     });
     const missing = [...ids].filter((id) => !loadedProductIdsRef.current.has(id));
@@ -359,31 +442,36 @@ const PosAnalyticsView = ({
         for (let i = 0; i < missing.length; i += 30) chunks.push(missing.slice(i, i + 30));
         const snaps = await Promise.all(chunks.map((ch) => getDocs(query(col, where(documentId(), 'in', ch)))));
         if (cancelled) return;
-        setSubcatProductMap((prev) => {
+        setProductInfoMap((prev) => {
           const next = new Map(prev);
           snaps.forEach((snap) => snap.forEach((docSnap) => {
             const data = docSnap.data() || {};
             next.set(String(docSnap.id), {
               subCategoryId: String(data.subCategoryId || '').trim(),
-              subCategoryName: String(data.subCategoryName || '').trim()
+              subCategoryName: String(data.subCategoryName || '').trim(),
+              brandId: String(data.brandId || '').trim(),
+              brandName: String(data.brandName || '').trim()
             });
           }));
           return next;
         });
       } catch (error) {
         missing.forEach((id) => loadedProductIdsRef.current.delete(id)); // 再取得できるよう戻す
-        console.error('Failed to load products for subcategory (Analytics):', error);
+        console.error('Failed to load products for analytics drill-down:', error);
       }
     })();
     return () => { cancelled = true; };
-  }, [subcatCategoryId, sourceSlices, storeId]);
+  }, [needsProductInfo, activeTabKind, activeTabScope, sourceSlices, storeId, resolvePosItem]);
 
+  const isSelectedRow = (entry) => (
+    selection.tabId === activeTab.id && String(selection.id) === String(entry.id)
+  );
+
+  // 選択はタブの scope 付きで持つ(例: 「この部門の中のこのブランド」)。グラフ・ABCがその範囲に絞られる。
   const selectRow = (entry) => {
-    setSelection((prev) => (
-      prev.level === activeTab.kind && String(prev.id) === String(entry.id)
-        ? { level: 'all' }
-        : { level: activeTab.kind, id: entry.id, name: entry.name }
-    ));
+    setSelection(isSelectedRow(entry)
+      ? { level: 'all' }
+      : { level: activeTab.kind, id: entry.id, name: entry.name, scope: activeTab.scope || {}, tabId: activeTab.id });
   };
 
   // タブへ移動する時は選択(グラフ絞り込み)を解除し、その階層の割合グラフを必ず出す。
@@ -392,15 +480,16 @@ const PosAnalyticsView = ({
     setSelection({ level: 'all' });
   };
 
-  const drillRow = (entry) => {
-    const rule = DRILL[activeTab.kind];
+  const drillRow = (entry, rule) => {
     if (!rule) return;
-    const id = `${rule.deeper}:${entry.id}`;
+    const scope = { ...(activeTab.scope || {}), [rule.scopeKey]: entry.id };
+    // 同じ部門名が別の売場にもあり得るので、タブ id は scope 全体で作る。
+    const id = `${rule.deeper}:${[scope.areaId, scope.groupId, scope.categoryId].filter((v) => v != null).join('/')}`;
     const tab = {
       id,
       kind: rule.deeper,
-      scope: { ...(activeTab.scope || {}), [rule.scopeKey]: entry.id },
-      label: `${entry.name}｜${rule.suffix}`,
+      scope,
+      label: `${entry.name}｜${rule.label}`,
       closable: true
     };
     setDrillTabs((prev) => (prev.some((t) => t.id === id) ? prev : [...prev, tab]));
@@ -413,7 +502,7 @@ const PosAnalyticsView = ({
     setSelection({ level: 'all' });
   };
 
-  const canDrill = Boolean(DRILL[activeTab.kind]);
+  const canDrill = (DRILL[activeTab.kind] || []).length > 0;
 
   return (
     <div className="flex-grow">
@@ -528,7 +617,7 @@ const PosAnalyticsView = ({
         <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-gray-500">
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
           行をクリックでグラフに反映（再クリックで解除）
-          {canDrill && '／「詳細＞」で1つ下の階層を新しいタブで開く'}
+          {canDrill && `／「${DRILL[activeTab.kind][0].label}＞」などで1つ下の階層を新しいタブで開く`}
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           {activeList.length === 0 ? (
@@ -536,17 +625,32 @@ const PosAnalyticsView = ({
               <EmptyList label={viewMode === 'ec' ? 'この期間のEC売上はありません' : 'データがありません'} />
             </div>
           ) : (
-            activeList.map((entry) => (
+            shownList.map((entry) => (
               <SalesRow
                 key={entry.id}
                 entry={entry}
-                active={selection.level === activeTab.kind && String(selection.id) === String(entry.id)}
+                active={isSelectedRow(entry)}
                 onSelect={() => selectRow(entry)}
-                onDrill={canDrill ? () => drillRow(entry) : undefined}
+                drillOptions={drillOptionsFor(activeTab.kind, entry)}
+                onDrill={(rule) => drillRow(entry, rule)}
               />
             ))
           )}
         </div>
+        {hiddenCount > 0 && (
+          <div className="mt-3 flex items-center justify-center gap-3 print:hidden">
+            <span className="text-[11px] font-bold text-gray-500">
+              上位 {shownList.length}件 / 全 {activeList.length}件
+            </span>
+            <button
+              type="button"
+              onClick={showMore}
+              className="h-9 rounded-full bg-gray-100 px-5 text-xs font-black text-gray-900 transition hover:bg-gray-200"
+            >
+              もっと見る（残り {hiddenCount}件）
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-6">

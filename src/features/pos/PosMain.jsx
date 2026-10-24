@@ -1498,6 +1498,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           salesAreaName: item.salesAreaName || '',
           categoryGroupId: item.categoryGroupId || '',
           categoryGroupName: item.categoryGroupName || '',
+          // 分析「ブランド別」用。2026-10 以前の明細には無く、分析側で商品から補完している。
+          brandId: item.brandId || '',
+          brandName: item.brandName || '',
           unitPrice: Number(item.takeoutPrice || 0),
           quantity,
           totalPrice: figures.includedNet,
