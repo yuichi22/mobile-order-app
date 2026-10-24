@@ -30,7 +30,9 @@ const MenuImage = ({
       <img
         src={src}
         alt={alt}
-        className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover"
       />
     ) : (
       <div className="flex h-full w-full items-center justify-center text-gray-200">
@@ -53,7 +55,7 @@ const MenuImage = ({
     )}
 
     {isSoldOut && (
-      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
+      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50">
         <span className="rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-gray-900 shadow-sm">
           SOLD OUT
         </span>
@@ -81,7 +83,8 @@ const AllergenChips = ({ allergens = [] }) => {
   );
 };
 
-// 写真の上に乗る追加ボタンは、すりガラス風の白に黒の「＋」(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// 写真の上に乗る追加ボタンは、半透明の白に黒の「＋」(店のテーマ色は使わない)。料理写真を主役にするため(2026-10-08)。
+// ⚠背景ぼかし(backdrop-blur)は使わない。商品の数だけスクロール中に毎フレーム再計算され、iPhone でスクロールが重くなった(2026-10-24)。
 // カード全体のタップは確認シートを開くだけ。このボタンだけが「すぐカートに入れる」。
 // 店のテーマ色は「カートに追加」「追加注文」など大きい増やすボタン側に残す。
 const OrderButton = ({ onClick, disabled, size = 'md' }) => {
@@ -108,7 +111,7 @@ const OrderButton = ({ onClick, disabled, size = 'md' }) => {
       className={`${sizeClasses[size]} flex shrink-0 items-center justify-center rounded-full font-black leading-none transition-all active:scale-90 ${
         disabled
           ? 'bg-gray-100 text-gray-300 ring-1 ring-[rgba(15,23,42,0.06)]'
-          : 'bg-white/80 text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.12)] ring-1 ring-white/50 backdrop-blur-md backdrop-saturate-150'
+          : 'bg-white/90 text-gray-900 shadow-[0_2px_8px_rgba(15,23,42,0.12)] ring-1 ring-white/50'
       }`}
       aria-label="カートに追加"
       title="カートに追加"

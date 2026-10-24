@@ -501,10 +501,14 @@ useEffect(() => {
   const tick = () => {
     const remainingMs = deadlineMs - Date.now();
 
-    setNoOrderVacateWarning({
-      open: remainingMs <= warnLeadMs,
-      remainingMs: Math.max(0, remainingMs)
-    });
+    const open = remainingMs <= warnLeadMs;
+
+    // 警告を出していない間は state を変えない(10秒ごとに注文画面全体が描き直され、スクロールが引っかかるため)。
+    setNoOrderVacateWarning((current) => (
+      !open && !current.open
+        ? current
+        : { open, remainingMs: open ? Math.max(0, remainingMs) : 0 }
+    ));
   };
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
