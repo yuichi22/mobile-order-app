@@ -1,7 +1,10 @@
 // cashflowSync.js
-// 発注書(stores/{id}/purchaseOrders)が書き換わったら、AKUTO 資金繰り(akuto-cashflow-app)の受け口へ
-// 発注書と入庫(stockIns)の写しを送る。資金繰り側が仕入先の支払条件で支払予定(未入荷・入荷済み)を作り直す。
-// - 送り先: CASHFLOW_PO_URL（資金繰りの receivePosPurchaseOrder）。未設定なら何もしない
+// AKUTO 資金繰り(akuto-cashflow-app)へ、POS の発注と仕入先を送る。
+// - 発注書(stores/{id}/purchaseOrders)が書き換わったら、発注書と入庫(stockIns)と仕入先の写しを receivePosPurchaseOrder へ。
+//   資金繰り側が仕入先の支払条件で支払予定(未入荷・入荷済み)を作り直す
+// - 仕入先(stores/{id}/suppliers)が書き換わったら receivePosSupplier へ。資金繰り側が取引先へ取り込む
+//   （支払いサイト paymentTerms から支払条件を読む）
+// - 送り先: CASHFLOW_FUNCTIONS_URL（資金繰りの Functions の URL の共通部分。末尾に関数名を付ける）。未設定なら何もしない
 // - 認証: Authorization: Bearer <CORE_SALES_SECRET>（資金繰り側は CORE_PROVISION_SECRET。どちらも Core の CRM_WEBHOOK_SECRET と同値運用）
 // - 店舗の対応付けは資金繰り側が持つ（Core のポータル連携で拠点に POS の storeId が入る）。結び付いていない店舗は linked:false が返るだけ
 // - 冪等: 毎回その発注書の全体(明細＋全入庫)を送り、資金繰り側が作り直す。送り損ねても次の書き換えか手動の再送で追いつく
@@ -45,10 +48,26 @@ function unitCostOf(line) {
   return qty > 0 ? Math.max(num(line.estimatedAmount) / qty, 0) : 0;
 }
 
+// 資金繰りへ送る仕入先の項目（POS の仕入先マスタから、支払いと連絡に要るものだけ）
+const supplierPayload = (supplierId, s) => ({
+  supplierId,
+  name: str(s.name),
+  kana: str(s.kana),
+  contactName: str(s.contactName),
+  tel: str(s.tel),
+  email: str(s.email),
+  paymentTerms: str(s.paymentTerms),
+});
+
 async function buildPayload(storeId, poId, po) {
   if (!po) return { storeId, poId, deleted: true };
-  const stockIns = await db.collection(`stores/${storeId}/stockIns`).where("purchaseOrderId", "==", poId).get();
+  const supplierId = str(po.supplierId);
+  const [stockIns, supplier] = await Promise.all([
+    db.collection(`stores/${storeId}/stockIns`).where("purchaseOrderId", "==", poId).get(),
+    supplierId ? db.doc(`stores/${storeId}/suppliers/${supplierId}`).get() : null,
+  ]);
   return {
+    ...(supplier?.exists ? { supplier: supplierPayload(supplierId, supplier.data()) } : {}),
     storeId,
     poId,
     po: {
@@ -77,11 +96,13 @@ async function buildPayload(storeId, poId, po) {
   };
 }
 
-async function postToCashflow(payload) {
-  const url = str(process.env.CASHFLOW_PO_URL);
+const cashflowBase = () => str(process.env.CASHFLOW_FUNCTIONS_URL).replace(/\/+$/, "");
+
+async function postToCashflow(fn, payload) {
+  const base = cashflowBase();
   const secret = str(process.env.CORE_SALES_SECRET);
-  if (!url || !secret) return { skipped: "unconfigured" };
-  const res = await fetch(url, {
+  if (!base || !secret) return { skipped: "unconfigured" };
+  const res = await fetch(`${base}/${fn}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
     body: JSON.stringify(payload),
@@ -94,23 +115,45 @@ async function postToCashflow(payload) {
 export const syncPurchaseOrderToCashflow = onDocumentWritten(
   { region: REGION, database: DB_ID, document: "stores/{storeId}/purchaseOrders/{poId}" },
   async (event) => {
-    if (!str(process.env.CASHFLOW_PO_URL)) return;
+    if (!cashflowBase()) return;
     const { storeId, poId } = event.params;
     const after = event.data?.after;
     try {
-      const result = await postToCashflow(await buildPayload(storeId, poId, after?.exists ? after.data() : null));
+      const result = await postToCashflow("receivePosPurchaseOrder", await buildPayload(storeId, poId, after?.exists ? after.data() : null));
       if (result?.linked === false) return; // 資金繰りを使っていない店舗
       console.log(`[cashflowSync] ${storeId}/${poId} → 資金繰り`, result);
     } catch (e) {
-      // 再試行はしない（次の書き換えか resyncPurchaseOrdersToCashflow で追いつく）
+      // 再試行はしない（次の書き換えか resyncToCashflow で追いつく）
       console.error(`[cashflowSync] ${storeId}/${poId} の送信に失敗`, e);
     }
   }
 );
 
+export const syncSupplierToCashflow = onDocumentWritten(
+  { region: REGION, database: DB_ID, document: "stores/{storeId}/suppliers/{supplierId}" },
+  async (event) => {
+    if (!cashflowBase()) return;
+    const { storeId, supplierId } = event.params;
+    const before = event.data?.before?.exists ? supplierPayload(supplierId, event.data.before.data()) : null;
+    const after = event.data?.after?.exists ? supplierPayload(supplierId, event.data.after.data()) : null;
+    // 資金繰りに関係しない項目（掛け率・最低発注金額など）だけの変更は送らない
+    if (before && after && JSON.stringify(before) === JSON.stringify(after)) return;
+    try {
+      const result = await postToCashflow(
+        "receivePosSupplier",
+        after ? { storeId, supplier: after } : { storeId, supplierId, deleted: true }
+      );
+      if (result?.linked === false) return;
+      console.log(`[cashflowSync] 仕入先 ${storeId}/${supplierId} → 資金繰り`, result);
+    } catch (e) {
+      console.error(`[cashflowSync] 仕入先 ${storeId}/${supplierId} の送信に失敗`, e);
+    }
+  }
+);
+
 // 手動の再送（つないだ直後の取り込みや、送り損ねの回復用）。資金繰りと同じ Bearer で保護。
-// body: { storeId, since: 'YYYY-MM-DD' }  since 以降に作った発注書を送り直す
-export const resyncPurchaseOrdersToCashflow = onRequest({ region: REGION, timeoutSeconds: 540 }, async (req, res) => {
+// body: { storeId, since: 'YYYY-MM-DD' }  その店の仕入先をすべてと、since 以降に作った発注書を送り直す
+export const resyncToCashflow = onRequest({ region: REGION, timeoutSeconds: 540 }, async (req, res) => {
   const secret = str(process.env.CORE_SALES_SECRET);
   const authz = req.get("authorization") || "";
   const bearer = authz.startsWith("Bearer ") ? authz.slice("Bearer ".length).trim() : "";
@@ -124,21 +167,32 @@ export const resyncPurchaseOrdersToCashflow = onRequest({ region: REGION, timeou
     res.status(400).json({ error: "storeId と since(YYYY-MM-DD) を指定してください" });
     return;
   }
+  const failed = [];
+  const suppliers = await db.collection(`stores/${storeId}/suppliers`).get();
+  let suppliersSent = 0;
+  for (const d of suppliers.docs) {
+    if (d.data().isActive === false) continue;
+    try {
+      const result = await postToCashflow("receivePosSupplier", { storeId, supplier: supplierPayload(d.id, d.data()) });
+      if (result?.linked === false) {
+        res.json({ ok: true, linked: false });
+        return;
+      }
+      suppliersSent += 1;
+    } catch (e) {
+      failed.push({ supplierId: d.id, error: String(e?.message || e) });
+    }
+  }
   const sinceDate = new Date(`${since}T00:00:00+09:00`);
   const pos = await db.collection(`stores/${storeId}/purchaseOrders`).where("createdAt", ">=", sinceDate).get();
   let sent = 0;
-  const failed = [];
   for (const d of pos.docs) {
     try {
-      const result = await postToCashflow(await buildPayload(storeId, d.id, d.data()));
-      if (result?.linked === false) {
-        res.json({ ok: true, linked: false, sent });
-        return;
-      }
+      await postToCashflow("receivePosPurchaseOrder", await buildPayload(storeId, d.id, d.data()));
       sent += 1;
     } catch (e) {
       failed.push({ poId: d.id, error: String(e?.message || e) });
     }
   }
-  res.json({ ok: failed.length === 0, sent, failed });
+  res.json({ ok: failed.length === 0, suppliersSent, sent, failed });
 });
