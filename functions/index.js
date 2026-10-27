@@ -9039,6 +9039,8 @@ export { startCardPayment, getCardPaymentStatus, cancelCardPayment, listCardRead
 
 // --- 売上同期 (取引を Akuto Core の拠点別売上へ毎時送信) ---
 export { syncSalesToCore, runSalesSyncNow } from "./salesSync.js";
+// AKUTO 資金繰りへ発注書・入庫を送る（支払予定の自動作成）
+export { syncPurchaseOrderToCashflow, resyncPurchaseOrdersToCashflow } from "./cashflowSync.js";
 export { scheduledHausImageAltFill } from "./hausAltFill.js";
 
 
