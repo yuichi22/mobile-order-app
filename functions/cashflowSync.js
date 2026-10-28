@@ -6,6 +6,8 @@
 //   入庫ごとに receivePosStockIn へ。単価は入庫ロット原価(costLayers、無ければ今の原価連鎖)の税抜
 // - 仕入先(stores/{id}/suppliers)が書き換わったら receivePosSupplier へ。資金繰り側が取引先へ取り込む
 //   （支払いサイト paymentTerms から支払条件を読む）
+// - 決済手段別の日次売上は、毎時 syncDailySalesToCashflow が今日と昨日の分を receivePosDailySales へ（入金予定のもと）。
+//   日計の入金内訳と同じ数え方（payments[] があればその内訳、無ければ支払方法×合計。返品・取消の払戻のマイナスを含む）
 // - 送り先: CASHFLOW_FUNCTIONS_URL（資金繰りの Functions の URL の共通部分。末尾に関数名を付ける）。未設定なら何もしない
 // - 認証: Authorization: Bearer <CORE_SALES_SECRET>（資金繰り側は CORE_PROVISION_SECRET。どちらも Core の CRM_WEBHOOK_SECRET と同値運用）
 // - 店舗の対応付けは資金繰り側が持つ（Core のポータル連携で拠点に POS の storeId が入る）。結び付いていない店舗は linked:false が返るだけ
@@ -14,8 +16,9 @@
 //   発注書のトリガーの時点で入庫は揃っている
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { resolveCurrentUnitCost } from "./costLayers.js";
 
 const REGION = "asia-northeast1";
@@ -169,6 +172,94 @@ async function postToCashflow(fn, payload) {
   return body;
 }
 
+// 決済手段 → 資金繰りの入金の分け方。日計の getPaymentMethodGroup と同じ。
+// ただし credit（売掛・金券やポイントで全額充当）はお金が入らないので「その他」にする（日計はカードに寄せている）
+function salesMethodOf(method) {
+  const m = str(method).toLowerCase();
+  if (m === "cash") return "cash";
+  if (m === "card" || m === "credit_card" || m === "stripe") return "card";
+  if (["qr", "qrpay", "qr_payment", "paypay", "linepay", "rakutenpay", "d払い", "dbarai"].includes(m)) return "qr";
+  return "other";
+}
+
+const emptyMethods = () => ({ cash: 0, card: 0, qr: 0, ec: 0, other: 0 });
+
+// JST の from〜to（両端を含む 'YYYY-MM-DD'）の決済手段別の売上（export は手元での照合用）。売上の無い日も 0 で返す（取消で 0 になった日を上書きするため）
+export async function dailySalesFor(storeId, from, to) {
+  const days = new Map();
+  for (let d = new Date(`${from}T00:00:00+09:00`); jstDate(d) <= to; d = new Date(d.getTime() + 86400000)) {
+    days.set(jstDate(d), { date: jstDate(d), methods: emptyMethods(), count: 0 });
+  }
+  const start = Timestamp.fromDate(new Date(`${from}T00:00:00+09:00`));
+  const end = Timestamp.fromDate(new Date(new Date(`${to}T00:00:00+09:00`).getTime() + 86400000));
+
+  const txs = await db
+    .collection(`stores/${storeId}/transactions`)
+    .where("paidAt", ">=", start)
+    .where("paidAt", "<", end)
+    .select("paidAt", "isPaid", "payments", "paymentMethodGroup", "paymentMethod", "totalAmount")
+    .get();
+  for (const doc of txs.docs) {
+    const t = doc.data();
+    if (t.isPaid === false) continue;
+    const day = days.get(toJstDate(t.paidAt));
+    if (!day) continue;
+    if (Array.isArray(t.payments) && t.payments.length > 0) {
+      for (const p of t.payments) day.methods[salesMethodOf(p?.method)] += num(p?.amount);
+    } else {
+      day.methods[salesMethodOf(t.paymentMethodGroup || t.paymentMethod)] += num(t.totalAmount);
+    }
+    day.count += 1;
+  }
+
+  // EC(Shopify)。金額は totalAmount − totalRefunded（salesSync と同じ）
+  const ec = await db
+    .collection(`stores/${storeId}/ecOrders`)
+    .where("paidAt", ">=", start)
+    .where("paidAt", "<", end)
+    .select("paidAt", "isPaid", "isCancelled", "totalAmount", "totalRefunded")
+    .get();
+  for (const doc of ec.docs) {
+    const o = doc.data();
+    if (o.isCancelled === true || o.isPaid !== true) continue;
+    const day = days.get(toJstDate(o.paidAt));
+    if (!day) continue;
+    day.methods.ec += num(o.totalAmount) - num(o.totalRefunded);
+    day.count += 1;
+  }
+  for (const day of days.values()) for (const k of Object.keys(day.methods)) day.methods[k] = Math.round(day.methods[k]);
+  return [...days.values()];
+}
+
+// from〜to の日次売上を送る（1回 100日ずつ）
+async function sendDailySales(storeId, from, to) {
+  const days = await dailySalesFor(storeId, from, to);
+  let linked = true;
+  for (let i = 0; i < days.length; i += 100) {
+    const result = await postToCashflow("receivePosDailySales", { storeId, days: days.slice(i, i + 100) });
+    if (result?.linked === false) linked = false;
+  }
+  return { days: days.length, linked };
+}
+
+// 毎時: 全店舗の今日と昨日の売上を送る（昨日の分は日付をまたいだ取消・遅れた会計の取り込み）
+export const syncDailySalesToCashflow = onSchedule(
+  { region: REGION, schedule: "every 60 minutes", timeZone: "Asia/Tokyo", timeoutSeconds: 300 },
+  async () => {
+    if (!cashflowBase()) return;
+    const today = jstDate(new Date());
+    const yesterday = jstDate(new Date(Date.now() - 86400000));
+    const stores = await db.collection("stores").select().get();
+    for (const s of stores.docs) {
+      try {
+        await sendDailySales(s.id, yesterday, today);
+      } catch (e) {
+        console.error("[syncDailySalesToCashflow] 送信失敗", s.id, e);
+      }
+    }
+  },
+);
+
 export const syncPurchaseOrderToCashflow = onDocumentWritten(
   { region: REGION, database: DB_ID, document: "stores/{storeId}/purchaseOrders/{poId}" },
   async (event) => {
@@ -228,7 +319,8 @@ export const syncSupplierToCashflow = onDocumentWritten(
 );
 
 // 手動の再送（つないだ直後の取り込みや、送り損ねの回復用）。資金繰りと同じ Bearer で保護。
-// body: { storeId, since: 'YYYY-MM-DD' }  その店の仕入先をすべてと、since 以降に作った発注書・発注書なしの入庫を送り直す
+// body: { storeId, since: 'YYYY-MM-DD' }  その店の仕入先をすべてと、since 以降に作った発注書・発注書なしの入庫、
+//   since から今日までの日次売上を送り直す。only: "sales" を付けると日次売上だけ
 export const resyncToCashflow = onRequest({ region: REGION, timeoutSeconds: 540 }, async (req, res) => {
   const secret = str(process.env.CORE_SALES_SECRET);
   const authz = req.get("authorization") || "";
@@ -241,6 +333,16 @@ export const resyncToCashflow = onRequest({ region: REGION, timeoutSeconds: 540 
   const since = str(req.body?.since);
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(storeId) || !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
     res.status(400).json({ error: "storeId と since(YYYY-MM-DD) を指定してください" });
+    return;
+  }
+  // only: "sales" なら日次売上だけ送り直す（仕入先・発注書・入庫は送らない）
+  if (str(req.body?.only) === "sales") {
+    try {
+      const r = await sendDailySales(storeId, since, jstDate(new Date()));
+      res.json({ ok: true, linked: r.linked, salesDaysSent: r.days });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
     return;
   }
   const failed = [];
@@ -281,5 +383,11 @@ export const resyncToCashflow = onRequest({ region: REGION, timeoutSeconds: 540 
       failed.push({ stockInId: d.id, error: String(e?.message || e) });
     }
   }
-  res.json({ ok: failed.length === 0, suppliersSent, sent, stockInsSent, failed });
+  let salesDaysSent = 0;
+  try {
+    salesDaysSent = (await sendDailySales(storeId, since, jstDate(new Date()))).days;
+  } catch (e) {
+    failed.push({ sales: since, error: String(e?.message || e) });
+  }
+  res.json({ ok: failed.length === 0, suppliersSent, sent, stockInsSent, salesDaysSent, failed });
 });
