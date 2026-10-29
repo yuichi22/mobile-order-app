@@ -3,7 +3,6 @@ import {
   addDoc,
   arrayUnion,
   deleteDoc,
-  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -19,7 +18,8 @@ import {
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-import { db, firebaseProjectId } from '../../../shared/api/firebase/client';
+import { httpsCallable } from 'firebase/functions';
+import { db, firebaseProjectId, functionsApi } from '../../../shared/api/firebase/client';
 import { upsertScanIndexForProduct } from '../../../shared/api/firebase/scanIndex';
 import { decorateMenuItemAvailability } from '../../../shared/utils/menuAvailability';
 import { TAX_ROUNDING_MODES, normalizeTaxRounding } from '../../../shared/utils/tax';
@@ -221,26 +221,27 @@ export const subscribeToShopifySettings = (storeId, onData, onError) => (
   }, onError)
 );
 
+// シークレットはサーバー(saveShopifySettings 関数)だけが private/shopify に保存する。
+// clientSecret が空なら保存済みの値を使い続ける(画面には「設定済み」しか返らない)。
 export const saveShopifySettings = async (storeId, settings = {}) => {
-  const payload = {
-    shopDomain: String(settings.shopDomain || '').trim(),
-    clientId: String(settings.clientId || '').trim(),
-    clientSecret: String(settings.clientSecret || '').trim(),
-    locationId: String(settings.locationId || '').trim(),
-    syncEnabled: Boolean(settings.syncEnabled),
-    inventorySyncEnabled: Boolean(settings.inventorySyncEnabled),
-    ecSalesSyncEnabled: Boolean(settings.ecSalesSyncEnabled),
-    autoSyncVariantCodes: Boolean(settings.autoSyncVariantCodes),
-    autoSyncVariantPrice: Boolean(settings.autoSyncVariantPrice),
-    // 「Shopify掲載商品と同期」の対象(公開中/下書き/非公開)。画面の選択を保存して次回も使う(2026-10-10)
-    productLinkSyncStatuses: (Array.isArray(settings.productLinkSyncStatuses) ? settings.productLinkSyncStatuses : ['ACTIVE'])
-      .filter((status) => ['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(status)),
-    authMode: settings.authMode || 'devDashboard',
-    accessToken: deleteField(),
-    updatedAt: serverTimestamp()
-  };
-
-  await setDoc(storeSettingsDocRef(storeId, 'shopify'), payload, { merge: true });
+  const call = httpsCallable(functionsApi, 'saveShopifySettings');
+  const { data } = await call({
+    storeId,
+    settings: {
+      shopDomain: String(settings.shopDomain || '').trim(),
+      clientId: String(settings.clientId || '').trim(),
+      clientSecret: String(settings.clientSecret || '').trim(),
+      locationId: String(settings.locationId || '').trim(),
+      syncEnabled: Boolean(settings.syncEnabled),
+      inventorySyncEnabled: Boolean(settings.inventorySyncEnabled),
+      ecSalesSyncEnabled: Boolean(settings.ecSalesSyncEnabled),
+      autoSyncVariantCodes: Boolean(settings.autoSyncVariantCodes),
+      autoSyncVariantPrice: Boolean(settings.autoSyncVariantPrice),
+      // 「Shopify掲載商品と同期」の対象(公開中/下書き/非公開)。画面の選択を保存して次回も使う(2026-10-10)
+      productLinkSyncStatuses: Array.isArray(settings.productLinkSyncStatuses) ? settings.productLinkSyncStatuses : ['ACTIVE']
+    }
+  });
+  return data;
 };
 
 

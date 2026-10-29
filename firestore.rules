@@ -201,9 +201,16 @@ service cloud.firestore {
         allow read: if documentId != 'shopify'
           || isPlatformAdmin()
           || isStoreManager(storeId);
-        allow write: if isPlatformAdmin()
-          || isStoreOwner(storeId)
-          || (isStoreManager(storeId) && isManagerWritableSetting(documentId));
+        // Shopify のシークレットは private/shopify にだけ置く(保存は saveShopifySettings 関数)。
+        allow write: if (documentId != 'shopify' || !('clientSecret' in request.resource.data))
+          && (isPlatformAdmin()
+            || isStoreOwner(storeId)
+            || (isStoreManager(storeId) && isManagerWritableSetting(documentId)));
+      }
+
+      // サーバー(Functions)だけが読み書きする秘密情報。Shopify の clientSecret など。
+      match /private/{documentId} {
+        allow read, write: if false;
       }
 
       match /menuItems/{itemId} {

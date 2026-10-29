@@ -3455,6 +3455,24 @@ const getShopifyProductTags = async ({ shopDomain, accessToken, productId }) => 
 };
 
 
+// Shopify のシークレットはクライアントから読めない stores/{storeId}/private/shopify に置く(2026-10-29)。
+// settings/shopify には「設定済み」フラグ(clientSecretSet)だけを残す。
+// 移行前の店舗は settings/shopify に残っている旧 clientSecret を使う。
+const shopifyPrivateRef = (storeRef) => storeRef.collection('private').doc('shopify');
+
+const readShopifySettings = async (storeRef) => {
+  const [settingsSnap, privateSnap] = await Promise.all([
+    storeRef.collection('settings').doc('shopify').get(),
+    shopifyPrivateRef(storeRef).get()
+  ]);
+  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const privateData = privateSnap.exists ? privateSnap.data() || {} : {};
+  return {
+    ...settings,
+    clientSecret: String(privateData.clientSecret || settings.clientSecret || '').trim()
+  };
+};
+
 const getShopifyAccessTokenFromSettings = async (settings = {}) => {
   const shopDomain = normalizeShopifyDomain(settings.shopDomain);
   const clientId = String(settings.clientId || '').trim();
@@ -3917,6 +3935,77 @@ const fetchStoreMemberForRequest = async ({ storeId, uid }) => {
   return { uid, role };
 };
 
+// EC連携画面の保存。シークレットは private/shopify にだけ書き、settings/shopify には clientSecretSet だけを置く。
+// シークレットが空なら保存済みの値をそのまま使う(画面には値を返さない)。権限は従来のルールと同じ owner と運営管理者。
+export const saveShopifySettings = onCall(
+  { region: REGION },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'ログインが必要です。');
+    const storeId = String(request.data?.storeId || '').trim();
+    if (!storeId) throw new HttpsError('invalid-argument', 'storeId が必要です。');
+
+    const role = await getUserRoleForStore(uid, storeId);
+    if (role !== USER_ROLES.OWNER) {
+      try {
+        await assertPlatformAdminUser(uid);
+      } catch (error) {
+        throw new HttpsError('permission-denied', 'Shopify連携を設定する権限がありません(オーナーのみ)。');
+      }
+    }
+
+    const input = request.data?.settings || {};
+    let shopDomain;
+    try {
+      shopDomain = normalizeShopifyDomain(input.shopDomain);
+    } catch (error) {
+      throw new HttpsError('invalid-argument', 'ショップドメインは xxxx.myshopify.com の形式で入力してください。');
+    }
+    const clientId = String(input.clientId || '').trim();
+    if (clientId.length < 20) {
+      throw new HttpsError('invalid-argument', 'クライアントIDを確認してください。');
+    }
+    const newSecret = String(input.clientSecret || '').trim();
+    if (newSecret && newSecret.length < 20) {
+      throw new HttpsError('invalid-argument', 'シークレットが短すぎます。Shopify Dev Dashboardの資格情報を確認してください。');
+    }
+
+    const storeRef = db.collection('stores').doc(storeId);
+    const current = await readShopifySettings(storeRef);
+    const clientSecret = newSecret || current.clientSecret;
+    if (!clientSecret) {
+      throw new HttpsError('invalid-argument', 'Dev Dashboardのシークレットを入力してください。');
+    }
+
+    const batch = db.batch();
+    batch.set(shopifyPrivateRef(storeRef), {
+      clientSecret,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: uid
+    }, { merge: true });
+    batch.set(storeRef.collection('settings').doc('shopify'), {
+      shopDomain,
+      clientId,
+      clientSecret: FieldValue.delete(),
+      clientSecretSet: true,
+      locationId: String(input.locationId || '').trim(),
+      syncEnabled: Boolean(input.syncEnabled),
+      inventorySyncEnabled: Boolean(input.inventorySyncEnabled),
+      ecSalesSyncEnabled: Boolean(input.ecSalesSyncEnabled),
+      autoSyncVariantCodes: Boolean(input.autoSyncVariantCodes),
+      autoSyncVariantPrice: Boolean(input.autoSyncVariantPrice),
+      productLinkSyncStatuses: (Array.isArray(input.productLinkSyncStatuses) ? input.productLinkSyncStatuses : ['ACTIVE'])
+        .filter((status) => ['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(status)),
+      authMode: 'devDashboard',
+      accessToken: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await batch.commit();
+
+    return { ok: true, clientSecretSet: true };
+  }
+);
+
 export const createShopifyDraftProduct = onRequest(
   { region: REGION, cors: true },
   async (req, res) => {
@@ -3944,8 +4033,7 @@ export const createShopifyDraftProduct = onRequest(
       });
 
       const storeRef = db.collection('stores').doc(normalizedStoreId);
-      const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
-      const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const shopifySettings = await readShopifySettings(storeRef);
       const taxPriceSettingsSnapshot = await storeRef.collection('settings').doc('taxPrice').get();
       const taxPriceSettings = taxPriceSettingsSnapshot.exists ? taxPriceSettingsSnapshot.data() || {} : {};
       const priceSyncMode = normalizeShopifyPriceSyncMode(taxPriceSettings.shopifyPriceSyncMode);
@@ -4273,8 +4361,7 @@ export const updateShopifyProduct = onRequest(
       });
 
       const storeRef = db.collection('stores').doc(normalizedStoreId);
-      const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
-      const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const shopifySettings = await readShopifySettings(storeRef);
       const taxPriceSettingsSnapshot = await storeRef.collection('settings').doc('taxPrice').get();
       const taxPriceSettings = taxPriceSettingsSnapshot.exists ? taxPriceSettingsSnapshot.data() || {} : {};
       const priceSyncMode = normalizeShopifyPriceSyncMode(taxPriceSettings.shopifyPriceSyncMode);
@@ -4526,8 +4613,7 @@ export const syncShopifyProductLinks = onRequest(
       const statusScope = requested.length ? [...new Set(requested)] : ['ACTIVE'];
 
       const storeRef = db.collection('stores').doc(normalizedStoreId);
-      const settingsSnapshot = await storeRef.collection('settings').doc('shopify').get();
-      const shopifySettings = settingsSnapshot.exists ? settingsSnapshot.data() || {} : {};
+      const shopifySettings = await readShopifySettings(storeRef);
       const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(shopifySettings);
 
       const statusQuery = statusScope.length === ALLOWED.length
@@ -4652,8 +4738,7 @@ const runShopifyInventoryPush = async ({ storeId, productIds = [] }) => {
   if (ids.length === 0) return { pushed: 0, skipped: 'noProductIds', userErrors: [] };
 
   const storeRef = db.collection('stores').doc(normalizedStoreId);
-  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const settings = await readShopifySettings(storeRef);
   if (!settings.inventorySyncEnabled) return { pushed: 0, skipped: 'inventorySyncDisabled', userErrors: [] };
   const locationId = String(settings.locationId || '').trim();
   if (!locationId) return { pushed: 0, skipped: 'noLocationId', userErrors: [] };
@@ -4750,8 +4835,7 @@ export const shopifyInventoryWebhook = onRequest(
       }
 
       const storeRef = db.collection('stores').doc(storeId);
-      const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-      const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+      const settings = await readShopifySettings(storeRef);
       const secret = String(settings.clientSecret || '').trim();
 
       const hmacHeader = String(request.get('X-Shopify-Hmac-Sha256') || '');
@@ -4948,8 +5032,7 @@ const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericS
 
 const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false }) => {
   const storeRef = db.collection('stores').doc(storeId);
-  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const settings = await readShopifySettings(storeRef);
 
   const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
 
@@ -5160,8 +5243,7 @@ const buildShopifyVariantMap = async ({ shopDomain, accessToken }) => {
 
 const runShopifyVariantDiffReport = async ({ storeId, triggeredBy = '' }) => {
   const storeRef = db.collection('stores').doc(storeId);
-  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const settings = await readShopifySettings(storeRef);
   const taxPriceSnap = await storeRef.collection('settings').doc('taxPrice').get();
   const priceSyncMode = normalizeShopifyPriceSyncMode((taxPriceSnap.exists ? taxPriceSnap.data() || {} : {}).shopifyPriceSyncMode);
 
@@ -5507,8 +5589,7 @@ const matchEcLineItem = (lineItem, index) => {
 
 const runShopifyEcOrdersSync = async ({ storeId, source = 'scheduled', triggeredBy = '', sinceOverride = null }) => {
   const storeRef = db.collection('stores').doc(storeId);
-  const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
-  const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+  const settings = await readShopifySettings(storeRef);
   if (settings.ecSalesSyncEnabled !== true) {
     return { skipped: true, reason: 'ecSalesSyncEnabled=false' };
   }
@@ -9235,7 +9316,7 @@ export const enqueueShopifyVariantSync = onDocumentWritten(
 
     // スイッチがOFFの項目は積まない(後でONにした瞬間に過去の編集がまとめて流れないように)。
     const { storeId, productId } = event.params;
-    const settings = (await db.collection('stores').doc(storeId).collection('settings').doc('shopify').get()).data() || {};
+    const settings = await readShopifySettings(db.collection('stores').doc(storeId));
     const kinds = [];
     if (codesChanged && settings.autoSyncVariantCodes === true) kinds.push('codes');
     if (priceChanged && settings.autoSyncVariantPrice === true) kinds.push('price');

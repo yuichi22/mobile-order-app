@@ -4833,7 +4833,7 @@ export const ShopifySettingsPanel = ({
   const baselineDraft = () => ({
     shopDomain: settings?.shopDomain || '',
     clientId: settings?.clientId || '',
-    clientSecret: settings?.clientSecret || '',
+    clientSecret: '',
     locationId: settings?.locationId || '',
     syncEnabled: Boolean(settings?.syncEnabled),
     inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
@@ -4847,7 +4847,7 @@ export const ShopifySettingsPanel = ({
     setDraft({
       shopDomain: settings?.shopDomain || '',
       clientId: settings?.clientId || '',
-      clientSecret: settings?.clientSecret || '',
+      clientSecret: '',
       locationId: settings?.locationId || '',
       syncEnabled: Boolean(settings?.syncEnabled),
       inventorySyncEnabled: Boolean(settings?.inventorySyncEnabled),
@@ -4856,7 +4856,7 @@ export const ShopifySettingsPanel = ({
       autoSyncVariantPrice: Boolean(settings?.autoSyncVariantPrice),
       productLinkSyncStatuses: normalizeSyncStatuses(settings?.productLinkSyncStatuses)
     });
-  }, [settings?.productLinkSyncStatuses, settings?.shopDomain, settings?.clientId, settings?.clientSecret, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled, settings?.autoSyncVariantCodes, settings?.autoSyncVariantPrice]);
+  }, [settings?.productLinkSyncStatuses, settings?.shopDomain, settings?.clientId, settings?.locationId, settings?.syncEnabled, settings?.inventorySyncEnabled, settings?.ecSalesSyncEnabled, settings?.autoSyncVariantCodes, settings?.autoSyncVariantPrice]);
 
   const update = (patch) => {
     setDraft((current) => ({
@@ -4864,6 +4864,9 @@ export const ShopifySettingsPanel = ({
       ...patch
     }));
   };
+
+  // シークレットの値は画面に来ない。旧形式(settings に平文が残っている移行前の店舗)も「設定済み」とみなす
+  const secretSaved = Boolean(settings?.clientSecretSet || settings?.clientSecret);
 
   const save = async () => {
     const shopDomain = String(draft.shopDomain || '').trim();
@@ -4891,12 +4894,13 @@ export const ShopifySettingsPanel = ({
       return;
     }
 
-    if (!clientSecret) {
+    // 保存済みなら空欄のまま保存でき、サーバー側の値を使い続ける
+    if (!clientSecret && !secretSaved) {
       alert('Dev Dashboardのシークレットを入力してください。');
       return;
     }
 
-    if (clientSecret.length < 20) {
+    if (clientSecret && clientSecret.length < 20) {
       alert('シークレットが短すぎます。Shopify Dev Dashboardの資格情報を確認してください。');
       return;
     }
@@ -5017,11 +5021,12 @@ export const ShopifySettingsPanel = ({
               type="password"
               value={draft.clientSecret}
               onChange={(event) => update({ clientSecret: event.target.value })}
-              placeholder="Dev Dashboardのシークレット"
+              placeholder={secretSaved ? '設定済み（変更するときだけ入力）' : 'Dev Dashboardのシークレット'}
+              autoComplete="new-password"
               className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
-              パスワード相当の情報です。ログやスクリーンショットに出さないように扱います。
+              {secretSaved ? '設定済みです。値はサーバーだけが持ち、画面には表示しません。' : 'パスワード相当の情報です。保存するとサーバーだけが持ち、画面には表示しません。'}
             </span>
           </label>
         </div>

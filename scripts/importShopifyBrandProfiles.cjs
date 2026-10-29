@@ -87,6 +87,8 @@ const writeCsv = (filePath, rows, header) => {
 
   const storeRef = db.collection('stores').doc(STORE_ID);
   const settings = (await storeRef.collection('settings').doc('shopify').get()).data() || {};
+  // シークレットは private/shopify(2026-10-29 移行)。移行前の店舗は settings 側の旧値
+  settings.clientSecret = (await storeRef.collection('private').doc('shopify').get()).data()?.clientSecret || settings.clientSecret;
   const { shopDomain, accessToken } = await getToken(settings);
   console.log(`shopDomain=${shopDomain}`);
 
