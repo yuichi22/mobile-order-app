@@ -180,6 +180,8 @@ const writeCsv = (filePath, rows) => {
   const settingsSnap = await storeRef.collection('settings').doc('shopify').get();
   if (!settingsSnap.exists) throw new Error('settings/shopify が存在しません。');
   const settings = settingsSnap.data() || {};
+  // シークレットは private/shopify(2026-10-29 移行)。移行前の店舗は settings 側の旧値
+  settings.clientSecret = (await storeRef.collection('private').doc('shopify').get()).data()?.clientSecret || settings.clientSecret;
   const { shopDomain, accessToken } = await getShopifyAccessToken(settings);
   const locationNumericSet = new Set(
     (Array.isArray(settings.locationIds) && settings.locationIds.length

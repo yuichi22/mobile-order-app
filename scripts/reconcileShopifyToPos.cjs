@@ -25,6 +25,7 @@ const nowStamp = () => new Date().toISOString().replace(/[-:T]/g, '').slice(0, 1
 (async () => {
   console.log(`=== Shopify→POS リコンサイル (${APPLY ? '本実行' : 'ドライラン'}) DB=main ===`);
   const s = (await store.collection('settings').doc('shopify').get()).data() || {};
+  s.clientSecret = (await store.collection('private').doc('shopify').get()).data()?.clientSecret || s.clientSecret; // 2026-10-29 移行
   const shopDomain = String(s.shopDomain || '').trim().toLowerCase();
   const locNum = String(s.locationId || '').split('/').pop();
   const tr = await fetch(`https://${shopDomain}/admin/oauth/access_token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grant_type: 'client_credentials', client_id: s.clientId, client_secret: s.clientSecret }) });
