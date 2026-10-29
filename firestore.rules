@@ -196,7 +196,11 @@ service cloud.firestore {
       allow read, write: if isStoreOwner(storeId) || isPlatformAdmin();
 
       match /settings/{documentId} {
-        allow read: if true;
+        // settings/shopify は Shopify 連携の資格情報を持つため店舗管理者(manager以上)だけが読める。
+        // ほかの settings はログイン前の注文画面も読むので公開のまま(2026-10-29)。
+        allow read: if documentId != 'shopify'
+          || isPlatformAdmin()
+          || isStoreManager(storeId);
         allow write: if isPlatformAdmin()
           || isStoreOwner(storeId)
           || (isStoreManager(storeId) && isManagerWritableSetting(documentId));
