@@ -4122,6 +4122,7 @@ const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
   const subscriptions = await listShopifyInventoryWebhooks(access);
   const mine = subscriptions.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
   for (const sub of mine) {
+    // 消す対象はこの店舗向けだけ(他店・他環境の通知は残す)
     await runShopifyWebhookMutation({
       ...access,
       field: 'webhookSubscriptionDelete',
@@ -4129,18 +4130,22 @@ const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
       variables: { id: sub.id }
     });
   }
-  return { removed: mine.length };
+  const left = (await listShopifyInventoryWebhooks(access))
+    .filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  return { removed: mine.length, left: left.length };
 };
 
 const toSetupError = (error) => (error instanceof ShopifySetupError ? error : setupError('verify', { detail: error?.message }));
 
 // settings/shopify.inventoryWebhook に置く状態。画面の「Shopify からの通知」表示と照合レポートが読む。
-const inventoryWebhookState = ({ status, uri = null, subscriptionId = null, locationName = null, error = null }) => ({
+const inventoryWebhookState = ({ status, uri = null, subscriptionId = null, locationName = null, error = null, removed = null }) => ({
   status,
   uri,
   subscriptionId,
   locationName,
   error: error ? error.toJSON() : null,
+  // OFF にしたとき消した件数(消せなかったときは error に理由)
+  removed,
   checkedAt: FieldValue.serverTimestamp()
 });
 
@@ -4231,11 +4236,14 @@ export const saveShopifySettings = onCall(
       }
     } else if (wasInventorySync) {
       try {
-        await removeShopifyInventoryWebhook({ storeId, settings: effectiveSettings });
+        const result = await removeShopifyInventoryWebhook({ storeId, settings: effectiveSettings });
+        inventoryWebhook = result.left
+          ? inventoryWebhookState({ status: 'off', removed: result.removed, error: setupError('webhook', { detail: `消したあとも ${result.left}件残っています` }) })
+          : inventoryWebhookState({ status: 'off', removed: result.removed });
       } catch (error) {
         console.error('[saveShopifySettings] inventory webhook removal failed', { storeId, message: error?.message });
+        inventoryWebhook = inventoryWebhookState({ status: 'off', error: toSetupError(error) });
       }
-      inventoryWebhook = inventoryWebhookState({ status: 'off' });
     }
 
     const batch = db.batch();
