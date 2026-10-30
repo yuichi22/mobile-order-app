@@ -26,7 +26,14 @@ const app = initializeApp({ credential: applicationDefault(), projectId: PROJECT
 
 for (const databaseId of DATABASES) {
   const db = getFirestore(app, databaseId);
-  const stores = await db.collection('stores').get();
+  let stores;
+  try {
+    stores = await db.collection('stores').get();
+  } catch (error) {
+    // prod には (default) DB が無い
+    if (error.code === 5) { console.log(`[${databaseId}] DB なし(スキップ)`); continue; }
+    throw error;
+  }
   let moved = 0;
   for (const storeDoc of stores.docs) {
     const settingsRef = storeDoc.ref.collection('settings').doc('shopify');

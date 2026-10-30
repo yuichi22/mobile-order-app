@@ -4567,6 +4567,39 @@ const normalizeSyncStatuses = (value) => {
   return ['ACTIVE', 'DRAFT', 'ARCHIVED'].filter((x) => list.includes(x));
 };
 
+// 在庫連携の「Shopify からの通知(在庫通知)」の状態。操作ボタンは置かず、状態と直し方だけを出す(2026-10-29 石原さん決定)。
+const ShopifySetupErrorNote = ({ error }) => (
+  <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-relaxed text-red-700">
+    <div className="font-black">{error?.title || '在庫通知を確かめられませんでした'}</div>
+    {error?.howTo && <div className="mt-1 text-red-700">直し方：{error.howTo}</div>}
+    {error?.detail && <div className="mt-1 break-all text-[11px] font-medium text-red-500">{error.detail}</div>}
+  </div>
+);
+
+const ShopifyInventoryWebhookStatus = ({ settings }) => {
+  if (!settings?.inventorySyncEnabled) return null;
+  const webhook = settings?.inventoryWebhook || null;
+  const lastReceived = settings?.inventoryWebhookLastReceivedAt
+    ? `（最終受信 ${formatProductMasterDateTimeText(settings.inventoryWebhookLastReceivedAt)}）`
+    : '';
+  if (webhook?.status === 'failed') {
+    return (
+      <div className="mt-2">
+        <div className="text-xs font-black text-red-600">Shopify からの通知：止まっています。ECで売れた分がレジ在庫に反映されません{lastReceived}</div>
+        <ShopifySetupErrorNote error={webhook.error} />
+        <div className="mt-1 text-[11px] font-bold text-gray-500">直したら連携設定を保存し直すと、すぐ登録し直します。止まっていた間のずれは在庫の差分確認で確かめてください。</div>
+      </div>
+    );
+  }
+  if (webhook?.status === 'active') {
+    return <div className="mt-2 text-xs font-black text-gray-700">Shopify からの通知：有効{lastReceived}</div>;
+  }
+  if (webhook?.status === 'dryRun') {
+    return <div className="mt-2 text-xs font-bold text-gray-500">開発環境のため、Shopify への通知の登録はしていません（鍵・権限・ロケーションの確認だけ行いました）。</div>;
+  }
+  return <div className="mt-2 text-xs font-bold text-gray-500">Shopify からの通知：未確認{lastReceived}。設定を保存し直すか、毎晩の確認で登録します。</div>;
+};
+
 export const ShopifySettingsPanel = ({
   storeId,
   settings,
@@ -4818,6 +4851,8 @@ export const ShopifySettingsPanel = ({
     productLinkSyncStatuses: ['ACTIVE']
   });
   const [saving, setSaving] = useState(false);
+  // 在庫連携を ON にできなかった(または ON のまま通知の登録に失敗した)ときの理由と直し方
+  const [inventorySyncIssue, setInventorySyncIssue] = useState(null);
 
   // 同期の対象は設定として保存する(変えると下の保存バーが出る)
   const syncStatuses = Array.isArray(draft.productLinkSyncStatuses) ? draft.productLinkSyncStatuses : ['ACTIVE'];
@@ -4906,8 +4941,9 @@ export const ShopifySettingsPanel = ({
     }
 
     setSaving(true);
+    setInventorySyncIssue(null);
     try {
-      await onSave?.({
+      const result = await onSave?.({
         shopDomain,
         clientId,
         clientSecret,
@@ -4921,7 +4957,14 @@ export const ShopifySettingsPanel = ({
         authMode: 'devDashboard'
       });
       onSaved?.();
-      alert('Shopify連携設定を保存しました。');
+      if (result?.inventorySync?.ok === false) {
+        setInventorySyncIssue(result.inventorySync);
+        alert(result.inventorySync.keptOn
+          ? `設定を保存しました。在庫連携は ON のままですが、Shopify からの通知の登録に失敗しました: ${result.inventorySync.error?.title || ''}`
+          : `設定を保存しましたが、在庫連携は ON にできませんでした: ${result.inventorySync.error?.title || ''}`);
+      } else {
+        alert('Shopify連携設定を保存しました。');
+      }
     } catch (error) {
       console.error('failed to save shopify settings', error);
       alert(`Shopify連携設定の保存に失敗しました: ${error?.message || error}`);
@@ -5037,11 +5080,11 @@ export const ShopifySettingsPanel = ({
             <input
               value={draft.locationId}
               onChange={(event) => update({ locationId: event.target.value })}
-              placeholder="未取得なら空欄でOK"
+              placeholder="在庫連携を使うときは必須"
               className="border-2 border-gray-200 bg-white hover:border-gray-300 h-12 w-full rounded-2xl px-4 text-sm font-bold text-gray-700 transition outline-none focus:border-ui"
             />
             <span className="mt-1.5 block text-[11px] font-bold text-gray-500">
-              次STEPでShopify APIからロケーション一覧を取得して設定します。
+              在庫連携を ON にするときは必須です。保存時に Shopify にあるか確かめ、無ければ候補を表示します。
             </span>
           </label>
 
@@ -5064,6 +5107,7 @@ export const ShopifySettingsPanel = ({
               />
               <span className="text-sm font-black text-gray-700">在庫連携を有効にする</span>
             </label>
+            <ShopifyInventoryWebhookStatus settings={settings} />
             <label className="flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3">
               <input
                 type="checkbox"
@@ -5438,6 +5482,14 @@ export const ShopifySettingsPanel = ({
           )}
         </div>
       </div>
+      {inventorySyncIssue && (
+        <div className="mx-5 mb-5">
+          <div className="text-xs font-black text-red-600">
+            {inventorySyncIssue.keptOn ? '在庫連携は ON のままですが、Shopify からの通知を登録できませんでした。' : '在庫連携を ON にできませんでした（OFF のまま保存しました）。'}
+          </div>
+          <ShopifySetupErrorNote error={inventorySyncIssue.error} />
+        </div>
+      )}
       <ChangesBar dirty={ecDirty} loading={saving || shopifyPriceSyncSaving} onSave={saveAll} onDiscard={discardAll} message="EC連携の設定を変更しました" />
     </section>
   );

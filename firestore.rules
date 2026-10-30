@@ -201,8 +201,9 @@ service cloud.firestore {
         allow read: if documentId != 'shopify'
           || isPlatformAdmin()
           || isStoreManager(storeId);
-        // Shopify のシークレットは private/shopify にだけ置く(保存は saveShopifySettings 関数)。
-        allow write: if (documentId != 'shopify' || !('clientSecret' in request.resource.data))
+        // settings/shopify は saveShopifySettings 関数だけが書く。シークレットは private/shopify にだけ置き、
+        // 在庫連携の ON は在庫通知の登録が通ったときだけサーバーが書く(画面から直接 ON にできないように)。
+        allow write: if documentId != 'shopify'
           && (isPlatformAdmin()
             || isStoreOwner(storeId)
             || (isStoreManager(storeId) && isManagerWritableSetting(documentId)));

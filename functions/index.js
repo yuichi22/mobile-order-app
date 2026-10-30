@@ -10,6 +10,19 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import Anthropic from '@anthropic-ai/sdk';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
+import {
+  INVENTORY_WEBHOOK_TOPIC,
+  ShopifySetupError,
+  buildInventoryWebhookUri,
+  classifyTokenError,
+  classifyUserErrors,
+  findMissingScopes,
+  isAccessDenied,
+  isSubscriptionForStore,
+  planInventoryWebhook,
+  setupError,
+  toLocationGid
+} from './shopifyInventoryWebhookCore.js';
 
 
 initializeApp();
@@ -3499,7 +3512,11 @@ const getShopifyAccessTokenFromSettings = async (settings = {}) => {
       status: tokenResponse.status,
       body: tokenBody
     });
-    throw new Error(tokenBody.error_description || tokenBody.error || 'Shopifyアクセストークンの取得に失敗しました。');
+    // 在庫連携の保存時に「鍵違い/未インストール」を見分けるため、応答の状態と本文を付けて投げる
+    throw Object.assign(
+      new Error(tokenBody.error_description || tokenBody.error || 'Shopifyアクセストークンの取得に失敗しました。'),
+      { status: tokenResponse.status, shopifyBody: tokenBody }
+    );
   }
 
   return {
@@ -3527,7 +3544,10 @@ const callShopifyGraphql = async ({ shopDomain, accessToken, query, variables })
       status: graphqlResponse.status,
       body: graphqlBody
     });
-    throw new Error(graphqlBody.errors?.[0]?.message || 'Shopify GraphQL APIの呼び出しに失敗しました。');
+    throw Object.assign(
+      new Error(graphqlBody.errors?.[0]?.message || 'Shopify GraphQL APIの呼び出しに失敗しました。'),
+      { status: graphqlResponse.status, shopifyErrors: Array.isArray(graphqlBody.errors) ? graphqlBody.errors : [] }
+    );
   }
 
   return graphqlBody.data || {};
@@ -3935,6 +3955,218 @@ const fetchStoreMemberForRequest = async ({ storeId, uid }) => {
   return { uid, role };
 };
 
+// ── Shopify 在庫通知(Webhook)の自動登録 ────────────────────────────────
+// 在庫連携は双方向。レジ→Shopify は1分ごとの送信、Shopify→レジ は在庫通知で動く。
+// 通知の登録が手作業で、suomi(store_110ec)は抜けていて EC の売上がレジ在庫に入っていなかった(2026-10-28 発覚)。
+// 在庫連携を ON にするときは「鍵 → 権限 → ロケーション → 通知の登録 → 読み戻し」が全部通ったときだけ ON にする。
+// 通知は必ず連携アプリの API から登録する(管理画面で作った通知はストア固有の鍵で署名され、受け口が 401 で弾く)。
+const currentProjectId = () => {
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  try {
+    return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId || '';
+  } catch {
+    return '';
+  }
+};
+
+const shopifyInventoryWebhookUri = (storeId) => buildInventoryWebhookUri({ projectId: currentProjectId(), region: REGION, storeId });
+
+const listShopifyInventoryWebhooks = async ({ shopDomain, accessToken }) => {
+  const data = await callShopifyGraphql({
+    shopDomain,
+    accessToken,
+    query: `query InventoryWebhooks($topics: [WebhookSubscriptionTopic!]) {
+      webhookSubscriptions(first: 50, topics: $topics) { nodes { id topic format uri } }
+    }`,
+    variables: { topics: [INVENTORY_WEBHOOK_TOPIC] }
+  });
+  return data?.webhookSubscriptions?.nodes || [];
+};
+
+// 鍵 → 権限 → ロケーション。Shopify は読むだけ。
+const checkShopifyInventoryAccess = async (settings) => {
+  let token;
+  try {
+    token = await getShopifyAccessTokenFromSettings(settings);
+  } catch (error) {
+    throw classifyTokenError(error);
+  }
+  const { shopDomain, accessToken } = token;
+
+  let granted = String(token.scope || '').split(',');
+  try {
+    const data = await callShopifyGraphql({ shopDomain, accessToken, query: '{ currentAppInstallation { accessScopes { handle } } }', variables: {} });
+    const handles = (data?.currentAppInstallation?.accessScopes || []).map((scope) => scope?.handle).filter(Boolean);
+    if (handles.length) granted = handles;
+  } catch (error) {
+    console.warn('[shopifyInventoryWebhook] accessScopes lookup failed; fall back to token scope', error?.message);
+  }
+  const missingScopes = findMissingScopes(granted);
+  if (missingScopes.length) {
+    throw setupError('scopes', { missingScopes, detail: `付与されている権限: ${granted.filter(Boolean).join(', ') || 'なし'}` });
+  }
+
+  const locationGid = toLocationGid(settings.locationId);
+  const describeLocations = async () => {
+    try {
+      const data = await callShopifyGraphql({ shopDomain, accessToken, query: '{ locations(first: 50, includeInactive: true) { nodes { name isActive } } }', variables: {} });
+      const names = (data?.locations?.nodes || []).map((loc) => `${loc.name}${loc.isActive ? '' : '(無効)'}`);
+      return names.length ? `Shopify にあるロケーション: ${names.join('、')}` : '';
+    } catch {
+      return '';
+    }
+  };
+  if (!locationGid) {
+    throw setupError('locationMissing', { detail: ['ロケーションIDが未設定です。', await describeLocations()].filter(Boolean).join(' ') });
+  }
+  let location = null;
+  try {
+    const data = await callShopifyGraphql({ shopDomain, accessToken, query: 'query Loc($id: ID!) { location(id: $id) { id name isActive } }', variables: { id: locationGid } });
+    location = data?.location || null;
+  } catch (error) {
+    if (isAccessDenied(error)) throw setupError('scopes', { missingScopes: ['read_locations'], detail: error.message });
+    location = null;
+  }
+  if (!location) {
+    throw setupError('locationMissing', { locationName: String(settings.locationId || ''), detail: await describeLocations() });
+  }
+  if (location.isActive === false) {
+    throw setupError('locationInactive', { locationName: location.name });
+  }
+  return { shopDomain, accessToken, location };
+};
+
+const runShopifyWebhookMutation = async ({ shopDomain, accessToken, query, variables, field }) => {
+  let data;
+  try {
+    data = await callShopifyGraphql({ shopDomain, accessToken, query, variables });
+  } catch (error) {
+    if (isAccessDenied(error)) throw setupError('scopes', { detail: error.message });
+    throw setupError('webhook', { detail: error.message });
+  }
+  const payload = data?.[field] || {};
+  if (Array.isArray(payload.userErrors) && payload.userErrors.length) throw classifyUserErrors(payload.userErrors);
+  return payload;
+};
+
+// dev(SHOPIFY_DRY_RUN=1)で在庫通知の登録・削除だけを試すときの例外。dev あての通知しか作らない(送り先は実行中の環境)。
+// 在庫の書き込みは引き続き止まる。確かめ終わったら .env から外す。
+const isShopifyWebhookWriteAllowed = () => !isShopifyDryRun()
+  || ['1', 'true', 'yes'].includes(String(process.env.SHOPIFY_WEBHOOK_REGISTER || '').trim().toLowerCase());
+
+// 在庫通知をこの店舗向けに1件だけ・正しい送り先で置く。何度呼んでも同じ結果になる。
+// dev(SHOPIFY_DRY_RUN=1)は鍵・権限・ロケーションの確認までで、Shopify には登録しない(dev と prod は同じストア)。
+const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
+  const access = await checkShopifyInventoryAccess(settings);
+  const uri = shopifyInventoryWebhookUri(storeId);
+  if (!isShopifyWebhookWriteAllowed()) {
+    console.log('[shopifyInventoryWebhook] DRY RUN: skip register', { storeId, uri });
+    return { status: 'dryRun', uri, subscriptionId: null, locationName: access.location.name };
+  }
+
+  let subscriptions;
+  try {
+    subscriptions = await listShopifyInventoryWebhooks(access);
+  } catch (error) {
+    throw setupError(isAccessDenied(error) ? 'scopes' : 'webhook', { detail: error.message });
+  }
+  const plan = planInventoryWebhook({ subscriptions, desiredUri: uri, storeId });
+  const webhookSubscription = { uri, format: 'JSON' };
+  if (plan.action === 'create') {
+    await runShopifyWebhookMutation({
+      ...access,
+      field: 'webhookSubscriptionCreate',
+      query: `mutation CreateInventoryWebhook($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) {
+        webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) { webhookSubscription { id } userErrors { field message } }
+      }`,
+      variables: { topic: INVENTORY_WEBHOOK_TOPIC, sub: webhookSubscription }
+    });
+  } else if (plan.action === 'update') {
+    await runShopifyWebhookMutation({
+      ...access,
+      field: 'webhookSubscriptionUpdate',
+      query: `mutation UpdateInventoryWebhook($id: ID!, $sub: WebhookSubscriptionInput!) {
+        webhookSubscriptionUpdate(id: $id, webhookSubscription: $sub) { webhookSubscription { id } userErrors { field message } }
+      }`,
+      variables: { id: plan.id, sub: webhookSubscription }
+    });
+  }
+  for (const id of plan.remove) {
+    await runShopifyWebhookMutation({
+      ...access,
+      field: 'webhookSubscriptionDelete',
+      query: 'mutation DeleteInventoryWebhook($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { field message } } }',
+      variables: { id }
+    });
+  }
+
+  // 読み戻し: この店舗向けが1件だけ、送り先と形式が正しいこと
+  let after;
+  try {
+    after = await listShopifyInventoryWebhooks(access);
+  } catch (error) {
+    throw setupError('verify', { detail: error.message });
+  }
+  const mine = after.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  if (mine.length !== 1 || mine[0].uri !== uri || mine[0].format !== 'JSON') {
+    throw setupError('verify', { detail: `この店舗向けの在庫通知: ${mine.length}件` });
+  }
+  console.log('[shopifyInventoryWebhook] ensured', { storeId, action: plan.action, removed: plan.remove.length });
+  return { status: 'active', uri, subscriptionId: mine[0].id, locationName: access.location.name, action: plan.action };
+};
+
+// 在庫連携 OFF のとき。この店舗向けの在庫通知を消す(他店・他環境の通知は触らない)。
+const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
+  if (!isShopifyWebhookWriteAllowed()) return { removed: 0, dryRun: true };
+  const access = await getShopifyAccessTokenFromSettings(settings);
+  const subscriptions = await listShopifyInventoryWebhooks(access);
+  const mine = subscriptions.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  for (const sub of mine) {
+    // 消す対象はこの店舗向けだけ(他店・他環境の通知は残す)
+    await runShopifyWebhookMutation({
+      ...access,
+      field: 'webhookSubscriptionDelete',
+      query: 'mutation DeleteInventoryWebhook($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { field message } } }',
+      variables: { id: sub.id }
+    });
+  }
+  const left = (await listShopifyInventoryWebhooks(access))
+    .filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  return { removed: mine.length, left: left.length };
+};
+
+const toSetupError = (error) => (error instanceof ShopifySetupError ? error : setupError('verify', { detail: error?.message }));
+
+// settings/shopify.inventoryWebhook に置く状態。画面の「Shopify からの通知」表示と照合レポートが読む。
+const inventoryWebhookState = ({ status, uri = null, subscriptionId = null, locationName = null, error = null, removed = null }) => ({
+  status,
+  uri,
+  subscriptionId,
+  locationName,
+  error: error ? error.toJSON() : null,
+  // OFF にしたとき消した件数(消せなかったときは error に理由)
+  removed,
+  checkedAt: FieldValue.serverTimestamp()
+});
+
+// 毎晩の確認。通知が消えていれば登録し直す。失敗しても在庫連携は OFF にしない
+// (OFF にするとレジ→Shopify の送信まで止まり、EC で売り越しが起きるため)。
+const refreshShopifyInventoryWebhook = async (storeId) => {
+  const storeRef = db.collection('stores').doc(storeId);
+  const settings = await readShopifySettings(storeRef);
+  let state;
+  try {
+    const result = await ensureShopifyInventoryWebhook({ storeId, settings });
+    state = inventoryWebhookState(result);
+  } catch (error) {
+    const setup = toSetupError(error);
+    console.error('[shopifyInventoryWebhook] nightly ensure failed', { storeId, code: setup.code, detail: setup.detail });
+    state = inventoryWebhookState({ status: 'failed', uri: shopifyInventoryWebhookUri(storeId), error: setup });
+  }
+  await storeRef.collection('settings').doc('shopify').set({ inventoryWebhook: state }, { merge: true });
+  return { status: state.status, error: state.error };
+};
+
 // EC連携画面の保存。シークレットは private/shopify にだけ書き、settings/shopify には clientSecretSet だけを置く。
 // シークレットが空なら保存済みの値をそのまま使う(画面には値を返さない)。権限は従来のルールと同じ owner と運営管理者。
 export const saveShopifySettings = onCall(
@@ -3977,6 +4209,43 @@ export const saveShopifySettings = onCall(
       throw new HttpsError('invalid-argument', 'Dev Dashboardのシークレットを入力してください。');
     }
 
+    // 在庫連携: ON にするときは通知の登録まで通ったときだけ ON で保存する。すでに ON の店舗は失敗しても OFF にしない。
+    // OFF にするときは通知も消す(消せなくても OFF は保存する。受け口は OFF の店舗の通知を無視する)。
+    const locationId = String(input.locationId || '').trim();
+    const wantsInventorySync = Boolean(input.inventorySyncEnabled);
+    const wasInventorySync = current.inventorySyncEnabled === true;
+    const effectiveSettings = { ...current, shopDomain, clientId, clientSecret, locationId };
+    let inventorySyncEnabled = wantsInventorySync;
+    let inventoryWebhook = null;
+    let inventorySync = null;
+    if (wantsInventorySync) {
+      try {
+        const result = await ensureShopifyInventoryWebhook({ storeId, settings: effectiveSettings });
+        inventoryWebhook = inventoryWebhookState(result);
+        inventorySync = { ok: true, status: result.status };
+      } catch (error) {
+        const setup = toSetupError(error);
+        console.error('[saveShopifySettings] inventory webhook setup failed', { storeId, code: setup.code, detail: setup.detail });
+        if (!wasInventorySync) inventorySyncEnabled = false;
+        inventoryWebhook = inventoryWebhookState({
+          status: wasInventorySync ? 'failed' : 'off',
+          uri: shopifyInventoryWebhookUri(storeId),
+          error: setup
+        });
+        inventorySync = { ok: false, keptOn: wasInventorySync, error: setup.toJSON() };
+      }
+    } else if (wasInventorySync) {
+      try {
+        const result = await removeShopifyInventoryWebhook({ storeId, settings: effectiveSettings });
+        inventoryWebhook = result.left
+          ? inventoryWebhookState({ status: 'off', removed: result.removed, error: setupError('webhook', { detail: `消したあとも ${result.left}件残っています` }) })
+          : inventoryWebhookState({ status: 'off', removed: result.removed });
+      } catch (error) {
+        console.error('[saveShopifySettings] inventory webhook removal failed', { storeId, message: error?.message });
+        inventoryWebhook = inventoryWebhookState({ status: 'off', error: toSetupError(error) });
+      }
+    }
+
     const batch = db.batch();
     batch.set(shopifyPrivateRef(storeRef), {
       clientSecret,
@@ -3988,9 +4257,10 @@ export const saveShopifySettings = onCall(
       clientId,
       clientSecret: FieldValue.delete(),
       clientSecretSet: true,
-      locationId: String(input.locationId || '').trim(),
+      locationId,
       syncEnabled: Boolean(input.syncEnabled),
-      inventorySyncEnabled: Boolean(input.inventorySyncEnabled),
+      inventorySyncEnabled,
+      ...(inventoryWebhook ? { inventoryWebhook } : {}),
       ecSalesSyncEnabled: Boolean(input.ecSalesSyncEnabled),
       autoSyncVariantCodes: Boolean(input.autoSyncVariantCodes),
       autoSyncVariantPrice: Boolean(input.autoSyncVariantPrice),
@@ -4002,7 +4272,7 @@ export const saveShopifySettings = onCall(
     }, { merge: true });
     await batch.commit();
 
-    return { ok: true, clientSecretSet: true };
+    return { ok: true, clientSecretSet: true, inventorySyncEnabled, inventorySync };
   }
 );
 
@@ -4849,6 +5119,16 @@ export const shopifyInventoryWebhook = onRequest(
         return response.status(401).send('invalid signature');
       }
 
+      // 画面の「最終受信」表示用。署名が通った通知だけ、5分に1回まで記録する(一括変更で書き込みが嵩まないように)。
+      const lastReceivedMs = settings.inventoryWebhookLastReceivedAt?.toMillis?.() || 0;
+      if (Date.now() - lastReceivedMs > 5 * 60 * 1000) {
+        try {
+          await storeRef.collection('settings').doc('shopify').set({ inventoryWebhookLastReceivedAt: FieldValue.serverTimestamp() }, { merge: true });
+        } catch (error) {
+          console.error('[shopifyInventoryWebhook] lastReceivedAt write failed', error?.message);
+        }
+      }
+
       if (!settings.inventorySyncEnabled) {
         return response.status(200).send('inventory sync disabled');
       }
@@ -5030,7 +5310,7 @@ const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericS
   return onHandByItemGid;
 };
 
-const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false }) => {
+const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false, inventoryWebhook = null }) => {
   const storeRef = db.collection('stores').doc(storeId);
   const settings = await readShopifySettings(storeRef);
 
@@ -5142,6 +5422,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     shopifyVariantsScanned: onHandByItemGid.size,
     autoResolved: appliedCount > 0,
     appliedCount,
+    // 毎晩の確認で見た在庫通知の状態(手動の照合では null)
+    inventoryWebhook,
     mismatches
   };
 
@@ -5416,8 +5698,16 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
           const shopifySettingsSnap = await storeDoc.ref.collection('settings').doc('shopify').get();
           const shopifySettings = shopifySettingsSnap.data() || {};
           if (shopifySettings.inventorySyncEnabled !== true) continue;
+          // 在庫通知があるか確かめ、無ければ登録し直す(Shopify は受け口のエラーが続くと通知を自動で消す)。
+          let inventoryWebhook = null;
+          try {
+            inventoryWebhook = await refreshShopifyInventoryWebhook(storeId);
+          } catch (error) {
+            console.error('[scheduledShopifyInventoryReconcile] webhook refresh failed', { storeId, message: error?.message });
+            inventoryWebhook = { status: 'failed', error: { title: error?.message || '在庫通知を確かめられませんでした' } };
+          }
           // inventoryReconcileAutoApply=true の店舗は差分を自動補正(POS=Shopify on_hand)。既定OFFはレポートのみ。
-          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true });
+          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true, inventoryWebhook });
           console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...result });
         } catch (error) {
           console.error('[scheduledShopifyInventoryReconcile] store failed', { storeId, message: error?.message });
