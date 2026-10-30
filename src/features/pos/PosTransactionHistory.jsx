@@ -4,7 +4,7 @@ import { openPosReceiptBrowserPrint } from '../../shared/utils/posReceiptBrowser
 import { issueReceipt, printPayloadByMode, resolveReceiptMode } from '../../shared/utils/receiptPrinting';
 import { getTableDisplayName } from '../../shared/utils/tableDisplay';
 import {
-  CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw
+  CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Filter, PauseCircle, Printer, QrCode, Receipt, Search, Tag, XCircle, LogOut, RotateCcw, ShoppingCart
 } from 'lucide-react';
 import { collection, limit, onSnapshot, orderBy, query, doc, getDoc, getDocs, increment, serverTimestamp, where, writeBatch, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 
@@ -22,6 +22,7 @@ import {
   buildReversalItems,
   buildReversalTransaction
 } from './corrections/correctionModel';
+import { isRecheckoutEligibleTransaction, RECHECKOUT_REASON } from './corrections/recheckoutModel';
 import SearchField from '../../shared/components/SearchField';
 
 const formatInvoiceNumber = (value) => {
@@ -505,7 +506,12 @@ export const PosTransactionHistory = ({
   checkoutRequests = [],
   activeCheckoutRequestId = null,
   onClaimCheckoutRequest = null,
-  onReleaseCheckoutRequest = null
+  onReleaseCheckoutRequest = null,
+  // 「取消してカートに戻す」(再会計)。POSレジだけ親が渡す。取消が確定した後に
+  // { transactions, entries } で呼ばれ、親がカートへ読み込む。
+  onRecheckout = null,
+  // カートに仮伝票が残っている間は再会計を始めない(読み込みで上書きしないため)。
+  isRecheckoutBlocked = false
 }) => {
   // 履歴は登録レジ単位。既定は自レジ(ownRegisterId)。「その他のレジ」で他レジを閲覧可。
   const [viewingRegisterId, setViewingRegisterId] = useState(ownRegisterId);
@@ -828,10 +834,12 @@ export const PosTransactionHistory = ({
   const [taskChecks, setTaskChecks] = useState({});
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
-  // 取消モード: 'cancel'(会計取消) or 'return'(返品)。返品は在庫を戻す/戻さないを選べる。
+  // 取消モード: 'cancel'(会計取消) or 'return'(返品) or 'recheckout'(取消してカートに戻す)。
+  // 返品は在庫を戻す/戻さないを選べる。再会計は全額取消(在庫は戻す)＋カートへ読み込み。
   const [cancelMode, setCancelMode] = useState('cancel');
   const [returnRestoreStock, setReturnRestoreStock] = useState(true);
   const isReturnMode = cancelMode === 'return';
+  const isRecheckoutMode = cancelMode === 'recheckout';
 
   // 支払方法の訂正。methodEditTarget={ticket, rows:[{txnId,currentMethod,amount,businessDate,isSplit}]}、
   // methodEditChoices={txnId:新method}。当日=元伝票を直接訂正 / 締め後=当日付の付替え伝票。
@@ -896,6 +904,17 @@ export const PosTransactionHistory = ({
       return;
     }
 
+    if (mode === 'recheckout') {
+      if (!onRecheckout || !targetTransactions.every(isRecheckoutEligibleTransaction)) {
+        window.alert('この会計はカートに戻せません（POSレジの会計だけが対象です）。');
+        return;
+      }
+      if (isRecheckoutBlocked) {
+        window.alert('レジに仮伝票が残っています。会計・保留・クリアのどれかをしてから戻してください。');
+        return;
+      }
+    }
+
     // すでに反対仕訳で取消済みの数量を明細ごとに集計(再取消の二重計上を防ぐ)。
     const reversedQtyOf = (tx, index) => (Array.isArray(tx.reversalEntries) ? tx.reversalEntries : [])
       .filter((entry) => Number(entry?.itemIndex) === index)
@@ -912,7 +931,8 @@ export const PosTransactionHistory = ({
         if (maxQty <= 0) return; // 全数取消済みの明細は出さない
         const key = `${tx.id}#${index}`;
         entries.push({ key, txnId: tx.id, index, item, maxQty, netRatio });
-        initial[key] = 0;
+        // 再会計は全額取消のみ(一部だけ戻すと割引の按分が残る)。最初から全数を選んでおく。
+        initial[key] = mode === 'recheckout' ? maxQty : 0;
       });
     });
 
@@ -921,7 +941,7 @@ export const PosTransactionHistory = ({
       return;
     }
 
-    setCancelMode(mode === 'return' ? 'return' : 'cancel');
+    setCancelMode(mode === 'return' || mode === 'recheckout' ? mode : 'cancel');
     setReturnRestoreStock(true);
     setCancelTarget({ ticketId: ticket?.id || '', transactions: targetTransactions, entries });
     setCancelQty(initial);
@@ -1230,8 +1250,15 @@ export const PosTransactionHistory = ({
     const num = (value) => Number(value || 0);
 
     // 取消 or 返品。返品は「在庫を戻す/戻さない」を選べる(取消は常に戻す)。
+    // 再会計(カートに戻す)は取消として計上する。理由は「再会計のため」を必ず残す。
     const correctionType = isReturnMode ? CORRECTION_TYPES.RETURN : CORRECTION_TYPES.CANCEL;
     const shouldRestoreStock = !isReturnMode || returnRestoreStock;
+    const recheckoutRequested = isRecheckoutMode && typeof onRecheckout === 'function';
+    const reasonText = recheckoutRequested
+      ? [RECHECKOUT_REASON, cancelReason.trim()].filter(Boolean).join(' / ')
+      : cancelReason.trim();
+    // 再会計はカートへ読み込む明細を取消前の状態で控えておく(取消後は cancelTarget を消すため)。
+    const recheckoutEntries = recheckoutRequested ? (cancelTarget.entries || []) : [];
 
     // 束ねた各取引ごとに「取消後の明細」と取消記録を算出する。取消数量は
     // cancelQty[`${txnId}#${index}`] で取引×明細単位に持つ。
@@ -1428,7 +1455,7 @@ export const PosTransactionHistory = ({
             reversalItems,
             totals,
             correctionType,
-            reason: cancelReason.trim(),
+            reason: reasonText,
             operator,
             businessDate: today
           });
@@ -1460,7 +1487,7 @@ export const PosTransactionHistory = ({
             stockRestored: entry.stockRestored,
             reversalTransactionId: reversalRef.id,
             businessDate: today,
-            reason: cancelReason.trim()
+            reason: reasonText
           }));
           const nextReversalEntries = [
             ...(Array.isArray(transaction.reversalEntries) ? transaction.reversalEntries : []),
@@ -1522,7 +1549,7 @@ export const PosTransactionHistory = ({
         }
         const cancellationLog = {
           cancelledAt: new Date().toISOString(),
-          reason: cancelReason.trim(),
+          reason: reasonText,
           amount: cancelledTotal,
           type: fullyCancelled ? 'full' : 'partial',
           correctionType,
@@ -1634,6 +1661,18 @@ export const PosTransactionHistory = ({
       setCancelTarget(null);
       setCancelQty({});
       setCancelReason('');
+
+      // 再会計: 取消が確定してからカートへ読み込む(取消に失敗したらカートには入れない)。
+      // 読み込みに失敗しても取消は成立済みなので、その旨を出して手で打ち直してもらう。
+      if (recheckoutRequested) {
+        setCancelMode('cancel');
+        try {
+          await onRecheckout({ transactions: targetTransactions, entries: recheckoutEntries });
+        } catch (recheckoutError) {
+          console.error('[recheckout] カートへの読み込みに失敗', recheckoutError);
+          window.alert(`取消は完了しましたが、カートへ戻せませんでした。商品を打ち直してください。\n${recheckoutError?.message || ''}`);
+        }
+      }
     } catch (error) {
       console.error('[pos cancel error]', error);
       window.alert(`取消に失敗しました${error?.message ? `: ${error.message}` : ''}`);
@@ -3826,6 +3865,20 @@ export const PosTransactionHistory = ({
                           </div>
                         )}
 
+                        {onRecheckout && (ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0)) && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCancelModal(ticket, 'recheckout');
+                            }}
+                            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-black text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                          >
+                            <ShoppingCart size={14} />
+                            取消してカートに戻す
+                          </button>
+                        )}
+
                         {(ticket.sourceTransactionId || (Array.isArray(ticket.sourceTransactionIds) && ticket.sourceTransactionIds.length > 0)) && (
                           <button
                             type="button"
@@ -4198,7 +4251,14 @@ export const PosTransactionHistory = ({
           <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-[2rem] border border-red-100 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-5">
               <div className="min-w-0">
-                <h3 className="text-lg font-black text-gray-900">{isReturnMode ? '返品' : '会計の取消'}</h3>
+                <h3 className="text-lg font-black text-gray-900">
+                  {isRecheckoutMode ? '取消してカートに戻す' : isReturnMode ? '返品' : '会計の取消'}
+                </h3>
+                {isRecheckoutMode && (
+                  <p className="mt-1.5 text-[11px] font-bold leading-snug text-gray-500">
+                    この会計を全額取消して、商品・割引・会員をレジのカートに戻します。直してから会計し直してください。
+                  </p>
+                )}
                 {cancelTargetLocked && (
                   <p className="mt-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-black leading-snug text-amber-700">
                     締め済みのため本日の「取消」に表示・計上されます。
@@ -4228,6 +4288,9 @@ export const PosTransactionHistory = ({
                         ¥{Number(item.totalPrice || 0).toLocaleString()} / {qty}点
                       </div>
                     </div>
+                    {isRecheckoutMode ? (
+                      <span className="shrink-0 text-base font-black tabular-nums text-gray-900">{sel}点</span>
+                    ) : (
                     <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
@@ -4245,10 +4308,12 @@ export const PosTransactionHistory = ({
                         ＋
                       </button>
                     </div>
+                    )}
                   </div>
                 );
               })}
 
+              {!isRecheckoutMode && (
               <button
                 type="button"
                 onClick={selectAllForCancel}
@@ -4258,6 +4323,7 @@ export const PosTransactionHistory = ({
               >
                 {isReturnMode ? '全部返品（すべて選択）' : '全額取消（すべて選択）'}
               </button>
+              )}
 
               {isReturnMode && (
                 <button
@@ -4275,7 +4341,7 @@ export const PosTransactionHistory = ({
               <textarea
                 value={cancelReason}
                 onChange={(event) => setCancelReason(event.target.value)}
-                placeholder={isReturnMode ? '返品理由（任意）' : '取消理由（任意）'}
+                placeholder={isRecheckoutMode ? '直す理由（任意・「再会計のため」は自動で残ります）' : isReturnMode ? '返品理由（任意）' : '取消理由（任意）'}
                 rows={2}
                 className="border-2 border-gray-200 bg-white hover:border-gray-300 mt-2 w-full rounded-xl p-2 text-sm font-bold focus:border-red-300 outline-none focus:border-ui"
               />
@@ -4341,7 +4407,7 @@ export const PosTransactionHistory = ({
                 >
                   {isCancelling
                     ? (isReturnMode ? '返品処理中...' : '取消処理中...')
-                    : (isReturnMode ? '返品処理完了' : '取消処理完了')}
+                    : (isRecheckoutMode ? '取消してカートに戻す' : isReturnMode ? '返品処理完了' : '取消処理完了')}
                 </button>
               </div>
             </div>
