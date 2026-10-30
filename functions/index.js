@@ -4049,12 +4049,17 @@ const runShopifyWebhookMutation = async ({ shopDomain, accessToken, query, varia
   return payload;
 };
 
+// dev(SHOPIFY_DRY_RUN=1)で在庫通知の登録・削除だけを試すときの例外。dev あての通知しか作らない(送り先は実行中の環境)。
+// 在庫の書き込みは引き続き止まる。確かめ終わったら .env から外す。
+const isShopifyWebhookWriteAllowed = () => !isShopifyDryRun()
+  || ['1', 'true', 'yes'].includes(String(process.env.SHOPIFY_WEBHOOK_REGISTER || '').trim().toLowerCase());
+
 // 在庫通知をこの店舗向けに1件だけ・正しい送り先で置く。何度呼んでも同じ結果になる。
 // dev(SHOPIFY_DRY_RUN=1)は鍵・権限・ロケーションの確認までで、Shopify には登録しない(dev と prod は同じストア)。
 const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
   const access = await checkShopifyInventoryAccess(settings);
   const uri = shopifyInventoryWebhookUri(storeId);
-  if (isShopifyDryRun()) {
+  if (!isShopifyWebhookWriteAllowed()) {
     console.log('[shopifyInventoryWebhook] DRY RUN: skip register', { storeId, uri });
     return { status: 'dryRun', uri, subscriptionId: null, locationName: access.location.name };
   }
@@ -4112,7 +4117,7 @@ const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
 
 // 在庫連携 OFF のとき。この店舗向けの在庫通知を消す(他店・他環境の通知は触らない)。
 const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
-  if (isShopifyDryRun()) return { removed: 0, dryRun: true };
+  if (!isShopifyWebhookWriteAllowed()) return { removed: 0, dryRun: true };
   const access = await getShopifyAccessTokenFromSettings(settings);
   const subscriptions = await listShopifyInventoryWebhooks(access);
   const mine = subscriptions.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
