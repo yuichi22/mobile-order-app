@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins, User } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
@@ -49,6 +49,7 @@ import TerminalPaymentModal from './terminal/TerminalPaymentModal';
 import { pushInventoryToShopify } from '../store/services/storeDataService';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../inventory/services/stocktakeDataService';
 import { getAuth } from 'firebase/auth';
+import { buildRecheckoutCartItems, buildRecheckoutDiscount, buildRecheckoutPointsItem } from './corrections/recheckoutModel';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
@@ -229,6 +230,9 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [posHolds, setPosHolds] = useState([]);
   const [activePosHoldId, setActivePosHoldId] = useState('');
   const [takeoutCart, setTakeoutCart] = useState([]);
+  // 「取消してカートに戻す」で読み込んだ元の会計。{ transactionIds, label, skippedNames }。
+  // 会計し直したら新しい伝票に recheckoutOf として残し、元伝票にも新しい伝票IDを書く。
+  const [recheckoutSource, setRecheckoutSource] = useState(null);
   const [takeoutPaymentMethod, setTakeoutPaymentMethod] = useState('');
   const [takeoutPaymentAmount, setTakeoutPaymentAmount] = useState('');
   const [takeoutDiscountType, setTakeoutDiscountType] = useState('none');
@@ -503,7 +507,10 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
   const [wasTakeoutCartEmpty, setWasTakeoutCartEmpty] = useState(isTakeoutCartEmpty);
   if (wasTakeoutCartEmpty !== isTakeoutCartEmpty) {
     setWasTakeoutCartEmpty(isTakeoutCartEmpty);
-    if (isTakeoutCartEmpty) clearTakeoutDiscount();
+    if (isTakeoutCartEmpty) {
+      clearTakeoutDiscount();
+      setRecheckoutSource(null);
+    }
   }
 
   // 連続スキャン時に「どの行に入ったか」を見せる: 追加行をハイライトし、画面外なら自動スクロール。
@@ -1148,6 +1155,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       version: POS_HOLD_STORAGE_VERSION,
       title: `保留 ${now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`,
       cart: takeoutCart,
+      // 再会計の途中で保留しても、呼び戻した会計に元伝票との紐付けが残るようにする。
+      ...(recheckoutSource ? { recheckoutSource } : {}),
       totalAmount: Number(holdTotal),
       itemCount: takeoutCart.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       createdAt: activePosHoldId
@@ -1185,6 +1194,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     savePosHolds(posHolds.filter((item) => item.id !== holdId));
 
     setTakeoutCart(Array.isArray(hold.cart) ? hold.cart : []);
+    setRecheckoutSource(hold.recheckoutSource || null);
     // 保留カートにgroom会計依頼の明細が含まれていたら紐付けを復元する
     // (復元できないと会計してもcheckoutRequestがpaidにならず一覧に残り続けるため)。
     const heldGroomRequestId = (Array.isArray(hold.cart) ? hold.cart : [])
@@ -1200,6 +1210,78 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     setTakeoutPaymentMethod('');
     setActivePosHoldId('');
     setPosMessage(`${hold.title || '保留'} を復帰しました。`, 'success');
+  };
+
+  // 「取消してカートに戻す」: 履歴で全額取消が確定した会計の明細・割引・会員をカートへ読み込む。
+  // 単価は会計時の値のまま。原価・在庫管理の有無は会計明細に無いので商品docから補う。
+  // 金券・売掛・全額売掛は戻さない(券を受け取り直してから入れ直す)。
+  const loadRecheckoutIntoCart = async ({ transactions = [], entries = [] } = {}) => {
+    const productIds = [...new Set(entries
+      .filter((entry) => entry?.item?.sourceType === 'retail')
+      .map((entry) => String(entry.item.productId || '').replace(/^product:/, ''))
+      .filter(Boolean))];
+    const productsById = new Map();
+    await Promise.all(productIds.map(async (productId) => {
+      try {
+        const snap = await getDoc(doc(db, 'stores', storeId, 'products', productId));
+        if (snap.exists()) productsById.set(productId, snap.data());
+      } catch (error) {
+        console.warn('[recheckout] 商品の取得に失敗', productId, error);
+      }
+    }));
+    const cart = buildRecheckoutCartItems(entries, productsById);
+    if (cart.length === 0) throw new Error('戻せる商品がありません。');
+
+    // 会員: 取消でポイントは残高へ戻っているので、読み直してから同じ数を使う。
+    const original = transactions.length === 1 ? transactions[0] : null;
+    const personId = transactions.map((tx) => tx?.personId).find(Boolean) || null;
+    let member = null;
+    clearCrmMember();
+    if (personId) {
+      member = await lookupCrmMemberByPersonId(personId).catch(() => null);
+    }
+    const redeemedPoints = Math.floor(Number(original?.crmPointsRedeemed) || 0);
+    const pointsItem = member && redeemedPoints > 0
+      ? buildRecheckoutPointsItem(redeemedPoints, (Number(original.crmPointsRedeemedYen) || redeemedPoints) / redeemedPoints)
+      : null;
+    // 伝票割引は1会計のときだけ戻す(束ねた複数会計は割引が会計ごとに違うため)。
+    const { discount, skippedNames } = original
+      ? buildRecheckoutDiscount(original.appliedDiscount, { pointsItem })
+      : { discount: null, skippedNames: [] };
+    if (!original && transactions.some((tx) => Number(tx?.discountAmount || 0) + Number(tx?.promoExpenseAmount || 0) + Number(tx?.voucherAmount || 0) > 0)) {
+      skippedNames.push('伝票の割引');
+    }
+    if (personId && !member) skippedNames.push('会員');
+    else if (redeemedPoints > 0 && !pointsItem) skippedNames.push('ポイント利用');
+
+    clearTakeoutDiscount();
+    setTakeoutCart(cart);
+    if (discount) {
+      setTakeoutDiscountType(discount.type);
+      setTakeoutDiscountValue(discount.value);
+      setTakeoutSelectedDiscount(discount.selected);
+      if (pointsItem && discount.type === 'amount') setCrmPointsToUse(pointsItem.points);
+    }
+    const paidAt = original?.paidAt instanceof Date ? original.paidAt : null;
+    const label = [
+      paidAt ? paidAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '',
+      `¥${transactions.reduce((sum, tx) => sum + Number(tx?.totalAmount || 0), 0).toLocaleString()}`
+    ].filter(Boolean).join(' ');
+    setRecheckoutSource({
+      transactionIds: transactions.map((tx) => tx.id).filter(Boolean),
+      label,
+      skippedNames
+    });
+    setTakeoutPaymentAmount('');
+    setTakeoutPaymentMethod('');
+    setActivePosHoldId('');
+    setIsTakeoutMode(true);
+    setPosMessage(
+      skippedNames.length > 0
+        ? `カートに戻しました。${skippedNames.join('・')}は入れ直してください。`
+        : 'カートに戻しました。直してから会計してください。',
+      skippedNames.length > 0 ? 'error' : 'success'
+    );
   };
 
   const deletePosHold = async (holdId) => {
@@ -1996,8 +2078,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           ...(!groomRequestForPayment?.personId && crmMember?.personId
             ? { personId: crmMember.personId, crmSource: 'member_code' }
             : {}),
-          ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable, crmPointsRedeemedYen: crmPointsRedeemable * Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1) } : {})
+          ...(crmPointsRedeemable > 0 ? { crmPointsRedeemed: crmPointsRedeemable, crmPointsRedeemedYen: crmPointsRedeemable * Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1) } : {}),
+
+          // 「取消してカートに戻す」からの打ち直し。元の(取消済み)会計のID。
+          ...(recheckoutSource?.transactionIds?.length ? { recheckoutOf: recheckoutSource.transactionIds } : {})
         });
+
+      // 元の会計にも打ち直した伝票を残す(履歴から行き来できるように)。金額・状態は触らない。
+      (recheckoutSource?.transactionIds || []).forEach((originalId) => {
+        batch.update(doc(db, 'stores', storeId, 'transactions', originalId), {
+          recheckoutTransactionIds: arrayUnion(transactionRef.id),
+          updatedAt: serverTimestamp()
+        });
+      });
 
       if (groomRequestForPayment) {
         batch.update(doc(db, 'stores', storeId, 'checkoutRequests', groomRequestForPayment.id), {
@@ -2116,6 +2209,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       }
 
       clearActivePosHoldAfterPayment();
+      setRecheckoutSource(null);
       setActiveCheckoutRequest(null);
       // ⚠ Web予約の会計が成立したら受け渡し済みにする。ここで例外にしない。
       //   投げると、会計は通っているのにエラー表示になり二重会計を招く。
@@ -2565,7 +2659,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             </button>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                // 再会計の途中は元の会計がもう取消済み。クリアすると売上が消えたままになるので確かめる。
+                if (recheckoutSource && !(await appConfirm(
+                  '元の会計は取消済みです。クリアすると、打ち直さないままになります。クリアしますか？',
+                  { okLabel: 'クリアする', tone: 'danger' }
+                ))) return;
                 clearCrmMember(); // 会計を破棄したら会員も解除
                 setTakeoutCart([]);
                 setTakeoutPaymentAmount('');
@@ -2620,6 +2719,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {recheckoutSource && takeoutCart.length > 0 && (
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-snug text-amber-800">
+            <div className="font-black">再会計中：元の会計{recheckoutSource.label ? `（${recheckoutSource.label}）` : ''}は取消済みです</div>
+            {recheckoutSource.skippedNames?.length > 0 && (
+              <div className="mt-0.5">{recheckoutSource.skippedNames.join('・')}は入れ直してください。</div>
+            )}
+          </div>
+        )}
         {takeoutCart.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-gray-300">
             <ShoppingBag size={56} strokeWidth={1.5} />
@@ -3551,6 +3658,8 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
             activeCheckoutRequestId={activeCheckoutRequest?.id || null}
             onClaimCheckoutRequest={claimCheckoutRequest}
             onReleaseCheckoutRequest={releaseCheckoutRequest}
+            onRecheckout={registerMode === 'pos' ? loadRecheckoutIntoCart : null}
+            isRecheckoutBlocked={takeoutCart.length > 0}
           />
         )}
       </div>
