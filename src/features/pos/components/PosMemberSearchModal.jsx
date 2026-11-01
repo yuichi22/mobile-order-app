@@ -243,8 +243,8 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
   };
 
   const amountNumber = Math.max(0, Math.floor(Number(amount || 0) || 0));
-  // 1回あたりの上限。Core が返す（DECOLLE ではスタンプカード1枚＝¥30,000 が由来）。
-  const grantLimitYen = Number(meta.stampCardYen || 30000);
+  // 1回あたりの上限。Core が返す（2026-11-01 に ¥30,000 → ¥50,000）。
+  const grantLimitYen = Number(meta.grantLimitYen || 50000);
   const previewPoints = meta.pointsPerYen > 0 ? Math.floor(amountNumber * meta.pointsPerYen) : 0;
   // 付与は有効なのに付与率が取れていない＝サーバ側の受け渡し漏れ。
   // ⚠「金額が小さい」と区別しないと、原因が分からないまま押せないボタンを眺めることになる
@@ -764,7 +764,7 @@ const MemberActions = ({ storeId, member, meta, onPatchRow, onLoadMember, onClos
 const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
   const [q, setQ] = useState('');
   const [rows, setRows] = useState(null); // null=未検索 / []=0件
-  const [meta, setMeta] = useState({ matchCount: 0, truncated: false, pointsPerYen: 0, pointsEnabled: true, stampCardYen: 30000 });
+  const [meta, setMeta] = useState({ matchCount: 0, truncated: false, pointsPerYen: 0, pointsEnabled: true, stampCardYen: 30000, grantLimitYen: 50000 });
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState('');
 
@@ -792,7 +792,8 @@ const PosMemberSearchModal = ({ storeId, onClose, onLoadMember }) => {
         truncated: res.truncated,
         pointsPerYen: res.pointsPerYen,
         pointsEnabled: res.pointsEnabled,
-        stampCardYen: res.stampCardYen
+        stampCardYen: res.stampCardYen,
+        grantLimitYen: res.grantLimitYen
       });
     } catch (e) {
       setRows(null);

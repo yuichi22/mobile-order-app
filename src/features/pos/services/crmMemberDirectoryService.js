@@ -43,7 +43,8 @@ export const searchCrmMembers = async ({ storeId, q }) => {
     truncated: d.truncated === true,
     pointsPerYen: Number(d.pointsPerYen || 0),
     pointsEnabled: d.pointsEnabled !== false,
-    stampCardYen: Number(d.stampCardYen || 30000)
+    stampCardYen: Number(d.stampCardYen || 30000),
+    grantLimitYen: Number(d.grantLimitYen || 50000)
   };
 };
 
