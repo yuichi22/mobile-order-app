@@ -255,6 +255,8 @@ export const crmSearchMembers = onCall({ region: REGION }, async (request) => {
     pointsPerYen: Number(data.pointsPerYen || 0),
     pointsEnabled: data.pointsEnabled !== false,
     stampCardYen: Number(data.stampCardYen || 30000),
+    // 手動付与1回あたりの上限。Core が返す（古い Core は返さないので下の既定値に揃える）。
+    grantLimitYen: Number(data.grantLimitYen || LEGACY_STAMP_GRANT_LIMIT_YEN),
   };
 });
 
@@ -290,14 +292,17 @@ export const crmSetMemberPhone = onCall({ region: REGION }, async (request) => {
   });
 });
 
-/** スタンプカード1枚＝30,000円（AppSheet取込の LTV 換算と同じ尺度）。 */
-const LEGACY_STAMP_CARD_YEN = 30000;
+/**
+ * ポイント移行（手動付与）1回あたりの上限。2026-11-01 ユーザー決定で 30,000円 → 50,000円。
+ * Core（suomi-admin の grantCrmLegacyStamp）も同じ値で弾く。変えるときは両方そろえる。
+ */
+const LEGACY_STAMP_GRANT_LIMIT_YEN = 50000;
 
 /**
  * 手書きスタンプカードの途中分をポイントにする。
  * ⚠入力は**金額（円）**。ポイントは Core が付与率から計算する（元帳に amount と points の
  *   両方が残り、後から「何に対する付与か」を追える）。
- * ⚠1回 30,000円＝カード1枚まで。2枚以上溜めている人は複数回に分ける。
+ * ⚠1回 50,000円まで。超える分は複数回に分ける。
  * ⚠grantId は呼び出し側が作る冪等キー。通信が切れて再送しても二重付与にならない。
  */
 export const crmGrantLegacyStamp = onCall({ region: REGION }, async (request) => {
@@ -313,10 +318,10 @@ export const crmGrantLegacyStamp = onCall({ region: REGION }, async (request) =>
   if (!grantId) throw new HttpsError("invalid-argument", "grantId required.");
   if (!reason) throw new HttpsError("invalid-argument", "付与の理由を入力してください。");
   if (amount <= 0) throw new HttpsError("invalid-argument", "金額を入力してください。");
-  if (amount > LEGACY_STAMP_CARD_YEN) {
+  if (amount > LEGACY_STAMP_GRANT_LIMIT_YEN) {
     throw new HttpsError(
       "invalid-argument",
-      `1回あたり ¥${LEGACY_STAMP_CARD_YEN.toLocaleString()}（カード1枚分）までです。2枚以上は分けて付与してください。`,
+      `1回あたり ¥${LEGACY_STAMP_GRANT_LIMIT_YEN.toLocaleString()} までです。超える分は分けて付与してください。`,
     );
   }
   const role = await assertStoreStaff(request, storeId);
