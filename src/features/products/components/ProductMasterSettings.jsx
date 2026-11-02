@@ -4576,6 +4576,17 @@ const ShopifySetupErrorNote = ({ error }) => (
   </div>
 );
 
+// 発送の通知。発送は手持ちだけが減り在庫通知が来ないので、これが無いとECで発送した分がレジ在庫に反映されない。
+const ShopifyFulfillmentWebhookStatus = ({ fulfillment }) => {
+  if (fulfillment?.status === 'active') {
+    return <div className="mt-1 text-xs font-black text-gray-700">発送の通知：有効</div>;
+  }
+  if (fulfillment?.status === 'missingScope' || fulfillment?.status === 'failed') {
+    return <ShopifySetupErrorNote error={fulfillment.error} />;
+  }
+  return <div className="mt-1 text-xs font-bold text-gray-500">発送の通知：未確認。設定を保存し直すか、毎晩の確認で登録します。</div>;
+};
+
 const ShopifyInventoryWebhookStatus = ({ settings }) => {
   if (!settings?.inventorySyncEnabled) return null;
   const webhook = settings?.inventoryWebhook || null;
@@ -4592,7 +4603,12 @@ const ShopifyInventoryWebhookStatus = ({ settings }) => {
     );
   }
   if (webhook?.status === 'active') {
-    return <div className="mt-2 text-xs font-black text-gray-700">Shopify からの通知：有効{lastReceived}</div>;
+    return (
+      <div className="mt-2">
+        <div className="text-xs font-black text-gray-700">Shopify からの通知：有効{lastReceived}</div>
+        <ShopifyFulfillmentWebhookStatus fulfillment={webhook.fulfillment} />
+      </div>
+    );
   }
   if (webhook?.status === 'dryRun') {
     return <div className="mt-2 text-xs font-bold text-gray-500">開発環境のため、Shopify への通知の登録はしていません（鍵・権限・ロケーションの確認だけ行いました）。</div>;

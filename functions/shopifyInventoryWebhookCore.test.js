@@ -5,6 +5,8 @@ import {
   classifyTokenError,
   classifyUserErrors,
   findMissingScopes,
+  fulfillmentVariantGids,
+  hasFulfillmentScope,
   isSubscriptionForStore,
   planInventoryWebhook,
   toLocationGid
@@ -77,4 +79,39 @@ test('通知登録の userErrors を分類する', () => {
   const other = classifyUserErrors([{ message: 'Something else' }]);
   assert.equal(other.code, 'webhook');
   assert.equal(other.detail, 'Something else');
+});
+
+test('発送の通知は read_fulfillments などのどれかがあれば登録できる', () => {
+  assert.equal(hasFulfillmentScope('read_inventory,read_fulfillments'), true);
+  assert.equal(hasFulfillmentScope(['write_fulfillments']), true);
+  assert.equal(hasFulfillmentScope(['read_marketplace_orders']), true);
+  assert.equal(hasFulfillmentScope('read_inventory,write_inventory,read_locations,read_orders'), false);
+  assert.equal(hasFulfillmentScope(''), false);
+});
+
+test('発送の通知から variant を gid で重複なく取り出す', () => {
+  const payload = {
+    line_items: [
+      { variant_id: 44000000000001, quantity: 1 },
+      { variant_id: '44000000000001', quantity: 2 },
+      { variant_id: 44000000000002 },
+      { variant_id: null, name: 'カスタムアイテム' }
+    ]
+  };
+  assert.deepEqual(fulfillmentVariantGids(payload), [
+    'gid://shopify/ProductVariant/44000000000001',
+    'gid://shopify/ProductVariant/44000000000002'
+  ]);
+  assert.deepEqual(fulfillmentVariantGids({}), []);
+  assert.deepEqual(fulfillmentVariantGids(null), []);
+});
+
+test('発送の通知も topic ごとに1件だけ置く(在庫通知とは別に数える)', () => {
+  const subscriptions = [
+    { id: 'inv', topic: 'INVENTORY_LEVELS_UPDATE', uri: PROD_URI, format: 'JSON' },
+    { id: 'ful', topic: 'FULFILLMENTS_CREATE', uri: PROD_URI, format: 'JSON' }
+  ];
+  assert.deepEqual(planInventoryWebhook({ subscriptions, desiredUri: PROD_URI, storeId: 'store_110ec', topic: 'FULFILLMENTS_CREATE' }), { action: 'keep', id: 'ful', remove: [] });
+  assert.deepEqual(planInventoryWebhook({ subscriptions, desiredUri: PROD_URI, storeId: 'store_110ec', topic: 'FULFILLMENTS_UPDATE' }), { action: 'create', remove: [] });
+  assert.deepEqual(planInventoryWebhook({ subscriptions, desiredUri: PROD_URI, storeId: 'store_110ec' }), { action: 'keep', id: 'inv', remove: [] });
 });

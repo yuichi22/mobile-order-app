@@ -5,22 +5,45 @@
 export const INVENTORY_WEBHOOK_TOPIC = 'INVENTORY_LEVELS_UPDATE';
 export const REQUIRED_INVENTORY_SCOPES = ['read_inventory', 'write_inventory', 'read_locations'];
 
+// 発送の通知。在庫通知は「販売可能数」が変わったときしか来ないので、発送(手持ちだけが減る)と
+// 発送の取消(手持ちだけが戻る)はこちらで拾い、手持ちを読み直してレジへ写す(2026-11-02 出雲の注文1003で発覚)。
+export const FULFILLMENT_WEBHOOK_TOPICS = ['FULFILLMENTS_CREATE', 'FULFILLMENTS_UPDATE'];
+// 受け口に届くヘッダ(X-Shopify-Topic)の形
+export const FULFILLMENT_TOPIC_HEADERS = ['fulfillments/create', 'fulfillments/update'];
+// どれか1つあれば発送の通知を登録できる
+const FULFILLMENT_SCOPES = ['read_fulfillments', 'write_fulfillments', 'read_marketplace_orders', 'write_marketplace_orders'];
+
 const SCOPE_LABELS = {
   read_inventory: '在庫の読み取り(read_inventory)',
   write_inventory: '在庫の書き込み(write_inventory)',
   read_locations: 'ロケーションの読み取り(read_locations)'
 };
 
+const toScopeSet = (granted = []) => new Set((Array.isArray(granted) ? granted : String(granted || '').split(','))
+  .map((scope) => String(scope || '').trim())
+  .filter(Boolean));
+
 // Shopify は write_x を持っていれば read_x を返さないことがあるので、write で read を満たす。
 export const findMissingScopes = (granted = []) => {
-  const set = new Set((Array.isArray(granted) ? granted : String(granted || '').split(','))
-    .map((scope) => String(scope || '').trim())
-    .filter(Boolean));
+  const set = toScopeSet(granted);
   return REQUIRED_INVENTORY_SCOPES.filter((scope) => {
     if (set.has(scope)) return false;
     if (scope.startsWith('read_') && set.has(`write_${scope.slice(5)}`)) return false;
     return true;
   });
+};
+
+export const hasFulfillmentScope = (granted = []) => {
+  const set = toScopeSet(granted);
+  return FULFILLMENT_SCOPES.some((scope) => set.has(scope));
+};
+
+// 発送の通知(REST 形式)から、発送された商品の variant を gid で重複なく取り出す。
+export const fulfillmentVariantGids = (payload = {}) => {
+  const ids = (Array.isArray(payload?.line_items) ? payload.line_items : [])
+    .map((item) => String(item?.variant_id || '').trim())
+    .filter((id) => /^\d+$/.test(id));
+  return [...new Set(ids)].map((id) => `gid://shopify/ProductVariant/${id}`);
 };
 
 // 送り先は実行中の環境から組み立てる(dev で ON にしても prod の受け口は登録しない)。
@@ -50,8 +73,9 @@ export const isSubscriptionForStore = (uri, storeId) => {
 };
 
 // 既存の通知一覧から、何をすれば「この店舗向けが1件だけ・送り先と形式が正しい」になるかを決める。
-export const planInventoryWebhook = ({ subscriptions = [], desiredUri, storeId }) => {
-  const mine = subscriptions.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+// 発送の通知も同じ受け口に送るので、topic ごとに同じ決め方をする。
+export const planInventoryWebhook = ({ subscriptions = [], desiredUri, storeId, topic = INVENTORY_WEBHOOK_TOPIC }) => {
+  const mine = subscriptions.filter((sub) => sub?.topic === topic && isSubscriptionForStore(sub.uri, storeId));
   if (mine.length === 0) return { action: 'create', remove: [] };
   const exact = mine.find((sub) => sub.uri === desiredUri && sub.format === 'JSON');
   const keep = exact || mine[0];
@@ -113,6 +137,12 @@ export const setupError = (code, { detail = '', missingScopes = [], locationName
         step: 'location', code, detail,
         title: locationName ? `ロケーション「${locationName}」が Shopify で無効になっています` : 'ロケーションが Shopify で無効になっています',
         howTo: 'Shopify の「設定 > ロケーション」で有効にしてから、保存し直してください。'
+      });
+    case 'fulfillmentScope':
+      return new ShopifySetupError({
+        step: 'scopes', code, detail,
+        title: 'アプリに発送の読み取り(read_fulfillments)の権限がありません。発送した分がレジ在庫に反映されません',
+        howTo: 'Dev Dashboard でアプリのアクセス範囲に read_fulfillments を足し、新しいバージョンを出してストアで権限を承認してください。そのあと保存し直してください。'
       });
     case 'webhookTaken':
       return new ShopifySetupError({
