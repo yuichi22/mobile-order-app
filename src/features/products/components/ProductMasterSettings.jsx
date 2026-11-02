@@ -4616,6 +4616,35 @@ const ShopifyInventoryWebhookStatus = ({ settings }) => {
   return <div className="mt-2 text-xs font-bold text-gray-500">Shopify からの通知：未確認{lastReceived}。設定を保存し直すか、毎晩の確認で登録します。</div>;
 };
 
+// 夜間の在庫点検(毎晩03:00)が最後まで動いたか。時間切れで打ち切られると記録が更新されないので、
+// 最終実行が古ければ「止まっています」と出す(HAUS で 8/3 から2か月気づけなかった反省、2026-11-02)。
+const RECONCILE_STALE_MS = 30 * 60 * 60 * 1000;
+const ShopifyNightlyReconcileStatus = ({ settings }) => {
+  if (!settings?.inventorySyncEnabled) return null;
+  const lastRun = settings?.inventoryReconcileLastRun || null;
+  const atValue = lastRun?.at;
+  const atDate = atValue?.toDate ? atValue.toDate() : (atValue ? new Date(atValue) : null);
+  const atMs = atDate && !Number.isNaN(atDate.getTime()) ? atDate.getTime() : 0;
+  if (!atMs) {
+    return <div className="mt-2 text-xs font-bold text-gray-500">夜間の自動点検：まだ記録がありません（今夜 03:00 から記録します）。</div>;
+  }
+  const when = formatProductMasterDateTimeText(atDate);
+  if (Date.now() - atMs > RECONCILE_STALE_MS) {
+    return (
+      <div className="mt-2 text-xs font-black text-red-600">
+        夜間の自動点検：止まっています（最終 {when}）。Shopify で売れた分がレジに追いつきません。「在庫の差分を確認」で確かめ、開発担当に連絡してください。
+      </div>
+    );
+  }
+  const applied = Number(lastRun.appliedCount || 0);
+  const skipped = Number(lastRun.skippedChangedCount || 0);
+  const mismatched = Number(lastRun.mismatched || 0);
+  const detail = lastRun.autoApply
+    ? `自動補正 ${applied.toLocaleString()}件${skipped ? `・見送り ${skipped.toLocaleString()}件` : ''}`
+    : `不一致 ${mismatched.toLocaleString()}件（自動補正は OFF）`;
+  return <div className="mt-2 text-xs font-black text-gray-700">夜間の自動点検：最終 {when}・{detail}</div>;
+};
+
 export const ShopifySettingsPanel = ({
   storeId,
   settings,
@@ -4697,6 +4726,33 @@ export const ShopifySettingsPanel = ({
     URL.revokeObjectURL(url);
   };
 
+  // 「レジが正」: レジの数はそのままで、Shopify の手持ちをレジの数に合わせる(1件ずつ)。
+  // まとめて行うと EC で正しく減った分を Shopify から戻してしまうので、1件ずつ人が判断するときだけ使う。
+  const keepPosInventory = async (row) => {
+    if (!storeId || !row?.productId || mismatchSavingId) return;
+    const ok = await appConfirm(
+      `「${row.name || '商品'}」の Shopify の在庫を、レジの数（${Number(row.pos || 0).toLocaleString()}）に合わせます。\nEC で売れて発送済みの分がある商品には使わないでください。`,
+      { title: 'レジの数を正にする', okLabel: '合わせる' }
+    );
+    if (!ok) return;
+    setMismatchSavingId(row.productId);
+    setReconcileError('');
+    try {
+      const idToken = await getAuth().currentUser?.getIdToken?.();
+      const result = await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken });
+      if (!result || Number(result.pushed || 0) === 0 || (result.userErrors || []).length) {
+        const reason = (result?.userErrors || []).map((entry) => entry?.message).filter(Boolean).join(' / ')
+          || (result?.skipped ? `送信されませんでした（${result.skipped}）` : 'Shopify へ送れませんでした');
+        throw new Error(reason);
+      }
+      setMismatchResolved((current) => ({ ...current, [row.productId]: { label: `Shopify を ${Number(row.pos || 0).toLocaleString()} に` } }));
+    } catch (error) {
+      setReconcileError(error?.message || 'Shopify の在庫を合わせられませんでした。');
+    } finally {
+      setMismatchSavingId('');
+    }
+  };
+
   // apply=true: 不一致のレジ在庫をまとめて Shopify の手持ちに合わせる(夜間の自動補正を今すぐ行う)。
   const runInventoryReconcile = async ({ apply = false } = {}) => {
     if (!onReconcileInventory || reconcileRunning) return;
@@ -4716,6 +4772,17 @@ export const ShopifySettingsPanel = ({
     try {
       const result = await onReconcileInventory({ apply });
       setReconcileResult(result);
+      // まとめて合わせた行は「修正済み」にする(一覧の数は合わせる前の値なので、そのままだと直っていないように見える)。
+      const appliedIds = new Set(result?.appliedProductIds || []);
+      if (appliedIds.size) {
+        const resolvedNow = {};
+        (result?.mismatches || []).forEach((row) => {
+          if (row.reason === 'mismatch' && appliedIds.has(row.productId)) {
+            resolvedNow[row.productId] = { label: `レジを ${Math.max(Number(row.shopify || 0), 0).toLocaleString()} に` };
+          }
+        });
+        setMismatchResolved(resolvedNow);
+      }
     } catch (error) {
       setReconcileError(error?.message || '在庫の差分確認に失敗しました。');
     } finally {
@@ -4773,7 +4840,7 @@ export const ShopifySettingsPanel = ({
         }
       })();
 
-      setMismatchResolved((current) => ({ ...current, [row.productId]: nextQuantity }));
+      setMismatchResolved((current) => ({ ...current, [row.productId]: { label: `レジ・Shopify とも ${nextQuantity.toLocaleString()}` } }));
       onSaved?.();
     } catch (error) {
       setReconcileError(error?.message || '在庫の修正に失敗しました。');
@@ -5259,6 +5326,7 @@ export const ShopifySettingsPanel = ({
               {reconcileRunning ? '突合中…（数十秒〜数分かかります）' : '在庫の差分を確認する'}
             </button>
           </div>
+          <ShopifyNightlyReconcileStatus settings={settings} />
 
           {reconcileError && (
             <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
@@ -5302,7 +5370,12 @@ export const ShopifySettingsPanel = ({
           {reconcileResult?.ok && reconcileMismatchRows.length > 0 && (
             <div className="mt-3 overflow-hidden rounded-xl border border-amber-200 bg-white">
               <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">
-                不一致 {reconcileMismatchRows.length.toLocaleString()}件 — POS在庫を手入力で修正できます
+                {(() => {
+                  const resolvedCount = reconcileMismatchRows.filter((row) => mismatchResolved[row.productId]).length;
+                  return resolvedCount === reconcileMismatchRows.length
+                    ? `不一致 ${reconcileMismatchRows.length.toLocaleString()}件 — すべて修正済みです（POS・Shopify は修正前の数）`
+                    : `不一致 ${reconcileMismatchRows.length.toLocaleString()}件${resolvedCount ? `（修正済み ${resolvedCount.toLocaleString()}件）` : ''} — 数を入れて保存すると、レジと Shopify の両方をその数にします`;
+                })()}
               </div>
               <div className="max-h-96 divide-y divide-gray-100 overflow-y-auto">
                 {reconcileMismatchRows.map((row) => {
@@ -5320,7 +5393,7 @@ export const ShopifySettingsPanel = ({
                         <div className={Number(row.diff || 0) > 0 ? 'text-red-500' : 'text-ui'}>差分 {Number(row.diff || 0) > 0 ? '+' : ''}{Number(row.diff || 0).toLocaleString()}</div>
                       </div>
                       {resolved !== undefined ? (
-                        <span className="shrink-0 rounded-lg bg-gray-100 px-3 py-2 text-xs font-black text-gray-900">→ {Number(resolved).toLocaleString()} 反映済</span>
+                        <span className="shrink-0 rounded-lg bg-gray-100 px-3 py-2 text-xs font-black text-gray-900">修正済み：{resolved.label}</span>
                       ) : (
                         <div className="flex shrink-0 items-center gap-1">
                           <input
@@ -5337,6 +5410,15 @@ export const ShopifySettingsPanel = ({
                             className="inline-flex h-9 items-center rounded-lg bg-gray-700 px-3 text-xs font-black text-white transition hover:bg-gray-900 disabled:opacity-40"
                           >
                             {mismatchSavingId === row.productId ? '…' : '保存'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={mismatchSavingId === row.productId}
+                            onClick={() => keepPosInventory(row)}
+                            title="レジの数はそのままで、Shopify の在庫をレジの数に合わせます"
+                            className="inline-flex h-9 items-center rounded-lg border-2 border-gray-300 bg-white px-2 text-xs font-black text-gray-700 transition hover:bg-gray-100 disabled:opacity-40"
+                          >
+                            レジが正
                           </button>
                         </div>
                       )}

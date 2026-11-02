@@ -5478,6 +5478,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
   // 商品1件につき products/inventory/stockMovements の3書き込み → Firestoreバッチ上限(500)を割るため150件ずつ。
   let appliedCount = 0;
   let skippedChangedCount = 0;
+  const appliedProductIds = []; // 画面で「修正済み」と出すため(レポートには残さない)
   if (autoApply && corrections.length) {
     for (let i = 0; i < corrections.length; i += 150) {
       const chunk = corrections.slice(i, i + 150);
@@ -5491,6 +5492,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
       if (!applicable.length) continue;
       const batch = db.batch();
       for (const c of applicable) {
+        appliedProductIds.push(c.productId);
         batch.set(storeRef.collection('products').doc(c.productId), {
           inventoryQuantity: c.shopify, quantity: c.shopify,
           inventorySource: 'shopify', inventoryUpdatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
@@ -5537,6 +5539,26 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
 
   const reportRef = await storeRef.collection('inventoryReconcileReports').add(summary);
 
+  // 夜間の点検が最後まで動いたかを画面に出すための記録。時間切れで打ち切られるとここまで来ないので、
+  // 画面は「最終実行が古い」ことで止まっているのに気づける(HAUS で 8/3 から気づけなかった反省)。
+  if (source === 'scheduled') {
+    try {
+      await storeRef.collection('settings').doc('shopify').set({
+        inventoryReconcileLastRun: {
+          at: FieldValue.serverTimestamp(),
+          autoApply: autoApply === true,
+          totalLinked,
+          mismatched: mismatchedCount,
+          missingInShopify,
+          appliedCount,
+          skippedChangedCount
+        }
+      }, { merge: true });
+    } catch (error) {
+      console.error('[runShopifyInventoryReconcile] lastRun write failed', { storeId, message: error?.message });
+    }
+  }
+
   return {
     reportId: reportRef.id,
     totalLinked,
@@ -5545,6 +5567,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     missingInShopify,
     appliedCount,
     skippedChangedCount,
+    appliedProductIds,
     reportedRows: mismatches.length,
     truncated: summary.truncated,
     shopifyVariantsScanned: onHandByItemGid.size,
@@ -5822,7 +5845,7 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
           }
           // inventoryReconcileAutoApply=true の店舗は差分を自動補正(POS=Shopify on_hand)。既定OFFはレポートのみ。
           const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true, inventoryWebhook, onHandMapCache });
-          const { mismatches: _omit, ...logSummary } = result;
+          const { mismatches: _omit, appliedProductIds: _ids, ...logSummary } = result;
           console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...logSummary });
         } catch (error) {
           console.error('[scheduledShopifyInventoryReconcile] store failed', { storeId, message: error?.message });
