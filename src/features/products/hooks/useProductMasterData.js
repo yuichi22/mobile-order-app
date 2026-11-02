@@ -220,11 +220,11 @@ export const useProductMasterData = (storeId, options = {}) => {
     return await syncShopifyProductLinks({ storeId, statuses, idToken });
   };
 
-  const reconcileShopifyInventoryData = async () => {
+  const reconcileShopifyInventoryData = async ({ apply = false } = {}) => {
     const auth = getAuth();
     const idToken = await auth.currentUser?.getIdToken?.();
 
-    return await reconcileShopifyInventory({ storeId, idToken });
+    return await reconcileShopifyInventory({ storeId, idToken, apply });
   };
 
   const reportShopifyVariantDiffData = async () => {

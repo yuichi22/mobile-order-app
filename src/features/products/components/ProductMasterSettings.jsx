@@ -4697,8 +4697,16 @@ export const ShopifySettingsPanel = ({
     URL.revokeObjectURL(url);
   };
 
-  const runInventoryReconcile = async () => {
+  // apply=true: 不一致のレジ在庫をまとめて Shopify の手持ちに合わせる(夜間の自動補正を今すぐ行う)。
+  const runInventoryReconcile = async ({ apply = false } = {}) => {
     if (!onReconcileInventory || reconcileRunning) return;
+    if (apply) {
+      const ok = await appConfirm(
+        'レジの在庫を、不一致の商品だけ Shopify の手持ちの数に合わせます。\nShopify で売れた分（発送済み）がレジに入っていないときに使います。\n途中でレジの数が変わった商品は合わせずに残します。',
+        { title: 'まとめて Shopify に合わせる', okLabel: '合わせる' }
+      );
+      if (!ok) return;
+    }
     setReconcileRunning(true);
     setReconcileError('');
     setReconcileResult(null);
@@ -4706,7 +4714,7 @@ export const ShopifySettingsPanel = ({
     setMismatchResolved({});
     setMismatchSavingId('');
     try {
-      const result = await onReconcileInventory();
+      const result = await onReconcileInventory({ apply });
       setReconcileResult(result);
     } catch (error) {
       setReconcileError(error?.message || '在庫の差分確認に失敗しました。');
@@ -5236,14 +5244,14 @@ export const ShopifySettingsPanel = ({
           <div className="text-sm font-black text-gray-700">在庫の差分を確認（リコンサイル）</div>
           <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
             紐付け済み商品について、POSの在庫数とShopifyのon_handを突合します。
-            <br />この<span className="text-gray-500">手動ボタンは読み取りのみ</span>で在庫は修正しません（差分レポートを作成し、人が確認）。go-live前の初期確認や臨時点検にお使いください。
+            <br />この<span className="text-gray-500">確認ボタンは読み取りのみ</span>で在庫は修正しません（差分レポートを作成し、人が確認）。不一致があれば「まとめて Shopify に合わせる」で、夜間の自動補正を今すぐ行えます。
             <br />※<span className="text-gray-500">毎日深夜03:00に自動リコンサイル</span>が走り、この店舗は差分を<span className="text-gray-500">自動補正します（POSをShopify on_handに合わせる＝Shopifyで売れた分をPOSへ反映）</span>。webフック取りこぼしの追いつき用です。
           </p>
 
           <div className="mt-3 flex items-center gap-3">
             <button
               type="button"
-              onClick={runInventoryReconcile}
+              onClick={() => runInventoryReconcile()}
               disabled={reconcileRunning || !onReconcileInventory}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gray-700 px-5 text-sm font-black text-white transition hover:bg-gray-900 disabled:opacity-60"
             >
@@ -5268,7 +5276,26 @@ export const ShopifySettingsPanel = ({
               不一致 {Number(reconcileResult.mismatched || 0).toLocaleString()} /
               Shopify側に無し {Number(reconcileResult.missingInShopify || 0).toLocaleString()}。
               {reconcileResult.truncated ? `（明細は先頭${Number(reconcileResult.reportedRows || 0).toLocaleString()}件まで表示）` : ''}
-              <br />レポートは inventoryReconcileReports に保存されました（自動修復なし）。
+              <br />
+              {Number(reconcileResult.appliedCount || 0) > 0 || Number(reconcileResult.skippedChangedCount || 0) > 0
+                ? `Shopify に合わせた商品 ${Number(reconcileResult.appliedCount || 0).toLocaleString()}件${Number(reconcileResult.skippedChangedCount || 0) > 0 ? `（途中でレジの数が変わったため見送り ${Number(reconcileResult.skippedChangedCount).toLocaleString()}件）` : ''}。`
+                : 'レポートは inventoryReconcileReports に保存されました（自動修復なし）。'}
+            </div>
+          )}
+          {reconcileResult?.ok && Number(reconcileResult.mismatched || 0) > 0 && Number(reconcileResult.appliedCount || 0) === 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => runInventoryReconcile({ apply: true })}
+                disabled={reconcileRunning || !onReconcileInventory}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-gray-700 bg-white px-5 text-sm font-black text-gray-800 transition hover:bg-gray-100 disabled:opacity-60"
+              >
+                {reconcileRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
+                {reconcileRunning ? '合わせています…（数分かかります）' : `不一致 ${Number(reconcileResult.mismatched || 0).toLocaleString()}件をまとめて Shopify に合わせる`}
+              </button>
+              <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
+                レジの数を Shopify の手持ちに合わせます。店で数えた数のほうが正しい商品は、下の一覧で個別に直してください。
+              </p>
             </div>
           )}
 
