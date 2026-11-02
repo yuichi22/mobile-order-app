@@ -11,12 +11,16 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
 import {
+  FULFILLMENT_TOPIC_HEADERS,
+  FULFILLMENT_WEBHOOK_TOPICS,
   INVENTORY_WEBHOOK_TOPIC,
   ShopifySetupError,
   buildInventoryWebhookUri,
   classifyTokenError,
   classifyUserErrors,
   findMissingScopes,
+  fulfillmentVariantGids,
+  hasFulfillmentScope,
   isAccessDenied,
   isSubscriptionForStore,
   planInventoryWebhook,
@@ -3971,14 +3975,14 @@ const currentProjectId = () => {
 
 const shopifyInventoryWebhookUri = (storeId) => buildInventoryWebhookUri({ projectId: currentProjectId(), region: REGION, storeId });
 
-const listShopifyInventoryWebhooks = async ({ shopDomain, accessToken }) => {
+const listShopifyInventoryWebhooks = async ({ shopDomain, accessToken }, topics = [INVENTORY_WEBHOOK_TOPIC]) => {
   const data = await callShopifyGraphql({
     shopDomain,
     accessToken,
     query: `query InventoryWebhooks($topics: [WebhookSubscriptionTopic!]) {
       webhookSubscriptions(first: 50, topics: $topics) { nodes { id topic format uri } }
     }`,
-    variables: { topics: [INVENTORY_WEBHOOK_TOPIC] }
+    variables: { topics }
   });
   return data?.webhookSubscriptions?.nodes || [];
 };
@@ -4033,7 +4037,7 @@ const checkShopifyInventoryAccess = async (settings) => {
   if (location.isActive === false) {
     throw setupError('locationInactive', { locationName: location.name });
   }
-  return { shopDomain, accessToken, location };
+  return { shopDomain, accessToken, location, granted };
 };
 
 const runShopifyWebhookMutation = async ({ shopDomain, accessToken, query, variables, field }) => {
@@ -4064,13 +4068,21 @@ const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
     return { status: 'dryRun', uri, subscriptionId: null, locationName: access.location.name };
   }
 
+  const inventory = await ensureShopifyWebhookTopic({ access, storeId, uri, topic: INVENTORY_WEBHOOK_TOPIC });
+  console.log('[shopifyInventoryWebhook] ensured', { storeId, action: inventory.action, removed: inventory.removed });
+  const fulfillment = await ensureShopifyFulfillmentWebhooks({ access, storeId, uri });
+  return { status: 'active', uri, subscriptionId: inventory.id, locationName: access.location.name, action: inventory.action, fulfillment };
+};
+
+// 1つの topic について、この店舗向けを1件だけ・正しい送り先で置き、読み戻して確かめる。
+const ensureShopifyWebhookTopic = async ({ access, storeId, uri, topic }) => {
   let subscriptions;
   try {
-    subscriptions = await listShopifyInventoryWebhooks(access);
+    subscriptions = await listShopifyInventoryWebhooks(access, [topic]);
   } catch (error) {
     throw setupError(isAccessDenied(error) ? 'scopes' : 'webhook', { detail: error.message });
   }
-  const plan = planInventoryWebhook({ subscriptions, desiredUri: uri, storeId });
+  const plan = planInventoryWebhook({ subscriptions, desiredUri: uri, storeId, topic });
   const webhookSubscription = { uri, format: 'JSON' };
   if (plan.action === 'create') {
     await runShopifyWebhookMutation({
@@ -4079,7 +4091,7 @@ const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
       query: `mutation CreateInventoryWebhook($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) {
         webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) { webhookSubscription { id } userErrors { field message } }
       }`,
-      variables: { topic: INVENTORY_WEBHOOK_TOPIC, sub: webhookSubscription }
+      variables: { topic, sub: webhookSubscription }
     });
   } else if (plan.action === 'update') {
     await runShopifyWebhookMutation({
@@ -4103,24 +4115,56 @@ const ensureShopifyInventoryWebhook = async ({ storeId, settings }) => {
   // 読み戻し: この店舗向けが1件だけ、送り先と形式が正しいこと
   let after;
   try {
-    after = await listShopifyInventoryWebhooks(access);
+    after = await listShopifyInventoryWebhooks(access, [topic]);
   } catch (error) {
     throw setupError('verify', { detail: error.message });
   }
-  const mine = after.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  const mine = after.filter((sub) => sub?.topic === topic && isSubscriptionForStore(sub.uri, storeId));
   if (mine.length !== 1 || mine[0].uri !== uri || mine[0].format !== 'JSON') {
-    throw setupError('verify', { detail: `この店舗向けの在庫通知: ${mine.length}件` });
+    throw setupError('verify', { detail: `この店舗向けの通知(${topic}): ${mine.length}件` });
   }
-  console.log('[shopifyInventoryWebhook] ensured', { storeId, action: plan.action, removed: plan.remove.length });
-  return { status: 'active', uri, subscriptionId: mine[0].id, locationName: access.location.name, action: plan.action };
+  return { id: mine[0].id, action: plan.action, removed: plan.remove.length };
 };
 
-// 在庫連携 OFF のとき。この店舗向けの在庫通知を消す(他店・他環境の通知は触らない)。
+// 発送の通知。権限が無い・登録できないときも在庫連携そのものは止めない
+// (在庫通知とレジ→Shopify の送信は動き続ける)。状態と直し方を画面に出す。
+const ensureShopifyFulfillmentWebhooks = async ({ access, storeId, uri }) => {
+  if (!hasFulfillmentScope(access.granted)) {
+    const detail = `付与されている権限: ${(access.granted || []).filter(Boolean).join(', ') || 'なし'}`;
+    return { status: 'missingScope', error: setupError('fulfillmentScope', { detail }).toJSON() };
+  }
+  try {
+    for (const topic of FULFILLMENT_WEBHOOK_TOPICS) {
+      await ensureShopifyWebhookTopic({ access, storeId, uri, topic });
+    }
+    return { status: 'active', error: null };
+  } catch (error) {
+    const setup = error?.code === 'scopes' ? setupError('fulfillmentScope', { detail: error.detail }) : toSetupError(error);
+    console.error('[shopifyInventoryWebhook] fulfillment webhook setup failed', { storeId, code: setup.code, detail: setup.detail });
+    return { status: 'failed', error: setup.toJSON() };
+  }
+};
+
+// 在庫連携 OFF のとき。この店舗向けの在庫通知と発送の通知を消す(他店・他環境の通知は触らない)。
 const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
   if (!isShopifyWebhookWriteAllowed()) return { removed: 0, dryRun: true };
   const access = await getShopifyAccessTokenFromSettings(settings);
-  const subscriptions = await listShopifyInventoryWebhooks(access);
-  const mine = subscriptions.filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  // 発送の通知は権限が無い店では一覧も読めない(=登録も無い)ので、読めない topic は飛ばす
+  const listMine = async () => {
+    const found = [];
+    for (const topic of [INVENTORY_WEBHOOK_TOPIC, ...FULFILLMENT_WEBHOOK_TOPICS]) {
+      let subscriptions;
+      try {
+        subscriptions = await listShopifyInventoryWebhooks(access, [topic]);
+      } catch (error) {
+        if (topic !== INVENTORY_WEBHOOK_TOPIC && isAccessDenied(error)) continue;
+        throw error;
+      }
+      found.push(...subscriptions.filter((sub) => sub?.topic === topic && isSubscriptionForStore(sub.uri, storeId)));
+    }
+    return found;
+  };
+  const mine = await listMine();
   for (const sub of mine) {
     // 消す対象はこの店舗向けだけ(他店・他環境の通知は残す)
     await runShopifyWebhookMutation({
@@ -4130,20 +4174,21 @@ const removeShopifyInventoryWebhook = async ({ storeId, settings }) => {
       variables: { id: sub.id }
     });
   }
-  const left = (await listShopifyInventoryWebhooks(access))
-    .filter((sub) => sub?.topic === INVENTORY_WEBHOOK_TOPIC && isSubscriptionForStore(sub.uri, storeId));
+  const left = await listMine();
   return { removed: mine.length, left: left.length };
 };
 
 const toSetupError = (error) => (error instanceof ShopifySetupError ? error : setupError('verify', { detail: error?.message }));
 
 // settings/shopify.inventoryWebhook に置く状態。画面の「Shopify からの通知」表示と照合レポートが読む。
-const inventoryWebhookState = ({ status, uri = null, subscriptionId = null, locationName = null, error = null, removed = null }) => ({
+// fulfillment は発送の通知の状態({ status: active|missingScope|failed, error })。
+const inventoryWebhookState = ({ status, uri = null, subscriptionId = null, locationName = null, error = null, removed = null, fulfillment = null }) => ({
   status,
   uri,
   subscriptionId,
   locationName,
   error: error ? error.toJSON() : null,
+  fulfillment,
   // OFF にしたとき消した件数(消せなかったときは error に理由)
   removed,
   checkedAt: FieldValue.serverTimestamp()
@@ -5085,7 +5130,80 @@ export const pushInventoryToShopify = onRequest(
 );
 
 
+// Shopify の手持ち(on_hand)を読み、レジの在庫をそれに合わせる。在庫通知と発送の通知の両方から呼ぶ。
+const mirrorShopifyOnHandToPos = async ({ storeRef, getAccess, itemGid, configuredLocations, eventLocationId, topic }) => {
+  const matched = await storeRef.collection('products').where('shopifyInventoryItemId', '==', itemGid).limit(1).get();
+  if (matched.empty) {
+    return 'product not linked';
+  }
+  const productDoc = matched.docs[0];
+  // 商品単位の在庫同期OFFは inbound(Shopify→POS) も取り込まない。
+  if (productDoc.data()?.shopifyInventorySyncDisabled === true) {
+    return 'product inventory sync disabled';
+  }
+
+  const access = await getAccess();
+  // on_hand を問い合わせ(対象ロケーション合計)。設定が無ければイベントのロケーションを使用。
+  const locationsToSum = configuredLocations.length ? configuredLocations : [eventLocationId];
+  let onHandTotal = 0;
+  for (const locNum of locationsToSum) {
+    if (!locNum) continue;
+    const query = `{ inventoryItem(id:"${itemGid}"){ inventoryLevel(locationId:"gid://shopify/Location/${locNum}"){ quantities(names:["on_hand"]){ name quantity } } } }`;
+    const data = await callShopifyGraphql({ ...access, query, variables: {} });
+    const quantities = data.inventoryItem?.inventoryLevel?.quantities || [];
+    const onHand = quantities.find((q) => q.name === 'on_hand');
+    onHandTotal += onHand ? Number(onHand.quantity || 0) : 0;
+  }
+  onHandTotal = Math.max(onHandTotal, 0);
+
+  const before = Math.max(Number(productDoc.data().inventoryQuantity ?? productDoc.data().quantity ?? 0), 0);
+  const delta = before - onHandTotal; // >0 = 純減(売れた) / <0 = 純増(返品・補充)
+  if (delta === 0) {
+    return 'no change'; // 値一致=自前pushの跳ね返り等。ループ防止
+  }
+
+  const batch = db.batch();
+  batch.set(productDoc.ref, {
+    inventoryQuantity: onHandTotal,
+    quantity: onHandTotal,
+    inventorySource: 'shopify',
+    inventoryUpdatedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  // 純減時のみ棚卸し連動
+  if (delta > 0) {
+    const stocktakeSnap = await storeRef.collection('stocktakes').where('status', '==', 'in_progress').limit(1).get();
+    if (!stocktakeSnap.empty) {
+      const itemRef = storeRef.collection('stocktakes').doc(stocktakeSnap.docs[0].id).collection('items').doc(productDoc.id);
+      const itemSnap = await itemRef.get();
+      if (itemSnap.exists && itemSnap.data().storefrontConfirmedAt) {
+        const confirmedMs = typeof itemSnap.data().storefrontConfirmedAt?.toMillis === 'function' ? itemSnap.data().storefrontConfirmedAt.toMillis() : 0;
+        const within = confirmedMs > 0 && (Date.now() - confirmedMs) <= 60 * 60 * 1000;
+        const patch = { storefrontShelfQuantity: FieldValue.increment(-delta), updatedAt: FieldValue.serverTimestamp() };
+        if (within) { patch.needsRecount = true; patch.status = 'needs_recount'; }
+        batch.set(itemRef, patch, { merge: true });
+      }
+    }
+  }
+
+  batch.set(storeRef.collection('inventorySyncLog').doc(), {
+    direction: 'shopify_to_pos',
+    productId: productDoc.id,
+    inventoryItemId: itemGid,
+    before,
+    after: onHandTotal,
+    delta,
+    topic,
+    at: FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+  return 'ok';
+};
+
 // Shopify inventory_levels/update Webhook 受信。Shopifyの在庫変動(売上/キャンセル/返品/手動編集)をPOSへミラーする。
+// 発送(fulfillments/create)・発送の取消(fulfillments/update)も同じ受け口で受ける。発送は手持ちだけが減り
+// 在庫通知が来ないため(販売可能数が変わらない)、発送された商品の手持ちを読み直す。
 // URLに ?storeId=... を含め、署名は当該店舗の clientSecret で HMAC-SHA256 検証する。
 // available ではなく on_hand を都度問い合わせて採用(引当ノイズ回避)。値一致ならスキップ(自前pushの跳ね返り=ループ防止)。
 // 純減(売れた)時のみ進行中棚卸しの店頭数を減算し1h以内なら数え直し。冪等は X-Shopify-Webhook-Id。
@@ -5133,12 +5251,14 @@ export const shopifyInventoryWebhook = onRequest(
         return response.status(200).send('inventory sync disabled');
       }
 
+      const topic = String(request.get('X-Shopify-Topic') || 'inventory_levels/update').trim().toLowerCase();
+
       // 冪等性: Webhook ID で二重処理防止
       const webhookId = String(request.get('X-Shopify-Webhook-Id') || '').replace(/[^A-Za-z0-9_-]/g, '_');
       if (webhookId) {
         const webhookRef = storeRef.collection('shopifyWebhookEvents').doc(webhookId);
         try {
-          await webhookRef.create({ topic: 'inventory_levels/update', receivedAt: FieldValue.serverTimestamp() });
+          await webhookRef.create({ topic, receivedAt: FieldValue.serverTimestamp() });
           recordedWebhookRef = webhookRef; // 失敗時にcatchで消して再送させるため保持
         } catch (e) {
           return response.status(200).send('already processed');
@@ -5146,11 +5266,14 @@ export const shopifyInventoryWebhook = onRequest(
       }
 
       const payload = JSON.parse(request.rawBody.toString('utf8'));
-      const inventoryItemNumericId = String(payload.inventory_item_id || '').trim();
       const eventLocationId = String(payload.location_id || '').trim();
-      if (!inventoryItemNumericId) {
-        return response.status(200).send('no inventory item');
-      }
+
+      // アクセストークンは紐付いた商品があったときだけ取る(1通知につき1回)
+      let accessPromise = null;
+      const getAccess = () => {
+        accessPromise = accessPromise || getShopifyAccessTokenFromSettings(settings);
+        return accessPromise;
+      };
 
       // 対象ロケーション(複数対応)。設定があればそのロケーションのイベントのみ処理。
       const configuredLocations = (Array.isArray(settings.locationIds) && settings.locationIds.length
@@ -5162,74 +5285,38 @@ export const shopifyInventoryWebhook = onRequest(
         return response.status(200).send('location not tracked');
       }
 
-      const itemGid = `gid://shopify/InventoryItem/${inventoryItemNumericId}`;
-      const matched = await storeRef.collection('products').where('shopifyInventoryItemId', '==', itemGid).limit(1).get();
-      if (matched.empty) {
-        return response.status(200).send('product not linked');
-      }
-      const productDoc = matched.docs[0];
-      // 商品単位の在庫同期OFFは inbound(Shopify→POS) も取り込まない。
-      if (productDoc.data()?.shopifyInventorySyncDisabled === true) {
-        return response.status(200).send('product inventory sync disabled');
-      }
-
-      // on_hand を問い合わせ(対象ロケーション合計)。設定が無ければイベントのロケーションを使用。
-      const { shopDomain, accessToken } = await getShopifyAccessTokenFromSettings(settings);
-      const locationsToSum = configuredLocations.length ? configuredLocations : [eventLocationId];
-      let onHandTotal = 0;
-      for (const locNum of locationsToSum) {
-        if (!locNum) continue;
-        const query = `{ inventoryItem(id:"${itemGid}"){ inventoryLevel(locationId:"gid://shopify/Location/${locNum}"){ quantities(names:["on_hand"]){ name quantity } } } }`;
-        const data = await callShopifyGraphql({ shopDomain, accessToken, query, variables: {} });
-        const quantities = data.inventoryItem?.inventoryLevel?.quantities || [];
-        const onHand = quantities.find((q) => q.name === 'on_hand');
-        onHandTotal += onHand ? Number(onHand.quantity || 0) : 0;
-      }
-      onHandTotal = Math.max(onHandTotal, 0);
-
-      const before = Math.max(Number(productDoc.data().inventoryQuantity ?? productDoc.data().quantity ?? 0), 0);
-      const delta = before - onHandTotal; // >0 = 純減(売れた) / <0 = 純増(返品・補充)
-      if (delta === 0) {
-        return response.status(200).send('no change'); // 値一致=自前pushの跳ね返り等。ループ防止
-      }
-
-      const batch = db.batch();
-      batch.set(productDoc.ref, {
-        inventoryQuantity: onHandTotal,
-        quantity: onHandTotal,
-        inventorySource: 'shopify',
-        inventoryUpdatedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
-
-      // 純減時のみ棚卸し連動
-      if (delta > 0) {
-        const stocktakeSnap = await storeRef.collection('stocktakes').where('status', '==', 'in_progress').limit(1).get();
-        if (!stocktakeSnap.empty) {
-          const itemRef = storeRef.collection('stocktakes').doc(stocktakeSnap.docs[0].id).collection('items').doc(productDoc.id);
-          const itemSnap = await itemRef.get();
-          if (itemSnap.exists && itemSnap.data().storefrontConfirmedAt) {
-            const confirmedMs = typeof itemSnap.data().storefrontConfirmedAt?.toMillis === 'function' ? itemSnap.data().storefrontConfirmedAt.toMillis() : 0;
-            const within = confirmedMs > 0 && (Date.now() - confirmedMs) <= 60 * 60 * 1000;
-            const patch = { storefrontShelfQuantity: FieldValue.increment(-delta), updatedAt: FieldValue.serverTimestamp() };
-            if (within) { patch.needsRecount = true; patch.status = 'needs_recount'; }
-            batch.set(itemRef, patch, { merge: true });
-          }
+      // 発送・発送の取消: 手持ちだけが動き在庫通知が来ないので、発送された商品の手持ちを読み直す。
+      if (FULFILLMENT_TOPIC_HEADERS.includes(topic)) {
+        const variantGids = fulfillmentVariantGids(payload);
+        if (!variantGids.length) {
+          return response.status(200).send('no line items');
         }
+        const data = await callShopifyGraphql({
+          ...(await getAccess()),
+          query: 'query FulfilledVariants($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id inventoryItem { id } } } }',
+          variables: { ids: variantGids }
+        });
+        const itemGids = [...new Set((data?.nodes || []).map((node) => node?.inventoryItem?.id).filter(Boolean))];
+        const results = [];
+        for (const itemGid of itemGids) {
+          results.push(await mirrorShopifyOnHandToPos({ storeRef, getAccess, itemGid, configuredLocations, eventLocationId, topic }));
+        }
+        return response.status(200).send(results.join(',') || 'no inventory item');
       }
 
-      batch.set(storeRef.collection('inventorySyncLog').doc(), {
-        direction: 'shopify_to_pos',
-        productId: productDoc.id,
-        inventoryItemId: itemGid,
-        before,
-        after: onHandTotal,
-        delta,
-        at: FieldValue.serverTimestamp()
+      const inventoryItemNumericId = String(payload.inventory_item_id || '').trim();
+      if (!inventoryItemNumericId) {
+        return response.status(200).send('no inventory item');
+      }
+      const result = await mirrorShopifyOnHandToPos({
+        storeRef,
+        getAccess,
+        itemGid: `gid://shopify/InventoryItem/${inventoryItemNumericId}`,
+        configuredLocations,
+        eventLocationId,
+        topic
       });
-      await batch.commit();
-
-      return response.status(200).send('ok');
+      return response.status(200).send(result);
     } catch (error) {
       console.error('[shopifyInventoryWebhook] failed', error);
       // 冪等記録を消してから 500 を返す → Shopify が再送し、次回で再処理される(取りこぼし防止)。
