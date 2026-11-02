@@ -5397,7 +5397,9 @@ const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericS
   return onHandByItemGid;
 };
 
-const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false, inventoryWebhook = null }) => {
+// onHandMapCache: 同じ Shopify ストア・ロケーションを見る店舗(HAUS の store_ar2y9 と store_0a558)で
+// 全バリアントの走査を1回にまとめるための Map(キー → Promise)。夜間の一括実行で使う。
+const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', triggeredBy = '', autoApply = false, inventoryWebhook = null, onHandMapCache = null }) => {
   const storeRef = db.collection('stores').doc(storeId);
   const settings = await readShopifySettings(storeRef);
 
@@ -5411,10 +5413,17 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
       .filter(Boolean)
   );
 
-  const onHandByItemGid = await buildShopifyOnHandMap({ shopDomain, accessToken, locationNumericSet });
-
-  // 紐付け済み(shopifyInventoryItemId が非空文字列)の商品のみ突合
+  // レジの在庫は Shopify を走査する「前」に読む。走査(HAUS は数分)の間にレジで売れた・入庫した商品は、
+  // 補正の直前に読み直して数が変わっていれば補正しない(古い Shopify の数でレジを戻さないため)。
   const linkedSnap = await storeRef.collection('products').where('shopifyInventoryItemId', '>', '').get();
+
+  const mapKey = `${shopDomain}|${[...locationNumericSet].sort().join(',')}`;
+  let onHandPromise = onHandMapCache?.get(mapKey);
+  if (!onHandPromise) {
+    onHandPromise = buildShopifyOnHandMap({ shopDomain, accessToken, locationNumericSet });
+    onHandMapCache?.set(mapKey, onHandPromise);
+  }
+  const onHandByItemGid = await onHandPromise;
 
   const MISMATCH_CAP = 1000;
   const mismatches = [];
@@ -5468,10 +5477,20 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
   // 「毎晩どの商品がShopify都合で何個変わったか」が後から追えず、毎日レポートを見る運用になってしまう。
   // 商品1件につき products/inventory/stockMovements の3書き込み → Firestoreバッチ上限(500)を割るため150件ずつ。
   let appliedCount = 0;
+  let skippedChangedCount = 0;
   if (autoApply && corrections.length) {
     for (let i = 0; i < corrections.length; i += 150) {
+      const chunk = corrections.slice(i, i + 150);
+      const freshSnaps = await db.getAll(...chunk.map((c) => storeRef.collection('products').doc(c.productId)));
+      const freshQtyById = new Map(freshSnaps.map((snap) => {
+        const data = snap.data() || {};
+        return [snap.id, Math.max(Number(data.inventoryQuantity ?? data.quantity ?? 0), 0)];
+      }));
+      const applicable = chunk.filter((c) => freshQtyById.get(c.productId) === c.pos);
+      skippedChangedCount += chunk.length - applicable.length;
+      if (!applicable.length) continue;
       const batch = db.batch();
-      for (const c of corrections.slice(i, i + 150)) {
+      for (const c of applicable) {
         batch.set(storeRef.collection('products').doc(c.productId), {
           inventoryQuantity: c.shopify, quantity: c.shopify,
           inventorySource: 'shopify', inventoryUpdatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
@@ -5492,7 +5511,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
         });
       }
       await batch.commit();
-      appliedCount += Math.min(150, corrections.length - i);
+      appliedCount += applicable.length;
     }
   }
 
@@ -5509,6 +5528,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     shopifyVariantsScanned: onHandByItemGid.size,
     autoResolved: appliedCount > 0,
     appliedCount,
+    // 走査中にレジ側で数が変わったため補正を見送った件数(次回の点検で拾う)
+    skippedChangedCount,
     // 毎晩の確認で見た在庫通知の状態(手動の照合では null)
     inventoryWebhook,
     mismatches
@@ -5523,6 +5544,7 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     mismatched: mismatchedCount,
     missingInShopify,
     appliedCount,
+    skippedChangedCount,
     reportedRows: mismatches.length,
     truncated: summary.truncated,
     shopifyVariantsScanned: onHandByItemGid.size,
@@ -5540,17 +5562,19 @@ export const reconcileShopifyInventory = onRequest(
         return sendAppError(res, 405, 'app/method-not-allowed');
       }
       const authUser = await verifyRequestUser(req);
-      const { storeId } = parseJsonBody(req);
+      const { storeId, apply } = parseJsonBody(req);
       const normalizedStoreId = String(storeId || '').trim();
       if (!normalizedStoreId) {
         return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
       }
       await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
 
+      // apply=true は「まとめて Shopify に合わせる」。夜間の自動補正と同じ処理を今すぐ行う(レジの数を Shopify の手持ちに)。
       const result = await runShopifyInventoryReconcile({
         storeId: normalizedStoreId,
-        source: 'manual',
-        triggeredBy: authUser.uid
+        source: apply === true ? 'manual_apply' : 'manual',
+        triggeredBy: authUser.uid,
+        autoApply: apply === true
       });
       return sendJson(res, 200, { ok: true, ...result });
     } catch (error) {
@@ -5778,13 +5802,16 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
     try {
       // collectionGroup('settings') クエリは collection-group インデックスが必要で未整備のため失敗していた。
       // 店舗数は少ないので stores を走査し、各店の settings/shopify を直接読んで判定する(インデックス不要)。
+      // 店舗を順番に回すと、HAUS(6,000商品超)が前の店の待ちで 540 秒の上限に届き、8/3 から毎晩打ち切られていた
+      // (2026-11-02 発覚)。店舗は並行に回し、同じ Shopify ストアの走査は1回にまとめる。
       const storesSnap = await db.collection('stores').get();
-      for (const storeDoc of storesSnap.docs) {
+      const onHandMapCache = new Map();
+      await Promise.all(storesSnap.docs.map(async (storeDoc) => {
         const storeId = storeDoc.id;
         try {
           const shopifySettingsSnap = await storeDoc.ref.collection('settings').doc('shopify').get();
           const shopifySettings = shopifySettingsSnap.data() || {};
-          if (shopifySettings.inventorySyncEnabled !== true) continue;
+          if (shopifySettings.inventorySyncEnabled !== true) return;
           // 在庫通知があるか確かめ、無ければ登録し直す(Shopify は受け口のエラーが続くと通知を自動で消す)。
           let inventoryWebhook = null;
           try {
@@ -5794,12 +5821,13 @@ export const scheduledShopifyInventoryReconcile = onSchedule(
             inventoryWebhook = { status: 'failed', error: { title: error?.message || '在庫通知を確かめられませんでした' } };
           }
           // inventoryReconcileAutoApply=true の店舗は差分を自動補正(POS=Shopify on_hand)。既定OFFはレポートのみ。
-          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true, inventoryWebhook });
-          console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...result });
+          const result = await runShopifyInventoryReconcile({ storeId, source: 'scheduled', autoApply: shopifySettings.inventoryReconcileAutoApply === true, inventoryWebhook, onHandMapCache });
+          const { mismatches: _omit, ...logSummary } = result;
+          console.log('[scheduledShopifyInventoryReconcile] done', { storeId, ...logSummary });
         } catch (error) {
           console.error('[scheduledShopifyInventoryReconcile] store failed', { storeId, message: error?.message });
         }
-      }
+      }));
     } catch (error) {
       console.error('[scheduledShopifyInventoryReconcile] failed', error);
     }

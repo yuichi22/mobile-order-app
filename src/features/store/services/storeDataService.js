@@ -1395,8 +1395,9 @@ export const reportShopifyVariantDiff = async ({ storeId, idToken }) => {
   return body;
 };
 
-// Firestore現在庫 と Shopify on_hand を突合し、不一致レポートを作成する(自動修復なし)。
-export const reconcileShopifyInventory = async ({ storeId, idToken }) => {
+// Firestore現在庫 と Shopify on_hand を突合し、不一致レポートを作成する。
+// apply=true のときは不一致のレジ在庫を Shopify の手持ちに合わせる(夜間の自動補正と同じ)。
+export const reconcileShopifyInventory = async ({ storeId, idToken, apply = false }) => {
   const normalizedStoreId = String(storeId || '').trim();
   const token = String(idToken || '').trim();
 
@@ -1412,7 +1413,7 @@ export const reconcileShopifyInventory = async ({ storeId, idToken }) => {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     },
-    body: JSON.stringify({ storeId: normalizedStoreId })
+    body: JSON.stringify({ storeId: normalizedStoreId, apply: apply === true })
   });
 
   const body = await response.json().catch(() => ({}));
