@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getTableDisplayName, getTableDisplayLabel } from '../../shared/utils/tableDisplay';
-import { arrayUnion, collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, increment, limit, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { Barcode, ChevronLeft, MoveRight, X, Clock, ShoppingBag, Plus, Minus, Trash2, DollarSign, CreditCard, ScanQrCode, Check, ClipboardList, PauseCircle, RotateCcw, Percent, Star, Search, HandCoins, User } from 'lucide-react';
 
 import { getActiveRegisterContext, getAvailableRegisters, getAvailableDepartments } from './utils/registerContext';
@@ -44,6 +44,7 @@ import PosFavoritesModal from './components/PosFavoritesModal';
 import CashDrawerButton from './components/CashDrawerButton';
 import { PosModals } from './PosRegister/components/PosModals';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
+import { buildRegisterTakeoutKitchenOrder } from './utils/registerTakeoutKitchenOrder';
 import { useTerminalCardPayment } from './terminal/useTerminalCardPayment';
 import TerminalPaymentModal from './terminal/TerminalPaymentModal';
 import { pushInventoryToShopify } from '../store/services/storeDataService';
@@ -2150,6 +2151,37 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       }
 
       await batch.commit();
+
+      // レジ(ORDER)のテイクアウトをキッチンディスプレイの注文カードに出す。
+      // ⚠ 会計バッチには入れない。キッチン側の書き込みが失敗しても会計は成立させる
+      //   (2026-08-14 の会計失敗事故と同じ理由)。失敗したら口頭で伝えてもらう。
+      // ⚠ Web予約の受け渡し・再会計(取消→打ち直し)は作り直さない(既に作っている/作った分のため)。
+      if (registerMode !== 'pos' && !activeTakeoutOrder?.id && !recheckoutSource) {
+        const menuItemsById = {};
+        (Array.isArray(menuItems) ? menuItems : []).forEach((menuItem) => {
+          if (menuItem?.id) menuItemsById[String(menuItem.id)] = menuItem;
+        });
+        const kitchenOrder = buildRegisterTakeoutKitchenOrder({
+          cart: takeoutCart,
+          menuItemsById,
+          transactionId: transactionRef.id,
+          registerId: registerContext.id,
+          registerName: registerContext.name,
+          staffUid: getAuth().currentUser?.uid || '',
+          customerName: crmMember?.displayName || ''
+        });
+        if (kitchenOrder) {
+          addDoc(collection(db, 'stores', storeId, 'orders'), {
+            ...kitchenOrder,
+            timestamp: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }).catch((kitchenError) => {
+            console.error('[PosMain] takeout kitchen order failed', kitchenError?.message);
+            setPosMessage('会計は完了しました。キッチン表示に送れなかったので、キッチンへ口頭で伝えてください。', 'error');
+          });
+        }
+      }
 
       // 店頭(retail)販売の在庫連動。棚卸し進行中なら棚卸しカウントへ反映し、
       // 在庫連携ON(prodのみ)なら販売後の在庫をShopifyへ反映する(関数側でゲート)。
