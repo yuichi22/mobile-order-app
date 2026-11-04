@@ -7,8 +7,10 @@ import {
   CheckCircle,
   Flame,
   RotateCcw,
+  ShoppingBag,
   Timer
 } from 'lucide-react';
+import { isRegisterTakeoutOrder } from '../../pos/utils/registerTakeoutKitchenOrder';
 
 import {
   getActiveKitchenItems,
@@ -186,6 +188,8 @@ const OrderCard = ({
     || order?.sessionPartySize
     || 0
   );
+  // レジで会計したテイクアウト。店内の注文と同じ並びに出し、見出しで持ち帰りと分かるようにする。
+  const isTakeoutOrder = isRegisterTakeoutOrder(order);
   const pendingItems = matchedItems.filter((item) => resolveKitchenStatus(item) === 'pending').length;
 
   const orderKitchenStatus = resolveDisplayKitchenStatus({
@@ -600,19 +604,36 @@ const canSelectCard =
       } ${headerClassName}`}
     >
   
-        <div>
-          <span className={`mb-0.5 block text-[10px] font-bold ${tableLabelClassName}`}>
-            テーブル
-          </span>
+        {isTakeoutOrder ? (
+          <div className="min-w-0">
+            <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white">
+              <ShoppingBag size={14} strokeWidth={1.5} />
+              持ち帰り
+            </span>
 
-          <div className={`text-4xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
-            {getTableDisplayName(order)}
-          </div>
+            <div className={`text-3xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
+              テイクアウト
+            </div>
 
-          <div className="mt-1 text-sm font-bold text-gray-400">
-            {partySize > 0 ? `${partySize}名` : '人数未設定'}
+            <div className="mt-1 truncate text-sm font-bold text-gray-500">
+              {order.customerName ? `${order.customerName} 様` : 'レジ注文・会計済み'}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div>
+            <span className={`mb-0.5 block text-[10px] font-bold ${tableLabelClassName}`}>
+              テーブル
+            </span>
+
+            <div className={`text-4xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
+              {getTableDisplayName(order)}
+            </div>
+
+            <div className="mt-1 text-sm font-bold text-gray-400">
+              {partySize > 0 ? `${partySize}名` : '人数未設定'}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col items-end justify-center gap-2">
 

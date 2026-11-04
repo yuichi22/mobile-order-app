@@ -536,6 +536,18 @@ service cloud.firestore {
           && request.resource.data.participantId.size() > 0
           && isSessionMember(storeId, request.resource.data.sessionId);
 
+        // レジ(ORDER)で会計したテイクアウトを、キッチンの注文カードに出す。
+        // 会計済み・席なし(sessionId=null)の注文だけをスタッフが作れる。
+        allow create: if isStoreStaff(storeId)
+          && request.resource.data.orderSource == 'pos_register_takeout'
+          && request.resource.data.orderType == 'takeout'
+          && request.resource.data.tableId == 'takeout'
+          && request.resource.data.sessionId == null
+          && request.resource.data.status == 'pending'
+          && request.resource.data.paymentStatus == 'paid'
+          && request.resource.data.items is list
+          && request.resource.data.items.size() > 0;
+
         allow update, delete: if isStoreStaff(storeId);
       }
 
