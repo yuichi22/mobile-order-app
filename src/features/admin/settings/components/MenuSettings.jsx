@@ -38,6 +38,7 @@ import {
 } from '../../../../shared/constants/photoLabelColors';
 import SearchField from '../../../../shared/components/SearchField';
 import { computeMenuCostRate } from '../../../../shared/utils/menuCostRate';
+import { DateField } from '../../../../shared/components/akuto/DateField';
 
 // 価格の下に出す原価率。原価未設定なら代わりにアラートを出す（日計の粗利に入らないため）。
 const CostRateBadge = ({ item, settings, className = '' }) => {
@@ -1511,16 +1512,15 @@ const handleClearLimitedQuantity = async (event, item) => {
                           <label className="mb-2 block text-[11px] font-black uppercase text-ui">
                             表示開始日
                           </label>
-                          <input
-                            type="date"
+                          <DateField
                             value={editingItem.visibleFromDate || ''}
-                            onChange={(event) => setEditingItem({
+                            onChange={(value) => setEditingItem({
                               ...editingItem,
                               customerVisibility: 'scheduled',
                               visibleDateMode: 'dateRange',
-                              visibleFromDate: event.target.value
+                              visibleFromDate: value
                             })}
-                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                            label="表示開始日"
                           />
                         </div>
 
@@ -1528,16 +1528,15 @@ const handleClearLimitedQuantity = async (event, item) => {
                           <label className="mb-2 block text-[11px] font-black uppercase text-ui">
                             表示終了日
                           </label>
-                          <input
-                            type="date"
+                          <DateField
                             value={editingItem.visibleToDate || ''}
-                            onChange={(event) => setEditingItem({
+                            onChange={(value) => setEditingItem({
                               ...editingItem,
                               customerVisibility: 'scheduled',
                               visibleDateMode: 'dateRange',
-                              visibleToDate: event.target.value
+                              visibleToDate: value
                             })}
-                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 text-sm font-black text-gray-700 outline-none focus:border-ui"
+                            label="表示終了日"
                           />
                         </div>
                       </div>

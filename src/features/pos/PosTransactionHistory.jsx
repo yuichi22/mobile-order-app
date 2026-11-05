@@ -24,6 +24,7 @@ import {
 } from './corrections/correctionModel';
 import { isRecheckoutEligibleTransaction, RECHECKOUT_REASON } from './corrections/recheckoutModel';
 import SearchField from '../../shared/components/SearchField';
+import { DatePanel } from '../../shared/components/akuto/DateField';
 
 const formatInvoiceNumber = (value) => {
   const normalized = String(value || '').trim();
@@ -564,18 +565,13 @@ export const PosTransactionHistory = ({
   const todayDateValue = useMemo(() => getJstDateInputValue(), []);
   const isSelectedPaidDateToday = Boolean(selectedPaidDate) && selectedPaidDate === todayDateValue;
   // 日計と同じ曜日表示（日〜土）＋日付ピッカー起動用ref。
-  const paidDateInputRef = useRef(null);
+  const [paidDatePickerOpen, setPaidDatePickerOpen] = useState(false);
   const paidDateWeekLabel = useMemo(() => (
     selectedPaidDate
       ? ['日', '月', '火', '水', '木', '金', '土'][new Date(`${selectedPaidDate}T00:00:00+09:00`).getDay()]
       : ''
   ), [selectedPaidDate]);
-  const openPaidDatePicker = () => {
-    const el = paidDateInputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') el.showPicker();
-    else el.click();
-  };
+  const openPaidDatePicker = () => setPaidDatePickerOpen(true);
 
   // --- 伝票検索(履歴検索モーダル) -----------------------------------------
   // 期間(from〜to)＋ワード(商品名/バーコード/金額/伝票ID)＋支払方法で過去伝票を横断検索。
@@ -586,6 +582,7 @@ export const PosTransactionHistory = ({
   const [searchTo, setSearchTo] = useState(() => getJstDateInputValue());
   // 期間モード: 'last30'(過去30日=青) / 'custom'(日付指定=青)。既定は過去30日。
   const [periodMode, setPeriodMode] = useState('last30');
+  const [searchPicker, setSearchPicker] = useState(null); // 'from' | 'to' | null
   const searchFromRef = useRef(null);
   const searchToRef = useRef(null);
   const openDatePickerRef = (ref) => {
@@ -3062,15 +3059,16 @@ export const PosTransactionHistory = ({
             >
               今日
             </button>
-
-            <input
-              ref={paidDateInputRef}
-              type="date"
-              value={selectedPaidDate || ''}
-              max={todayDateValue}
-              onChange={(event) => setSelectedPaidDate(event.target.value)}
-              className="sr-only"
-            />
+            {paidDatePickerOpen && (
+              <DatePanel
+                value={selectedPaidDate || ''}
+                max={todayDateValue}
+                onPick={setSelectedPaidDate}
+                onClose={() => setPaidDatePickerOpen(false)}
+                label="日付を選ぶ"
+                closeOnOutside
+              />
+            )}
           </div>
         )}
         {filter === 'unpaid' && (
@@ -4597,35 +4595,49 @@ export const PosTransactionHistory = ({
                   periodMode === 'custom' ? 'bg-ui' : 'bg-gray-100'
                 }`}>
                   <div className="relative flex-1">
-                    <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
-                      periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
-                    }`}>
+                    <button
+                      type="button"
+                      onClick={() => setSearchPicker('from')}
+                      className={`flex h-10 w-full items-center justify-center rounded-lg text-xs font-black ${
+                        periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
+                      }`}
+                    >
                       {periodMode === 'custom' ? shortMD(searchFrom) : '日付から'}
-                    </div>
-                    <input
-                      type="date"
-                      value={periodMode === 'custom' ? searchFrom : ''}
-                      max={todayDateValue}
-                      onChange={(e) => { setSearchFrom(e.target.value); setPeriodMode('custom'); }}
-                      onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
-                      className="border-2 border-gray-200 bg-white hover:border-gray-300 absolute inset-0 h-full w-full cursor-pointer opacity-0 outline-none focus:border-ui"
-                    />
+                    </button>
+                    {searchPicker === 'from' && (
+                      <DatePanel
+                        value={periodMode === 'custom' ? searchFrom : ''}
+                        max={todayDateValue}
+                        onPick={(value) => { setSearchFrom(value); setPeriodMode('custom'); }}
+                        onClose={() => setSearchPicker(null)}
+                        label="日付から"
+                        closeOnOutside
+                      />
+                    )}
                   </div>
                   <span className={`text-xs font-black ${periodMode === 'custom' ? 'text-white' : 'text-gray-500'}`}>〜</span>
                   <div className="relative flex-1">
-                    <div className={`pointer-events-none flex h-10 items-center justify-center rounded-lg text-xs font-black ${
-                      periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
-                    }`}>
+                    <button
+                      type="button"
+                      onClick={() => setSearchPicker('to')}
+                      className={`flex h-10 w-full items-center justify-center rounded-lg text-xs font-black ${
+                        periodMode === 'custom' ? 'bg-white/15 text-white' : 'text-gray-600'
+                      }`}
+                    >
                       {periodMode === 'custom' ? shortMD(searchTo) : '日付まで'}
-                    </div>
-                    <input
-                      type="date"
-                      value={periodMode === 'custom' ? searchTo : ''}
-                      max={todayDateValue}
-                      onChange={(e) => { setSearchTo(e.target.value); setPeriodMode('custom'); }}
-                      onClick={(e) => { const el = e.currentTarget; if (el.showPicker) { try { el.showPicker(); } catch (_) { /* noop */ } } }}
-                      className="border-2 border-gray-200 bg-white hover:border-gray-300 absolute inset-0 h-full w-full cursor-pointer opacity-0 outline-none focus:border-ui"
-                    />
+                    </button>
+                    {searchPicker === 'to' && (
+                      <div className="absolute right-0 top-0">
+                        <DatePanel
+                          value={periodMode === 'custom' ? searchTo : ''}
+                          max={todayDateValue}
+                          onPick={(value) => { setSearchTo(value); setPeriodMode('custom'); }}
+                          onClose={() => setSearchPicker(null)}
+                          label="日付まで"
+                          closeOnOutside
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

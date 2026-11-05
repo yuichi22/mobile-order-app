@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Calendar as CalendarIcon,
   CalendarClock,
@@ -10,6 +10,7 @@ import {
   Printer,
   Settings
 } from 'lucide-react';
+import { DatePanel, MonthPanel } from '../../../../shared/components/akuto/DateField';
 
 const formatDailyLabel = (date) => {
   const target = new Date(date || new Date());
@@ -114,24 +115,13 @@ const AnalyticsToolbar = ({
   setSelectedChannel,
   showEcChannel = false
 }) => {
-  const dateInputRef = useRef(null);
-  const monthInputRef = useRef(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const handlePrint = () => {
     window.print();
   };
 
-  const openPicker = () => {
-    const input = period === 'monthly' ? monthInputRef.current : dateInputRef.current;
-    if (!input) return;
-
-    if (typeof input.showPicker === 'function') {
-      input.showPicker();
-      return;
-    }
-
-    input.click();
-  };
+  const openPicker = () => setPickerOpen(true);
 
   const handleDateChange = (event) => {
     if (!setCurrentDate) return;
@@ -311,26 +301,23 @@ const AnalyticsToolbar = ({
                 >
                   {currentLabel}
                 </button>
-
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  value={formatDateInputValue(currentDate)}
-                  onChange={handleDateChange}
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 pointer-events-none absolute inset-0 h-full w-full opacity-0 outline-none focus:border-ui"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
-
-                <input
-                  ref={monthInputRef}
-                  type="month"
-                  value={formatMonthInputValue(currentDate)}
-                  onChange={handleMonthChange}
-                  className="border-2 border-gray-200 bg-white hover:border-gray-300 pointer-events-none absolute inset-0 h-full w-full opacity-0 outline-none focus:border-ui"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
+                {pickerOpen && (period === 'monthly' ? (
+                  <MonthPanel
+                    value={formatMonthInputValue(currentDate)}
+                    onPick={(value) => handleMonthChange({ target: { value } })}
+                    onClose={() => setPickerOpen(false)}
+                    label="月を選ぶ"
+                    closeOnOutside
+                  />
+                ) : (
+                  <DatePanel
+                    value={formatDateInputValue(currentDate)}
+                    onPick={(value) => handleDateChange({ target: { value } })}
+                    onClose={() => setPickerOpen(false)}
+                    label="日付を選ぶ"
+                    closeOnOutside
+                  />
+                ))}
               </div>
 
               <button

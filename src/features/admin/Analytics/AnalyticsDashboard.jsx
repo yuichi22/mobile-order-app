@@ -23,6 +23,7 @@ import { useAnalyticsOrders } from './hooks/useAnalyticsOrders';
 import { useAnalyticsSummary } from './hooks/useAnalyticsSummary';
 import { useWeeklyTrendBaseDate } from './hooks/useWeeklyTrendBaseDate';
 import WeeklyComparisonCard from './components/WeeklyComparisonCard';
+import { DatePanel } from '../../../shared/components/akuto/DateField';
 
 const formatDateLabel = (date) => {
   const target = new Date(date || new Date());
@@ -56,19 +57,9 @@ const parseDateInputValue = (value) => {
 };
 
 const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) => {
-  const dateInputRef = useRef(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const openDatePicker = () => {
-    const input = dateInputRef.current;
-    if (!input) return;
-
-    if (typeof input.showPicker === 'function') {
-      input.showPicker();
-      return;
-    }
-
-    input.click();
-  };
+  const openDatePicker = () => setPickerOpen(true);
 
   return (
     <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-ui-100 bg-ui-50/40 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -100,16 +91,15 @@ const DailyClosingDateNavigator = ({ currentDate, shiftDate, setCurrentDate }) =
           >
             {formatDateLabel(currentDate)}
           </button>
-
-          <input
-            ref={dateInputRef}
-            type="date"
-            value={formatDateInputValue(currentDate)}
-            onChange={(event) => setCurrentDate(parseDateInputValue(event.target.value))}
-            className="border-2 border-gray-200 bg-white hover:border-gray-300 pointer-events-none absolute inset-0 h-full w-full opacity-0 outline-none focus:border-ui"
-            tabIndex={-1}
-            aria-hidden="true"
-          />
+          {pickerOpen && (
+            <DatePanel
+              value={formatDateInputValue(currentDate)}
+              onPick={(value) => setCurrentDate(parseDateInputValue(value))}
+              onClose={() => setPickerOpen(false)}
+              label="日計対象日"
+              closeOnOutside
+            />
+          )}
         </div>
 
         <button

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../../../../shared/components/feedback/LoadingSpinner';
 import ColorPicker from '../../../../shared/components/inputs/ColorPicker';
+import { TimeField } from '../../../../shared/components/akuto/DateField';
 
 const ICON_TEMPLATES = [
   { id: 'sun', icon: Sun, label: 'モーニング' },
@@ -134,8 +135,8 @@ const PeriodSettings = ({ periods = [], menuItems = [], onSave, loading, onSaved
               <div>
                 <label className="mb-3 block text-sm font-black uppercase tracking-widest text-gray-500">提供時間設定</label>
                 <div className="grid max-w-md grid-cols-2 gap-4">
-                  <input type="time" value={editingItem.start} onChange={(event) => setEditingItem({ ...editingItem, start: event.target.value })} required className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl text-center font-mono text-2xl font-black transition-all outline-none focus:border-ui" />
-                  <input type="time" value={editingItem.end} onChange={(event) => setEditingItem({ ...editingItem, end: event.target.value })} required className="border-2 border-gray-200 bg-white hover:border-gray-300 h-16 w-full rounded-2xl text-center font-mono text-2xl font-black transition-all outline-none focus:border-ui" />
+                  <TimeField value={editingItem.start} onChange={(value) => setEditingItem({ ...editingItem, start: value })} label="開始" step={5} />
+                  <TimeField value={editingItem.end} onChange={(value) => setEditingItem({ ...editingItem, end: value })} label="終了" step={5} />
                 </div>
               </div>
 
