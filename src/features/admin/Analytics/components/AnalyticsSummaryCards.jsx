@@ -141,7 +141,7 @@ const TimePeriodFilterCard = ({
     </select>
 
     <div className="mt-1 text-[11px] font-bold text-gray-500">
-      注文時刻ベースで絞り込み（時間帯選択時はテイクアウトを除外）
+      注文時刻ベースで絞り込み（時間帯選択時はテイクアウト・イベントを除外）
     </div>
   </div>
 );

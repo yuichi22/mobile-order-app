@@ -8,7 +8,8 @@ import { useAuth } from '../../../app/providers/useAuth';
 import { useMenuData, useCategoryData, useBusinessSettings, usePeriodData, useStoreSettings } from '../../store/hooks';
 import { getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
 import { buildItemDepartmentResolver, filterAnalyticsOrdersByDepartment, splitTransactionsByDepartment } from './utils/departmentAttribution';
-import { TAKEOUT_PERIOD_ID } from './utils/analyticsHelpers';
+import { EVENT_PERIOD_FILTER_ID, TAKEOUT_PERIOD_ID } from './utils/analyticsHelpers';
+import { formatEventDateShort } from '../../pos/utils/eventDeposit';
 
 import CustomRangePicker from './components/CustomRangePicker';
 import RankingView from './components/RankingView';
@@ -190,7 +191,12 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
 
     // テイクアウトのみの分析用。モーニング等の特定時間帯を選んだ時は
     // 集計側でテイクアウトを除外する(店内の時間帯分析を汚さない)。
-    return [...basePeriods, { id: TAKEOUT_PERIOD_ID, label: 'テイクアウト' }];
+    // イベント入金も同じく時間帯の外の別枠(イベントのみの分析用)。
+    return [
+      ...basePeriods,
+      { id: TAKEOUT_PERIOD_ID, label: 'テイクアウト' },
+      { id: EVENT_PERIOD_FILTER_ID, label: 'イベント' }
+    ];
   }, [periods]);
 
   const effectiveSelectedPeriodId = periodOptions.some((periodOption) => periodOption.id === selectedPeriodId)
@@ -468,6 +474,37 @@ const AnalyticsDashboard = ({ mode = 'analytics' }) => {
               isDayOfWeekMode={effectiveDayOfWeekMode}
               chartMetric={chartMetric}
             />
+
+          {Array.isArray(analytics.eventSummary) && analytics.eventSummary.length > 0 && (
+            <div className="print:break-inside-avoid mt-8 rounded-2xl border border-gray-100 p-4">
+              <div className="mb-1 text-sm font-black text-gray-800">イベント別売上（税込）</div>
+              <p className="mb-3 text-[11px] font-bold text-gray-500">
+                この期間に入金したイベント入金を、イベントカテゴリーと開催日ごとに出しています。来客数・客単価には含めていません。
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-left text-[11px] font-black text-gray-500">
+                      <th className="py-2 pr-3">開催日</th>
+                      <th className="py-2 pr-3">イベントカテゴリー</th>
+                      <th className="py-2 pr-3 text-right">組数</th>
+                      <th className="py-2 text-right">売上</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.eventSummary.map((entry) => (
+                      <tr key={entry.key} className="border-b border-gray-50 font-bold text-gray-800">
+                        <td className="py-2 pr-3">{formatEventDateShort(entry.eventDate) || '-'}</td>
+                        <td className="py-2 pr-3">{entry.categoryName}</td>
+                        <td className="py-2 pr-3 text-right">{Number(entry.groupCount || 0) > 0 ? `${entry.groupCount}組` : '-'}</td>
+                        <td className="py-2 text-right font-black">¥{Number(entry.total || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="print:break-inside-avoid mt-8">
             <AnalyticsModeTabs

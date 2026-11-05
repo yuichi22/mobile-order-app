@@ -4,6 +4,7 @@ import SettingsCard from './components/SettingsCard';
 import { AkutoWordmark } from '../../../shared/components/AkutoLogo';
 import {
   AlertCircle,
+  CalendarDays,
   Archive,
   Boxes,
   Building2,
@@ -56,11 +57,13 @@ import {
   useProductMasterData,
   useStoreSettings
 } from '../../store/hooks';
+import { saveStoreSettings } from '../../store/services/storeDataService';
 
 import BasicSettings from './components/BasicSettings';
 import BusinessSettings from './components/BusinessSettings';
 import CategorySettings from './components/CategorySettings';
 import DiscountSettings from './components/DiscountSettings';
+import EventCategorySettings from './components/EventCategorySettings';
 import FloorMapSettings from './components/floor-map/FloorMapSettings';
 import MenuSettings from './components/MenuSettings';
 import OwnerSetupGuide from './components/OwnerSetupGuide';
@@ -125,6 +128,7 @@ const SETTINGS_MENU_ITEMS = [
   { id: 'csvImportExport', mode: 'pos', group: null, label: 'CSV入出力', icon: FileSpreadsheet, desc: 'CSVで商品・在庫・仕入先データを入出力します' },
 
   { id: 'discount', mode: 'shared', group: '会計設定', label: '割引設定', icon: Percent, desc: '割引ルールの追加（POS・ORDER共通）' },
+  { id: 'eventCategory', mode: 'shared', group: '会計設定', label: 'イベント入金', icon: CalendarDays, desc: 'イベント入金で選ぶカテゴリー（POS・ORDER共通）' },
   { id: 'staff', mode: 'shared', group: '共通', label: 'メンバー', icon: Users, desc: 'メンバーの一覧と招待' },
   { id: 'taxPrice', mode: 'shared', group: '共通', label: '税・価格設定', icon: Percent, desc: '税率・税抜価格基準・Shopify価格同期方式' },
   { id: 'basic', mode: 'shared', group: '共通', label: '基本設定', icon: Store, desc: '店舗名・レジ設定・部門設定などの基本情報' }
@@ -3388,6 +3392,15 @@ export const StoreSettings = ({
               loading={discountsLoading}
               onSave={saveDiscount}
               onDelete={deleteDiscount}
+              onSaved={showSaveComplete}
+            />
+          )}
+
+          {deferredSubTab === 'eventCategory' && canAccessSettingsSection(normalizedRole, 'eventCategory') && (
+            <EventCategorySettings
+              settings={settings}
+              // 他の基本設定を巻き込まないよう、この1項目だけ merge 保存する。
+              onSave={(eventCategories) => saveStoreSettings(storeId, { eventCategories })}
               onSaved={showSaveComplete}
             />
           )}

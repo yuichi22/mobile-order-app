@@ -82,6 +82,9 @@ const AnalyticsChartSection = ({
   const hasTakeoutStack = config.useStacks && safeChartData.some((point) => (
     (point.stacks || []).some((stack) => stack.isTakeout && Number(stack.value || 0) > 0)
   ));
+  const hasEventStack = config.useStacks && safeChartData.some((point) => (
+    (point.stacks || []).some((stack) => stack.isEvent && Number(stack.value || 0) > 0)
+  ));
 
   return (
     <div className="print:break-inside-avoid mb-8">
@@ -92,6 +95,12 @@ const AnalyticsChartSection = ({
           <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-ui-50 px-2.5 py-1 text-[11px] font-black text-ui">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#f97316' }} />
             テイクアウト（バー最上段に別掲）
+          </span>
+        )}
+        {hasEventStack && (
+          <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-ui-50 px-2.5 py-1 text-[11px] font-black text-ui">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: '#655C99' }} />
+            イベント（入金した日に別掲）
           </span>
         )}
       </h3>
