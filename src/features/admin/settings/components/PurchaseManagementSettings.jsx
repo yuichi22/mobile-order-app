@@ -34,6 +34,7 @@ import {
   updatePurchaseOrder
 } from '../../../store/services/storeDataService';
 import SearchField from '../../../../shared/components/SearchField';
+import { DateField } from '../../../../shared/components/akuto/DateField';
 
 // ===== 共通ヘルパ =====
 
@@ -1568,12 +1569,9 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <label className="text-xs font-black text-gray-500">
                     発注書の納期(ETA)
-                    <input
-                      type="date"
-                      value={etaDraft}
-                      onChange={(event) => setEtaDraft(event.target.value)}
-                      className="border-2 border-gray-200 bg-white hover:border-gray-300 ml-2 rounded-lg px-2 py-1.5 font-bold text-gray-700 outline-none focus:border-ui"
-                    />
+                    <div className="mt-1">
+                      <DateField value={etaDraft} onChange={setEtaDraft} label="発注書の納期" width={240} />
+                    </div>
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -1645,12 +1643,13 @@ const PurchaseHistoryPanel = ({ storeId, purchaseOrders, storeName, suppliers, o
                             <td className="px-2 py-2 text-right font-bold text-gray-600">{Number(line.receivedQty || 0)}</td>
                             <td className="px-2 py-2">
                               {/* 表示優先は 商品別 > 発注書別。未入力なら発注書ETAを薄く表示する。 */}
-                              <input
-                                type="date"
+                              <DateField
                                 value={lineEtaDrafts[line.productId] ?? (line.eta || '')}
-                                onChange={(event) => setLineEtaDrafts((current) => ({ ...current, [line.productId]: event.target.value }))}
+                                onChange={(value) => setLineEtaDrafts((current) => ({ ...current, [line.productId]: value }))}
                                 disabled={line.canceled}
-                                className="border-2 border-gray-200 bg-white hover:border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-700 disabled:bg-gray-50 outline-none focus:border-ui"
+                                label="商品の納期"
+                                placeholder="納期"
+                                width={190}
                               />
                               {!line.eta && !lineEtaDrafts[line.productId] && po.eta && (
                                 <span className="ml-1 text-[10px] font-bold text-gray-500">({formatDateText(po.eta)})</span>

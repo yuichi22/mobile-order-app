@@ -9,6 +9,7 @@ import {
   DEFAULT_BUSINESS_SETTINGS,
   normalizeBusinessSettings
 } from '../../../../shared/utils/businessHours';
+import { TimeField } from '../../../../shared/components/akuto/DateField';
 
 const DAY_LABELS = {
   sun: '日',
@@ -130,22 +131,22 @@ const BusinessSettings = ({ settings, onSave, onSaved }) => {
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <label className="block">
                           <span className="mb-2 block text-[10px] font-black tracking-[0.18em] text-gray-500">開始</span>
-                          <input
-                            type="time"
+                          <TimeField
                             value={dayValue.open}
                             disabled={!dayValue.isOpen}
-                            onChange={(event) => handleDayChange(day.key, 'open', event.target.value)}
-                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 font-mono text-lg font-bold text-gray-700 transition-all disabled:bg-gray-100 disabled:text-gray-300 outline-none focus:border-ui"
+                            onChange={(value) => handleDayChange(day.key, 'open', value)}
+                            label="開始"
+                            step={5}
                           />
                         </label>
                         <label className="block">
                           <span className="mb-2 block text-[10px] font-black tracking-[0.18em] text-gray-500">終了</span>
-                          <input
-                            type="time"
+                          <TimeField
                             value={dayValue.close}
                             disabled={!dayValue.isOpen}
-                            onChange={(event) => handleDayChange(day.key, 'close', event.target.value)}
-                            className="border-2 border-gray-200 bg-white hover:border-gray-300 h-14 w-full rounded-2xl px-5 font-mono text-lg font-bold text-gray-700 transition-all disabled:bg-gray-100 disabled:text-gray-300 outline-none focus:border-ui"
+                            onChange={(value) => handleDayChange(day.key, 'close', value)}
+                            label="終了"
+                            step={5}
                           />
                         </label>
                       </div>

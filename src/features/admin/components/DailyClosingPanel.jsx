@@ -30,6 +30,7 @@ import { printDailyClosingReceipt } from './printDailyClosingReceipt';
 import { getAvailableRegisters, getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
 import { buildItemDepartmentResolver, splitTransactionsByDepartment } from '../Analytics/utils/departmentAttribution';
 import { buildItemSalesAreaResolver, buildSalesAreaSales } from '../Analytics/utils/salesAreaSales';
+import { DatePanel } from '../../../shared/components/akuto/DateField';
 
 const toDateInputValue = (date) => {
   const target = new Date(date || new Date());
@@ -120,7 +121,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const [productCategoryGroups, setProductCategoryGroups] = useState([]);
   const [productSalesAreas, setProductSalesAreas] = useState([]);
 
-  const dateInputRef = useRef(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { settings } = useStoreSettings(storeId);
 
   // 釣り銭準備金はレジ単位で読み込む(activeRegister 定義後の effect で実行)。
@@ -538,16 +539,7 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     setClosingStatus(null);
   };
 
-  const openDatePicker = () => {
-    if (!dateInputRef.current) return;
-
-    if (typeof dateInputRef.current.showPicker === 'function') {
-      dateInputRef.current.showPicker();
-      return;
-    }
-
-    dateInputRef.current.click();
-  };
+  const openDatePicker = () => setDatePickerOpen(true);
 
   // 印刷は「選択中レジ」の締め内容を出力する（サマリ・各内訳・金種/カード/QR/クーポン実績）。
   const handlePrint = () => {
@@ -770,15 +762,16 @@ const handleCloseDay = async (closingCheck = {}) => {
           >
             今日
           </button>
-
-          <input
-            ref={dateInputRef}
-            type="date"
-            max={todayDateValue}
-            value={toDateInputValue(targetDate)}
-            onChange={handleDateInputChange}
-            className="sr-only"
-          />
+          {datePickerOpen && (
+            <DatePanel
+              value={toDateInputValue(targetDate)}
+              max={todayDateValue}
+              onPick={(value) => handleDateInputChange({ target: { value } })}
+              onClose={() => setDatePickerOpen(false)}
+              label="日計対象日"
+              closeOnOutside
+            />
+          )}
         </div>
 
         {/* レジ単位ブロック: 対象レジ(テキスト) + このレジの売上 + 締めボタン を同じ枠に。

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, ArrowRight } from 'lucide-react';
 
 import { toDate, formatDateDisplay } from '../utils/analyticsHelpers';
+import '../../../../shared/components/akuto/akuto-date-field.css';
 
 const isSameDay = (d1, d2) => {
   const date1 = toDate(d1);
@@ -146,55 +147,46 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
     }
   };
 
+  // 見た目は AKUTO 共通の日付パネル（shared/components/akuto）と同じ部品クラスを使う
   const renderDays = () => {
     const year = safeViewDate.getFullYear();
     const month = safeViewDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDay = new Date(year, month, 1).getDay();
-    const days = [];
-    for (let index = 0; index < firstDay; index += 1) days.push(<div key={`empty-${index}`} />);
-
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const date = new Date(year, month, day);
-      const isStart = isSameDay(date, startDate);
-      const isEnd = isSameDay(date, endDate);
-      const start = toDate(startDate);
-      const end = toDate(endDate);
-      const inRange = start && end && date > start && date < end;
-      const isToday = isSameDay(date, new Date());
-      let bgClass = 'hover:bg-ui-50 text-gray-700';
-      let textClass = '';
-      if (isStart || isEnd) {
-        bgClass = 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm';
-        textClass = 'font-bold';
-      } else if (inRange) {
-        bgClass = 'bg-ui-50 text-ui';
-      } else if (isToday) {
-        textClass = 'font-bold text-ui';
-        bgClass = 'border border-ui-100 hover:bg-ui-50';
-      }
-      days.push(
-        <button
-          key={day}
-          onClick={(event) => { event.stopPropagation(); handleDateClick(date); }}
-          className={`flex h-8 w-full items-center justify-center rounded text-xs transition-all ${bgClass} ${textClass}`}
-        >
-          {day}
-        </button>
-      );
-    }
+    const start = toDate(startDate);
+    const end = toDate(endDate);
+    const cells = [];
+    for (let index = firstDay; index > 0; index -= 1) cells.push({ date: new Date(year, month, 1 - index), other: true });
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push({ date: new Date(year, month, day), other: false });
+    while (cells.length % 7 !== 0) cells.push({ date: new Date(year, month + 1, cells.length - firstDay - daysInMonth + 1), other: true });
 
     return (
       <>
-        <div className="mb-2 grid grid-cols-7 border-b pb-2">
+        <div className="ak-picker-week">
           {WEEKDAYS.map((day, index) => (
-            <div key={day} className={`text-center text-[10px] font-bold ${index === 0 ? 'text-red-400' : index === 6 ? 'text-ui' : 'text-gray-500'}`}>
-              {day}
-            </div>
+            <span key={day} data-dow={index}>{day}</span>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {days}
+        <div className="ak-picker-grid">
+          {cells.map(({ date, other }) => {
+            const isEdge = isSameDay(date, startDate) || isSameDay(date, endDate);
+            const inRange = Boolean(start && end && date > start && date < end);
+            return (
+              <button
+                key={date.toDateString()}
+                type="button"
+                className="ak-picker-day"
+                data-other={other}
+                data-dow={date.getDay()}
+                data-today={isSameDay(date, new Date())}
+                data-inrange={inRange}
+                aria-pressed={isEdge}
+                onClick={(event) => { event.stopPropagation(); handleDateClick(date); }}
+              >
+                {date.getDate()}
+              </button>
+            );
+          })}
         </div>
       </>
     );
@@ -213,28 +205,29 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
           const inRange = start && end ? week.start > start && week.end < end : false;
           const isSelected = isStartWeek || isEndWeek;
 
-          let bgClass = 'bg-white border-gray-200 hover:bg-ui-50 text-gray-700';
+          let bgClass = 'bg-white border-gray-200 hover:border-gray-300 text-gray-900';
           if (isSelected) {
-            bgClass = 'bg-gray-900 text-white border-ui shadow-md';
+            bgClass = 'bg-gray-900 text-white border-gray-900';
           } else if (inRange) {
-            bgClass = 'bg-ui-50 border-ui-100 text-ui';
+            bgClass = 'bg-gray-100 border-gray-100 text-gray-900';
           }
 
           return (
             <button
               key={week.weekNum}
+              type="button"
               onClick={(event) => { event.stopPropagation(); handleWeekClick(week); }}
-              className={`group flex w-full items-center justify-between rounded-lg border p-3 text-left transition-all ${bgClass}`}
+              className={`group flex min-h-[44px] w-full items-center justify-between rounded-xl border-2 px-4 py-2 text-left transition-all ${bgClass}`}
             >
               <div>
-                <span className={`block text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-800'}`}>
+                <span className={`block text-sm font-black ${isSelected ? 'text-white' : 'text-gray-900'}`}>
                   {week.label}
                 </span>
-                <span className={`text-xs ${isSelected ? 'text-gray-300' : 'text-gray-500'}`}>
+                <span className={`text-xs font-bold tabular-nums ${isSelected ? 'text-gray-200' : 'text-gray-500'}`}>
                   {week.start.getMonth() + 1}/{week.start.getDate()} - {week.end.getMonth() + 1}/{week.end.getDate()}
                 </span>
               </div>
-              <ChevronRight size={16} className={`${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-ui'}`} />
+              <ChevronRight size={16} strokeWidth={1.5} className={isSelected ? 'text-white' : 'text-gray-500'} />
             </button>
           );
         })}
@@ -243,88 +236,113 @@ const CustomRangePicker = ({ startDate, endDate, onChange, isWeekMode }) => {
   };
 
   const renderCalendarContent = () => (
-    <div className="z-50 w-[280px] rounded-xl border border-gray-200 bg-white p-4 shadow-xl animate-in zoom-in-95 fade-in duration-200">
-      <div className="mb-4 flex items-center justify-between">
-        <button onClick={handlePrev} className={`rounded-full p-1 text-gray-600 hover:bg-gray-100 ${calendarView === 'years' ? 'invisible' : ''}`}><ChevronLeft size={16} /></button>
-        <div className="flex gap-1">
+    <div className="ak-picker" style={{ position: 'static' }} role="dialog" aria-label="期間を選ぶ">
+      <div className="ak-picker-head">
+        <button
+          type="button"
+          onClick={handlePrev}
+          className="ak-picker-nav"
+          aria-label="前へ"
+          style={{ visibility: calendarView === 'years' ? 'hidden' : undefined }}
+        >
+          <ChevronLeft size={18} strokeWidth={1.5} />
+        </button>
+        <div className="ak-picker-title">
           <button
+            type="button"
+            className="ak-picker-ym"
+            aria-pressed={calendarView === 'years'}
             onClick={(event) => { event.stopPropagation(); setCalendarView('years'); }}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'years' ? 'bg-ui-50 text-ui' : 'hover:bg-gray-100'}`}
           >
-            {safeViewDate.getFullYear()}年 <ChevronDown size={12} />
+            {safeViewDate.getFullYear()}年 <ChevronDown size={14} strokeWidth={1.5} />
           </button>
           <button
+            type="button"
+            className="ak-picker-ym"
+            aria-pressed={calendarView === 'months'}
             onClick={(event) => { event.stopPropagation(); setCalendarView('months'); }}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-sm font-bold ${calendarView === 'months' ? 'bg-ui-50 text-ui' : 'hover:bg-gray-100'}`}
           >
-            {safeViewDate.getMonth() + 1}月 <ChevronDown size={12} />
+            {safeViewDate.getMonth() + 1}月 <ChevronDown size={14} strokeWidth={1.5} />
           </button>
         </div>
-        <button onClick={handleNext} className={`rounded-full p-1 text-gray-600 hover:bg-gray-100 ${calendarView === 'years' ? 'invisible' : ''}`}><ChevronRight size={16} /></button>
+        <button
+          type="button"
+          onClick={handleNext}
+          className="ak-picker-nav"
+          aria-label="次へ"
+          style={{ visibility: calendarView === 'years' ? 'hidden' : undefined }}
+        >
+          <ChevronRight size={18} strokeWidth={1.5} />
+        </button>
       </div>
-      <div className="min-h-[220px]">
-        {calendarView === 'days' && renderDays()}
-        {calendarView === 'weeks' && renderWeeks()}
-        {calendarView === 'months' && (
-          <div className="grid grid-cols-3 gap-2">
-            {Array.from({ length: 12 }, (_, index) => index).map((month) => (
-              <button key={month} onClick={(event) => {
+      {calendarView === 'days' && renderDays()}
+      {calendarView === 'weeks' && renderWeeks()}
+      {calendarView === 'months' && (
+        <div className="ak-picker-cells3">
+          {Array.from({ length: 12 }, (_, index) => index).map((month) => (
+            <button
+              key={month}
+              type="button"
+              className="ak-picker-cell"
+              aria-pressed={safeViewDate.getMonth() === month}
+              onClick={(event) => {
                 event.stopPropagation();
                 setViewDate(new Date(safeViewDate.getFullYear(), month, 1));
                 setCalendarView(isWeekMode ? 'weeks' : 'days');
-              }} className={`rounded py-2 text-sm ${safeViewDate.getMonth() === month ? 'bg-ui text-white' : 'hover:bg-gray-100'}`}>{month + 1}月</button>
-            ))}
-          </div>
-        )}
-        {calendarView === 'years' && (
-          <div ref={yearListRef} className="grid max-h-[220px] grid-cols-3 gap-2 overflow-y-auto">
-            {Array.from({ length: 20 }, (_, index) => safeViewDate.getFullYear() - 10 + index).map((year) => (
-              <button key={year} data-selected-year={safeViewDate.getFullYear() === year} onClick={(event) => {
+              }}
+            >
+              {month + 1}月
+            </button>
+          ))}
+        </div>
+      )}
+      {calendarView === 'years' && (
+        <div ref={yearListRef} className="ak-picker-cells3 ak-picker-years">
+          {Array.from({ length: 20 }, (_, index) => safeViewDate.getFullYear() - 10 + index).map((year) => (
+            <button
+              key={year}
+              type="button"
+              className="ak-picker-cell"
+              data-selected-year={safeViewDate.getFullYear() === year}
+              aria-pressed={safeViewDate.getFullYear() === year}
+              onClick={(event) => {
                 event.stopPropagation();
                 setViewDate(new Date(year, safeViewDate.getMonth(), 1));
                 setCalendarView('months');
-              }} className={`rounded py-2 text-sm ${safeViewDate.getFullYear() === year ? 'bg-ui text-white' : 'hover:bg-gray-100'}`}>{year}</button>
-            ))}
-          </div>
-        )}
-      </div>
+              }}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 
+  const field = (target, value, placeholder) => (
+    <button
+      type="button"
+      onClick={() => (activeInput === target ? setActiveInput(null) : openCalendar(target))}
+      className="ak-picker-field ak-picker-field-btn"
+      data-open={activeInput === target}
+      style={{ width: 200 }}
+      aria-expanded={activeInput === target}
+    >
+      <span className={value ? '' : 'ak-picker-placeholder'}>{formatDateDisplay(value) || placeholder}</span>
+      <CalendarIcon size={18} strokeWidth={1.5} />
+    </button>
+  );
+
   return (
-    <div className="relative flex items-center gap-2" ref={containerRef}>
+    <div className="relative flex flex-wrap items-center gap-2" ref={containerRef}>
       <div className="relative">
-        <button
-          onClick={() => (activeInput === 'start' ? setActiveInput(null) : openCalendar('start'))}
-          className={`flex w-48 items-center justify-between rounded-lg border px-4 py-2 transition-all ${
-            activeInput === 'start'
-              ? 'border-ui bg-white ring-2 ring-ui-100'
-              : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-          }`}
-        >
-          <span className={`text-lg font-bold ${startDate ? 'text-gray-800' : 'text-gray-500'}`}>
-            {formatDateDisplay(startDate) || '開始日'}
-          </span>
-          <CalendarIcon size={18} className={activeInput === 'start' ? 'text-ui' : 'text-gray-500'} />
-        </button>
-        {activeInput === 'start' && <div className="absolute top-full left-0 mt-2 z-50">{renderCalendarContent()}</div>}
+        {field('start', startDate, '開始日')}
+        {activeInput === 'start' && <div className="absolute left-0 top-full z-50 mt-2">{renderCalendarContent()}</div>}
       </div>
-      <ArrowRight size={20} className="text-gray-300" />
+      <ArrowRight size={20} strokeWidth={1.5} className="text-gray-500" />
       <div className="relative">
-        <button
-          onClick={() => (activeInput === 'end' ? setActiveInput(null) : openCalendar('end'))}
-          className={`flex w-48 items-center justify-between rounded-lg border px-4 py-2 transition-all ${
-            activeInput === 'end'
-              ? 'border-ui bg-white ring-2 ring-ui-100'
-              : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-          }`}
-        >
-          <span className={`text-lg font-bold ${endDate ? 'text-gray-800' : 'text-gray-500'}`}>
-            {formatDateDisplay(endDate) || '終了日'}
-          </span>
-          <CalendarIcon size={18} className={activeInput === 'end' ? 'text-ui' : 'text-gray-500'} />
-        </button>
-        {activeInput === 'end' && <div className="absolute top-full right-0 mt-2 z-50">{renderCalendarContent()}</div>}
+        {field('end', endDate, '終了日')}
+        {activeInput === 'end' && <div className="absolute right-0 top-full z-50 mt-2">{renderCalendarContent()}</div>}
       </div>
     </div>
   );
