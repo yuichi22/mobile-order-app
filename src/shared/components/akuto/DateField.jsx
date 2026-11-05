@@ -110,7 +110,7 @@ function DatePanel({
   const today = toYmd(/* @__PURE__ */ new Date());
   const outOfRange = (d) => {
     const k = toYmd(d);
-    return !!min && k < min || !!max && k > max;
+    return (!!min && k < min) || (!!max && k > max);
   };
   const cells = [];
   const first = new Date(y, m, 1).getDay();
