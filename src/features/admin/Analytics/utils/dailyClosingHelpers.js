@@ -1,3 +1,4 @@
+import { isEventDepositRecord, summarizeEventDeposits } from '../../../pos/utils/eventDeposit';
 export const formatDailyClosingDateKey = (date) => {
   const target = new Date(date || new Date());
   const year = target.getFullYear();
@@ -967,17 +968,22 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     summary.totalSales += totalAmount + settlementAdjustmentTotal;
     summary.settlementAdjustmentTotal += settlementAdjustmentTotal;
 
+    // イベント入金は店外の売上なので、来客数・客単価には含めない(売上・入金内訳には含める)。
+    const isEvent = isEventDepositRecord(transaction);
+
     // POSレジは「一会計＝一客」で来客数に加算（人数・顧客IDを持たないため）。
-    if (transaction.registerMode === 'pos' || transaction.salesChannel === 'pos_register') {
+    if (!isEvent && (transaction.registerMode === 'pos' || transaction.salesChannel === 'pos_register')) {
       summary.posCustomerCount += 1;
     }
 
-    const guestCount = getTransactionGuestCount(transaction);
-    const sessionKey = getTransactionSessionKey(transaction);
+    if (!isEvent) {
+      const guestCount = getTransactionGuestCount(transaction);
+      const sessionKey = getTransactionSessionKey(transaction);
 
-    upsertSessionGuestCount(summary.sessionGuestCounts, sessionKey, guestCount);
+      upsertSessionGuestCount(summary.sessionGuestCounts, sessionKey, guestCount);
 
-    addCustomers(summary, transaction);
+      addCustomers(summary, transaction);
+    }
 
     addDepartmentAmount(summary, transaction);
     addDiscounts(summary, transaction);
@@ -1056,6 +1062,9 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     itemList: Object.values(summary.items)
       .sort((left, right) => right.total - left.total),
+
+    // イベント入金のカテゴリー別内訳(件数・組数・金額)。
+    eventList: summarizeEventDeposits(transactions),
 
     departmentList: Object.values(summary.departments)
       .sort((left, right) => right.total - left.total),

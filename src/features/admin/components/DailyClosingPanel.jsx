@@ -4,6 +4,7 @@ import { appConfirm } from '../../../shared/components/feedback/AppConfirmDialog
 import {
   AlertTriangle,
   BadgeJapaneseYen,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -467,6 +468,10 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
   const timeSlotList = Array.isArray(summary?.timeSlotList)
     ? summary.timeSlotList
     : [];
+  // イベント入金のカテゴリー別内訳（売上は入金した日に計上）。
+  const eventList = Array.isArray(summary?.eventList)
+    ? summary.eventList
+    : [];
   // POS系部門の表示では時間帯別売上を出さない。
   // POS系部門の表示では時間帯別売上を出さない（全体表示=allでは出す）。
   const showTimeSlot = !(selectedDepartment && selectedDepartment.registerMode === 'pos');
@@ -623,6 +628,7 @@ const buildClosingPayload = (sum, txns, closingCheck = {}) => ({
   promoExpenses: Array.isArray(sum?.promoExpenseList) ? sum.promoExpenseList : [],
   vouchers: Array.isArray(sum?.voucherList) ? sum.voucherList : [],
   timeSlots: Array.isArray(sum?.timeSlotList) ? sum.timeSlotList : [],
+  events: Array.isArray(sum?.eventList) ? sum.eventList : [],
   categories: Array.isArray(sum?.categoryList) ? sum.categoryList : [],
 
   cashCheck: closingCheck.cashCheck || null,
@@ -1449,6 +1455,36 @@ const handleCloseDay = async (closingCheck = {}) => {
                   ))
                 )}
               </div>
+            </div>
+            )}
+
+            {eventList.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
+                <CalendarDays size={16} />
+                イベント入金
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">税込</span>
+              </div>
+              <div className="space-y-2">
+                {eventList.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-gray-800">{entry.categoryName}</div>
+                      <div className="text-[11px] font-bold text-gray-500">
+                        {Number(entry.count || 0)}件
+                        {Number(entry.groupCount || 0) > 0 ? ` ・ ${Number(entry.groupCount)}組` : ''}
+                      </div>
+                    </div>
+                    <div className="ml-3 shrink-0 text-sm font-black text-gray-900">
+                      {formatCurrency(entry.total)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] font-bold text-gray-500">来客数・客単価には含めていません。</p>
             </div>
             )}
           </div>

@@ -59,6 +59,12 @@ export const buildItemDepartmentResolver = ({
   });
 
   return (item = {}, fallbackDepartment = null) => {
+    // イベント入金の明細は、イベントカテゴリーで決めた部門をそのまま使う。
+    if (item.sourceType === 'event') {
+      const eventDeptId = String(item.departmentId || '').trim();
+      if (eventDeptId && deptMap.has(eventDeptId)) return toDept(deptMap.get(eventDeptId));
+      return fallbackDepartment ? toDept(fallbackDepartment) : toDept(restaurant);
+    }
     const categoryId = String(item.categoryId || item.category || '').trim();
 
     // categoryId が無い（POS手打ち品など）は、会計レジの部門へフォールバック。

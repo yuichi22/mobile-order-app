@@ -61,6 +61,7 @@ export const canAccessSettingsSection = (role, sectionId) => {
     'menu',
     'products',
     'discount',
+    'eventCategory',
     'qrcode',
     'purchaseManagement',
     'productManagement',

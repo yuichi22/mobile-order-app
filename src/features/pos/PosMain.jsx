@@ -42,6 +42,7 @@ import PosTransactionHistoryPage from './pages/PosTransactionHistoryPage';
 import UncodedSaleModal from './components/UncodedSaleModal';
 import PosFavoritesModal from './components/PosFavoritesModal';
 import CashDrawerButton from './components/CashDrawerButton';
+import EventDepositButton from './components/EventDepositButton';
 import { PosModals } from './PosRegister/components/PosModals';
 import { computePaymentSplit, getSplitActionLabel, getSplitMethodLabel } from './utils/paymentSplit';
 import { buildRegisterTakeoutKitchenOrder } from './utils/registerTakeoutKitchenOrder';
@@ -2711,6 +2712,12 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <X size={15} />
               クリア
             </button>
+            <EventDepositButton
+              storeId={storeId}
+              mode="pos"
+              onResult={(result) => setPosMessage(result.message, result.type)}
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
+            />
             <CashDrawerButton
               storeId={storeId}
               mode="pos"
@@ -3069,6 +3076,14 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
                     <ShoppingBag size={15} />
                     {registerMode === 'pos' ? 'POSレジ' : 'テイクアウト注文'}
                   </button>
+
+                  {/* 店外イベントの売上をまとめて入金する(カートを通さない)。 */}
+                  <EventDepositButton
+                    storeId={storeId}
+                    mode={registerMode}
+                    onResult={(result) => setPosMessage(result.message, result.type)}
+                    className="flex h-9 items-center gap-2 rounded-lg border border-ui-100 bg-white px-3 text-xs font-black text-ui transition-colors hover:bg-ui-50 active:scale-95"
+                  />
 
                   <button
                     type="button"

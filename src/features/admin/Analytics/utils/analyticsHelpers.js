@@ -1,3 +1,5 @@
+import { isEventDepositRecord, summarizeEventDeposits } from '../../../pos/utils/eventDeposit';
+
 export const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
 export const toDate = (value) => {
@@ -370,6 +372,11 @@ export const TAKEOUT_STACK_ID = '__takeout__';
 // 特定時間帯の選択時はテイクアウトを除外し、この値の選択時はテイクアウトのみ集計する。
 export const TAKEOUT_PERIOD_ID = TAKEOUT_STACK_ID;
 
+// イベント入金(店外イベントの売上)も、テイクアウトと同じく時間帯の外の別枠にする。
+// 入金はイベント後にまとめて打つため、打った時刻で時間帯に入れると店内の時間帯分析が崩れる。
+export const EVENT_STACK_ID = '__event__';
+export const EVENT_PERIOD_FILTER_ID = EVENT_STACK_ID;
+
 // テイクアウト会計(ORDERレジのテイクアウト画面)の判定。取引レベルで判定する。
 // ⚠POSレジ直販も同じ書込パスを通り isTakeout/tableId:'takeout' 等を持つため、
 //   registerMode/salesChannel が pos のものは必ず除外する。
@@ -428,6 +435,7 @@ export const buildAnalyticsSummary = ({
   const normalizedSelectedPeriodId = String(selectedPeriodId || 'all');
   const shouldFilterByPeriod = normalizedSelectedPeriodId !== 'all';
   const isTakeoutOnlyFilter = normalizedSelectedPeriodId === TAKEOUT_PERIOD_ID;
+  const isEventOnlyFilter = normalizedSelectedPeriodId === EVENT_PERIOD_FILTER_ID;
 
   const sessionGuestCounts = new Map();
   const weeklyCurrentSessionGuestCounts = new Map();
@@ -595,7 +603,8 @@ export const buildAnalyticsSummary = ({
       ? Math.max(recordTotalForTax - recordTaxAmount, 0) / recordTotalForTax
       : 1;
 
-    const recordIsTakeout = isTakeoutAnalyticsRecord(record);
+    const recordIsEvent = isEventDepositRecord(record);
+    const recordIsTakeout = !recordIsEvent && isTakeoutAnalyticsRecord(record);
 
     getOrderAnalyticsRecords(record).forEach((orderRecord) => {
       // 時間帯・時間軸の帰属は「注文時刻(orderedAt=提供時刻)」を優先する。会計(paidAt)基準だと
@@ -608,10 +617,13 @@ export const buildAnalyticsSummary = ({
         if (isTakeoutOnlyFilter) {
           // 「テイクアウト」選択時はテイクアウト会計のみ集計する。
           if (!recordIsTakeout) return;
+        } else if (isEventOnlyFilter) {
+          // 「イベント」選択時はイベント入金のみ集計する。
+          if (!recordIsEvent) return;
         } else {
-          // モーニング等の特定時間帯を選択している時は、テイクアウトを除外して
+          // モーニング等の特定時間帯を選択している時は、テイクアウト・イベントを除外して
           // 店内の時間帯分析を汚さない。
-          if (recordIsTakeout) return;
+          if (recordIsTakeout || recordIsEvent) return;
           if (orderPeriodKey !== normalizedSelectedPeriodId) return;
         }
       }
@@ -647,10 +659,15 @@ export const buildAnalyticsSummary = ({
         if (recordIsTakeout) {
           timeSlots[orderKey].takeout = (timeSlots[orderKey].takeout || 0) + orderAmount;
         }
-        upsertSessionGuestCount(timeSlots[orderKey].sessionGuestCounts, sessionKey, guestCount);
-        timeSlots[orderKey].sessionKeys.add(sessionKey);
-        timeSlots[orderKey].customers = sumSessionGuestCounts(timeSlots[orderKey].sessionGuestCounts);
-        timeSlots[orderKey].transactions = timeSlots[orderKey].sessionKeys.size;
+        if (recordIsEvent) {
+          // イベント入金は売上にだけ入れ、客数・件数(客単価の分母)には入れない。
+          timeSlots[orderKey].event = (timeSlots[orderKey].event || 0) + orderAmount;
+        } else {
+          upsertSessionGuestCount(timeSlots[orderKey].sessionGuestCounts, sessionKey, guestCount);
+          timeSlots[orderKey].sessionKeys.add(sessionKey);
+          timeSlots[orderKey].customers = sumSessionGuestCounts(timeSlots[orderKey].sessionGuestCounts);
+          timeSlots[orderKey].transactions = timeSlots[orderKey].sessionKeys.size;
+        }
       }
 
       if (Array.isArray(orderRecord.items)) {
@@ -683,7 +700,9 @@ export const buildAnalyticsSummary = ({
 
           // テイクアウト会計の明細は、時間帯バーの積み上げ上「テイクアウト」枠へ
           // まとめて別掲する(通常カテゴリには積まない=二重計上しない)。
-          const categoryId = recordIsTakeout ? TAKEOUT_STACK_ID : resolveCategoryId(item, itemCategoryMap);
+          const categoryId = recordIsEvent
+            ? EVENT_STACK_ID
+            : recordIsTakeout ? TAKEOUT_STACK_ID : resolveCategoryId(item, itemCategoryMap);
 
           if (timeSlots[orderKey]) {
             if (!timeSlots[orderKey].categories[categoryId]) {
@@ -701,19 +720,24 @@ export const buildAnalyticsSummary = ({
     totalSales += includedRecordAmount;
     totalSalesTaxExcluded += includedRecordAmount * taxExcludedRatio;
     totalTaxAmount += includedRecordAmount * (1 - taxExcludedRatio);
-    upsertSessionGuestCount(sessionGuestCounts, sessionKey, guestCount);
+    // イベント入金は客数・件数に入れない(客単価・組単価を崩さない)。
+    if (!recordIsEvent) upsertSessionGuestCount(sessionGuestCounts, sessionKey, guestCount);
 
     if (period === 'weekly') {
       const comparisonBucket = getWeeklyComparisonBucket(recordDate, currentDate);
 
       if (comparisonBucket === 'current') {
         weeklyCurrentSales += includedRecordAmount;
-        weeklyCurrentSessionKeys.add(sessionKey);
-        upsertSessionGuestCount(weeklyCurrentSessionGuestCounts, sessionKey, guestCount);
+        if (!recordIsEvent) {
+          weeklyCurrentSessionKeys.add(sessionKey);
+          upsertSessionGuestCount(weeklyCurrentSessionGuestCounts, sessionKey, guestCount);
+        }
       } else if (comparisonBucket === 'previous') {
         weeklyPreviousSales += includedRecordAmount;
-        weeklyPreviousSessionKeys.add(sessionKey);
-        upsertSessionGuestCount(weeklyPreviousSessionGuestCounts, sessionKey, guestCount);
+        if (!recordIsEvent) {
+          weeklyPreviousSessionKeys.add(sessionKey);
+          upsertSessionGuestCount(weeklyPreviousSessionGuestCounts, sessionKey, guestCount);
+        }
       }
     }
   });
@@ -843,20 +867,27 @@ export const buildAnalyticsSummary = ({
     const stacks = Object.entries(slot.categories)
       .map(([categoryId, value]) => {
         const isTakeoutStack = categoryId === TAKEOUT_STACK_ID;
+        const isEventStack = categoryId === EVENT_STACK_ID;
 
         return {
-          color: isTakeoutStack ? '#f97316' : (categoryColorMap[categoryId] || '#9ca3af'),
+          color: isEventStack
+            ? '#655C99'
+            : isTakeoutStack ? '#f97316' : (categoryColorMap[categoryId] || '#9ca3af'),
           height: slot.total > 0 ? (value / slot.total) * 100 : 0,
           value,
-          name: isTakeoutStack
-            ? 'テイクアウト'
-            : (categories.find((category) => category.id === categoryId)?.name || '未分類'),
-          isTakeout: isTakeoutStack
+          name: isEventStack
+            ? 'イベント'
+            : isTakeoutStack
+              ? 'テイクアウト'
+              : (categories.find((category) => category.id === categoryId)?.name || '未分類'),
+          isTakeout: isTakeoutStack,
+          isEvent: isEventStack
         };
       })
-      // テイクアウトは常にバーの最上段(配列末尾=flex-col-reverseで一番上)に別掲する。
+      // テイクアウト・イベントは常にバーの最上段(配列末尾=flex-col-reverseで一番上)に別掲する。
       .sort((left, right) => (
-        (Number(left.isTakeout) - Number(right.isTakeout))
+        (Number(left.isEvent) - Number(right.isEvent))
+        || (Number(left.isTakeout) - Number(right.isTakeout))
         || right.value - left.value
         || left.name.localeCompare(right.name, 'ja')
       ));
@@ -941,6 +972,7 @@ export const buildAnalyticsSummary = ({
     metrics: {
       sales: slotSales,
       takeoutSales: Number(slot.takeout || 0),
+      eventSales: Number(slot.event || 0),
       customers: slotCustomers,
       customerUnitPrice,
       transactionUnitPrice,
@@ -998,6 +1030,8 @@ export const buildAnalyticsSummary = ({
     grossProfitRate,
     costRate,
     cancelReturnTotal,
+    // イベント入金のカテゴリー×開催日の内訳(期間内に入金されたもの)。
+    eventSummary: summarizeEventDeposits(orders, { byDate: true }),
     totalOrders,
     customerCount,
     averageSpendPerCustomer,
