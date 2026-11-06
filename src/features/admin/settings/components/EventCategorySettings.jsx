@@ -117,7 +117,7 @@ const EventCategorySettings = ({ settings, onSave, onSaved }) => {
       >
         <p className="mb-5 text-sm font-bold leading-relaxed text-gray-600">
           レジの「イベント入金」で選ぶカテゴリーです。店外イベントの売上を、イベントが終わったあとにまとめて1回で入金します。
-          売上は入金した日の日計に入り、来客数・客単価には含めません。税率は入金のたびに選べます（ここは最初に選ばれている税率）。
+          売上は入金した日の日計に入り、来客数・客単価には含めません。税率は入金のたびにレジで選びます。ここで決めるのは、モーダルを開いたときに選ばれている税率の初期値です。
         </p>
 
         {drafts.length === 0 ? (
@@ -155,7 +155,7 @@ const EventCategorySettings = ({ settings, onSave, onSaved }) => {
                   </select>
                 </label>
                 <div>
-                  <span className="mb-1 block text-[11px] font-black text-gray-500">最初の税率</span>
+                  <span className="mb-1 block text-[11px] font-black text-gray-500">税率の初期値</span>
                   <div className="flex h-11 overflow-hidden rounded-xl border-2 border-gray-200">
                     {[8, 10].map((rate) => (
                       <button

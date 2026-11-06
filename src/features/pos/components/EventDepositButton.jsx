@@ -29,9 +29,30 @@ import {
 // 売上は transactions に1件(日計は入金した日、分析のイベント別表は開催日)。来客数には入れない。
 // 支払い方法の色は会計画面と同じ(現金=黒/カード=ブルー/QR=パープル)【AKUTOブランド基準・例外 10-09】。
 const PAYMENT_OPTIONS = [
-  { id: 'cash', label: '現金', icon: DollarSign, active: 'border-gray-950 bg-gray-950 text-white' },
-  { id: 'card', label: 'カード', icon: CreditCard, active: 'border-[#2563EB] bg-[#2563EB] text-white' },
-  { id: 'qr', label: 'QR', icon: QrCode, active: 'border-[#7C3AED] bg-[#7C3AED] text-white' }
+  {
+    id: 'cash',
+    label: '現金',
+    icon: DollarSign,
+    active: 'border-gray-950 bg-gray-950 text-white',
+    badge: 'border-gray-950 bg-gray-50 text-gray-950',
+    action: 'bg-gray-950 hover:bg-black'
+  },
+  {
+    id: 'card',
+    label: 'カード',
+    icon: CreditCard,
+    active: 'border-[#2563EB] bg-[#2563EB] text-white',
+    badge: 'border-[#2563EB] bg-[#2563EB]/5 text-[#1D4ED8]',
+    action: 'bg-[#2563EB] hover:bg-[#1D4ED8]'
+  },
+  {
+    id: 'qr',
+    label: 'QR',
+    icon: QrCode,
+    active: 'border-[#9333EA] bg-[#9333EA] text-white',
+    badge: 'border-[#9333EA] bg-[#9333EA]/5 text-[#7E22CE]',
+    action: 'bg-[#9333EA] hover:bg-[#7E22CE]'
+  }
 ];
 
 const KEYS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '00', '0', '000'];
@@ -183,8 +204,13 @@ const EventDepositModal = ({ storeId, mode, settings, onClose, onResult }) => {
               </div>
               <div className="mt-2 text-5xl font-black tracking-tight text-gray-900">{yen(amountNumber)}</div>
               <div className="mt-2 text-xs font-bold text-gray-500">
-                税込・{taxRate}%（内税 {yen(taxPreview.taxAmount)}）・{paymentOption.label}
+                税込・{taxRate}%（内税 {yen(taxPreview.taxAmount)}）
                 {groupCount > 0 ? `・${groupCount}組` : ''}
+              </div>
+              {/* 支払方法は押し間違いに気づけるよう、会計画面と同じ色で大きく出す。 */}
+              <div className={`mt-4 inline-flex items-center gap-2 rounded-2xl border-2 px-5 py-2.5 text-xl font-black ${paymentOption.badge}`}>
+                {React.createElement(paymentOption.icon, { size: 22, strokeWidth: 2.6 })}
+                {paymentOption.label}で入金
               </div>
               {memo.trim() && <div className="mt-2 text-xs font-bold text-gray-500">メモ: {memo.trim()}</div>}
             </div>
@@ -197,10 +223,10 @@ const EventDepositModal = ({ storeId, mode, settings, onClose, onResult }) => {
               type="button"
               onClick={submit}
               disabled={busy}
-              className="flex h-16 w-full max-w-md items-center justify-center gap-2 rounded-2xl bg-gray-900 text-lg font-black text-white transition hover:bg-black disabled:opacity-50"
+              className={`flex h-16 w-full max-w-md items-center justify-center gap-2 rounded-2xl text-lg font-black text-white transition disabled:opacity-50 ${paymentOption.action}`}
             >
               <Check size={20} />
-              {busy ? '記録しています…' : '入金する'}
+              {busy ? '記録しています…' : `${paymentOption.label}で入金する`}
             </button>
           </div>
         ) : (
