@@ -2690,6 +2690,19 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <PauseCircle size={15} />
               保留する
             </button>
+            <EventDepositButton
+              storeId={storeId}
+              mode="pos"
+              onResult={(result) => setPosMessage(result.message, result.type)}
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
+            />
+            <CashDrawerButton
+              storeId={storeId}
+              mode="pos"
+              onResult={(result) => setPosMessage(result.message, result.type)}
+              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
+            />
+            {/* クリアは会計を消す操作なので、押し間違えにくい一番右に置く。 */}
             <button
               type="button"
               onClick={async () => {
@@ -2712,18 +2725,6 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
               <X size={15} />
               クリア
             </button>
-            <EventDepositButton
-              storeId={storeId}
-              mode="pos"
-              onResult={(result) => setPosMessage(result.message, result.type)}
-              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
-            />
-            <CashDrawerButton
-              storeId={storeId}
-              mode="pos"
-              onResult={(result) => setPosMessage(result.message, result.type)}
-              className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-xs font-black text-gray-900 transition-all hover:bg-gray-50 active:scale-95"
-            />
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
