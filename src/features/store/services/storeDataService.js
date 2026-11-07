@@ -1397,7 +1397,21 @@ export const reportShopifyVariantDiff = async ({ storeId, idToken }) => {
 
 // Firestore現在庫 と Shopify on_hand を突合し、不一致レポートを作成する。
 // apply=true のときは不一致のレジ在庫を Shopify の手持ちに合わせる(夜間の自動補正と同じ)。
-export const reconcileShopifyInventory = async ({ storeId, idToken, apply = false }) => {
+// HAUS は数分かかり、その間に回線・ブラウザが接続を切ると fetch が「Failed to fetch」で落ちる。
+// 関数は切断後も最後まで動くので、runId を渡しておき、接続が切れたら結果を取りに行く(poll)。
+const RECONCILE_POLL_INTERVAL_MS = 15000;
+const RECONCILE_POLL_DEADLINE_MS = 32 * 60 * 1000; // 関数の時間切れ(30分)より少し長く待つ
+
+const createReconcileRunId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID().replace(/-/g, '');
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+};
+
+const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const reconcileShopifyInventory = async ({ storeId, idToken, apply = false, getIdToken = null }) => {
   const normalizedStoreId = String(storeId || '').trim();
   const token = String(idToken || '').trim();
 
@@ -1406,23 +1420,68 @@ export const reconcileShopifyInventory = async ({ storeId, idToken, apply = fals
   }
 
   const endpoint = `https://asia-northeast1-${firebaseProjectId}.cloudfunctions.net/reconcileShopifyInventory`;
+  const runId = createReconcileRunId();
+  const startedAt = Date.now();
 
-  const response = await fetch(endpoint, {
+  const post = async (payload, bearer) => fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${bearer}`
     },
-    body: JSON.stringify({ storeId: normalizedStoreId, apply: apply === true })
+    body: JSON.stringify({ storeId: normalizedStoreId, runId, ...payload })
   });
 
-  const body = await response.json().catch(() => ({}));
-
-  if (!response.ok || body?.ok === false) {
-    throw new Error(body?.error?.message || body?.message || '在庫の差分確認に失敗しました。');
+  let response = null;
+  try {
+    response = await post({ apply: apply === true }, token);
+  } catch {
+    response = null; // 接続が切れた(Failed to fetch)。下で結果を取りに行く。
   }
 
-  return body;
+  // 関数自体の応答(JSON)が返ったときはそれを使う。接続切れ・ゲートウェイの 5xx(JSONでない)は poll へ。
+  if (response) {
+    const body = await response.json().catch(() => null);
+    if (body) {
+      if (!response.ok || body?.ok === false) {
+        throw new Error(body?.error?.message || body?.message || '在庫の差分確認に失敗しました。');
+      }
+      return body;
+    }
+  }
+
+  let sawRun = false;
+  while (Date.now() - startedAt < RECONCILE_POLL_DEADLINE_MS) {
+    await waitMs(RECONCILE_POLL_INTERVAL_MS);
+    let body = null;
+    try {
+      // 長く待つ間に ID トークンが切れる(1時間)ことがあるので、取り直せるなら取り直す。
+      const freshToken = (typeof getIdToken === 'function' ? await getIdToken() : null) || token;
+      const pollResponse = await post({ poll: true }, freshToken);
+      body = await pollResponse.json().catch(() => null);
+      if (body && (!pollResponse.ok || body.ok === false)) {
+        throw new Error(body?.error?.message || '在庫の差分確認の結果を取得できませんでした。');
+      }
+    } catch (error) {
+      if (body) throw error;
+      body = null; // 回線がまだ不安定。次の回で取り直す。
+    }
+    if (!body) {
+      if (!sawRun && Date.now() - startedAt > 2 * 60 * 1000) {
+        throw new Error('在庫の差分確認のサーバーにつながりません（Failed to fetch）。回線を確認して、もう一度押してください。');
+      }
+      continue;
+    }
+    if (body.status === 'done') return body;
+    if (body.status === 'failed') throw new Error(body.message || '在庫の差分確認に失敗しました。');
+    if (body.status === 'running') sawRun = true;
+    // 'unknown' が続く = 関数まで届かなかった。少し待っても始まらなければあきらめる。
+    if (!sawRun && body.status === 'unknown' && Date.now() - startedAt > 2 * 60 * 1000) {
+      throw new Error('在庫の差分確認を始められませんでした（通信が切れました）。回線を確認して、もう一度押してください。');
+    }
+  }
+
+  throw new Error('在庫の差分確認が時間内に終わりませんでした。時間をおいてもう一度押すか、開発担当に連絡してください。');
 };
 
 
