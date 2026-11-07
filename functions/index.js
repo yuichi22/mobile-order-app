@@ -5577,20 +5577,72 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
 };
 
 // 手動トリガー(EC連携「差分を確認」ボタン)。読み取りのみで Shopify には書き込まない。
+// HAUS は Shopify の全バリアント走査に数分かかり、ブラウザ・店の回線がその間に接続を切ると
+// 画面は「Failed to fetch」になる(2026-11-07)。関数は切断後も最後まで動くので、画面が runId を渡し、
+// 進み具合を inventoryReconcileRuns/{runId} に残す。接続が切れたら画面は { runId, poll: true } で結果を取りに来る。
+const INVENTORY_RECONCILE_RUN_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+
+const readInventoryReconcileRun = async ({ storeRef, runId, uid }) => {
+  const runSnap = await storeRef.collection('inventoryReconcileRuns').doc(runId).get();
+  if (!runSnap.exists) return { ok: true, status: 'unknown' };
+  const run = runSnap.data() || {};
+  if (run.triggeredBy && run.triggeredBy !== uid) return { ok: true, status: 'unknown' };
+  if (run.status === 'failed') return { ok: true, status: 'failed', message: run.errorMessage || '在庫の差分確認に失敗しました。' };
+  if (run.status !== 'done' || !run.reportId) return { ok: true, status: 'running' };
+  const reportSnap = await storeRef.collection('inventoryReconcileReports').doc(run.reportId).get();
+  const report = reportSnap.data() || {};
+  return {
+    ok: true,
+    status: 'done',
+    reportId: run.reportId,
+    totalLinked: report.totalLinked || 0,
+    matched: report.matched || 0,
+    mismatched: report.mismatched || 0,
+    missingInShopify: report.missingInShopify || 0,
+    appliedCount: report.appliedCount || 0,
+    skippedChangedCount: report.skippedChangedCount || 0,
+    appliedProductIds: Array.isArray(run.appliedProductIds) ? run.appliedProductIds : [],
+    reportedRows: report.reportedRows || 0,
+    truncated: report.truncated === true,
+    shopifyVariantsScanned: report.shopifyVariantsScanned || 0,
+    mismatches: Array.isArray(report.mismatches) ? report.mismatches : []
+  };
+};
+
 export const reconcileShopifyInventory = onRequest(
-  { region: REGION, cors: true, timeoutSeconds: 540, memory: '1GiB' },
+  { region: REGION, cors: true, timeoutSeconds: 1800, memory: '1GiB' },
   async (req, res) => {
+    let runRef = null;
     try {
       if (req.method !== 'POST') {
         return sendAppError(res, 405, 'app/method-not-allowed');
       }
       const authUser = await verifyRequestUser(req);
-      const { storeId, apply } = parseJsonBody(req);
+      const { storeId, apply, runId, poll } = parseJsonBody(req);
       const normalizedStoreId = String(storeId || '').trim();
       if (!normalizedStoreId) {
         return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
       }
       await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
+      const storeRef = db.collection('stores').doc(normalizedStoreId);
+      const normalizedRunId = INVENTORY_RECONCILE_RUN_ID_PATTERN.test(String(runId || '')) ? String(runId) : '';
+
+      if (poll === true) {
+        if (!normalizedRunId) {
+          return sendJson(res, 400, { ok: false, error: { message: 'runId が不足しています。' } });
+        }
+        return sendJson(res, 200, await readInventoryReconcileRun({ storeRef, runId: normalizedRunId, uid: authUser.uid }));
+      }
+
+      if (normalizedRunId) {
+        runRef = storeRef.collection('inventoryReconcileRuns').doc(normalizedRunId);
+        await runRef.set({
+          status: 'running',
+          apply: apply === true,
+          triggeredBy: authUser.uid,
+          startedAt: FieldValue.serverTimestamp()
+        });
+      }
 
       // apply=true は「まとめて Shopify に合わせる」。夜間の自動補正と同じ処理を今すぐ行う(レジの数を Shopify の手持ちに)。
       const result = await runShopifyInventoryReconcile({
@@ -5599,9 +5651,28 @@ export const reconcileShopifyInventory = onRequest(
         triggeredBy: authUser.uid,
         autoApply: apply === true
       });
-      return sendJson(res, 200, { ok: true, ...result });
+      if (runRef) {
+        try {
+          await runRef.set({
+            status: 'done',
+            reportId: result.reportId,
+            appliedProductIds: result.appliedProductIds || [],
+            finishedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (error) {
+          console.error('[reconcileShopifyInventory] run write failed', { storeId: normalizedStoreId, message: error?.message });
+        }
+      }
+      return sendJson(res, 200, { ok: true, status: 'done', ...result });
     } catch (error) {
       console.error('[reconcileShopifyInventory] failed', error);
+      if (runRef) {
+        try {
+          await runRef.set({ status: 'failed', errorMessage: error.message || '', finishedAt: FieldValue.serverTimestamp() }, { merge: true });
+        } catch (writeError) {
+          console.error('[reconcileShopifyInventory] run failed-write failed', writeError?.message);
+        }
+      }
       return sendJson(res, 400, { ok: false, error: { message: error.message || '在庫の差分確認に失敗しました。' } });
     }
   }
