@@ -82,11 +82,13 @@ const buildGrossProfitRows = (summary = {}) => {
 };
 
 const buildDiscountRows = (discountList = []) => {
-  if (!discountList.length) {
+  // LINE ポイントは枚数で数えないので内訳(○枚)から外し、別の行(pt)で出す。
+  const list = discountList.filter((discount) => discount?.id !== 'crm_points');
+  if (!list.length) {
     return '<div class="empty">利用なし</div>';
   }
 
-  return discountList.map((discount) => row(
+  return list.map((discount) => row(
     `${discount.name || '値引き'} ${Number(discount.quantity || discount.count || 0)}枚`,
     formatCurrency(discount.amount)
   )).join('');
@@ -198,6 +200,14 @@ export const printDailyClosingReceipt = ({
   const discountCount = Number(summary?.discountCount ?? closedDailyData?.discountCount ?? 0);
   const promoExpenseCount = Number(summary?.promoExpenseCount ?? closedDailyData?.promoExpenseCount ?? 0);
   const voucherCount = Number(summary?.voucherCount ?? closedDailyData?.voucherCount ?? 0);
+  // LINE ポイント利用(pt・金額)。売上値引 or 販促費の合計に含まれる内数。
+  const linePoints = summary?.linePoints || closedDailyData?.linePoints || null;
+  const linePointsRow = Number(linePoints?.count || 0) > 0
+    ? row(
+      `${linePoints.name || 'LINE ポイント'} ${Number(linePoints.points || 0).toLocaleString()}pt (${Number(linePoints.count || 0)}会計・内数)`,
+      formatCurrency(linePoints.amount)
+    )
+    : '';
 
   const cashCheck = closedDailyData?.cashCheck || null;
   const couponCheck = closedDailyData?.couponCheck || null;
@@ -359,7 +369,8 @@ export const printDailyClosingReceipt = ({
             ${row(`売上値引 (${discountCount}件)`, formatCurrency(discountTotal))}
             ${row(`販促費 (${promoExpenseCount}件)`, formatCurrency(promoExpenseTotal))}
             ${row(`金券/売掛 (${voucherCount}件)`, formatCurrency(voucherTotal))}
-            ${discountList.length ? `<div class="mini-section">${buildDiscountRows(discountList)}</div>` : ''}
+            ${linePointsRow}
+            ${discountList.some((discount) => discount?.id !== 'crm_points') ? `<div class="mini-section">${buildDiscountRows(discountList)}</div>` : ''}
           `)}
 
           ${section(`

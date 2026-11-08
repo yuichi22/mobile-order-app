@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  HandCoins,
   Loader2,
   LockKeyhole,
   Printer,
@@ -28,6 +29,7 @@ import {
 import DailyClosingCheckModal from './DailyClosingCheckModal';
 import { useStoreSettings, usePeriodData } from '../../store/hooks';
 import { printDailyClosingReceipt } from './printDailyClosingReceipt';
+import { LINE_POINT_ITEM_ID } from '../../../shared/constants/linePoints';
 import { getAvailableRegisters, getActiveRegisterContext, getDepartmentById, getAvailableDepartments } from '../../pos/utils/registerContext';
 import { buildItemDepartmentResolver, splitTransactionsByDepartment } from '../Analytics/utils/departmentAttribution';
 import { buildItemSalesAreaResolver, buildSalesAreaSales } from '../Analytics/utils/salesAreaSales';
@@ -453,13 +455,23 @@ const DailyClosingPanel = ({ storeId, targetDate, setTargetDate }) => {
     ? summary.taxBreakdownList
     : [];
 
-  const discountList = Array.isArray(summary?.discountList)
-    ? summary.discountList
-    : [];
+  // LINE ポイント(crm_points)は枚数で数えるクーポンではないので、下の内訳(○枚)からは外し、
+  // 「LINE ポイント利用」として pt・金額で別に出す。合計(売上値引合計/販促費合計)には含まれたまま。
+  const discountList = (Array.isArray(summary?.discountList) ? summary.discountList : [])
+    .filter((entry) => entry?.id !== LINE_POINT_ITEM_ID);
 
-  const promoExpenseList = Array.isArray(summary?.promoExpenseList)
-    ? summary.promoExpenseList
-    : [];
+  const promoExpenseList = (Array.isArray(summary?.promoExpenseList) ? summary.promoExpenseList : [])
+    .filter((entry) => entry?.id !== LINE_POINT_ITEM_ID);
+
+  const linePoints = summary?.linePoints || null;
+  const hasLinePoints = Number(linePoints?.count || 0) > 0;
+  const linePointCategoryLabel = (() => {
+    const byCategory = linePoints?.amountByCategory || {};
+    const sales = Number(byCategory.sales_discount || 0);
+    const promo = Number(byCategory.promo_expense || 0);
+    if (sales > 0 && promo > 0) return '売上値引・販促費に含む';
+    return promo > 0 ? '販促費に含む' : '売上値引に含む';
+  })();
 
   const voucherList = Array.isArray(summary?.voucherList)
     ? summary.voucherList
@@ -627,6 +639,7 @@ const buildClosingPayload = (sum, txns, closingCheck = {}) => ({
   discounts: Array.isArray(sum?.discountList) ? sum.discountList : [],
   promoExpenses: Array.isArray(sum?.promoExpenseList) ? sum.promoExpenseList : [],
   vouchers: Array.isArray(sum?.voucherList) ? sum.voucherList : [],
+  linePoints: sum?.linePoints || null,
   timeSlots: Array.isArray(sum?.timeSlotList) ? sum.timeSlotList : [],
   events: Array.isArray(sum?.eventList) ? sum.eventList : [],
   categories: Array.isArray(sum?.categoryList) ? sum.categoryList : [],
@@ -1324,9 +1337,11 @@ const handleCloseDay = async (closingCheck = {}) => {
 
               <div className="space-y-2">
                 {discountList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
-                    売上値引の利用はありません
-                  </div>
+                  Number(linePoints?.amountByCategory?.sales_discount || 0) > 0 ? null : (
+                    <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
+                      売上値引の利用はありません
+                    </div>
+                  )
                 ) : (
                   discountList.map((discount) => (
                     <div
@@ -1366,9 +1381,11 @@ const handleCloseDay = async (closingCheck = {}) => {
 
               <div className="mt-3 space-y-2">
                 {promoExpenseList.length === 0 ? (
-                  <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
-                    販促費の利用はありません
-                  </div>
+                  Number(linePoints?.amountByCategory?.promo_expense || 0) > 0 ? null : (
+                    <div className="rounded-xl bg-gray-50 p-4 text-center text-xs font-bold text-gray-500">
+                      販促費の利用はありません
+                    </div>
+                  )
                 ) : (
                   promoExpenseList.map((entry) => (
                     <div key={entry.id || entry.name} className="flex items-center justify-between rounded-xl bg-gray-100 px-4 py-3">
@@ -1385,6 +1402,29 @@ const handleCloseDay = async (closingCheck = {}) => {
                   ))
                 )}
               </div>
+
+              {hasLinePoints && (
+                <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5 text-xs font-black text-gray-900">
+                      <HandCoins size={14} className="shrink-0" />
+                      <span className="truncate">{linePoints.name || 'LINE ポイント'}利用</span>
+                    </div>
+                    <div className="shrink-0 text-[11px] font-black text-gray-900">
+                      {Number(linePoints.count || 0)}会計
+                    </div>
+                  </div>
+                  <div className="mt-1 flex items-baseline justify-between gap-2">
+                    <div className="text-xl font-black text-gray-900">
+                      {formatCurrency(linePoints.amount)}
+                    </div>
+                    <div className="text-sm font-black text-gray-900">
+                      {Number(linePoints.points || 0).toLocaleString()}pt
+                    </div>
+                  </div>
+                  <div className="mt-1 text-[11px] font-bold text-gray-500">{linePointCategoryLabel}</div>
+                </div>
+              )}
 
               <div className="mt-4 rounded-xl bg-ui-50 px-4 py-3">
                 <div className="flex items-center justify-between">

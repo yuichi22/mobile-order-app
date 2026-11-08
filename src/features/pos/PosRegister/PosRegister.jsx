@@ -2838,6 +2838,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         crmPointsToUse={crmPointsToUse}
         setCrmPointsToUse={setCrmPointsToUse}
         crmMaxUsablePoints={crmMaxUsablePoints}
+        storeSettings={settings}
       />
 
       <PosRegisterLeft

@@ -4,6 +4,8 @@
 // 単価は会計時の値(unitPrice)をそのまま使う。商品マスタの最新価格にはしない
 // (お客様に提示した額で打ち直すため。予約注文の展開と同じ考え方)。
 
+import { LINE_POINT_ACCOUNTING_OPTIONS, LINE_POINT_ITEM_ID, buildLinePointItem, resolveLinePointSettings } from '../../../shared/constants/linePoints';
+
 // 取消の理由に必ず残す文言(履歴・日計で「打ち直しのための取消」と分かるように)。
 export const RECHECKOUT_REASON = '再会計のため';
 
@@ -156,7 +158,7 @@ export const buildRecheckoutDiscount = (appliedDiscount, { pointsItem = null } =
   const kept = [];
   sourceItems.forEach((item) => {
     if (!item) return;
-    if (item.id === 'crm_points') return; // ポイントは pointsItem で戻す(残高を読み直してから)
+    if (item.id === LINE_POINT_ITEM_ID) return; // ポイントは pointsItem で戻す(残高を読み直してから)
     if (item.accountingCategory === 'voucher_payment' || item.type === 'full_credit') {
       skippedNames.push(String(item.name || '金券/売掛').replace(/\s*[×✕ｘxX]\s*\d+\s*枚\s*$/, '').trim() || '金券/売掛');
       return;
@@ -208,21 +210,33 @@ export const buildRecheckoutDiscount = (appliedDiscount, { pointsItem = null } =
   };
 };
 
-// ポイント利用を割引明細(PosModals の buildCrmPointItem と同じ形)に戻す。
-export const buildRecheckoutPointsItem = (points, yenPerPoint = 1) => {
-  const usePoints = Math.floor(toNumber(points));
-  if (usePoints <= 0) return null;
-  const amount = usePoints * Math.max(toNumber(yenPerPoint) || 1, 1);
-  return {
-    id: 'crm_points',
-    name: 'ポイント利用',
-    type: 'amount',
-    value: amount,
-    accountingCategory: 'sales_discount',
-    allowsChange: false,
-    count: 1,
-    quantity: 1,
-    amount,
-    points: usePoints
-  };
+// ポイント利用を割引明細(PosModals と同じ形=shared/constants/linePoints の buildLinePointItem)に戻す。
+// 名前・会計区分は元伝票のポイント明細を優先する(会計後に割引設定を変えても、打ち直しで区分が変わらないように)。
+// 元伝票に明細が無い(古い伝票等)ときは店舗の現在の設定を使う。
+export const buildRecheckoutPointsItem = (points, yenPerPoint = 1, { original = null, storeSettings = null } = {}) => {
+  const current = resolveLinePointSettings(storeSettings);
+  const originalItem = findLinePointItem(original);
+  const accountingCategory = LINE_POINT_ACCOUNTING_OPTIONS.includes(originalItem?.accountingCategory)
+    ? originalItem.accountingCategory
+    : current.accountingCategory;
+  return buildLinePointItem(points, yenPerPoint, {
+    ...current,
+    // 旧伝票の明細名「ポイント利用」は今の表示名にする。
+    name: (originalItem?.name && originalItem.name !== 'ポイント利用') ? originalItem.name : current.name,
+    accountingCategory
+  });
+};
+
+// 伝票に載っているポイント利用の明細(無ければ null)。
+const findLinePointItem = (tx) => {
+  if (!tx) return null;
+  const applied = Array.isArray(tx.appliedDiscounts) && tx.appliedDiscounts.length > 0
+    ? tx.appliedDiscounts
+    : (tx.appliedDiscount ? [tx.appliedDiscount] : []);
+  const pools = [
+    ...applied.flatMap((discount) => (Array.isArray(discount?.items) ? discount.items : [discount])),
+    ...(Array.isArray(tx.promoExpenseItems) ? tx.promoExpenseItems : []),
+    ...(Array.isArray(tx.accountingAdjustments) ? tx.accountingAdjustments : [])
+  ];
+  return pools.find((item) => item?.id === LINE_POINT_ITEM_ID) || null;
 };

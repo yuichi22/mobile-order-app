@@ -1,4 +1,5 @@
 import { isEventDepositRecord, summarizeEventDeposits } from '../../../pos/utils/eventDeposit';
+import { LINE_POINT_DEFAULT_NAME, LINE_POINT_ITEM_ID } from '../../../../shared/constants/linePoints';
 export const formatDailyClosingDateKey = (date) => {
   const target = new Date(date || new Date());
   const year = target.getFullYear();
@@ -416,7 +417,9 @@ const addCouponUsageEntry = (summary, entry) => {
   const category = entry.accountingCategory === 'promo_expense' || entry.accountingCategory === 'voucher_payment'
     ? entry.accountingCategory
     : 'sales_discount';
-  const type = entry.type || '';
+  // LINE ポイントは使った分だけの金額で、券面(枚数)が無い。type=amount のまま入れると
+  // 1会計目の金額を「券面」とみなして締めで枚数照合を求めてしまうので、照合なし(points)にする。
+  const type = entry.id === LINE_POINT_ITEM_ID ? 'points' : (entry.type || '');
   const unitValue = type === 'amount' ? Number(entry.value || 0) : 0;
   const id = `${entry.id || entry.discountId || entry.name || 'discount'}__${category}__${type || 'x'}`;
   if (!summary.couponUsage[id]) {
@@ -634,6 +637,35 @@ const addSettlementAdjustments = (summary, transaction) => {
       quantity: 1
     }, 0);
   }
+};
+
+// LINE ポイント利用(Core の会員ポイント)。紙のポイントカード(枚数で回収を数える)とは別に、
+// 使われた pt と金額だけを集計する。金額は売上値引 or 販促費(割引設定の会計区分)の合計にも含まれている。
+const findLinePointEntry = (transaction) => {
+  const applied = Array.isArray(transaction.appliedDiscounts) && transaction.appliedDiscounts.length > 0
+    ? transaction.appliedDiscounts
+    : (transaction.appliedDiscount ? [transaction.appliedDiscount] : []);
+  const pools = [
+    ...applied.flatMap((discount) => (Array.isArray(discount?.items) && discount.items.length > 0 ? discount.items : [discount])),
+    ...(Array.isArray(transaction.promoExpenseItems) ? transaction.promoExpenseItems : [])
+  ];
+  return pools.find((item) => item?.id === LINE_POINT_ITEM_ID) || null;
+};
+
+const addLinePoints = (summary, transaction) => {
+  const points = Math.floor(Number(transaction.crmPointsRedeemed) || 0);
+  const entry = findLinePointEntry(transaction);
+  if (points <= 0 && !entry) return;
+  const amount = Number(transaction.crmPointsRedeemedYen ?? entry?.amount ?? points) || 0;
+  if (amount <= 0 && points <= 0) return;
+  const category = entry?.accountingCategory === 'promo_expense' ? 'promo_expense' : 'sales_discount';
+  const linePoints = summary.linePoints;
+  linePoints.points += points > 0 ? points : Math.floor(Number(entry?.points) || 0);
+  linePoints.amount += amount;
+  linePoints.count += 1;
+  linePoints.amountByCategory[category] += amount;
+  // 旧伝票の明細名「ポイント利用」は既定名(LINE ポイント)で出す。
+  if (entry?.name && entry.name !== 'ポイント利用' && !linePoints.name) linePoints.name = entry.name;
 };
 
 const addItems = (summary, transaction) => {
@@ -915,6 +947,14 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     vouchers: {},
     // 締めモーダルのクーポン確認用: 使われた全割引(全体＋単品/全区分)を集約。
     couponUsage: {},
+    // LINE ポイント利用(pt・金額・会計数)。紙のポイントカードの枚数とは別枠。
+    linePoints: {
+      name: '',
+      points: 0,
+      amount: 0,
+      count: 0,
+      amountByCategory: { sales_discount: 0, promo_expense: 0 }
+    },
     items: {},
     categories: {},
     periods: {}
@@ -989,6 +1029,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
     addDiscounts(summary, transaction);
     addDiscountCounts(summary, transaction);
     addCouponUsage(summary, transaction);
+    addLinePoints(summary, transaction);
     addSettlementAdjustments(summary, transaction);
     addTaxSummary(summary, transaction);
     addItems(summary, transaction);
@@ -1056,6 +1097,11 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
 
     voucherList: Object.values(summary.vouchers)
       .sort((left, right) => right.amount - left.amount),
+
+    linePoints: {
+      ...summary.linePoints,
+      name: summary.linePoints.name || LINE_POINT_DEFAULT_NAME
+    },
 
     couponUsageList: Object.values(summary.couponUsage)
       .sort((left, right) => right.amount - left.amount),

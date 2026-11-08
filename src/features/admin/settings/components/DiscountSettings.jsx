@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FormActions } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
+import LinePointSettingsCard from './LinePointSettingsCard';
 import {
   AlertTriangle,
   Check,
@@ -49,7 +50,7 @@ const createBlankDiscount = () => ({
   note: ''
 });
 
-const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }) => {
+const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved, settings = null, onSaveLinePoints = null }) => {
   const [editingDiscount, setEditingDiscount] = useState(null);
   const [discountType, setDiscountType] = useState('amount');
   // 会計区分と「お釣りを出す」は選択中の値で条件表示するため state で持つ(他はFormDataの非制御)。
@@ -380,6 +381,7 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
           </form>
         </div>
       ) : (
+        <>
         <div className="w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <SettingsCardHeader
             icon={Percent}
@@ -564,6 +566,14 @@ const DiscountSettings = ({ discounts = [], loading, onSave, onDelete, onSaved }
             </table>
           </div>
         </div>
+
+        {/* LINE ポイント(会員証のポイント)。割引の一覧とは別に、使う/使わないと会計区分を決める。 */}
+        {onSaveLinePoints && (
+          <div className="mt-6">
+            <LinePointSettingsCard settings={settings} onSave={onSaveLinePoints} onSaved={onSaved} />
+          </div>
+        )}
+        </>
       )}
 
       {deletingDiscount && (

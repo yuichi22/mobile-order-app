@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Calculator, Check, ChevronLeft, ChevronRight, HandCoins, Keyboard, LogOut, Minus, Percent, Plus, X } from 'lucide-react';
+import { LINE_POINT_ITEM_ID, buildLinePointItem, resolveLinePointSettings } from '../../../../shared/constants/linePoints';
 
 const getAccountingCategoryLabel = (category) => {
   if (category === 'promo_expense') return '販促費';
@@ -38,7 +39,9 @@ export const PosModals = ({
   crmMember,
   crmPointsToUse = 0,
   setCrmPointsToUse,
-  crmMaxUsablePoints
+  crmMaxUsablePoints,
+  // 店舗設定(settings/basic)。LINE ポイントの使用可否・名前・会計区分を読む。
+  storeSettings = null
 }) => {
   // 手入力タイプの割引を選んだ時のテンキー入力対象と入力値。
   const [manualTarget, setManualTarget] = useState(null);
@@ -140,10 +143,10 @@ export const PosModals = ({
   };
 
   // ── ポイント利用 ──
-  // ⚠会計区分は「売上値引(sales_discount)」。自社発行ポイントの利用は対価の値引きで、
-  //   課税ベースを減らす（商品券のように別途対価を受け取って発行したものではない）。
-  //   金券(voucher_payment)にすると課税ベースが減らず消費税を過大に納めることになる。
+  // 会計区分は割引設定の「LINE ポイント」で選ぶ(売上値引 / 販促費。未設定は売上値引)。
+  //   どちらも課税ベースを減らす。金券(voucher_payment)は選べない(課税ベースが減らず消費税を過大に納めるため)。
   //   支払額だけ独自に引くと税額が壊れるので、必ず割引の三つ組(type/value/items)に流す。
+  const linePointSettings = resolveLinePointSettings(storeSettings);
   const crmYenPerPoint = Math.max(Number(crmMember?.redeem?.yenPerPoint) || 1, 1);
   const crmPointUnit = Math.max(Math.floor(Number(crmMember?.redeem?.unit) || 1), 1);
   // 併用中の金額クーポンを引いた残額がポイントの上限(会計額を超えて使わせない)。
@@ -155,23 +158,7 @@ export const PosModals = ({
   // 黙ってポイントが消えると事故になるので、%選択中はポイント利用を止める。
   const crmPointBlockedByPercent = !!selectedRegisteredPercent;
 
-  const buildCrmPointItem = (points) => {
-    const usePoints = Math.floor(Number(points) || 0);
-    if (usePoints <= 0) return null;
-    const amount = usePoints * crmYenPerPoint;
-    return {
-      id: 'crm_points',
-      name: 'ポイント利用',
-      type: 'amount',
-      value: amount,
-      accountingCategory: 'sales_discount',
-      allowsChange: false, // ポイントはお釣りを出さない
-      count: 1,
-      quantity: 1,
-      amount,
-      points: usePoints
-    };
-  };
+  const buildCrmPointItem = (points) => buildLinePointItem(points, crmYenPerPoint, linePointSettings);
 
   const applyCrmPoints = (points) => {
     // ⚠利用単位(例 500pt)の倍数に切り下げる。単位外の値(700pt等)はCoreが invalid_unit で拒否し、
@@ -190,7 +177,7 @@ export const PosModals = ({
     setPointInput('');
     // 適用済みの他の明細(クーポン等)は残す。ポイントだけを外す。
     const appliedOthers = (Array.isArray(selectedDiscount?.items) ? selectedDiscount.items : [])
-      .filter((item) => item?.id !== 'crm_points');
+      .filter((item) => item?.id !== LINE_POINT_ITEM_ID);
     const keyOf = (item) => `${item?.id || ''}|${item?.name || ''}`;
     const pendingKeys = new Set(pendingAmountDiscounts.map(keyOf));
     commitCombinedAmountDiscounts([
@@ -427,15 +414,19 @@ export const PosModals = ({
                 </button>
               </div>
 
-              {/* ポイント利用: 売上値引き(課税ベースを減らす/お釣り無し)。
+              {/* ポイント利用: 会計区分は割引設定の LINE ポイントで選ぶ(お釣り無し)。
                   ポイントOFFのテナントでは出さない。ただし残高が残るお客様は
-                  使い切りまで利用できる(2026-08-25 決定)ので、残高>0なら出す。 */}
-              {crmMember && (crmMember.pointsEnabled !== false || Number(crmMember.pointBalance || 0) > 0) && (
+                  使い切りまで利用できる(2026-08-25 決定)ので、残高>0なら出す。
+                  割引設定で「LINE ポイントを使用する」をオフにした店舗では出さない
+                  (適用中のものは取り消せるよう残す)。 */}
+              {crmMember
+                && (linePointSettings.enabled || Number(crmPointsToUse) > 0)
+                && (crmMember.pointsEnabled !== false || Number(crmMember.pointBalance || 0) > 0) && (
                 <div className="rounded-xl border border-gray-200 bg-gray-100/70 p-2">
                   <div className="mb-1 flex items-center justify-between gap-2 px-1">
                     <div className="flex items-center gap-1 text-[11px] font-black text-gray-900">
                       <HandCoins size={13} />
-                      ポイント利用
+                      {linePointSettings.name}
                     </div>
                     <div className="text-[11px] font-black text-gray-900">
                       残高 {Number(crmMember.pointBalance || 0).toLocaleString()}pt
