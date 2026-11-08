@@ -10,6 +10,7 @@
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { splitAmountBySalesArea } from "./crmAreaAmounts.js";
 
 const REGION = "asia-northeast1";
 const DB_ID = "main";
@@ -65,6 +66,8 @@ async function sendPointEvent({ storeId, idemKey, tx, amount, type, reversalOf =
   const txItems = Array.isArray(tx.items) ? tx.items : [];
   const salesAreas = uniqNames(txItems.map((i) => i?.salesAreaName));
   const brands = uniqNames(txItems.map((i) => i?.brandName));
+  // 売り場限定ポイントアップ用: 会計金額を売り場ごとに按分した額(2026-11-08)。Core は対象売り場の分だけ倍率をかける
+  const areaAmounts = splitAmountBySalesArea(txItems, amount);
 
   const payload = {
     coreTenantId,
@@ -79,6 +82,7 @@ async function sendPointEvent({ storeId, idemKey, tx, amount, type, reversalOf =
     brand: str(tx.departmentName) || null,
     ...(salesAreas.length ? { salesAreas } : {}),
     ...(brands.length ? { brands } : {}),
+    ...(areaAmounts.length ? { areaAmounts } : {}),
     at: (type === "pos" && paidAt ? paidAt : new Date()).toISOString(),
     bookingId: type === "pos" ? (str(tx.groomBookingId) || null) : null,
     ...(reversalOf ? { reversalOf } : {}),
