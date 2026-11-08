@@ -1244,7 +1244,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     }
     const redeemedPoints = Math.floor(Number(original?.crmPointsRedeemed) || 0);
     const pointsItem = member && redeemedPoints > 0
-      ? buildRecheckoutPointsItem(redeemedPoints, (Number(original.crmPointsRedeemedYen) || redeemedPoints) / redeemedPoints)
+      ? buildRecheckoutPointsItem(redeemedPoints, (Number(original.crmPointsRedeemedYen) || redeemedPoints) / redeemedPoints, { original, storeSettings: settings })
       : null;
     // 伝票割引は1会計のときだけ戻す(束ねた複数会計は割引が会計ごとに違うため)。
     const { discount, skippedNames } = original
@@ -3774,6 +3774,7 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       crmPointsToUse={crmPointsToUse}
       setCrmPointsToUse={setCrmPointsToUse}
       crmMaxUsablePoints={crmMaxUsablePoints}
+      storeSettings={settings}
     />
 
     {lineDiscountTarget && (() => {

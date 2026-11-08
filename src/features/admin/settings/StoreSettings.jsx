@@ -3393,6 +3393,9 @@ export const StoreSettings = ({
               onSave={saveDiscount}
               onDelete={deleteDiscount}
               onSaved={showSaveComplete}
+              settings={settings}
+              // 他の基本設定を巻き込まないよう、この1項目だけ merge 保存する。
+              onSaveLinePoints={(linePoints) => saveStoreSettings(storeId, { linePoints })}
             />
           )}
 
