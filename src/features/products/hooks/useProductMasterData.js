@@ -224,7 +224,12 @@ export const useProductMasterData = (storeId, options = {}) => {
     const auth = getAuth();
     const idToken = await auth.currentUser?.getIdToken?.();
 
-    return await reconcileShopifyInventory({ storeId, idToken, apply });
+    return await reconcileShopifyInventory({
+      storeId,
+      idToken,
+      apply,
+      getIdToken: () => auth.currentUser?.getIdToken?.()
+    });
   };
 
   const reportShopifyVariantDiffData = async () => {
