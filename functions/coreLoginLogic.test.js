@@ -5,6 +5,7 @@ import {
   coreLoginUrl,
   isTicketFormat,
   parseCoreLoginBody,
+  pickStoreAdmin,
   ticketDocId,
   ticketError,
 } from "./coreLoginLogic.js";
@@ -15,11 +16,36 @@ test("Core の本文を整える（メールは小文字、app は order か pos
     spaceId: "s1",
     email: "a@b.jp",
     app: "order",
+    asSpaceAdmin: false,
+    posStoreId: null,
   });
   assert.equal(parseCoreLoginBody({ tenantId: "t1", spaceId: "s1", email: "a@b.jp" }).app, "pos");
   assert.equal(parseCoreLoginBody({ tenantId: "t/1", spaceId: "s1", email: "a@b.jp" }), null);
   assert.equal(parseCoreLoginBody({ tenantId: "t1", spaceId: "s1", email: "nope" }), null);
   assert.equal(parseCoreLoginBody(null), null);
+});
+
+test("管理者扱いはメールが無くてもよい（true のときだけ）", () => {
+  const r = parseCoreLoginBody({ tenantId: "t1", spaceId: "s1", asSpaceAdmin: true, posStoreId: "store_a" });
+  assert.equal(r.email, null);
+  assert.equal(r.asSpaceAdmin, true);
+  assert.equal(r.posStoreId, "store_a");
+  assert.equal(parseCoreLoginBody({ tenantId: "t1", spaceId: "s1", asSpaceAdmin: "true" }), null);
+  assert.equal(parseCoreLoginBody({ tenantId: "t1", spaceId: "s1", asSpaceAdmin: true, posStoreId: "../x" }).posStoreId, null);
+});
+
+test("店舗の管理者は owner の最初の人、いなければ manager", () => {
+  assert.equal(
+    pickStoreAdmin([
+      { uid: "s", role: "staff", createdAtMs: 1 },
+      { uid: "o2", role: "owner", createdAtMs: 20 },
+      { uid: "o1", role: "owner", createdAtMs: 10 },
+    ]),
+    "o1"
+  );
+  assert.equal(pickStoreAdmin([{ uid: "m", role: "manager", createdAtMs: 1 }, { uid: "s", role: "staff", createdAtMs: 0 }]), "m");
+  assert.equal(pickStoreAdmin([{ uid: "o", role: "owner", createdAtMs: 1, disabled: true }]), null);
+  assert.equal(pickStoreAdmin([{ uid: "s", role: "staff", createdAtMs: 1 }]), null);
 });
 
 test("その拠点の店舗のスタッフだけ入れる", () => {

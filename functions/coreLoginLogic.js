@@ -18,10 +18,29 @@ export function parseCoreLoginBody(body) {
   const b = body && typeof body === "object" ? body : {};
   const tenantId = str(b.tenantId);
   const spaceId = str(b.spaceId);
-  const email = str(b.email).toLowerCase();
+  const rawEmail = str(b.email).toLowerCase();
+  const email = EMAIL_RE.test(rawEmail) && rawEmail.length <= 254 ? rawEmail : null;
   const app = str(b.app) === "order" ? "order" : "pos";
-  if (!ID_RE.test(tenantId) || !ID_RE.test(spaceId) || !EMAIL_RE.test(email) || email.length > 254) return null;
-  return { tenantId, spaceId, email, app };
+  // 同じメールのスタッフがいないとき、その店舗の管理者で入ってよいか。
+  // Core が「ポータルの人はこの会社の管理者」と確かめたときだけ true で来る（拠点ごとに別のメールを使う運用のため）
+  const asSpaceAdmin = b.asSpaceAdmin === true;
+  const rawStore = str(b.posStoreId);
+  const posStoreId = ID_RE.test(rawStore) ? rawStore : null;
+  if (!ID_RE.test(tenantId) || !ID_RE.test(spaceId) || (!email && !asSpaceAdmin)) return null;
+  return { tenantId, spaceId, email, app, asSpaceAdmin, posStoreId };
+}
+
+/**
+ * 店舗の管理者アカウント（owner のうち最初に登録した人、いなければ manager）。いなければ null。
+ * rows = その店舗の users（{ uid, role, createdAtMs, disabled }）
+ */
+export function pickStoreAdmin(rows) {
+  const usable = (rows || []).filter((r) => !r.disabled);
+  for (const role of ["owner", "manager"]) {
+    const hit = usable.filter((r) => str(r.role) === role).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
+    if (hit) return hit.uid;
+  }
+  return null;
 }
 
 /**

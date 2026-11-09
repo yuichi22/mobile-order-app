@@ -3,7 +3,10 @@
 // AKUTO Core のポータルの「開く」から、ログインした状態でレジ・モバイルオーダーを開く。
 // - issueCoreLoginTicket: Core の openAppWithLogin が呼ぶ（Bearer <CORE_SALES_SECRET>）。
 //   同じメールのスタッフがいて、その拠点に結び付いた店舗（coreLinks / settings/terminal）の人なら、
-//   1回限り・約1分の入場券付き /sso URL を返す。いなければ loginUrl: null（ポータルは普通の URL を開く）。
+//   その人で入る。いなければ（拠点ごとに別のメールでアカウントを作っているため）、Core が「ポータルの人は
+//   この会社の管理者」と確かめたとき（asSpaceAdmin）に限り、拠点に結び付いた店舗の管理者（最初の owner、
+//   いなければ manager）で入る。1回限り・約1分の入場券付き /sso URL を返す。
+//   誰も見つからなければ loginUrl: null（ポータルは普通の URL を開く）。
 // - redeemCoreLoginTicket: /sso の画面が呼ぶ。入場券を使用済みにしてログイン用のトークンを返す。
 // 入場券は coreLoginTickets/{sha256}（ルールに載せていないのでクライアントからは読めない）。
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
@@ -17,6 +20,7 @@ import {
   coreLoginUrl,
   isTicketFormat,
   parseCoreLoginBody,
+  pickStoreAdmin,
   ticketDocId,
   ticketError,
 } from "./coreLoginLogic.js";
@@ -64,26 +68,54 @@ export const issueCoreLoginTicket = onRequest({ region: REGION, cors: false, inv
   if (!input) return res.status(400).json({ ok: false, error: "invalid-input" });
 
   try {
-    const user = await getAuth()
-      .getUserByEmail(input.email)
-      .catch((e) => {
+    const auth = getAuth();
+    const byEmail = async () => {
+      if (!input.email) return { uid: null, reason: "no-email" };
+      const user = await auth.getUserByEmail(input.email).catch((e) => {
         if (e?.code === "auth/user-not-found") return null;
         throw e;
       });
-    if (!user) return res.json({ ok: true, loginUrl: null, reason: "no-account" });
+      if (!user) return { uid: null, reason: "no-account" };
+      const profileSnap = await db.collection("users").doc(user.uid).get();
+      const profile = profileSnap.exists ? profileSnap.data() : null;
+      const linkedStoreIds = profile
+        ? await linkedStoreIdsFor(input.tenantId, input.spaceId, str(profile.storeId))
+        : [];
+      const denied = coreLoginAccessError({ disabled: user.disabled, profile, linkedStoreIds });
+      return denied
+        ? { uid: null, reason: denied }
+        : { uid: user.uid, storeId: str(profile.storeId), reason: "same-email" };
+    };
+    // 拠点に結び付いた店舗の管理者で入る
+    const asStoreAdmin = async () => {
+      const linked = await linkedStoreIdsFor(input.tenantId, input.spaceId, input.posStoreId);
+      const storeId = linked[0];
+      if (!storeId) return { uid: null, reason: "no-store" };
+      const users = await db.collection("users").where("storeId", "==", storeId).get();
+      const rows = await Promise.all(
+        users.docs.map(async (d) => {
+          const u = await auth.getUser(d.id).catch(() => null);
+          return {
+            uid: d.id,
+            role: d.data().role,
+            createdAtMs: d.data().createdAt?.toMillis?.() ?? 0,
+            disabled: !u || u.disabled,
+          };
+        })
+      );
+      const uid = pickStoreAdmin(rows);
+      return uid ? { uid, storeId, reason: "store-admin" } : { uid: null, reason: "no-admin" };
+    };
 
-    const profileSnap = await db.collection("users").doc(user.uid).get();
-    const profile = profileSnap.exists ? profileSnap.data() : null;
-    const linkedStoreIds = profile
-      ? await linkedStoreIdsFor(input.tenantId, input.spaceId, str(profile.storeId))
-      : [];
-    const denied = coreLoginAccessError({ disabled: user.disabled, profile, linkedStoreIds });
-    if (denied) return res.json({ ok: true, loginUrl: null, reason: denied });
+    let found = await byEmail();
+    if (!found.uid && input.asSpaceAdmin) found = await asStoreAdmin();
+    if (!found.uid) return res.json({ ok: true, loginUrl: null, reason: found.reason });
 
     const ticket = randomBytes(32).toString("base64url");
     await db.collection("coreLoginTickets").doc(ticketDocId(ticket)).set({
-      uid: user.uid,
-      storeId: str(profile.storeId),
+      uid: found.uid,
+      storeId: found.storeId,
+      via: found.reason,
       tenantId: input.tenantId,
       spaceId: input.spaceId,
       used: false,
