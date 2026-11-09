@@ -22,6 +22,9 @@ const CoreSpaceLinkGuard = () => {
 
   useEffect(() => {
     if (processedRef.current) return undefined;
+    // 自動ログイン（/sso）の最中は、まだ前のアカウントのままなので突き合わせない。
+    // ログイン後に /?app=…&spaceId=… へ移ってから判定する。
+    if (location.pathname === '/sso') return undefined;
 
     const params = new URLSearchParams(location.search);
     const linkSpaceId = params.get('spaceId');

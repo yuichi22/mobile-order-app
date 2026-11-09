@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
@@ -12,35 +12,53 @@ const parseSsoHash = (hash) => {
   return ticket && /^[A-Za-z0-9_-]{32,128}$/.test(ticket) ? ticket : null;
 };
 
+const FAIL_MESSAGE = 'ログインできませんでした。ポータルからもう一度開くか、ログインしてください。';
+
+// 入場券の引き換えは、ページを開いて1回だけ行う（モジュールに持つ）。
+// 画面がいったん外れて作り直されても（ログイン中の別アカウントの切り替えや URL の書き換えで起きる）、
+// 2回目はアドレスバーから消えた後の URL を読んでしまい「使えないリンク」になるため。
+let ssoRun = null;
+const startSso = () => {
+  if (ssoRun) return ssoRun;
+  const ticket = parseSsoHash(window.location.hash);
+  const search = window.location.search;
+  // 入場券を履歴とアドレスバーに残さない
+  window.history.replaceState(null, '', `/sso${search}`);
+  const promise = ticket
+    ? (async () => {
+      await ensureSessionPersistence();
+      const res = await httpsCallable(functionsApi, 'redeemCoreLoginTicket')({ ticket });
+      await signInWithCustomToken(auth, res.data.token);
+      window.location.replace(`/${search}`);
+    })()
+    : null;
+  // 画面が無いあいだに失敗しても未処理エラーにしない（表示は画面側で拾う）
+  promise?.catch(() => {});
+  ssoRun = { ticket, promise };
+  return ssoRun;
+};
+
 // AKUTO Core のポータルの「開く」から来る画面。
 // 入場券（1回限り・約1分）をログイン用のトークンに替えてログインし、
 // ?app=pos|order&tenantId&spaceId を付けたままトップへ移る（拠点の突き合わせは CoreSpaceLinkGuard）。
 const CoreSsoPage = () => {
-  // 入場券は最初の描画で1度だけ読む（このあとアドレスバーから消す）
-  const [ticket] = useState(() => parseSsoHash(window.location.hash));
+  const [run] = useState(startSso);
   const [error, setError] = useState(() =>
-    ticket ? '' : 'このリンクは使えません。ポータルからもう一度開くか、ログインしてください。'
+    run.ticket ? '' : 'このリンクは使えません。ポータルからもう一度開くか、ログインしてください。'
   );
-  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    const search = window.location.search;
-    // 入場券を履歴とアドレスバーに残さない
-    window.history.replaceState(null, '', `/sso${search}`);
-    if (!ticket) return;
-    (async () => {
-      try {
-        await ensureSessionPersistence();
-        const res = await httpsCallable(functionsApi, 'redeemCoreLoginTicket')({ ticket });
-        await signInWithCustomToken(auth, res.data.token);
-        window.location.replace(`/${search}`);
-      } catch (e) {
-        setError(e?.message || 'ログインできませんでした。ポータルからもう一度開くか、ログインしてください。');
-      }
-    })();
-  }, [ticket]);
+    let active = true;
+    run.promise?.catch((e) => {
+      if (!active) return;
+      const message = String(e?.message || '');
+      // Functions の汎用エラー（internal など英単語だけ）はそのまま見せない
+      setError(/[\u3040-\u30ff\u4e00-\u9fff]/.test(message) ? message : `${FAIL_MESSAGE}（${e?.code || message || 'error'}）`);
+    });
+    return () => {
+      active = false;
+    };
+  }, [run]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 font-sans">
