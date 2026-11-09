@@ -149,6 +149,19 @@ const CATEGORY_GROUP_GUIDE = {
   ]
 };
 
+// 売場一覧の上に出す使い方の説明。売場が実際に効く場所だけを書く。
+const SALES_AREA_GUIDE = {
+  title: '売場の使い方',
+  items: [
+    '店の中で「どこに置くか」の分け方です。商品の種類で分けるのはカテゴリーグループです。',
+    'カテゴリーグループを紐付けると、商品登録や、バーコードの無い商品を手打ちで会計するときに、売場を選ぶとグループの候補が絞り込まれます。先に「カテゴリーグループ」タブでグループを作ってから紐付けます。',
+    '1つの売場に複数のグループを紐付けられます。同じグループを複数の売場に紐付けることもできます。',
+    '原価率は、手打ち品や原価が未登録の商品の粗利計算に使います。',
+    '棚卸しコードは、売場ごとの在庫高の集計に使います。',
+    'ブランドの「デフォルト売り場」に選べます。売上分析の「売場別」は、この売場ごとの売上です。'
+  ]
+};
+
 const GENDER_OPTION_FIELDS = [
   {
     id: 'genderMode',
@@ -301,8 +314,8 @@ const POS_DUMMY_PAGES = {
     eyebrow: 'Product Management',
     description: '商品マスターから分離した補助マスターを管理する画面です。',
     tabs: [
-      { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。売場との紐付け前に登録します。' },
       { id: 'salesAreas', label: '売場', description: '店頭の売場分類を管理します。カテゴリーグループと紐付けることで、商品登録時の候補を絞り込めます。' },
+      { id: 'categoryGroups', label: 'カテゴリーグループ', description: 'カテゴリーを束ねる大分類をここで管理します。売場との紐付け前に登録します。' },
       { id: 'categories', label: 'カテゴリー', description: '商品マスターで使う商品カテゴリーをここで管理します。' },
       { id: 'subCategories', label: 'サブカテゴリー', description: 'Shopifyメニューの3階層目にあたるサブカテゴリーを管理します。' },
       { id: 'brands', label: 'ブランド', description: '商品に紐づくブランド情報をここで管理します。' },
@@ -2149,6 +2162,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           }
           onDelete={productMaster?.deleteSalesArea}
           onSaved={onSaved}
+          guide={SALES_AREA_GUIDE}
         />
       );
     }
