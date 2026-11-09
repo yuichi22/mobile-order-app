@@ -79,7 +79,8 @@ const LOCAL_TOP_PATHS = new Set([
   'stocktake',
   'register',
   'api',
-  't'
+  't',
+  'sso'
 ]);
 const matchEntrySlug = (pathname) => {
   const m = String(pathname || '').match(SLUG_PATH_RE);
