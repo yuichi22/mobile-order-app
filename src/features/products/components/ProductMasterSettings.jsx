@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Factory,
   FolderTree,
+  Info,
   Link,
   Package,
   Plus,
@@ -6591,7 +6592,9 @@ export const SimpleMasterPanel = ({
   onSaveChildItem,
   defaultTaxRate = 10,
   storeId = '',
-  cascadeTaxLevel = ''
+  cascadeTaxLevel = '',
+  // 一覧の上に出す使い方の説明。{ title, items: string[] }
+  guide = null
 }) => {
   const [draft, setDraft] = useState({ ...blank });
   const [editingId, setEditingId] = useState('');
@@ -8278,6 +8281,24 @@ export const SimpleMasterPanel = ({
             )}
           </div>
         </div>
+
+        {guide?.items?.length > 0 && (
+          <details open className="group border-b border-gray-100 px-8 py-4">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 text-sm font-black text-gray-900 [&::-webkit-details-marker]:hidden">
+              <Info size={18} strokeWidth={1.5} className="shrink-0 text-gray-500" />
+              {guide.title || '使い方'}
+              <ChevronDown size={16} strokeWidth={1.5} className="ml-auto shrink-0 text-gray-500 transition-transform group-open:rotate-180" />
+            </summary>
+            <ul className="mt-2 space-y-1.5 rounded-xl bg-gray-50 px-4 py-3">
+              {guide.items.map((text) => (
+                <li key={text} className="flex gap-2 text-xs font-bold leading-relaxed text-gray-500">
+                  <span aria-hidden="true" className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <div className="divide-y divide-gray-100">
           {displayItems.length === 0 ? (
