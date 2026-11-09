@@ -136,6 +136,19 @@ const SETTINGS_MENU_ITEMS = [
 
 // 分類ノード(グループ/カテゴリー/サブカテ)の性別(ジェンダー)設定フィールド。
 // 設計: docs/gender-attribute-design.md。子(サブカテ)>親(カテゴリー)>グループ の順で優先。
+// カテゴリーグループ一覧の上に出す使い方の説明。グループが実際に効く場所だけを書く。
+const CATEGORY_GROUP_GUIDE = {
+  title: 'カテゴリーグループの使い方',
+  items: [
+    '商品の分類のいちばん上の階層です。「カテゴリーグループ ＞ カテゴリー ＞ サブカテゴリー」の順に分けます。',
+    'グループを作ったら、編集画面の「含まれるカテゴリー」でカテゴリーを追加します。',
+    '「売場」タブでグループを売場に紐付けると、その売場の商品登録や、バーコードの無い商品を手打ちで会計するときに、選べるグループが絞り込まれます。',
+    '税率はグループごとに決められます（例: 食品は軽減税率 8%）。配下の商品はその税率を引き継ぎます。設定は「税・価格設定」の「カテゴリー別税率」で行います。',
+    'ジェンダー設定は配下のカテゴリー・商品に引き継がれます。カテゴリー側でも設定した場合は、カテゴリー側が優先されます。',
+    '売上分析の「部門別」は、このグループごとの売上です。'
+  ]
+};
+
 const GENDER_OPTION_FIELDS = [
   {
     id: 'genderMode',
@@ -2159,6 +2172,7 @@ const PosDummyTabbedPage = ({ item, productMaster, storeId, defaultTaxRate = 10,
           onSave={productMaster?.saveCategoryGroup}
           onDelete={productMaster?.deleteCategoryGroup}
           onSaved={onSaved}
+          guide={CATEGORY_GROUP_GUIDE}
         />
       );
     }
