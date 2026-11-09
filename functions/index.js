@@ -9587,6 +9587,8 @@ export { refreshEntitlements } from "./entitlements.js";
 
 // --- 店舗自動プロビジョニング (Core拠点のorder/pos有効化で店舗を自動作成) ---
 export { provisionStoreForSpace, onProvisionInviteUsed } from "./provisioning.js";
+// AKUTO Core ポータルの「開く」から、ログインした状態で開く（1回限り・約1分の入場券）
+export { issueCoreLoginTicket, redeemCoreLoginTicket } from "./coreLogin.js";
 
 // --- 会計依頼伝票 (groom「作業完了・お会計」→POSレジへの伝票受け口) ---
 export { receiveCheckoutRequest, lookupPosProduct, listPosSalesAreas, completeCrmBind } from "./checkoutRequests.js";

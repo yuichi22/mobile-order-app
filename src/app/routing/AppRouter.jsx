@@ -40,11 +40,13 @@ const loadServePage = () => import('../../features/serve/pages/ServePage');
 const loadStaffOrderPage = () => import('../../features/staff-order/pages/StaffOrderPage');
 const loadStocktakePage = () => import('../../features/inventory/pages/StocktakePage');
 const loadMobileTagRegisterPage = () => import('../../features/mobile/pages/MobileTagRegisterPage');
+const loadCoreSsoPage = () => import('../../features/auth/pages/CoreSsoPage');
 
 const ServePage = lazyWithRetry(loadServePage, 'serve-page');
 const StaffOrderPage = lazyWithRetry(loadStaffOrderPage, 'staff-order-page');
 const StocktakePage = lazyWithRetry(loadStocktakePage, 'stocktake-page');
 const MobileTagRegisterPage = lazyWithRetry(loadMobileTagRegisterPage, 'mobile-tag-register-page');
+const CoreSsoPage = lazyWithRetry(loadCoreSsoPage, 'core-sso-page');
 
 const LoginPage = lazyWithRetry(loadLoginPage, 'login-page');
 const RegisterPage = lazyWithRetry(loadRegisterPage, 'register-page');
@@ -291,6 +293,15 @@ const AppRouter = () => {
   const entrySlug = matchEntrySlug(location.pathname);
   if (entrySlug) {
     return <SlugEntryRedirect slug={entrySlug} />;
+  }
+
+  // AKUTO Core ポータルの「開く」（入場券でログインしてから ?app=… 付きでトップへ）
+  if (location.pathname === '/sso') {
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <CoreSsoPage />
+      </Suspense>
+    );
   }
 
   if (isAuthTransitioning) {
