@@ -152,3 +152,42 @@ export const buildReversalTransaction = ({
     businessDate
   };
 };
+
+// 値引き行(単価・金額がマイナスの明細。ポータルのメガネ会計の「イベント割引」等)か。
+export const isNegativeValueLine = (item = {}) => (
+  Number(item?.totalPrice ?? (Number(item?.unitPrice || 0) * (Number(item?.quantity || 0) || 1))) < 0
+);
+
+// 取消数量の実効値を求める。値引き行(マイナス明細)は手で選ばせず、売上の明細に連動させる:
+// その会計の売上の明細(プラス)が今回の取消で全部なくなるときだけ、値引き行も全数取消する。
+// (2026-11: メガネだけ選んで取消すると −2,000円の値引き行だけの会計が日計に残った)
+// プラス明細が既に無い会計(値引き行だけ残った旧データ)は、値引き行を手で選んだ数のまま使う。
+// entries: [{ key, txnId, item, maxQty }]、qtyMap: { [key]: 選択数 }。返り値は新しい map。
+export const resolveCancelQuantities = (entries = [], qtyMap = {}) => {
+  const result = { ...qtyMap };
+  const byTxn = new Map();
+  entries.forEach((entry) => {
+    if (!entry?.key) return;
+    const list = byTxn.get(entry.txnId) || [];
+    list.push(entry);
+    byTxn.set(entry.txnId, list);
+  });
+  const capOf = (entry) => Number(entry.maxQty ?? (entry.item?.quantity || 0)) || 1;
+  const selOf = (entry) => Math.min(Math.max(Number(qtyMap[entry.key] || 0), 0), capOf(entry));
+  byTxn.forEach((list) => {
+    const positives = list.filter((entry) => !isNegativeValueLine(entry.item));
+    const negatives = list.filter((entry) => isNegativeValueLine(entry.item));
+    if (negatives.length === 0 || positives.length === 0) return;
+    const allPositivesGone = positives.every((entry) => selOf(entry) >= capOf(entry));
+    negatives.forEach((entry) => {
+      result[entry.key] = allPositivesGone ? capOf(entry) : 0;
+    });
+  });
+  return result;
+};
+
+// 値引き行が売上の明細に連動して自動で決まる(手で選ばない)か。
+export const isAutoFollowedLine = (entries = [], entry = {}) => (
+  isNegativeValueLine(entry.item)
+  && entries.some((other) => other.txnId === entry.txnId && !isNegativeValueLine(other.item))
+);

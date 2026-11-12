@@ -20,7 +20,9 @@ import {
   getJstBusinessDate,
   isDayLocked,
   buildReversalItems,
-  buildReversalTransaction
+  buildReversalTransaction,
+  isAutoFollowedLine,
+  resolveCancelQuantities
 } from './corrections/correctionModel';
 import { isRecheckoutEligibleTransaction, RECHECKOUT_REASON } from './corrections/recheckoutModel';
 import SearchField from '../../shared/components/SearchField';
@@ -827,6 +829,11 @@ export const PosTransactionHistory = ({
   // cancelQty={`${txnId}#${index}`:取消数量}。同一テーブルの個別会計をまとめた履歴伝票は塊ごと取消する。
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelQty, setCancelQty] = useState({});
+  // 値引き行(マイナス明細)は売上の明細に連動させた実効値。取消の計算・表示はこちらを使う。
+  const effectiveCancelQty = useMemo(
+    () => resolveCancelQuantities(cancelTarget?.entries || [], cancelQty),
+    [cancelTarget, cancelQty]
+  );
   // 返品・取消タスクシートのチェック状態(現金返金/カード取消/金券返却/売掛取消)。
   const [taskChecks, setTaskChecks] = useState({});
   const [cancelReason, setCancelReason] = useState('');
@@ -1290,7 +1297,7 @@ export const PosTransactionHistory = ({
         const key = `${transaction.id}#${index}`;
         const qty = num(item.quantity) || 1;
         const available = qty - reversedQtyOf(index); // 取消可能な残数
-        const cQty = Math.min(Math.max(num(cancelQty[key]), 0), Math.max(available, 0));
+        const cQty = Math.min(Math.max(num(effectiveCancelQty[key]), 0), Math.max(available, 0));
         if (cQty <= 0) return item;
         txnHasCancel = true;
         anyCancel = true;
@@ -1685,7 +1692,7 @@ export const PosTransactionHistory = ({
     if (!cancelTarget) return 0;
     return (Array.isArray(cancelTarget.entries) ? cancelTarget.entries : []).reduce((sum, { key, item, maxQty }) => {
       const cap = Number(maxQty ?? (item?.quantity || 0)) || 1;
-      return sum + Math.min(Math.max(Number(cancelQty[key] || 0), 0), cap);
+      return sum + Math.min(Math.max(Number(effectiveCancelQty[key] || 0), 0), cap);
     }, 0);
   })();
 
@@ -1714,7 +1721,7 @@ export const PosTransactionHistory = ({
       items.forEach((it, index) => {
         const key = `${tx.id}#${index}`;
         const qty = num(it.quantity) || 1;
-        const c = Math.min(Math.max(num(cancelQty[key]), 0), qty);
+        const c = Math.min(Math.max(num(effectiveCancelQty[key]), 0), qty);
         if (c <= 0) return;
         const ratio = qty > 0 ? (qty - c) / qty : 0;
         grossCancelled += num(it.totalPrice) - Math.round(num(it.totalPrice) * ratio);
@@ -1756,7 +1763,7 @@ export const PosTransactionHistory = ({
       });
     });
     return tasks;
-  }, [cancelTarget, cancelQty]);
+  }, [cancelTarget, effectiveCancelQty]);
 
   const allTasksDone = returnTasks.every((task) => taskChecks[task.key]);
 
@@ -4275,9 +4282,10 @@ export const PosTransactionHistory = ({
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-5">
-              {(cancelTarget.entries || []).map(({ key, item, maxQty }) => {
+              {(cancelTarget.entries || []).map(({ key, txnId, item, maxQty }) => {
                 const qty = Number(maxQty ?? (item.quantity || 0)) || 1;
-                const sel = Math.min(Math.max(Number(cancelQty[key] || 0), 0), qty);
+                const sel = Math.min(Math.max(Number(effectiveCancelQty[key] || 0), 0), qty);
+                const autoFollowed = isAutoFollowedLine(cancelTarget.entries || [], { txnId, item });
                 return (
                   <div key={key} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <div className="min-w-0">
@@ -4288,6 +4296,10 @@ export const PosTransactionHistory = ({
                     </div>
                     {isRecheckoutMode ? (
                       <span className="shrink-0 text-base font-black tabular-nums text-gray-900">{sel}点</span>
+                    ) : autoFollowed ? (
+                      <span className="shrink-0 text-right text-xs font-bold text-gray-500">
+                        {sel > 0 ? `${sel}点（一緒に取消）` : '商品を全部選ぶと一緒に取消'}
+                      </span>
                     ) : (
                     <div className="flex shrink-0 items-center gap-2">
                       <button

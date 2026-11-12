@@ -52,6 +52,7 @@ import { pushInventoryToShopify } from '../store/services/storeDataService';
 import { getActiveStocktake, applyStocktakeSaleAdjustment } from '../inventory/services/stocktakeDataService';
 import { getAuth } from 'firebase/auth';
 import { buildRecheckoutCartItems, buildRecheckoutDiscount, buildRecheckoutPointsItem } from './corrections/recheckoutModel';
+import { findGlassesSalesArea } from './utils/glassesSalesArea';
 
 const TAKEOUT_PAYMENT_METHOD_OPTIONS = [
   {
@@ -1353,12 +1354,20 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
       return;
     }
 
+    // ポータルのメガネ会計は売り場を持たずに届く。売り場が無いと原価(売り場の原価率)が付かず
+    // 日計の粗利から外れるので、この店の「メガネ」売り場に寄せる(送信側が指定していればそれを優先)。
+    const karteSalesArea = request.source === 'core-karte'
+      ? findGlassesSalesArea(productMasterSalesAreas, request)
+      : null;
     setTakeoutCart((Array.isArray(request.lines) ? request.lines : []).map((line, index) => ({
       id: `groomreq:${request.id}:${index}`,
       sourceType: 'groom',
       name: line.name || (request.source === 'core-karte' ? 'メガネ' : 'トリミング'),
       categoryId: '',
       categoryName: request.source === 'core-karte' ? '予約会計(メガネ)' : '予約会計(Groom)',
+      ...(karteSalesArea
+        ? { salesAreaId: karteSalesArea.id || '', salesAreaName: karteSalesArea.name || '' }
+        : {}),
       takeoutPrice: Number(line.unitPrice || 0),
       unitPrice: Number(line.unitPrice || 0),
       priceTaxIncluded: Number(line.unitPrice || 0),
@@ -1558,6 +1567,13 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
           unitCostSnapshot = costInfo.unitIncl;
           costTaxIncludedAmount = Math.round(costInfo.unitIncl * quantity);
           costTaxExcludedAmount = Math.round(costInfo.unitExcl * quantity);
+        } else if (costInfo.rate !== null && Number(figures.includedRaw) < 0) {
+          // 値引き行(マイナス明細。メガネ会計のイベント割引等)は原価0。売価×率だと原価がマイナスになり
+          // 粗利を過大にするため(原価は商品側の定価×率で既に計上済み)。
+          costRateValue = costInfo.rate;
+          unitCostSnapshot = 0;
+          costTaxIncludedAmount = 0;
+          costTaxExcludedAmount = 0;
         } else if (costInfo.rate !== null) {
           costRateValue = costInfo.rate;
           const costFraction = Math.max(0, Math.min(100, Number(costInfo.rate))) / 100;
