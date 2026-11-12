@@ -89,6 +89,33 @@ export const buildReversalPayments = (original = {}, refundAmount = 0) => {
   return [{ method, amount: -amount }];
 };
 
+// 元伝票の販促費/金券の内訳(promoExpenseItems / vouchers)を、取消分の金額で按分したマイナス明細にする。
+// 日計で「メガネイベント商品券（返品）−2,000円」のように券名つきで戻すため。
+export const buildReversalAdjustmentItems = (originalItems = [], refundAmount = 0) => {
+  const amount = Math.abs(Math.round(Number(refundAmount || 0)));
+  const items = (Array.isArray(originalItems) ? originalItems : [])
+    .filter((item) => Number(item?.faceAmount ?? item?.amount ?? 0) > 0);
+  if (amount <= 0 || items.length === 0) return [];
+  const total = items.reduce((sum, item) => sum + Number(item.faceAmount ?? item.amount ?? 0), 0) || 1;
+  let allocated = 0;
+  return items.map((item, index) => {
+    const share = index === items.length - 1
+      ? amount - allocated
+      : Math.round((amount * Number(item.faceAmount ?? item.amount ?? 0)) / total);
+    allocated += share;
+    return {
+      id: item.id || '',
+      name: item.name || item.label || '',
+      type: item.type || 'amount',
+      value: Number(item.value || 0),
+      accountingCategory: item.accountingCategory || '',
+      amount: -share,
+      count: 1,
+      quantity: -1
+    };
+  }).filter((item) => item.amount < 0);
+};
+
 // 反対仕訳(マイナス)伝票の完全ペイロードを組み立てる。
 // original: 元 transaction, reversalItems: buildReversalItems の結果, sums: 再計算済み負値合計。
 export const buildReversalTransaction = ({
@@ -138,6 +165,8 @@ export const buildReversalTransaction = ({
     promoExpenseAmount: -Math.abs(Number(totals.promoExpenseAmount || 0)),
     voucherAmount: -Math.abs(Number(totals.voucherAmount || 0)),
     settlementAdjustmentTotal: -(Math.abs(Number(totals.promoExpenseAmount || 0)) + Math.abs(Number(totals.voucherAmount || 0))),
+    promoExpenseItems: buildReversalAdjustmentItems(original.promoExpenseItems, totals.promoExpenseAmount),
+    vouchers: buildReversalAdjustmentItems(original.vouchers, totals.voucherAmount),
     // 支払(払い戻し先。現金返金は現金ドロワーを減らす=負)
     paymentMethod: isSplit ? 'mixed' : (payments[0]?.method || original.paymentMethod || 'cash'),
     paymentMethodGroup: isSplit ? 'mixed' : (payments[0]?.method || original.paymentMethodGroup || 'cash'),

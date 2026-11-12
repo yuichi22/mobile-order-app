@@ -639,6 +639,45 @@ const addSettlementAdjustments = (summary, transaction) => {
   }
 };
 
+// 反対仕訳(締め後の取消/返品)が戻した販促費・金券を、内訳に「券名（返品）」のマイナス行で載せる。
+// 販促費の合計もここで戻す(金券の合計は呼び出し側で従来どおり戻している)。
+// 2026-11: 返品しても販促費(メガネイベント商品券)が戻らず、日計に残っていた。
+const addReversalAdjustments = (summary, transaction) => {
+  const label = transaction.correctionType === 'return' ? '返品' : '取消';
+  const addRows = (key, items, fallbackAmount, fallbackName) => {
+    const rows = Array.isArray(items) && items.length > 0
+      ? items
+      : (fallbackAmount < 0 ? [{ id: key, name: fallbackName, amount: fallbackAmount, count: 1, quantity: -1 }] : []);
+    rows.forEach((row) => {
+      const amount = -Math.abs(Number(row?.amount || 0));
+      if (amount >= 0) return;
+      const baseName = row.name || fallbackName;
+      const id = `${row.id || baseName}__reversal`;
+      if (!summary[key][id]) {
+        summary[key][id] = {
+          id,
+          name: `${baseName}（${label}）`,
+          count: 0,
+          quantity: 0,
+          amount: 0,
+          value: Number(row.value || 0),
+          type: row.type || 'amount',
+          accountingCategory: key === 'promoExpenses' ? 'promo_expense' : 'voucher_payment',
+          isReversal: true
+        };
+      }
+      summary[key][id].count += 1;
+      summary[key][id].quantity -= Math.abs(Number(row.quantity ?? 1) || 1);
+      summary[key][id].amount += amount;
+    });
+  };
+  const promoAmount = -Math.abs(Number(transaction.promoExpenseAmount || 0));
+  if (promoAmount < 0) summary.promoExpenseTotal += promoAmount;
+  addRows('promoExpenses', transaction.promoExpenseItems, promoAmount, '販促費');
+  const voucherAmount = -Math.abs(Number(transaction.voucherAmount || 0) + Number(transaction.voucherChangeAmount || 0));
+  addRows('vouchers', transaction.vouchers, voucherAmount, '金券/売掛');
+};
+
 // LINE ポイント利用(Core の会員ポイント)。紙のポイントカード(枚数で回収を数える)とは別に、
 // 使われた pt と金額だけを集計する。金額は売上値引 or 販促費(割引設定の会計区分)の合計にも含まれている。
 const findLinePointEntry = (transaction) => {
@@ -1000,6 +1039,7 @@ export const buildDailyClosingSummary = (transactions = [], periods = []) => {
         // ドロワー内訳を出すため。現金タイルは addPaymentMethod で既に負を含む)。
         // お釣りON金券は回収=額面(充当+お釣り)なので、払戻も両フィールドを合算する。
         summary.voucherTotal += Number(transaction.voucherAmount || 0) + Number(transaction.voucherChangeAmount || 0);
+        addReversalAdjustments(summary, transaction);
       }
       return;
     }
