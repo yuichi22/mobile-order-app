@@ -3,6 +3,7 @@ import { getTableDisplayName, getTableDisplayLabel } from '../../../shared/utils
 import {
   Ban,
   Bell,
+  CalendarDays,
   CheckCircle,
   ChevronDown,
   ChevronUp,
@@ -35,6 +36,69 @@ const formatPickupAt = (value) => {
   const wd = ['日', '月', '火', '水', '木', '金', '土'][jst.getUTCDay()];
   return `${jst.getUTCMonth() + 1}/${jst.getUTCDate()}(${wd}) ${time}`;
 };
+
+/** テイクアウト（Web注文）のカード一覧。通常分と、予約品の当日分で共用する。 */
+const TakeoutOrderList = ({ orders = [], onStatusChange }) => (
+  <div className="mt-2 max-h-[46vh] space-y-2 overflow-y-auto">
+    {orders.map((order) => (
+      <div key={order.id} className="rounded-xl bg-gray-900/80 p-3 text-gray-100">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-black text-amber-300">
+              {formatPickupAt(order.pickupAt)}
+            </div>
+            <div className="mt-0.5 truncate text-xs font-bold text-gray-300">
+              {order.customerName} 様 / {order.customerTel}
+            </div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="text-sm font-black">
+              ¥{Number(order.totalAmount || 0).toLocaleString()}
+            </div>
+            {/* ⚠ 店頭払い。レジで受け取ることを必ず書く */}
+            <div className="text-[10px] font-bold text-gray-500">店頭払い</div>
+          </div>
+        </div>
+
+        <ul className="mt-2 space-y-1 border-t border-gray-700 pt-2">
+          {(order.items || []).map((i, idx) => (
+            <li key={idx} className="flex items-start justify-between gap-2 text-xs">
+              <span className="flex-1 font-bold text-gray-200">
+                {String(i.name || '').replace(/\s*\n\s*/g, ' ')}
+              </span>
+              <span className="shrink-0 font-black text-amber-300">×{i.quantity}</span>
+            </li>
+          ))}
+        </ul>
+
+        {order.note && (
+          <p className="mt-2 rounded-lg bg-gray-800 px-2 py-1.5 text-[11px] font-bold leading-relaxed text-gray-300">
+            {order.note}
+          </p>
+        )}
+
+        <div className="mt-2 flex gap-2">
+          {order.status !== 'ready' && (
+            <button
+              type="button"
+              onClick={() => onStatusChange?.(order.id, 'ready')}
+              className="flex-1 rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-black text-white"
+            >
+              準備できた
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onStatusChange?.(order.id, 'handed')}
+            className="flex-1 rounded-lg bg-gray-700 px-2 py-1.5 text-xs font-black text-gray-100"
+          >
+            渡した
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const CompactRequestSection = ({
   title,
@@ -199,6 +263,9 @@ const KitchenSidebar = ({
   calls = [],
   checks = [],
   takeoutOrders = [],
+  reservationTodayOrders = [],
+  reservationUpcomingCount = 0,
+  onOpenReservations,
   onTakeoutStatusChange,
   soldOutItems = [],
   pendingItemSummary = [],
@@ -297,66 +364,48 @@ const KitchenSidebar = ({
             </button>
 
             {expandedRequestType === 'takeout' && (
-              <div className="mt-2 max-h-[46vh] space-y-2 overflow-y-auto">
-                {takeoutOrders.map((order) => (
-                  <div key={order.id} className="rounded-xl bg-gray-900/80 p-3 text-gray-100">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-black text-amber-300">
-                          {formatPickupAt(order.pickupAt)}
-                        </div>
-                        <div className="mt-0.5 truncate text-xs font-bold text-gray-300">
-                          {order.customerName} 様 / {order.customerTel}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-sm font-black">
-                          ¥{Number(order.totalAmount || 0).toLocaleString()}
-                        </div>
-                        {/* ⚠ 店頭払い。レジで受け取ることを必ず書く */}
-                        <div className="text-[10px] font-bold text-gray-500">店頭払い</div>
-                      </div>
-                    </div>
+              <TakeoutOrderList orders={takeoutOrders} onStatusChange={onTakeoutStatusChange} />
+            )}
+          </div>
+        )}
 
-                    <ul className="mt-2 space-y-1 border-t border-gray-700 pt-2">
-                      {(order.items || []).map((i, idx) => (
-                        <li key={idx} className="flex items-start justify-between gap-2 text-xs">
-                          <span className="flex-1 font-bold text-gray-200">
-                            {String(i.name || '').replace(/\s*\n\s*/g, ' ')}
-                          </span>
-                          <span className="shrink-0 font-black text-amber-300">×{i.quantity}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {order.note && (
-                      <p className="mt-2 rounded-lg bg-gray-800 px-2 py-1.5 text-[11px] font-bold leading-relaxed text-gray-300">
-                        {order.note}
-                      </p>
-                    )}
-
-                    <div className="mt-2 flex gap-2">
-                      {order.status !== 'ready' && (
-                        <button
-                          type="button"
-                          onClick={() => onTakeoutStatusChange?.(order.id, 'ready')}
-                          className="flex-1 rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-black text-white"
-                        >
-                          準備できた
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onTakeoutStatusChange?.(order.id, 'handed')}
-                        className="flex-1 rounded-lg bg-gray-700 px-2 py-1.5 text-xs font-black text-gray-100"
-                      >
-                        渡した
-                      </button>
-                    </div>
-                  </div>
-                ))}
+        {/* 予約品（クリスマスケーキ等）の受け渡し。⚠ 受取当日の分だけ。
+            それより先の予約は「予約一覧」で受取日別に見る（ボードを埋めないため）。 */}
+        {(reservationTodayOrders.length > 0 || reservationUpcomingCount > 0) && (
+          <div className="shrink-0 border-b border-gray-700 bg-gray-950/80 p-3">
+            {reservationTodayOrders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpandedRequestType((c) => (c === 'reservation' ? null : 'reservation'))}
+                className="mb-2 flex w-full items-center justify-between gap-2 rounded-xl border border-rose-300/60 bg-rose-500 px-3 py-2 text-white shadow-lg shadow-rose-950/30"
+              >
+                <span className="flex items-center gap-2">
+                  <CalendarDays size={17} />
+                  <span className="text-sm font-black">本日の予約受け渡し</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-black">
+                    {reservationTodayOrders.length}件
+                  </span>
+                  {expandedRequestType === 'reservation' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </span>
+              </button>
+            )}
+            {expandedRequestType === 'reservation' && reservationTodayOrders.length > 0 && (
+              <div className="mb-2">
+                <TakeoutOrderList orders={reservationTodayOrders} onStatusChange={onTakeoutStatusChange} />
               </div>
             )}
+            <button
+              type="button"
+              onClick={onOpenReservations}
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100"
+            >
+              <span className="text-sm font-black">予約一覧（受取日別・仕込み表）</span>
+              {reservationUpcomingCount > 0 && (
+                <span className="text-xs font-bold text-gray-400">明日以降 {reservationUpcomingCount}件</span>
+              )}
+            </button>
           </div>
         )}
 

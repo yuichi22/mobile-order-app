@@ -610,6 +610,12 @@ service cloud.firestore {
         allow read, update: if isStoreStaff(storeId);
         allow create, delete: if false;
       }
+      // 予約品の受取日ごとの受注数（上限判定用）。作成は createTakeoutOrder のみ。
+      // スタッフは予約一覧の閲覧と、取消時に数を戻すための更新だけできる。
+      match /reservationDays/{dateKey} {
+        allow read, update: if isStoreStaff(storeId);
+        allow create, delete: if false;
+      }
       // Shopify EC売上(分析専用)。取り込みはFunctions(Admin SDK)のみ＝クライアント書込不可。
       match /ecOrders/{ecOrderId} {
         allow read: if isStoreManager(storeId);
