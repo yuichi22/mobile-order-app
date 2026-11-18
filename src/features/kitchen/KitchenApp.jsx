@@ -7,6 +7,8 @@ import LoadingSpinner from '../../shared/components/feedback/LoadingSpinner';
 import KitchenHeader from './components/KitchenHeader';
 import OrderCard from './components/OrderCard';
 import KitchenSidebar from './components/KitchenSidebar';
+import ReservationBoard from './components/ReservationBoard';
+import { jstDateKey, splitTakeoutForKitchen } from './utils/reservationUtils';
 import { useKitchenBoard } from './hooks/useKitchenBoard';
 import { useStoreSettings } from '../store/hooks';
 import { buildPendingItemSummary, getActiveKitchenItems, isCancelledKitchenItem, sortKitchenOrders } from './utils/kitchenUtils';
@@ -56,6 +58,14 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
     }
   });
   const [currentTime, setCurrentTime] = useState(new Date().getTime());
+  const [isReservationBoardOpen, setIsReservationBoardOpen] = useState(false);
+  // ⚠ 予約品（クリスマスケーキ等）は受取当日だけサイドバーに出す。日付が変わったら入れ替わるよう
+  //   currentTime から日付キーを作る（文字列なので日付が変わるまで再計算されない）。
+  const todayKey = jstDateKey(new Date(currentTime));
+  const takeoutSplit = useMemo(
+    () => splitTakeoutForKitchen(kdsData.takeoutOrders, todayKey),
+    [kdsData.takeoutOrders, todayKey]
+  );
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [alertVolume, setAlertVolume] = useState(() => {
     try {
@@ -812,7 +822,10 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
         <KitchenSidebar
           calls={kdsData.calls}
           checks={kdsData.checks}
-          takeoutOrders={kdsData.takeoutOrders}
+          takeoutOrders={takeoutSplit.regular}
+          reservationTodayOrders={takeoutSplit.reservationToday}
+          reservationUpcomingCount={takeoutSplit.reservationUpcoming}
+          onOpenReservations={() => setIsReservationBoardOpen(true)}
           onTakeoutStatusChange={kdsData.updateTakeoutStatus}
           soldOutItems={kdsData.soldOutItems}
           pendingItemSummary={pendingItemSummary}
@@ -828,6 +841,15 @@ const KitchenApp = ({ storeId, onBack, onSwitchToRegister, onSwitchToServe, onSw
           onRestore={kdsData.restoreStock}
         />
       </div>
+
+      {isReservationBoardOpen && (
+        <ReservationBoard
+          storeId={effectiveStoreId}
+          storeName={storeSettings?.name}
+          menuItemLookup={kdsData.menuItemLookup}
+          onClose={() => setIsReservationBoardOpen(false)}
+        />
+      )}
     </div>
   );
 };

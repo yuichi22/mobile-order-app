@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, increment, onSnapshot, orderBy, query, runTransaction, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../../shared/api/firebase/client';
 
 export const updateKitchenOrderMeta = (storeId, orderId, payload = {}) => {
@@ -125,6 +125,87 @@ export const updateTakeoutOrderStatus = (storeId, orderId, status) => {
   return updateDoc(doc(db, 'stores', storeId, 'takeoutOrders', orderId), {
     status,
     updatedAt: new Date()
+  });
+};
+
+/**
+ * 予約品（クリスマスケーキ等）を含むWeb注文を、受取日 fromDateKey 以降の分だけ購読する。
+ * ⚠ 引き渡し済み・取消も返す（予約一覧の受け渡しチェックと集計に使う）。
+ * ⚠ pickupDate は日本時間の YYYY-MM-DD。予約の仕組みより前の注文には無いので、ここには出ない。
+ */
+export const subscribeReservationOrders = (storeId, fromDateKey, onChange) => {
+  return onSnapshot(
+    query(
+      collection(db, 'stores', storeId, 'takeoutOrders'),
+      where('pickupDate', '>=', fromDateKey),
+      orderBy('pickupDate', 'asc')
+    ),
+    (snapshot) => {
+      const list = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((o) => o.isReservation === true);
+      onChange(list);
+    },
+    (error) => {
+      console.error('[kitchen] reservation orders subscribe failed', error);
+      onChange([]);
+    }
+  );
+};
+
+/** 受取日ごとの受注数（上限の残りを出すため）。{ [YYYY-MM-DD]: { [menuItemId]: 数 } } */
+export const subscribeReservationDays = (storeId, fromDateKey, onChange) => {
+  return onSnapshot(
+    query(collection(db, 'stores', storeId, 'reservationDays'), where('date', '>=', fromDateKey)),
+    (snapshot) => {
+      const out = {};
+      snapshot.docs.forEach((d) => {
+        const data = d.data() || {};
+        out[data.date || d.id] = data.counts || {};
+      });
+      onChange(out);
+    },
+    (error) => {
+      console.error('[kitchen] reservationDays subscribe failed', error);
+      onChange({});
+    }
+  );
+};
+
+/**
+ * 予約の取消（電話で取消の連絡を受けたとき）。
+ * ⚠ 受取日ごとの受注数も同時に戻す。戻さないと、取消した分の枠がWebで売れないまま残る。
+ * ⚠ 二重に戻さないよう、すでに取消済みなら何もしない。
+ */
+export const cancelTakeoutOrder = (storeId, orderId) => {
+  const orderRef = doc(db, 'stores', storeId, 'takeoutOrders', orderId);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(orderRef);
+    if (!snap.exists()) return;
+    const order = snap.data() || {};
+    if (order.status === 'cancelled') return;
+
+    const dayKey = String(order.pickupDate || '');
+    if (order.isReservation === true && dayKey) {
+      const dayRef = doc(db, 'stores', storeId, 'reservationDays', dayKey);
+      const daySnap = await tx.get(dayRef);
+      if (daySnap.exists()) {
+        const decrements = {};
+        (order.items || []).forEach((item) => {
+          if (item?.isReservation !== true || !item.menuItemId) return;
+          const key = `counts.${item.menuItemId}`;
+          decrements[key] = (decrements[key] || 0) - (Number(item.quantity) || 0);
+        });
+        const payload = {};
+        Object.entries(decrements).forEach(([key, value]) => {
+          payload[key] = increment(value);
+        });
+        if (Object.keys(payload).length > 0) {
+          tx.update(dayRef, { ...payload, updatedAt: new Date() });
+        }
+      }
+    }
+    tx.update(orderRef, { status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() });
   });
 };
 

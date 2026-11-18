@@ -9,11 +9,21 @@
  *   キッチンの注文ボードは orders を全件購読しているので、そこへ入れると
  *   2日後の受け取り分まで「いま作るもの」として並んでしまう。
  *   キッチンではサイドペインに別枠で出す。
+ * ⚠ 予約品（クリスマスケーキ等）を含む注文は isReservation: true を付ける。
+ *   キッチンでは受取当日まで出さず、予約一覧（受取日別の集計）で扱う。
+ *   受取日ごとの受注数は stores/{storeId}/reservationDays/{YYYY-MM-DD} の counts に持ち、
+ *   上限の判定と注文の保存を同じトランザクションで行う（同時注文で上限を超えないため）。
  */
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { Resend } from "resend";
+import {
+  jstDateKey,
+  reservationRule,
+  checkReservation,
+  reservationIncrements,
+} from "./takeoutReservation.js";
 
 const REGION = "asia-northeast1";
 const db = getFirestore("main");
@@ -125,6 +135,8 @@ export const createTakeoutOrder = onRequest(
       );
 
       const items = [];
+      // 予約品の判定用。items には保存しない（rule はメニュー側の設定の写し）。
+      const reservationLines = [];
       let totalQuantity = 0;
       let totalAmount = 0;
       let leadMinutes = LIMITS.defaultLeadMinutes;
@@ -145,6 +157,9 @@ export const createTakeoutOrder = onRequest(
           return res.status(409).json({ error: "item_sold_out", name: str(v.name) });
         }
 
+        const rule = reservationRule(v);
+        reservationLines.push({ menuItemId: snap.id, name: str(v.name), quantity, rule });
+
         totalQuantity += quantity;
         totalAmount += price * quantity;
         leadMinutes = Math.max(
@@ -160,6 +175,7 @@ export const createTakeoutOrder = onRequest(
           // ⚠ 単価はFirestoreの現物。クライアントの値は使わない。
           unitPrice: price,
           totalPrice: price * quantity,
+          isReservation: Boolean(rule),
         });
       }
 
@@ -196,11 +212,25 @@ export const createTakeoutOrder = onRequest(
         return res.status(400).json({ error: "pickup_out_of_window" });
       }
 
+      // ── 予約品（受取日の期間）─────────────────────────
+      const pickupDate = jstDateKey(pickupAt);
+      const isReservation = reservationLines.some((l) => l.rule);
+      if (isReservation) {
+        // 期間のチェックだけ先に（上限はトランザクションの中で数え直す）
+        const period = checkReservation(reservationLines, pickupDate, {});
+        if (!period.ok) {
+          return res.status(409).json(period);
+        }
+      }
+
       // ── 保存 ───────────────────────────────────
       const ref = db.collection(`stores/${storeId}/takeoutOrders`).doc();
-      await ref.set({
+      const orderDoc = {
         source: "web",
         status: "pending",
+        isReservation,
+        // 受取日（日本時間）。キッチンの「当日だけ出す」と予約一覧の日付別集計に使う。
+        pickupDate,
         customerName: name,
         customerTel: telRaw,
         customerEmail: email,
@@ -212,11 +242,36 @@ export const createTakeoutOrder = onRequest(
         totalAmount,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (isReservation) {
+        const dayRef = db.doc(`stores/${storeId}/reservationDays/${pickupDate}`);
+        const increments = reservationIncrements(reservationLines);
+        const verdict = await db.runTransaction(async (tx) => {
+          const daySnap = await tx.get(dayRef);
+          const counts = daySnap.exists ? daySnap.data()?.counts || {} : {};
+          const check = checkReservation(reservationLines, pickupDate, counts);
+          if (!check.ok) return check;
+          const countUpdates = {};
+          for (const [id, q] of Object.entries(increments)) {
+            countUpdates[id] = FieldValue.increment(q);
+          }
+          tx.set(
+            dayRef,
+            { date: pickupDate, counts: countUpdates, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true }
+          );
+          tx.set(ref, orderDoc);
+          return { ok: true };
+        });
+        if (!verdict.ok) return res.status(409).json(verdict);
+      } else {
+        await ref.set(orderDoc);
+      }
 
       // ⚠ Slack通知は「送れなくても注文は成立させる」。通知の失敗で
       //   お客様にエラーを返すと、実際には入っている注文を二重に出される。
-      notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, note }).catch(
+      notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, note, isReservation }).catch(
         (err) => console.error("[createTakeoutOrder] slack失敗", err?.message)
       );
 
@@ -333,7 +388,7 @@ function formatPickupJst(date) {
   return `${j.getUTCMonth() + 1}月${j.getUTCDate()}日(${wd}) ${pad(j.getUTCHours())}:${pad(j.getUTCMinutes())}`;
 }
 
-async function notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, note }) {
+async function notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, note, isReservation }) {
   const url = SLACK_WEBHOOK_URL.value();
   if (!url || !url.startsWith("https://hooks.slack.com/")) return;
 
@@ -345,7 +400,9 @@ async function notifySlack({ store, name, telRaw, pickupAt, items, totalAmount, 
     .join("\n");
 
   const text = [
-    `🍱 *テイクアウトのWeb注文* (${store.name})`,
+    isReservation
+      ? `🎂 *予約品のWeb注文* (${store.name})　※キッチンには受取当日に出ます`
+      : `🍱 *テイクアウトのWeb注文* (${store.name})`,
     `*受け取り* ${when}`,
     `*お客様* ${name} 様 / ${telRaw}`,
     "",

@@ -18,6 +18,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { createHash } from "node:crypto";
+import { jstDateKey, reservationRule, fullDatesFor } from "./takeoutReservation.js";
 
 const REGION = "asia-northeast1";
 const DB_ID = "main";
@@ -209,13 +210,18 @@ export const publicMenu = onRequest(
     }
 
     try {
-      const [catsDoc, periodsDoc, itemsSnap, imageMap, basicDoc] = await Promise.all([
+      const [catsDoc, periodsDoc, itemsSnap, imageMap, basicDoc, reservationDaysSnap] = await Promise.all([
         db.doc(`stores/${storeId}/settings/categories`).get(),
         db.doc(`stores/${storeId}/settings/periods`).get(),
         db.collection(`stores/${storeId}/menuItems`).get(),
         loadImageMap(storeId),
         db.doc(`stores/${storeId}/settings/basic`).get(),
+        // 予約品の「埋まった日」を出すため。今日以降の分だけ。
+        db.collection(`stores/${storeId}/reservationDays`)
+          .where("date", ">=", jstDateKey(new Date()))
+          .get(),
       ]);
+      const reservationDays = reservationDaysSnap.docs.map((d) => d.data() || {});
 
       const basic = basicDoc.data() || {};
       // Web注文（サイト連携）。⚠ 店舗の契約フラグが無ければ takeout は空で返す。
@@ -271,11 +277,17 @@ export const publicMenu = onRequest(
         //   古いデータや直接の書き換えに備えて、ここでも必ず確かめる。
         //   価格0のまま出すと¥0で注文されてしまう。
         const takeoutPrice = num(v.takeoutPrice) ?? 0;
+        // 予約品（クリスマスケーキ等）。⚠ 期間が壊れているものはサイトに出さない
+        //   （注文しても関数で断られるだけで、お客様が困る）。
+        const rule = reservationRule(v);
         if (
           webOrderOn &&
           v.webOrderEnabled === true &&
           v.allowsTakeout !== false &&
-          takeoutPrice > 0
+          takeoutPrice > 0 &&
+          !rule?.invalid &&
+          // 受取期間が終わった予約品は出さない（季節が過ぎたら自動で消える）
+          !(rule && rule.to < jstDateKey(new Date()))
         ) {
           const rawTakeoutImage = str(v.webOrderImage);
           const takeoutImage = rawTakeoutImage
@@ -296,6 +308,15 @@ export const publicMenu = onRequest(
             image: takeoutImage,
             // 受取時刻の何分前までに注文が必要か。未設定は null（サイト側の既定値）
             leadMinutes: num(v.webOrderLeadMinutes) || null,
+            // 予約品なら受取期間と埋まった日（日本時間の YYYY-MM-DD）。通常品は null。
+            //   ⚠ 最終判定は createTakeoutOrder。ここは選べない日を先に隠す親切のため。
+            reservation: rule
+              ? {
+                  pickupFrom: rule.from,
+                  pickupTo: rule.to,
+                  fullDates: fullDatesFor(doc.id, rule, reservationDays),
+                }
+              : null,
           });
         }
 

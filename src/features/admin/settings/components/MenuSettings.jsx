@@ -163,6 +163,10 @@ const buildMenuMetaChips = (item) => {
     chips.push({ key: 'weborder', label: 'Web注文', tone: 'emerald' });
   }
 
+  if (item.webOrderEnabled === true && item.webOrderReservation === true) {
+    chips.push({ key: 'reservation', label: '予約品', tone: 'rose' });
+  }
+
   (item.allergens || []).forEach((allergenId) => {
     chips.push({ key: `allergen-${allergenId}`, label: getAllergenLabel(allergenId), tone: 'amber' });
   });
@@ -227,6 +231,12 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   webOrderEnabled: false,
   webOrderImage: '',
   webOrderLeadMinutes: null,
+  // 予約品（クリスマスケーキ等）。受取日を期間で限定し、受取日ごとの上限を持てる。
+  //   ⚠ 予約品を含む注文はキッチンのボードに受取当日まで出ない（予約一覧で扱う）。
+  webOrderReservation: false,
+  reservationPickupFrom: '',
+  reservationPickupTo: '',
+  reservationDailyLimit: null,
   optionGroups: [],
   crossSellPrice: null,
   crossSellPriceLabelText: 'セット価格',
@@ -470,6 +480,10 @@ const MenuSettings = ({
       webOrderEnabled: item.webOrderEnabled === true,
       webOrderImage: item.webOrderImage || '',
       webOrderLeadMinutes: item.webOrderLeadMinutes ?? null,
+      webOrderReservation: item.webOrderReservation === true,
+      reservationPickupFrom: item.reservationPickupFrom || '',
+      reservationPickupTo: item.reservationPickupTo || '',
+      reservationDailyLimit: item.reservationDailyLimit ?? null,
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
       costPrice: item.costPrice ?? '',
@@ -673,6 +687,15 @@ const MenuSettings = ({
       const canWebOrder = normalizedTakeoutPrice > 0 && editingItem.allowsTakeout !== false;
       const normalizedWebOrderEnabled = canWebOrder && editingItem.webOrderEnabled === true;
       const normalizedWebOrderLead = Number(editingItem.webOrderLeadMinutes);
+      // 予約品。⚠ 期間が片方だけ・逆転のまま保存すると、サイトに出なくなる（関数側で受けない）。
+      const isReservationItem = normalizedWebOrderEnabled && editingItem.webOrderReservation === true;
+      const reservationFrom = String(editingItem.reservationPickupFrom || '');
+      const reservationTo = String(editingItem.reservationPickupTo || '');
+      if (isReservationItem && (!reservationFrom || !reservationTo || reservationFrom > reservationTo)) {
+        alert('予約品の受取期間（開始日と終了日）を正しく入れてください。');
+        return;
+      }
+      const normalizedReservationLimit = Math.floor(Number(editingItem.reservationDailyLimit) || 0);
 
       await onSave({
         ...editingItem,
@@ -727,6 +750,12 @@ const MenuSettings = ({
           normalizedWebOrderEnabled && Number.isFinite(normalizedWebOrderLead) && normalizedWebOrderLead > 0
             ? Math.round(normalizedWebOrderLead)
             : null,
+        webOrderReservation: isReservationItem,
+        reservationPickupFrom: isReservationItem ? reservationFrom : '',
+        reservationPickupTo: isReservationItem ? reservationTo : '',
+        reservationDailyLimit: isReservationItem && normalizedReservationLimit > 0
+          ? normalizedReservationLimit
+          : null,
         crossSellPrice:
           editingItem.crossSellPrice === '' ||
           editingItem.crossSellPrice === null ||
@@ -1204,6 +1233,78 @@ const handleClearLimitedQuantity = async (event, item) => {
                               <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
                                 受取時刻から逆算します。⚠「2日前」は48時間前の意味です。空欄なら店舗の既定値を使います。
                               </p>
+
+                              <label className="mt-5 flex cursor-pointer items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={editingItem.webOrderReservation === true}
+                                  onChange={(event) => setEditingItem({
+                                    ...editingItem,
+                                    webOrderReservation: event.target.checked
+                                  })}
+                                  className="h-5 w-5 accent-rose-500"
+                                />
+                                <span className="text-sm font-black text-gray-800">予約品として受ける（クリスマスケーキなど）</span>
+                              </label>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
+                                受取日を期間で限定し、受取日ごとに作れる数の上限を持てます。予約品の注文はキッチンのボードには受取当日まで出ず、キッチンの「予約一覧」で受取日別に集計します。
+                              </p>
+
+                              {editingItem.webOrderReservation === true && (
+                                <div className="mt-3 space-y-3 rounded-2xl border-2 border-rose-100 bg-rose-50/40 p-4">
+                                  <div>
+                                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
+                                      受取期間
+                                    </label>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <input
+                                        type="date"
+                                        value={editingItem.reservationPickupFrom || ''}
+                                        onChange={(event) => setEditingItem({
+                                          ...editingItem,
+                                          reservationPickupFrom: event.target.value
+                                        })}
+                                        className="border-2 border-gray-200 bg-white h-12 rounded-2xl px-3 text-sm font-black text-gray-800 outline-none focus:border-ui"
+                                      />
+                                      <span className="text-sm font-bold text-gray-500">〜</span>
+                                      <input
+                                        type="date"
+                                        value={editingItem.reservationPickupTo || ''}
+                                        onChange={(event) => setEditingItem({
+                                          ...editingItem,
+                                          reservationPickupTo: event.target.value
+                                        })}
+                                        className="border-2 border-gray-200 bg-white h-12 rounded-2xl px-3 text-sm font-black text-gray-800 outline-none focus:border-ui"
+                                      />
+                                    </div>
+                                    <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
+                                      この期間の日しか受取日に選べません。期間が過ぎるとサイトから自動で消えます。
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
+                                      受取日ごとの上限（任意）
+                                    </label>
+                                    <div className="flex items-center gap-3">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={editingItem.reservationDailyLimit ?? ''}
+                                        onChange={(event) => setEditingItem({
+                                          ...editingItem,
+                                          reservationDailyLimit: event.target.value === '' ? null : Number(event.target.value)
+                                        })}
+                                        className="border-2 border-gray-200 bg-white h-12 w-28 rounded-2xl px-4 text-lg font-black text-gray-800 outline-none focus:border-ui"
+                                        placeholder="30"
+                                      />
+                                      <span className="text-sm font-bold text-gray-600">個まで / 日</span>
+                                    </div>
+                                    <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
+                                      上限に達した日はサイトで選べなくなります。空欄なら上限なし。電話で受けた分は数えないので、その分を見込んで少なめに入れてください。
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <div>
