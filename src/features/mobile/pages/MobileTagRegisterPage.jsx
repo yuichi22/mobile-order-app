@@ -14,6 +14,31 @@ import MobileBrandPickModal from './MobileBrandPickModal';
 // (必要ならモーダル内でブランドタグ撮影)→編集→保存。無操作60分で自動ログアウト。
 
 const SESSION_MAX_MS = 12 * 60 * 60 * 1000; // ログインから12時間で自動ログアウト(操作の有無に関わらず)
+// 引き換えたログイン用トークンの預け先(このタブだけ)。カスタムトークンの有効期限1時間より少し短く扱う。
+const PENDING_HANDOFF_KEY = 'akuto:tagRegisterHandoff';
+const PENDING_HANDOFF_MAX_AGE_MS = 50 * 60 * 1000;
+const SIGNIN_RETRY_DELAYS_MS = [1000, 2500, 5000];
+const wait = (ms) => new Promise((resolve) => { window.setTimeout(resolve, ms); });
+const isNetworkError = (error) => {
+  const code = String(error?.code || '');
+  return code === 'auth/network-request-failed' || code === 'auth/timeout'
+    || code === 'functions/unavailable' || code === 'functions/deadline-exceeded';
+};
+const loadPendingHandoff = () => {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(PENDING_HANDOFF_KEY) || 'null');
+    if (!parsed?.token || Date.now() - Number(parsed.savedAt || 0) > PENDING_HANDOFF_MAX_AGE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+const savePendingHandoff = (pending) => {
+  try { window.sessionStorage.setItem(PENDING_HANDOFF_KEY, JSON.stringify(pending)); } catch { /* 保存できなくても今回のログインは続ける */ }
+};
+const clearPendingHandoff = () => {
+  try { window.sessionStorage.removeItem(PENDING_HANDOFF_KEY); } catch { /* noop */ }
+};
 const EMPTY_FORM = { name: '', brandId: '', brandName: '', sku: '', barcode: '', size: '', colorName: '', priceTaxExcluded: '', stockIn: '1', labelEnabled: false };
 const norm = (s) => String(s || '').trim().toLowerCase();
 // 在庫コード(2始まり13桁のインストアコード)判定。発行時はラベル印刷を自動ONにする。
@@ -60,32 +85,75 @@ export default function MobileTagRegisterPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [hasScanned, setHasScanned] = useState(false); // 一度読み取ったか(ボタン表示切替＋リセット用)
   const [justSaved, setJustSaved] = useState(null);
+  const [canRetry, setCanRetry] = useState(false); // 通信エラーで、預けたトークンがまだ使えるとき
+  const [loginAttempt, setLoginAttempt] = useState(0);
   const tagInputRef = useRef(null);
   const brandInputRef = useRef(null);
 
   // ① 自動ログイン
+  // QRのコードは引き換えた時点で使用済みになる。その後のログイン通信(Google)が電波の揺らぎで
+  // 失敗すると QR を出し直すしかなかったため、引き換えで得たログイン用トークン(1時間有効)を
+  // このタブの sessionStorage に預け、通信エラーは自動で数回やり直し、だめなら「再試行」で続ける。
+  const signInWithPending = async (pending, isCancelled) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < SIGNIN_RETRY_DELAYS_MS.length + 1; attempt += 1) {
+      if (attempt > 0) {
+        await wait(SIGNIN_RETRY_DELAYS_MS[attempt - 1]);
+        if (isCancelled()) return false;
+      }
+      try {
+        await signInWithCustomToken(auth, pending.token);
+        clearPendingHandoff();
+        return true;
+      } catch (error) {
+        lastError = error;
+        if (!isNetworkError(error)) break;
+      }
+    }
+    throw lastError;
+  };
+
+  const runAutoLogin = async (isCancelled) => {
+    try {
+      const current = auth.currentUser;
+      if (current && !current.isAnonymous) {
+        const result = await current.getIdTokenResult();
+        const claimStoreId = String(result.claims?.storeId || '');
+        if (claimStoreId) {
+          clearPendingHandoff();
+          if (!isCancelled()) { setStoreId(claimStoreId); setPhase('ready'); }
+          return;
+        }
+      }
+      let pending = loadPendingHandoff();
+      const code = new URLSearchParams(window.location.search).get('h');
+      if (!pending) {
+        if (!code) { if (!isCancelled()) { setPhase('error'); setMessage('QRコードが読み取れませんでした。PCで再度QRを表示してください。'); } return; }
+        const res = await httpsCallable(functionsApi, 'redeemRegisterHandoff')({ code });
+        pending = { token: res.data.token, storeId: String(res.data.storeId || ''), savedAt: Date.now() };
+        savePendingHandoff(pending);
+      }
+      // コードは使用済みになったので URL から消す(再読み込みしても預けたトークンで続けられる)。
+      if (code) window.history.replaceState(null, '', '/m/tag-register');
+      const done = await signInWithPending(pending, isCancelled);
+      if (done && !isCancelled()) { setStoreId(pending.storeId); setPhase('ready'); }
+    } catch (error) {
+      if (isCancelled()) return;
+      const network = isNetworkError(error);
+      setCanRetry(network && Boolean(loadPendingHandoff() || new URLSearchParams(window.location.search).get('h')));
+      setPhase('error');
+      setMessage(network
+        ? '通信が不安定なためログインできませんでした。電波の良い場所で「もう一度試す」を押してください。'
+        : (error?.message || 'ログインに失敗しました。'));
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const current = auth.currentUser;
-        if (current && !current.isAnonymous) {
-          const result = await current.getIdTokenResult();
-          const claimStoreId = String(result.claims?.storeId || '');
-          if (claimStoreId) { if (!cancelled) { setStoreId(claimStoreId); setPhase('ready'); } return; }
-        }
-        const code = new URLSearchParams(window.location.search).get('h');
-        if (!code) { if (!cancelled) { setPhase('error'); setMessage('QRコードが読み取れませんでした。PCで再度QRを表示してください。'); } return; }
-        const res = await httpsCallable(functionsApi, 'redeemRegisterHandoff')({ code });
-        await signInWithCustomToken(auth, res.data.token);
-        window.history.replaceState(null, '', '/m/tag-register');
-        if (!cancelled) { setStoreId(String(res.data.storeId || '')); setPhase('ready'); }
-      } catch (error) {
-        if (!cancelled) { setPhase('error'); setMessage(error?.message || 'ログインに失敗しました。'); }
-      }
-    })();
+    (async () => { await runAutoLogin(() => cancelled); })();
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginAttempt]);
 
   // ② ブランド/仕入先を読み込み(候補算出用)
   useEffect(() => {
@@ -351,7 +419,22 @@ export default function MobileTagRegisterPage() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 p-6 text-center">
         <div className="text-lg font-black text-gray-800">{phase === 'timeout' ? 'タイムアウトしました' : '接続できませんでした'}</div>
         <div className="text-sm text-gray-500">{phase === 'timeout' ? 'ログインから12時間が経過したためログアウトしました。' : message}</div>
-        <div className="text-sm text-gray-500">PCで「モバイル用QRを表示」から新しいQRを表示して、もう一度読み込んでください。</div>
+        {phase === 'error' && canRetry ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPhase('auth');
+              setMessage('接続しています…');
+              setCanRetry(false);
+              setLoginAttempt((n) => n + 1);
+            }}
+            className="mt-2 h-12 w-full max-w-xs rounded-xl bg-gray-900 text-base font-black text-white active:scale-95"
+          >
+            もう一度試す
+          </button>
+        ) : (
+          <div className="text-sm text-gray-500">PCで「モバイル用QRを表示」から新しいQRを表示して、もう一度読み込んでください。</div>
+        )}
       </div>
     );
   }
