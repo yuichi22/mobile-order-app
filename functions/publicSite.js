@@ -18,7 +18,13 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { createHash } from "node:crypto";
-import { jstDateKey, reservationRule, fullDatesFor } from "./takeoutReservation.js";
+import {
+  jstDateKey,
+  reservationRule,
+  fullDatesFor,
+  blockedDatesOf,
+  pickupWindowsOf,
+} from "./takeoutReservation.js";
 
 const REGION = "asia-northeast1";
 const DB_ID = "main";
@@ -308,6 +314,9 @@ export const publicMenu = onRequest(
             image: takeoutImage,
             // 受取時刻の何分前までに注文が必要か。未設定は null（サイト側の既定値）
             leadMinutes: num(v.webOrderLeadMinutes) || null,
+            // 受付できない日（日本時間の YYYY-MM-DD、今日以降だけ）。無ければ []。
+            //   ⚠ 最終判定は createTakeoutOrder。ここはサイトで先に選べなくする親切のため。
+            blockedDates: blockedDatesOf(v).filter((d) => d >= jstDateKey(new Date())),
             // 予約品なら受取期間と埋まった日（日本時間の YYYY-MM-DD）。通常品は null。
             //   ⚠ 最終判定は createTakeoutOrder。ここは選べない日を先に隠す親切のため。
             reservation: rule
@@ -315,6 +324,9 @@ export const publicMenu = onRequest(
                   pickupFrom: rule.from,
                   pickupTo: rule.to,
                   fullDates: fullDatesFor(doc.id, rule, reservationDays),
+                  // 受取時間帯 [{ from: "HH:MM", to: "HH:MM" }]（両端を含む）。
+                  //   [] なら店の既定の受取時間。指定があれば既定の代わりに使う。
+                  pickupWindows: pickupWindowsOf(v),
                 }
               : null,
           });

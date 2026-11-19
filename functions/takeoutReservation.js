@@ -111,3 +111,95 @@ export function fullDatesFor(menuItemId, rule, days = []) {
     .map((d) => d.date)
     .sort();
 }
+
+// ───────────────────────────────────────────────────────────
+// 受付できない日（品目ごと）と、予約品の受取時間帯
+//
+// ⚠ 受付できない日は「Web注文」をオンにした品すべてに付けられる（予約品に限らない）。
+//   カートの中のどれか1品でも受けられない日は、その日ごと選べない。
+// ⚠ 受取時間帯は予約品だけ。指定があれば店の既定の受取時間（11:30〜19:30）の
+//   **代わりに**使う（朝いちに渡すケーキなど、既定より広げたい場合があるため）。
+//   予約品が2つ以上カゴにあれば、すべての品の時間帯に入る時刻だけ選べる。
+// ───────────────────────────────────────────────────────────
+
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** "HH:MM" → 0時からの分。形式が違えば null */
+export function timeToMinutes(value) {
+  const m = TIME_RE.exec(String(value || ""));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** 受付できない日（YYYY-MM-DD）。壊れた値は捨て、重複を除いて並べる。 */
+export function blockedDatesOf(menuData = {}) {
+  const raw = Array.isArray(menuData.webOrderBlockedDates) ? menuData.webOrderBlockedDates : [];
+  return [...new Set(raw.map((v) => String(v || "")).filter(isDateKey))].sort();
+}
+
+/** 受取時間帯の配列を整える。開始 < 終了 のものだけ、開始の早い順。 */
+export function normalizePickupWindows(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = new Set();
+  const out = [];
+  for (const w of list) {
+    const from = String(w?.from || "");
+    const to = String(w?.to || "");
+    const f = timeToMinutes(from);
+    const t = timeToMinutes(to);
+    if (f === null || t === null || f >= t) continue;
+    const key = `${from}-${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ from, to });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+}
+
+/** 予約品の受取時間帯。予約品でない・未指定なら []（＝店の既定の受取時間）。 */
+export function pickupWindowsOf(menuData = {}) {
+  if (menuData.webOrderReservation !== true) return [];
+  return normalizePickupWindows(menuData.reservationPickupWindows);
+}
+
+/**
+ * 受取日が、カートのどの品の「受付できない日」にも当たらないか。
+ * @param lines [{ name, blockedDates }]
+ */
+export function checkBlockedDate(lines, pickupDate) {
+  for (const line of lines) {
+    if ((line.blockedDates || []).includes(pickupDate)) {
+      return { ok: false, error: "pickup_date_unavailable", name: line.name, date: pickupDate };
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * 受取時刻が受け付ける時間帯に入っているか（両端を含む）。
+ * @param lines [{ name, pickupWindows }]
+ * @param minutesOfDay 日本時間の0時からの分
+ * @param defaultWindow { fromMinutes, toMinutes } 店の既定
+ */
+export function checkPickupTime(lines, minutesOfDay, defaultWindow) {
+  const withWindows = lines.filter((l) => (l.pickupWindows || []).length > 0);
+  if (withWindows.length === 0) {
+    if (minutesOfDay < defaultWindow.fromMinutes || minutesOfDay > defaultWindow.toMinutes) {
+      return { ok: false, error: "pickup_out_of_window" };
+    }
+    return { ok: true };
+  }
+  for (const line of withWindows) {
+    const inside = line.pickupWindows.some(
+      (w) => minutesOfDay >= timeToMinutes(w.from) && minutesOfDay <= timeToMinutes(w.to)
+    );
+    if (!inside) {
+      return {
+        ok: false,
+        error: "pickup_out_of_item_window",
+        name: line.name,
+        windows: line.pickupWindows,
+      };
+    }
+  }
+  return { ok: true };
+}

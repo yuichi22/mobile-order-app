@@ -23,6 +23,10 @@ import {
   reservationRule,
   checkReservation,
   reservationIncrements,
+  blockedDatesOf,
+  pickupWindowsOf,
+  checkBlockedDate,
+  checkPickupTime,
 } from "./takeoutReservation.js";
 
 const REGION = "asia-northeast1";
@@ -158,7 +162,15 @@ export const createTakeoutOrder = onRequest(
         }
 
         const rule = reservationRule(v);
-        reservationLines.push({ menuItemId: snap.id, name: str(v.name), quantity, rule });
+        reservationLines.push({
+          menuItemId: snap.id,
+          name: str(v.name),
+          quantity,
+          rule,
+          // 受付できない日・受取時間帯（予約品のみ）。サイトの選択肢を信じず、ここで確かめる。
+          blockedDates: blockedDatesOf(v),
+          pickupWindows: pickupWindowsOf(v),
+        });
 
         totalQuantity += quantity;
         totalAmount += price * quantity;
@@ -204,16 +216,24 @@ export const createTakeoutOrder = onRequest(
         return res.status(400).json({ error: "pickup_too_far" });
       }
       const mod = jstMinutesOfDay(pickupAt);
-      if (
-        mod < LIMITS.pickupFromMinutes ||
-        mod > LIMITS.pickupToMinutes ||
-        mod % LIMITS.slotStepMinutes !== 0
-      ) {
+      if (mod % LIMITS.slotStepMinutes !== 0) {
         return res.status(400).json({ error: "pickup_out_of_window" });
       }
+      // ⚠ 予約品に受取時間帯があれば、店の既定（11:30〜19:30）の代わりにそれを使う。
+      const timeCheck = checkPickupTime(reservationLines, mod, {
+        fromMinutes: LIMITS.pickupFromMinutes,
+        toMinutes: LIMITS.pickupToMinutes,
+      });
+      if (!timeCheck.ok) {
+        return res.status(timeCheck.error === "pickup_out_of_window" ? 400 : 409).json(timeCheck);
+      }
+
+      // ── 受付できない日 ───────────────────────────────
+      const pickupDate = jstDateKey(pickupAt);
+      const dateCheck = checkBlockedDate(reservationLines, pickupDate);
+      if (!dateCheck.ok) return res.status(409).json(dateCheck);
 
       // ── 予約品（受取日の期間）─────────────────────────
-      const pickupDate = jstDateKey(pickupAt);
       const isReservation = reservationLines.some((l) => l.rule);
       if (isReservation) {
         // 期間のチェックだけ先に（上限はトランザクションの中で数え直す）
