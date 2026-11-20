@@ -234,7 +234,9 @@ export const publicMenu = onRequest(
       //   将来Core側の契約項目へ移すときは settings/coreApps.addons を見ること。
       const webOrderOn = basic.webOrderEnabled === true && basic.allowTakeout !== false;
 
-      const allCats = (catsDoc.data()?.list || []);
+      // ⚠ 並び順は**カテゴリー設定の配列の順番そのもの**（設定画面は list を並べ替えて保存するだけで、
+      //   sortOrder は書かない。古い sortOrder が残っていることがある）。sortOrder は配列の位置で振り直す。
+      const allCats = (catsDoc.data()?.list || []).map((c, index) => ({ ...c, sortOrder: index }));
       // ⚠ 公開してよいのは customerTabVisibility === "always" のカテゴリだけ。
       //   crossSellOnly は「セット限定ドリンク」等のアップセル専用で、単品価格として
       //   誤解される。hidden は社内イベント用。実測では 137品中84品だけが公開対象。
