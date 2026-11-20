@@ -1293,24 +1293,26 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       受取期間
                                     </label>
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <input
-                                        type="date"
+                                      <DateField
                                         value={editingItem.reservationPickupFrom || ''}
-                                        onChange={(event) => setEditingItem({
+                                        onChange={(value) => setEditingItem({
                                           ...editingItem,
-                                          reservationPickupFrom: event.target.value
+                                          reservationPickupFrom: value
                                         })}
-                                        className="border-2 border-gray-200 bg-white h-12 rounded-2xl px-3 text-sm font-black text-gray-800 outline-none focus:border-ui"
+                                        label="受取期間の開始"
+                                        placeholder="開始日"
+                                        width={220}
                                       />
                                       <span className="text-sm font-bold text-gray-500">〜</span>
-                                      <input
-                                        type="date"
+                                      <DateField
                                         value={editingItem.reservationPickupTo || ''}
-                                        onChange={(event) => setEditingItem({
+                                        onChange={(value) => setEditingItem({
                                           ...editingItem,
-                                          reservationPickupTo: event.target.value
+                                          reservationPickupTo: value
                                         })}
-                                        className="border-2 border-gray-200 bg-white h-12 rounded-2xl px-3 text-sm font-black text-gray-800 outline-none focus:border-ui"
+                                        label="受取期間の終了"
+                                        placeholder="終了日"
+                                        width={220}
                                       />
                                     </div>
                                     <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">

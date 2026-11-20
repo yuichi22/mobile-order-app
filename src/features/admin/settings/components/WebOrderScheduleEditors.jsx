@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DateField, TimeField } from '../../../../shared/components/akuto/DateField';
 
 /**
  * Web注文（サイト連携）の「受付できない日」と、予約品の「受取時間帯」の入力欄。
@@ -26,15 +27,6 @@ const todayKey = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-/** 0:00〜23:30 の30分刻み */
-const HALF_HOUR_TIMES = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, '0');
-  return `${h}:${i % 2 === 0 ? '00' : '30'}`;
-});
-
-const inputClass =
-  'border-2 border-gray-200 bg-white h-12 rounded-2xl px-3 text-sm font-black text-gray-800 outline-none focus:border-ui';
-
 export const BlockedDatesEditor = ({ value = [], onChange }) => {
   const [draft, setDraft] = useState('');
   const dates = [...new Set((Array.isArray(value) ? value : []).filter(Boolean))].sort();
@@ -53,12 +45,12 @@ export const BlockedDatesEditor = ({ value = [], onChange }) => {
         受付できない日
       </label>
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="date"
-          min={today}
+        <DateField
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          className={inputClass}
+          onChange={setDraft}
+          min={today}
+          label="受付できない日"
+          width={240}
         />
         <button
           type="button"
@@ -117,23 +109,23 @@ export const PickupWindowsEditor = ({ value = [], onChange }) => {
           const broken = !w.from || !w.to || w.from >= w.to;
           return (
             <div key={index} className="flex flex-wrap items-center gap-2">
-              <select
+              <TimeField
                 value={w.from || ''}
-                onChange={(event) => update(index, { from: event.target.value })}
-                className={`${inputClass} ${broken ? 'border-red-300' : ''}`}
-              >
-                <option value="">--:--</option>
-                {HALF_HOUR_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+                onChange={(value) => update(index, { from: value })}
+                step={30}
+                label="受取の開始"
+                placeholder="開始"
+                width={130}
+              />
               <span className="text-sm font-bold text-gray-500">〜</span>
-              <select
+              <TimeField
                 value={w.to || ''}
-                onChange={(event) => update(index, { to: event.target.value })}
-                className={`${inputClass} ${broken ? 'border-red-300' : ''}`}
-              >
-                <option value="">--:--</option>
-                {HALF_HOUR_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+                onChange={(value) => update(index, { to: value })}
+                step={30}
+                label="受取の終了"
+                placeholder="終了"
+                width={130}
+              />
               <button
                 type="button"
                 onClick={() => onChange(windows.filter((_, i) => i !== index))}
@@ -141,6 +133,9 @@ export const PickupWindowsEditor = ({ value = [], onChange }) => {
               >
                 削除
               </button>
+              {broken && (w.from || w.to) && (
+                <p className="w-full text-xs font-bold text-red-600">開始と終了を両方選び、開始を終了より前にしてください。</p>
+              )}
             </div>
           );
         })}
