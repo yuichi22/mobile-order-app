@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ChangesBar, FormActions } from './SaveControls';
 import { SettingsCardHeader } from './SettingsCard';
+import { BlockedDatesEditor, PickupWindowsEditor } from './WebOrderScheduleEditors';
 import { appConfirm } from '../../../../shared/components/feedback/AppConfirmDialog';
 import {
   AlertTriangle,
@@ -231,12 +232,16 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   webOrderEnabled: false,
   webOrderImage: '',
   webOrderLeadMinutes: null,
+  // 受付できない日（"YYYY-MM-DD" の配列）。Web注文の品すべてに付けられる。
+  webOrderBlockedDates: [],
   // 予約品（クリスマスケーキ等）。受取日を期間で限定し、受取日ごとの上限を持てる。
   //   ⚠ 予約品を含む注文はキッチンのボードに受取当日まで出ない（予約一覧で扱う）。
   webOrderReservation: false,
   reservationPickupFrom: '',
   reservationPickupTo: '',
   reservationDailyLimit: null,
+  // 予約品の受取時間帯 [{ from: "HH:MM", to: "HH:MM" }]。空なら店の通常の受取時間。
+  reservationPickupWindows: [],
   optionGroups: [],
   crossSellPrice: null,
   crossSellPriceLabelText: 'セット価格',
@@ -480,10 +485,12 @@ const MenuSettings = ({
       webOrderEnabled: item.webOrderEnabled === true,
       webOrderImage: item.webOrderImage || '',
       webOrderLeadMinutes: item.webOrderLeadMinutes ?? null,
+      webOrderBlockedDates: Array.isArray(item.webOrderBlockedDates) ? item.webOrderBlockedDates : [],
       webOrderReservation: item.webOrderReservation === true,
       reservationPickupFrom: item.reservationPickupFrom || '',
       reservationPickupTo: item.reservationPickupTo || '',
       reservationDailyLimit: item.reservationDailyLimit ?? null,
+      reservationPickupWindows: Array.isArray(item.reservationPickupWindows) ? item.reservationPickupWindows : [],
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
       costPrice: item.costPrice ?? '',
@@ -696,6 +703,23 @@ const MenuSettings = ({
         return;
       }
       const normalizedReservationLimit = Math.floor(Number(editingItem.reservationDailyLimit) || 0);
+      // 受取時間帯。⚠ 両方空の行は黙って捨てる。片方だけ・開始が終了以降の行は保存させない
+      //   （関数側では捨てられ、思ったのと違う時間で受けてしまうため）。
+      const pickupWindows = (Array.isArray(editingItem.reservationPickupWindows)
+        ? editingItem.reservationPickupWindows
+        : []).filter((w) => w && (w.from || w.to));
+      if (isReservationItem && pickupWindows.some((w) => !w.from || !w.to || w.from >= w.to)) {
+        alert('受取時間帯は「開始」と「終了」を両方選び、開始を終了より前にしてください。');
+        return;
+      }
+      const normalizedPickupWindows = isReservationItem
+        ? [...new Map(pickupWindows.map((w) => [`${w.from}-${w.to}`, { from: w.from, to: w.to }])).values()]
+            .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to))
+        : [];
+      const normalizedBlockedDates = normalizedWebOrderEnabled
+        ? [...new Set((editingItem.webOrderBlockedDates || [])
+            .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d))))].sort()
+        : [];
 
       await onSave({
         ...editingItem,
@@ -750,12 +774,14 @@ const MenuSettings = ({
           normalizedWebOrderEnabled && Number.isFinite(normalizedWebOrderLead) && normalizedWebOrderLead > 0
             ? Math.round(normalizedWebOrderLead)
             : null,
+        webOrderBlockedDates: normalizedBlockedDates,
         webOrderReservation: isReservationItem,
         reservationPickupFrom: isReservationItem ? reservationFrom : '',
         reservationPickupTo: isReservationItem ? reservationTo : '',
         reservationDailyLimit: isReservationItem && normalizedReservationLimit > 0
           ? normalizedReservationLimit
           : null,
+        reservationPickupWindows: normalizedPickupWindows,
         crossSellPrice:
           editingItem.crossSellPrice === '' ||
           editingItem.crossSellPrice === null ||
@@ -1234,6 +1260,16 @@ const handleClearLimitedQuantity = async (event, item) => {
                                 受取時刻から逆算します。⚠「2日前」は48時間前の意味です。空欄なら店舗の既定値を使います。
                               </p>
 
+                              <div className="mt-5">
+                                <BlockedDatesEditor
+                                  value={editingItem.webOrderBlockedDates || []}
+                                  onChange={(next) => setEditingItem({
+                                    ...editingItem,
+                                    webOrderBlockedDates: next
+                                  })}
+                                />
+                              </div>
+
                               <label className="mt-5 flex cursor-pointer items-center gap-3">
                                 <input
                                   type="checkbox"
@@ -1281,6 +1317,13 @@ const handleClearLimitedQuantity = async (event, item) => {
                                       この期間の日しか受取日に選べません。期間が過ぎるとサイトから自動で消えます。
                                     </p>
                                   </div>
+                                  <PickupWindowsEditor
+                                    value={editingItem.reservationPickupWindows || []}
+                                    onChange={(next) => setEditingItem({
+                                      ...editingItem,
+                                      reservationPickupWindows: next
+                                    })}
+                                  />
                                   <div>
                                     <label className="mb-2 block text-[11px] font-black uppercase text-gray-500">
                                       受取日ごとの上限（任意）

@@ -104,3 +104,75 @@ test("埋まった日は期間内かつ上限に達した日だけ", () => {
   assert.deepEqual(fullDatesFor("cake", cake.rule, days), ["2026-12-23"]);
   assert.deepEqual(fullDatesFor("cake", { ...cake.rule, dailyLimit: null }, days), []);
 });
+
+import {
+  timeToMinutes,
+  blockedDatesOf,
+  normalizePickupWindows,
+  pickupWindowsOf,
+  checkBlockedDate,
+  checkPickupTime,
+} from "./takeoutReservation.js";
+
+const DEFAULT_WINDOW = { fromMinutes: 11 * 60 + 30, toMinutes: 19 * 60 + 30 };
+
+test("時刻の変換", () => {
+  assert.equal(timeToMinutes("09:30"), 570);
+  assert.equal(timeToMinutes("24:00"), null);
+  assert.equal(timeToMinutes("9:30"), null);
+});
+
+test("受付できない日は壊れた値を捨て、重複を除いて並べる", () => {
+  assert.deepEqual(
+    blockedDatesOf({ webOrderBlockedDates: ["2026-12-31", "bad", "2026-12-30", "2026-12-31"] }),
+    ["2026-12-30", "2026-12-31"]
+  );
+  assert.deepEqual(blockedDatesOf({}), []);
+});
+
+test("受取時間帯は開始<終了だけ残し、早い順に並べる", () => {
+  assert.deepEqual(
+    normalizePickupWindows([
+      { from: "15:00", to: "18:00" },
+      { from: "10:00", to: "12:00" },
+      { from: "13:00", to: "13:00" },
+      { from: "x", to: "12:00" },
+      { from: "10:00", to: "12:00" },
+    ]),
+    [
+      { from: "10:00", to: "12:00" },
+      { from: "15:00", to: "18:00" },
+    ]
+  );
+});
+
+test("受取時間帯は予約品のときだけ効く", () => {
+  const w = [{ from: "10:00", to: "12:00" }];
+  assert.deepEqual(pickupWindowsOf({ webOrderReservation: false, reservationPickupWindows: w }), []);
+  assert.deepEqual(pickupWindowsOf({ webOrderReservation: true, reservationPickupWindows: w }), w);
+});
+
+test("カートのどれか1品でも受付できない日なら断る", () => {
+  const lines = [
+    { name: "ケーキ", blockedDates: [] },
+    { name: "オードブル", blockedDates: ["2026-12-31"] },
+  ];
+  assert.deepEqual(checkBlockedDate(lines, "2026-12-30"), { ok: true });
+  assert.equal(checkBlockedDate(lines, "2026-12-31").name, "オードブル");
+});
+
+test("時間帯の指定が無ければ店の既定で判定する", () => {
+  const lines = [{ name: "チキン", pickupWindows: [] }];
+  assert.equal(checkPickupTime(lines, 11 * 60 + 30, DEFAULT_WINDOW).ok, true);
+  assert.equal(checkPickupTime(lines, 10 * 60, DEFAULT_WINDOW).error, "pickup_out_of_window");
+});
+
+test("予約品の時間帯は既定の代わりに使い、両端を含む。複数の品はすべての時間帯に入ること", () => {
+  const cake = { name: "ケーキ", pickupWindows: [{ from: "10:00", to: "12:00" }, { from: "15:00", to: "18:00" }] };
+  assert.equal(checkPickupTime([cake], 10 * 60, DEFAULT_WINDOW).ok, true); // 既定より早くても可
+  assert.equal(checkPickupTime([cake], 12 * 60, DEFAULT_WINDOW).ok, true);
+  assert.equal(checkPickupTime([cake], 13 * 60, DEFAULT_WINDOW).error, "pickup_out_of_item_window");
+  const plate = { name: "オードブル", pickupWindows: [{ from: "16:00", to: "19:00" }] };
+  assert.equal(checkPickupTime([cake, plate], 17 * 60, DEFAULT_WINDOW).ok, true);
+  assert.equal(checkPickupTime([cake, plate], 11 * 60, DEFAULT_WINDOW).name, "オードブル");
+});
