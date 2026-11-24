@@ -4643,7 +4643,13 @@ const ShopifyNightlyReconcileStatus = ({ settings }) => {
   const detail = lastRun.autoApply
     ? `自動補正 ${applied.toLocaleString()}件${skipped ? `・見送り ${skipped.toLocaleString()}件` : ''}`
     : `不一致 ${mismatched.toLocaleString()}件（自動補正は OFF）`;
-  return <div className="mt-2 text-xs font-black text-gray-700">夜間の自動点検：最終 {when}・{detail}</div>;
+  const autoLinked = Number(lastRun.autoLinkedCount || 0);
+  return (
+    <div className="mt-2 text-xs font-black text-gray-700">
+      夜間の自動点検：最終 {when}・{detail}
+      {autoLinked > 0 ? `・バーコードで新しくひも付け ${autoLinked.toLocaleString()}件` : ''}
+    </div>
+  );
 };
 
 export const ShopifySettingsPanel = ({
@@ -4673,6 +4679,9 @@ export const ShopifySettingsPanel = ({
   const [mismatchSavingId, setMismatchSavingId] = useState('');
 
   const reconcileMismatchRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'mismatch');
+  // バーコードで自動ひも付けした商品は、まとめて合わせる対象外(1件ずつ数を決める)。
+  const reconcileReviewCount = reconcileMismatchRows.filter((row) => row.needsReview).length;
+  const reconcileApplicableCount = Math.max(Number(reconcileResult?.mismatched || 0) - reconcileReviewCount, 0);
   const reconcileMissingRows = (reconcileResult?.mismatches || []).filter((row) => row.reason === 'missingInShopify');
 
   const [variantDiffRunning, setVariantDiffRunning] = useState(false);
@@ -4740,7 +4749,7 @@ export const ShopifySettingsPanel = ({
     setReconcileError('');
     try {
       const idToken = await getAuth().currentUser?.getIdToken?.();
-      const result = await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken });
+      const result = await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken, resolveLinkReview: true });
       if (!result || Number(result.pushed || 0) === 0 || (result.userErrors || []).length) {
         const reason = (result?.userErrors || []).map((entry) => entry?.message).filter(Boolean).join(' / ')
           || (result?.skipped ? `送信されませんでした（${result.skipped}）` : 'Shopify へ送れませんでした');
@@ -4759,7 +4768,7 @@ export const ShopifySettingsPanel = ({
     if (!onReconcileInventory || reconcileRunning) return;
     if (apply) {
       const ok = await appConfirm(
-        'レジの在庫を、不一致の商品だけ Shopify の手持ちの数に合わせます。\nShopify で売れた分（発送済み）がレジに入っていないときに使います。\n途中でレジの数が変わった商品は合わせずに残します。',
+        'レジの在庫を、不一致の商品だけ Shopify の手持ちの数に合わせます。\nShopify で売れた分（発送済み）がレジに入っていないときに使います。\n途中でレジの数が変わった商品と、新しくひも付けた「要確認」の商品は合わせずに残します。',
         { title: 'まとめて Shopify に合わせる', okLabel: '合わせる' }
       );
       if (!ok) return;
@@ -4834,7 +4843,7 @@ export const ShopifySettingsPanel = ({
         try {
           const idToken = await getAuth().currentUser?.getIdToken?.();
           if (idToken) {
-            await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken });
+            await pushInventoryToShopify({ storeId, productIds: [row.productId], idToken, resolveLinkReview: true });
           }
         } catch (pushError) {
           console.warn('failed to push reconcile-fixed inventory to Shopify', pushError);
@@ -5345,13 +5354,16 @@ export const ShopifySettingsPanel = ({
               不一致 {Number(reconcileResult.mismatched || 0).toLocaleString()} /
               Shopify側に無し {Number(reconcileResult.missingInShopify || 0).toLocaleString()}。
               {reconcileResult.truncated ? `（明細は先頭${Number(reconcileResult.reportedRows || 0).toLocaleString()}件まで表示）` : ''}
+              {Number(reconcileResult.autoLinkedCount || 0) > 0
+                ? `バーコードが同じでひも付いていなかった商品 ${Number(reconcileResult.autoLinkedCount).toLocaleString()}件を新しくひも付けました。`
+                : ''}
               <br />
               {Number(reconcileResult.appliedCount || 0) > 0 || Number(reconcileResult.skippedChangedCount || 0) > 0
                 ? `Shopify に合わせた商品 ${Number(reconcileResult.appliedCount || 0).toLocaleString()}件${Number(reconcileResult.skippedChangedCount || 0) > 0 ? `（途中でレジの数が変わったため見送り ${Number(reconcileResult.skippedChangedCount).toLocaleString()}件）` : ''}。`
                 : 'レポートは inventoryReconcileReports に保存されました（自動修復なし）。'}
             </div>
           )}
-          {reconcileResult?.ok && Number(reconcileResult.mismatched || 0) > 0 && Number(reconcileResult.appliedCount || 0) === 0 && (
+          {reconcileResult?.ok && reconcileApplicableCount > 0 && Number(reconcileResult.appliedCount || 0) === 0 && (
             <div className="mt-3">
               <button
                 type="button"
@@ -5360,7 +5372,7 @@ export const ShopifySettingsPanel = ({
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-gray-700 bg-white px-5 text-sm font-black text-gray-800 transition hover:bg-gray-100 disabled:opacity-60"
               >
                 {reconcileRunning ? <LoadingSpinner size={14} /> : <Link size={16} />}
-                {reconcileRunning ? '合わせています…（数分かかります）' : `不一致 ${Number(reconcileResult.mismatched || 0).toLocaleString()}件をまとめて Shopify に合わせる`}
+                {reconcileRunning ? '合わせています…（数分かかります）' : `不一致 ${reconcileApplicableCount.toLocaleString()}件をまとめて Shopify に合わせる`}
               </button>
               <p className="mt-1 text-[11px] font-bold leading-relaxed text-gray-500">
                 レジの数を Shopify の手持ちに合わせます。店で数えた数のほうが正しい商品は、下の一覧で個別に直してください。
@@ -5385,6 +5397,11 @@ export const ShopifySettingsPanel = ({
                     <div key={row.productId} className="flex items-center gap-3 px-3 py-2.5">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-black text-gray-800">{row.name || '(名称未設定)'}</div>
+                        {row.needsReview && !resolved && (
+                          <div className="text-[11px] font-black text-amber-700">
+                            新しくひも付け・要確認：数を決めるまで在庫は同期しません（保存かレジが正で決めてください）
+                          </div>
+                        )}
                         <div className="truncate text-[11px] font-bold text-gray-500">
                           {[row.sku, row.barcode].filter(Boolean).join(' / ') || 'コードなし'}
                         </div>

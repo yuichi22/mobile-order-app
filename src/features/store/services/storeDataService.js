@@ -1338,7 +1338,8 @@ export const syncShopifyProductLinks = async ({ storeId, statuses = ['ACTIVE'], 
 };
 
 
-export const pushInventoryToShopify = async ({ storeId, productIds = [], idToken }) => {
+// resolveLinkReview: 差分一覧で人が数を決めたとき。自動ひも付けの「要確認」を外して送る。
+export const pushInventoryToShopify = async ({ storeId, productIds = [], idToken, resolveLinkReview = false }) => {
   const normalizedStoreId = String(storeId || '').trim();
   const ids = Array.isArray(productIds) ? productIds.filter(Boolean) : [];
   const token = String(idToken || '').trim();
@@ -1353,7 +1354,7 @@ export const pushInventoryToShopify = async ({ storeId, productIds = [], idToken
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     },
-    body: JSON.stringify({ storeId: normalizedStoreId, productIds: ids })
+    body: JSON.stringify({ storeId: normalizedStoreId, productIds: ids, ...(resolveLinkReview ? { resolveLinkReview: true } : {}) })
   });
 
   const body = await response.json().catch(() => ({}));
