@@ -27,6 +27,7 @@ import {
   setupError,
   toLocationGid
 } from './shopifyInventoryWebhookCore.js';
+import { indexShopifyVariantsByBarcode, planBarcodeAutoLinks } from './shopifyAutoLinkCore.js';
 
 
 initializeApp();
@@ -5002,7 +5003,8 @@ const isShopifyDryRun = () => ['1', 'true', 'yes'].includes(
 // onRequest(pushInventoryToShopify=即時パス) と キュー drainer(確実パス) の両方から呼ぶ。
 // - inventorySyncEnabled かつ locationId 設定時のみ。商品単位OFF・未連携はスキップ。
 // - dry-run 時は送信せずログのみ(件数は返す)。
-const runShopifyInventoryPush = async ({ storeId, productIds = [] }) => {
+// resolveLinkReview: 差分一覧で人が数を決めた(保存・レジが正)とき。自動ひも付けの要確認を外して送る。
+const runShopifyInventoryPush = async ({ storeId, productIds = [], resolveLinkReview = false }) => {
   const normalizedStoreId = String(storeId || '').trim();
   const ids = Array.isArray(productIds)
     ? [...new Set(productIds.map((x) => String(x || '').trim()).filter(Boolean))]
@@ -5025,6 +5027,11 @@ const runShopifyInventoryPush = async ({ storeId, productIds = [] }) => {
     if (product.shopifyInventorySyncDisabled === true) continue;
     const inventoryItemId = String(product.shopifyInventoryItemId || '').trim();
     if (!inventoryItemId) continue;
+    // バーコードで自動ひも付けし、どちらの数が正しいかまだ決めていない商品は送らない。
+    if (product.shopifyLinkNeedsReview === true) {
+      if (!resolveLinkReview) continue;
+      await snap.ref.set({ shopifyLinkNeedsReview: false }, { merge: true });
+    }
     const quantity = Math.max(Number(product.inventoryQuantity ?? product.quantity ?? 0), 0);
     setQuantities.push({ inventoryItemId, locationId, quantity });
   }
@@ -5070,7 +5077,7 @@ export const pushInventoryToShopify = onRequest(
         return sendAppError(res, 405, 'app/method-not-allowed');
       }
       const authUser = await verifyRequestUser(req);
-      const { storeId, productIds } = parseJsonBody(req);
+      const { storeId, productIds, resolveLinkReview } = parseJsonBody(req);
       const normalizedStoreId = String(storeId || '').trim();
       if (!normalizedStoreId) {
         return sendJson(res, 400, { ok: false, error: { message: 'storeId が不足しています。' } });
@@ -5078,7 +5085,7 @@ export const pushInventoryToShopify = onRequest(
 
       await fetchStoreMemberForRequest({ storeId: normalizedStoreId, uid: authUser.uid });
 
-      const result = await runShopifyInventoryPush({ storeId: normalizedStoreId, productIds });
+      const result = await runShopifyInventoryPush({ storeId: normalizedStoreId, productIds, resolveLinkReview: resolveLinkReview === true });
       return sendJson(res, 200, { ok: true, ...result, userErrors: (result.userErrors || []).slice(0, 20) });
     } catch (error) {
       console.error('[pushInventoryToShopify] failed', error);
@@ -5098,6 +5105,10 @@ const mirrorShopifyOnHandToPos = async ({ storeRef, getAccess, itemGid, configur
   // 商品単位の在庫同期OFFは inbound(Shopify→POS) も取り込まない。
   if (productDoc.data()?.shopifyInventorySyncDisabled === true) {
     return 'product inventory sync disabled';
+  }
+  // 自動ひも付けで数が未確認の商品は、Shopify の数でレジを上書きしない(差分一覧で人が決める)。
+  if (productDoc.data()?.shopifyLinkNeedsReview === true) {
+    return 'product link needs review';
   }
 
   const access = await getAccess();
@@ -5309,12 +5320,17 @@ const callShopifyGraphqlWithRetry = async (args, maxRetries = 6) => {
 };
 
 // 全バリアントを走査し inventoryItem gid → on_hand合計(対象ロケーション) のMapを作る。
+// 同じ走査でバーコードも集め、未ひも付け商品の自動ひも付け(planBarcodeAutoLinks)に使う。
 const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericSet }) => {
   const onHandByItemGid = new Map();
+  const variants = [];
   const query = `query($cursor: String) {
     productVariants(first: 50, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
+        id
+        barcode
+        product { id status }
         inventoryItem {
           id
           inventoryLevels(first: 10) {
@@ -5346,13 +5362,20 @@ const buildShopifyOnHandMap = async ({ shopDomain, accessToken, locationNumericS
         total += onHand ? Number(onHand.quantity || 0) : 0;
       }
       onHandByItemGid.set(itemGid, total);
+      variants.push({
+        barcode: node?.barcode || '',
+        productId: node?.product?.id || '',
+        productStatus: node?.product?.status || '',
+        variantId: node?.id || '',
+        inventoryItemId: itemGid
+      });
     }
     cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
     pages += 1;
     if (cursor) await sleepMs(500); // ペース調整(スロットル回避)
   } while (cursor && pages < 1000);
 
-  return onHandByItemGid;
+  return { onHandByItemGid, variants };
 };
 
 // onHandMapCache: 同じ Shopify ストア・ロケーションを見る店舗(HAUS の store_ar2y9 と store_0a558)で
@@ -5373,7 +5396,11 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
 
   // レジの在庫は Shopify を走査する「前」に読む。走査(HAUS は数分)の間にレジで売れた・入庫した商品は、
   // 補正の直前に読み直して数が変わっていれば補正しない(古い Shopify の数でレジを戻さないため)。
-  const linkedSnap = await storeRef.collection('products').where('shopifyInventoryItemId', '>', '').get();
+  // 未ひも付けの商品もバーコードで自動ひも付けするので、全商品を読む(必要な項目だけ)。
+  const productsSnap = await storeRef.collection('products').select(
+    'name', 'sku', 'productCode', 'barcode', 'inventoryQuantity', 'quantity',
+    'shopifyInventoryItemId', 'shopifyInventorySyncDisabled', 'shopifyLinkNeedsReview'
+  ).get();
 
   const mapKey = `${shopDomain}|${[...locationNumericSet].sort().join(',')}`;
   let onHandPromise = onHandMapCache?.get(mapKey);
@@ -5381,7 +5408,44 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     onHandPromise = buildShopifyOnHandMap({ shopDomain, accessToken, locationNumericSet });
     onHandMapCache?.set(mapKey, onHandPromise);
   }
-  const onHandByItemGid = await onHandPromise;
+  const { onHandByItemGid, variants: shopifyVariants } = await onHandPromise;
+
+  // POS で新商品として登録し Shopify に手で variant を足した商品は、ひも付けが無く在庫が同期されない。
+  // バーコードが1対1で一致するものをここでひも付ける。数が違うものは shopifyLinkNeedsReview を立て、
+  // 人が差分一覧で決めるまで自動補正・在庫の送受信をしない(2026-11-24 石原さん決定)。
+  const productRows = productsSnap.docs.map((docSnap) => ({ id: docSnap.id, ref: docSnap.ref, ...(docSnap.data() || {}) }));
+  const { byBarcode } = indexShopifyVariantsByBarcode(shopifyVariants);
+  const { links: autoLinks, skipped: autoLinkSkipped } = planBarcodeAutoLinks({ products: productRows, byBarcode });
+  const rowById = new Map(productRows.map((row) => [row.id, row]));
+  const autoLinkedProductIds = [];
+  for (let i = 0; i < autoLinks.length; i += 400) {
+    const batch = db.batch();
+    for (const link of autoLinks.slice(i, i + 400)) {
+      const row = rowById.get(link.productId);
+      const pos = Math.max(Number(row.inventoryQuantity ?? row.quantity ?? 0), 0);
+      const shopify = onHandByItemGid.has(link.inventoryItemId) ? Number(onHandByItemGid.get(link.inventoryItemId) || 0) : null;
+      const needsReview = shopify === null || pos !== shopify;
+      batch.set(row.ref, {
+        shopifyProductId: link.shopifyProductId,
+        shopifyVariantId: link.variantId,
+        shopifyInventoryItemId: link.inventoryItemId,
+        shopifyStatus: link.status,
+        shopifyLinkedAt: FieldValue.serverTimestamp(),
+        shopifyLinkedBy: 'reconcileBarcode',
+        shopifyLinkNeedsReview: needsReview,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      row.shopifyInventoryItemId = link.inventoryItemId;
+      row.shopifyLinkNeedsReview = needsReview;
+      autoLinkedProductIds.push(link.productId);
+    }
+    await batch.commit();
+  }
+  if (autoLinks.length) {
+    console.log('[runShopifyInventoryReconcile] auto-linked by barcode', { storeId, count: autoLinks.length, skipped: autoLinkSkipped });
+  }
+  const autoLinkedSet = new Set(autoLinkedProductIds);
+  const reviewClearedIds = []; // ひも付け後に数がそろった商品(要確認を外す)
 
   const MISMATCH_CAP = 1000;
   const mismatches = [];
@@ -5391,8 +5455,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
   let mismatchedCount = 0;
   let missingInShopify = 0;
 
-  linkedSnap.forEach((docSnap) => {
-    const product = docSnap.data() || {};
+  productRows.forEach((product) => {
+    const docSnap = { id: product.id };
     const itemGid = String(product.shopifyInventoryItemId || '').trim();
     if (!itemGid) return;
     // 商品単位の在庫同期OFFは意図的な非同期なので差分レポートから除外(ノイズ防止)。
@@ -5407,12 +5471,16 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
       missingInShopify += 1;
     } else if (pos === shopify) {
       matched += 1;
+      if (product.shopifyLinkNeedsReview === true && !autoLinkedSet.has(docSnap.id)) reviewClearedIds.push(docSnap.id);
       return;
     } else {
       mismatchedCount += 1;
       // Shopify on_hand を正として POS を合わせる(webフック取りこぼしの追いつき)。missingInShopify(幽霊リンク)は対象外。
       // pos(補正前)も持っておき、自動補正の履歴(stockMovements)に残す。
-      corrections.push({ productId: docSnap.id, pos, shopify: Math.max(shopify, 0) });
+      // 自動ひも付けしたばかりの商品(要確認)はどちらが正しいか分からないので補正しない。
+      if (product.shopifyLinkNeedsReview !== true) {
+        corrections.push({ productId: docSnap.id, pos, shopify: Math.max(shopify, 0) });
+      }
     }
 
     if (mismatches.length < MISMATCH_CAP) {
@@ -5425,10 +5493,22 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
         pos,
         shopify: hasShopify ? shopify : null,
         diff: hasShopify ? pos - shopify : null,
-        reason: hasShopify ? 'mismatch' : 'missingInShopify'
+        reason: hasShopify ? 'mismatch' : 'missingInShopify',
+        // バーコードで自動ひも付けし、まだ数を決めていない商品(自動補正しない)
+        needsReview: product.shopifyLinkNeedsReview === true,
+        autoLinkedNow: autoLinkedSet.has(docSnap.id)
       });
     }
   });
+
+  // 数がそろった要確認の商品は、ふつうの同期に戻す。
+  for (let i = 0; i < reviewClearedIds.length; i += 400) {
+    const batch = db.batch();
+    for (const id of reviewClearedIds.slice(i, i + 400)) {
+      batch.set(storeRef.collection('products').doc(id), { shopifyLinkNeedsReview: false }, { merge: true });
+    }
+    await batch.commit();
+  }
 
   // autoApply時: Shopify on_hand を正として POS を一括補正(inbound同期の追いつき)。
   // 補正は在庫履歴(stockMovements type=shopify_reconcile)に必ず残す。これが無いと
@@ -5486,6 +5566,9 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     reportedRows: mismatches.length,
     truncated: (mismatchedCount + missingInShopify) > mismatches.length,
     shopifyVariantsScanned: onHandByItemGid.size,
+    autoLinkedCount: autoLinkedProductIds.length,
+    autoLinkSkipped,
+    reviewClearedCount: reviewClearedIds.length,
     autoResolved: appliedCount > 0,
     appliedCount,
     // 走査中にレジ側で数が変わったため補正を見送った件数(次回の点検で拾う)
@@ -5509,7 +5592,8 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
           mismatched: mismatchedCount,
           missingInShopify,
           appliedCount,
-          skippedChangedCount
+          skippedChangedCount,
+          autoLinkedCount: autoLinkedProductIds.length
         }
       }, { merge: true });
     } catch (error) {
@@ -5529,6 +5613,9 @@ const runShopifyInventoryReconcile = async ({ storeId, source = 'manual', trigge
     reportedRows: mismatches.length,
     truncated: summary.truncated,
     shopifyVariantsScanned: onHandByItemGid.size,
+    autoLinkedCount: autoLinkedProductIds.length,
+    autoLinkedProductIds,
+    reviewClearedCount: reviewClearedIds.length,
     // 不一致明細(上限MISMATCH_CAP件)。UIでリスト表示＋その場修正に使う。
     mismatches
   };
