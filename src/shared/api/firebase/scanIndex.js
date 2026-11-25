@@ -83,9 +83,15 @@ export const subscribeScanIndex = (storeId, onUpdate) => {
     buckets.forEach((entries) => {
       Object.entries(entries || {}).forEach(([productId, entry]) => {
         const product = { id: productId, ...entry };
+        // 品番・SKU・バーコードが同じ値の商品(JAN を品番にも入れている等)は、
+        // 同じコードに同じ商品を1回だけ載せる。重ねると1商品なのに候補が2〜3件出て、
+        // レジで選ばないと進まなくなる(2026-11-25 HAUS 仁多米2合平袋で発生)。
+        const codes = new Set();
         ['barcode', 'sku', 'productCode'].forEach((field) => {
           const code = String(entry?.[field] ?? '').trim().toLowerCase();
-          if (!code) return;
+          if (code) codes.add(code);
+        });
+        codes.forEach((code) => {
           const list = byCode.get(code);
           if (list) list.push(product); else byCode.set(code, [product]);
         });
