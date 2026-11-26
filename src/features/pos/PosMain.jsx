@@ -698,7 +698,11 @@ export const PosMain = ({ activeSessions, onScanSession, onSelectSession, storeI
     if (scanIndex) {
       const indexHits = scanIndex.get(normalizedCode) || [];
       if (indexHits.length > 0) {
-        const resolvedHits = indexHits.map((hit) => buildResolvedPosProduct(hit));
+        // 同じ商品が重なって入っていても1件として数える(候補は商品ごとに1つ)。
+        const seenIds = new Set();
+        const resolvedHits = indexHits
+          .filter((hit) => (seenIds.has(hit.id) ? false : (seenIds.add(hit.id), true)))
+          .map((hit) => buildResolvedPosProduct(hit));
         const barcodeHits = resolvedHits.filter((product) => eq(product, 'barcode'));
         // barcodeはユニーク制約があるので一致1件なら即確定。sku/品番のみの一致は
         // 1件なら確定、複数なら候補モーダル(既存のFirestore経路と同じ判定)。
