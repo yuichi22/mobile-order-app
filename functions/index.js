@@ -5156,6 +5156,21 @@ const mirrorShopifyOnHandToPos = async ({ storeRef, getAccess, itemGid, configur
     }
   }
 
+  // 入出庫履歴にも残す。これが無いと Shopify 側の手入力やネット販売でレジの在庫が変わっても
+  // 履歴に出ず、「入庫2・販売2なのに在庫2」のように見える(2026-11 HAUS SOLID BOAT AND TOTE)。
+  batch.set(storeRef.collection('stockMovements').doc(), {
+    productId: productDoc.id,
+    productGroupId: productDoc.data().productGroupId || '',
+    type: 'shopify_sync',
+    quantity: onHandTotal - before,
+    beforeQuantity: before,
+    afterQuantity: onHandTotal,
+    note: String(topic || '').startsWith('fulfillment') ? 'Shopifyの在庫に合わせた(発送)' : 'Shopifyの在庫に合わせた',
+    source: 'shopify_webhook',
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+
   batch.set(storeRef.collection('inventorySyncLog').doc(), {
     direction: 'shopify_to_pos',
     productId: productDoc.id,
