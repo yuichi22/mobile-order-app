@@ -386,7 +386,9 @@ const STOCK_MOVEMENT_TYPE_META = {
   stock_in: { label: '入庫', badgeClass: 'bg-ui-50 text-ui', amountClass: 'text-ui' },
   sale: { label: '販売', badgeClass: 'bg-red-100 text-red-700', amountClass: 'text-red-600' },
   adjustment: { label: '在庫調整', badgeClass: 'bg-amber-100 text-amber-700', amountClass: 'text-amber-700' },
-  shopify_reconcile: { label: 'Shopify補正', badgeClass: 'bg-gray-200 text-gray-600', amountClass: 'text-gray-600' }
+  shopify_reconcile: { label: 'Shopify補正', badgeClass: 'bg-gray-200 text-gray-600', amountClass: 'text-gray-600' },
+  // Shopify の在庫通知(ネット販売・Shopify 管理画面での手入力など)でレジの在庫を合わせた記録。
+  shopify_sync: { label: 'Shopify反映', badgeClass: 'bg-gray-200 text-gray-600', amountClass: 'text-gray-600' }
 };
 
 const getStockMovementTypeMeta = (type) => (

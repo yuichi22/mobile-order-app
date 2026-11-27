@@ -672,7 +672,7 @@ export const getProductInventoryAdjustmentHistory = async (storeId, productId, {
 };
 
 // 入出庫履歴: stockMovements(その商品分)を種別を問わず新しい順に返す。
-// type = stock_in(入庫) / sale(販売) / adjustment(在庫調整) / shopify_reconcile(Shopify補正)。
+// type = stock_in(入庫) / sale(販売) / adjustment(在庫調整) / shopify_reconcile(Shopify補正) / shopify_sync(Shopify在庫通知での反映)。
 // 販売は increment 減算のため before/after を持たない(quantity=負のdeltaで表す)。
 export const getProductInOutHistory = async (storeId, productId, { limitCount = 100 } = {}) => {
   if (!isValidStoreId(storeId) || !productId) return [];
