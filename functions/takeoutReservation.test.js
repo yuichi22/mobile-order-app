@@ -146,10 +146,14 @@ test("受取時間帯は開始<終了だけ残し、早い順に並べる", () =
   );
 });
 
-test("受取時間帯は予約品のときだけ効く", () => {
+test("受取時間帯は予約品か個別時間指定の品のときだけ効く", () => {
   const w = [{ from: "10:00", to: "12:00" }];
   assert.deepEqual(pickupWindowsOf({ webOrderReservation: false, reservationPickupWindows: w }), []);
   assert.deepEqual(pickupWindowsOf({ webOrderReservation: true, reservationPickupWindows: w }), w);
+  assert.deepEqual(
+    pickupWindowsOf({ webOrderReservation: false, webOrderCustomPickupWindows: true, reservationPickupWindows: w }),
+    w
+  );
 });
 
 test("カートのどれか1品でも受付できない日なら断る", () => {

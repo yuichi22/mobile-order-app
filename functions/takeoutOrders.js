@@ -167,7 +167,7 @@ export const createTakeoutOrder = onRequest(
           name: str(v.name),
           quantity,
           rule,
-          // 受付できない日・受取時間帯（予約品のみ）。サイトの選択肢を信じず、ここで確かめる。
+          // 受付できない日・受取時間帯（予約品・個別時間指定の品のみ）。サイトの選択肢を信じず、ここで確かめる。
           blockedDates: blockedDatesOf(v),
           pickupWindows: pickupWindowsOf(v),
         });
