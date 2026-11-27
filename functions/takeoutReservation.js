@@ -155,9 +155,12 @@ export function normalizePickupWindows(raw) {
   return out.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
 }
 
-/** 予約品の受取時間帯。予約品でない・未指定なら []（＝店の既定の受取時間）。 */
+/**
+ * 品の受取時間帯。予約品か、通常品で「個別時間指定」（webOrderCustomPickupWindows）を
+ * 付けたものだけ。それ以外・未指定なら []（＝店の既定の受取時間）。
+ */
 export function pickupWindowsOf(menuData = {}) {
-  if (menuData.webOrderReservation !== true) return [];
+  if (menuData.webOrderReservation !== true && menuData.webOrderCustomPickupWindows !== true) return [];
   return normalizePickupWindows(menuData.reservationPickupWindows);
 }
 

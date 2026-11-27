@@ -168,6 +168,10 @@ const buildMenuMetaChips = (item) => {
     chips.push({ key: 'reservation', label: '予約品', tone: 'rose' });
   }
 
+  if (item.webOrderEnabled === true && item.webOrderReservation !== true && item.webOrderCustomPickupWindows === true) {
+    chips.push({ key: 'custom-pickup', label: '時間指定', tone: 'slate' });
+  }
+
   (item.allergens || []).forEach((allergenId) => {
     chips.push({ key: `allergen-${allergenId}`, label: getAllergenLabel(allergenId), tone: 'amber' });
   });
@@ -240,8 +244,11 @@ const createBlankItem = (categoryId, kitchenId, periodIds) => ({
   reservationPickupFrom: '',
   reservationPickupTo: '',
   reservationDailyLimit: null,
-  // 予約品の受取時間帯 [{ from: "HH:MM", to: "HH:MM" }]。空なら店の通常の受取時間。
+  // 受取時間帯 [{ from: "HH:MM", to: "HH:MM" }]。空なら店の通常の受取時間。
+  //   予約品のほか、通常品でも「個別時間指定」（webOrderCustomPickupWindows）を付けると使う。
+  //   ⚠ 名前は予約品の名残。関数・サイトも同じ項目を読む。
   reservationPickupWindows: [],
+  webOrderCustomPickupWindows: false,
   optionGroups: [],
   crossSellPrice: null,
   crossSellPriceLabelText: 'セット価格',
@@ -491,6 +498,7 @@ const MenuSettings = ({
       reservationPickupTo: item.reservationPickupTo || '',
       reservationDailyLimit: item.reservationDailyLimit ?? null,
       reservationPickupWindows: Array.isArray(item.reservationPickupWindows) ? item.reservationPickupWindows : [],
+      webOrderCustomPickupWindows: item.webOrderCustomPickupWindows === true,
       crossSellPrice: item.crossSellPrice ?? null,
       crossSellPriceLabelText: item.crossSellPriceLabelText || 'セット価格',
       costPrice: item.costPrice ?? '',
@@ -703,16 +711,24 @@ const MenuSettings = ({
         return;
       }
       const normalizedReservationLimit = Math.floor(Number(editingItem.reservationDailyLimit) || 0);
+      // 通常品の「個別時間指定」。予約品はもともと時間帯を持てるので、この印は通常品だけ。
+      const isCustomPickupItem = normalizedWebOrderEnabled && !isReservationItem
+        && editingItem.webOrderCustomPickupWindows === true;
+      const usesPickupWindows = isReservationItem || isCustomPickupItem;
       // 受取時間帯。⚠ 両方空の行は黙って捨てる。片方だけ・開始が終了以降の行は保存させない
       //   （関数側では捨てられ、思ったのと違う時間で受けてしまうため）。
       const pickupWindows = (Array.isArray(editingItem.reservationPickupWindows)
         ? editingItem.reservationPickupWindows
         : []).filter((w) => w && (w.from || w.to));
-      if (isReservationItem && pickupWindows.some((w) => !w.from || !w.to || w.from >= w.to)) {
+      if (usesPickupWindows && pickupWindows.some((w) => !w.from || !w.to || w.from >= w.to)) {
         alert('受取時間帯は「開始」と「終了」を両方選び、開始を終了より前にしてください。');
         return;
       }
-      const normalizedPickupWindows = isReservationItem
+      if (isCustomPickupItem && pickupWindows.length === 0) {
+        alert('個別時間指定にするときは、受取時間帯を1つ以上入れてください。');
+        return;
+      }
+      const normalizedPickupWindows = usesPickupWindows
         ? [...new Map(pickupWindows.map((w) => [`${w.from}-${w.to}`, { from: w.from, to: w.to }])).values()]
             .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to))
         : [];
@@ -782,6 +798,7 @@ const MenuSettings = ({
           ? normalizedReservationLimit
           : null,
         reservationPickupWindows: normalizedPickupWindows,
+        webOrderCustomPickupWindows: isCustomPickupItem,
         crossSellPrice:
           editingItem.crossSellPrice === '' ||
           editingItem.crossSellPrice === null ||
@@ -1269,6 +1286,37 @@ const handleClearLimitedQuantity = async (event, item) => {
                                   })}
                                 />
                               </div>
+
+                              {editingItem.webOrderReservation !== true && (
+                                <>
+                                  <label className="mt-5 flex cursor-pointer items-center gap-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.webOrderCustomPickupWindows === true}
+                                      onChange={(event) => setEditingItem({
+                                        ...editingItem,
+                                        webOrderCustomPickupWindows: event.target.checked
+                                      })}
+                                      className="h-5 w-5 accent-gray-900"
+                                    />
+                                    <span className="text-sm font-black text-gray-800">個別時間指定（この品だけ受取時間を決める）</span>
+                                  </label>
+                                  <p className="mt-2 text-xs font-bold leading-relaxed text-gray-500">
+                                    予約品でない品も、受け取れる時間帯を店の通常の受取時間（11:30〜19:30）の代わりに決められます。時間帯はいくつでも追加できます。
+                                  </p>
+                                  {editingItem.webOrderCustomPickupWindows === true && (
+                                    <div className="mt-3 rounded-2xl border-2 border-gray-100 bg-gray-50 p-4">
+                                      <PickupWindowsEditor
+                                        value={editingItem.reservationPickupWindows || []}
+                                        onChange={(next) => setEditingItem({
+                                          ...editingItem,
+                                          reservationPickupWindows: next
+                                        })}
+                                      />
+                                    </div>
+                                  )}
+                                </>
+                              )}
 
                               <label className="mt-5 flex cursor-pointer items-center gap-3">
                                 <input

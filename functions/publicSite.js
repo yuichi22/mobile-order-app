@@ -319,6 +319,10 @@ export const publicMenu = onRequest(
             // 受付できない日（日本時間の YYYY-MM-DD、今日以降だけ）。無ければ []。
             //   ⚠ 最終判定は createTakeoutOrder。ここはサイトで先に選べなくする親切のため。
             blockedDates: blockedDatesOf(v).filter((d) => d >= jstDateKey(new Date())),
+            // 受取時間帯 [{ from: "HH:MM", to: "HH:MM" }]（両端を含む）。予約品と、通常品の
+            //   「個別時間指定」の品だけ中身がある。[] なら店の既定の受取時間。
+            //   ⚠ 予約品は reservation.pickupWindows にも同じものを入れている（古いサイト向け）。
+            pickupWindows: pickupWindowsOf(v),
             // 予約品なら受取期間と埋まった日（日本時間の YYYY-MM-DD）。通常品は null。
             //   ⚠ 最終判定は createTakeoutOrder。ここは選べない日を先に隠す親切のため。
             reservation: rule
