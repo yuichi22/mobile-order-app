@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Send,
   ShoppingCart,
-  Table2
+  Table2,
+  Users
 } from 'lucide-react';
 
 import { auth, db } from '../../../shared/api/firebase/client';
@@ -38,6 +39,9 @@ import {
   decorateMenuItemAvailability,
   getTodayKey
 } from '../../../shared/utils/menuAvailability';
+
+// お客様人数の上限（お客様の画面・sessions のルールと同じ 20）。
+const MAX_PARTY_SIZE = 20;
 
 const formatMoney = (value) => `¥${Number(value || 0).toLocaleString('ja-JP')}`;
 
@@ -887,6 +891,8 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
 
   const [selectedTable, setSelectedTable] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null);
+  // お客様人数。null = まだ触っていない（テーブルに人数があればそれを出す）。
+  const [partySizeDraft, setPartySizeDraft] = useState(null);
   const [bootstrappingTableId, setBootstrappingTableId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const hasInitializedCategorySelectionRef = useRef(false);
@@ -1039,6 +1045,21 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
   const getActiveSessionForTable = (tableId) => (
     activeSessionByTableId.get(String(tableId || '').trim()) || null
   );
+
+  // テーブルにすでに入っている人数（お客様の画面やスタッフが先に入れたもの）。
+  const selectedSessionId = sessionInfo?.sessionId || '';
+  const sessionPartySize = useMemo(() => {
+    if (!selectedSessionId) return 0;
+    const session = activeSessions.find((s) => String(s.id || '') === String(selectedSessionId));
+    const value = Number(session?.partySize || 0);
+    return Number.isFinite(value) && value > 0 ? Math.min(MAX_PARTY_SIZE, Math.floor(value)) : 0;
+  }, [activeSessions, selectedSessionId]);
+
+  const partySize = partySizeDraft ?? sessionPartySize;
+
+  const changePartySize = (delta) => {
+    setPartySizeDraft(Math.min(MAX_PARTY_SIZE, Math.max(1, Number(partySize || 0) + delta)));
+  };
 
   useEffect(() => {
     if (!selectedTable?.tableId || !sessionInfo?.sessionId) return;
@@ -1398,6 +1419,7 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
         tableName: nextSessionInfo.tableName || table.tableName
       });
       setSessionInfo(nextSessionInfo);
+      setPartySizeDraft(null);
       setSessionOrders([]);
       setCart([]);
     } catch (selectError) {
@@ -1669,6 +1691,7 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
     setSelectedCategoryId('');
     setSelectedTable(null);
     setSessionInfo(null);
+    setPartySizeDraft(null);
     setSessionOrders([]);
     setCart([]);
     setError('');
@@ -1677,6 +1700,12 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
 
   const handleSubmitOrder = async () => {
     if (!storeId || !sessionInfo?.sessionId || !sessionInfo?.participantId || !selectedTable?.tableId || cart.length === 0 || submitting) {
+      return;
+    }
+
+    const normalizedPartySize = Math.min(MAX_PARTY_SIZE, Math.floor(Number(partySize || 0)));
+    if (normalizedPartySize < 1) {
+      setError('お客様人数を入れてください。');
       return;
     }
 
@@ -1690,6 +1719,19 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
         throw new Error('ログイン状態を確認できませんでした。');
       }
 
+      // 人数はテーブル（sessions）に持つ。注文の関数は sessions の人数を優先するので、
+      // ⚠ 変えたときは注文を送る前に書いておく（後だと注文に古い人数が載る）。
+      if (normalizedPartySize !== sessionPartySize) {
+        await setDoc(
+          doc(db, 'stores', storeId, 'sessions', sessionInfo.sessionId),
+          {
+            partySize: normalizedPartySize,
+            partySizeConfirmedAt: serverTimestamp()
+          },
+          { merge: true }
+        );
+      }
+
       const response = await fetch('/api/createPostpayOrder', {
         method: 'POST',
         headers: {
@@ -1700,7 +1742,7 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
           storeId,
           sessionId: sessionInfo.sessionId,
           tableId: selectedTable.tableId,
-          partySize: 0,
+          partySize: normalizedPartySize,
           participantId: sessionInfo.participantId,
           cart,
           totalPrice: cartTotal,
@@ -1718,6 +1760,7 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
       }
 
       setCompletedOrderId(payload.orderId || '');
+      setPartySizeDraft(null);
       setCart([]);
       setMessage('注文を送信しました。キッチンモニターに反映されます。');
     } catch (submitError) {
@@ -2359,6 +2402,36 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
                 )}
 
                 <div className="mt-5 border-t border-gray-100 pt-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-black text-gray-500">
+                      <Users size={18} strokeWidth={1.5} />
+                      お客様人数
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => changePartySize(-1)}
+                        disabled={Number(partySize || 0) <= 1}
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-sm disabled:opacity-40"
+                        aria-label="人数を減らす"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <span className="w-14 text-center text-lg font-black tabular-nums text-gray-900">
+                        {partySize > 0 ? `${partySize}名` : '—'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => changePartySize(1)}
+                        disabled={Number(partySize || 0) >= MAX_PARTY_SIZE}
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-sm disabled:opacity-40"
+                        aria-label="人数を増やす"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex items-end justify-between">
                     <span className="text-sm font-black text-gray-500">
                       合計
@@ -2371,12 +2444,18 @@ const StaffOrderPage = ({ storeId, headerAction = null }) => {
                   <button
                     type="button"
                     onClick={handleSubmitOrder}
-                    disabled={cart.length === 0 || submitting}
+                    disabled={cart.length === 0 || submitting || !(partySize > 0)}
                     className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 text-base font-black text-white shadow-lg shadow-gray-200 transition-all active:scale-95 disabled:bg-gray-300 disabled:shadow-none"
                   >
                     {submitting ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
                     注文を送信
                   </button>
+
+                  {cart.length > 0 && !(partySize > 0) && (
+                    <p className="mt-2 text-center text-xs font-bold text-gray-500">
+                      お客様人数を入れると送信できます
+                    </p>
+                  )}
 
                   {completedOrderId && (
                     <div className="mt-4 rounded-2xl bg-gray-100 p-4 text-center text-sm font-black text-gray-900">
