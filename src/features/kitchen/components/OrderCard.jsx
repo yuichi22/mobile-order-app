@@ -190,7 +190,7 @@ const OrderCard = ({
   );
   // レジで会計したテイクアウト。店内の注文と同じ並びに出し、見出しで持ち帰りと分かるようにする。
   const isTakeoutOrder = isRegisterTakeoutOrder(order);
-  // テーブルの会計画面（レジ）の「＋ 追加」で足したテイクアウト。卓の注文のまま、見出しに「持ち帰り」を出す。
+  // テーブルの会計画面（レジ）の「＋ 追加」で足したテイクアウト。卓の注文のまま、テーブル名の右に「テイクアウト」の札を出す。
   // 店内の品と混ざっているときは、持ち帰りの品の行にも印を付ける。
   const activeDisplayItems = displayItems;
   const tableTakeoutItemCount = isTakeoutOrder
@@ -614,11 +614,6 @@ const canSelectCard =
   
         {isTakeoutOrder ? (
           <div className="min-w-0">
-            <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-ui px-3 py-1 text-xs font-black text-white">
-              <ShoppingBag size={14} strokeWidth={1.5} />
-              持ち帰り
-            </span>
-
             <div className={`text-3xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
               テイクアウト
             </div>
@@ -638,11 +633,11 @@ const canSelectCard =
                 {getTableDisplayName(order)}
               </div>
 
-              {/* 持ち帰りの札はテーブル名の右。オレンジ系（急ぎ・遅れ・調理）と紛れないよう、操作色（スチールブルー）にする。 */}
+              {/* テイクアウトの札はテーブル名の右。オレンジ系（急ぎ・遅れ・調理）と紛れないよう、黒地に白文字にする。 */}
               {isTableTakeoutOrder && (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ui px-3 py-1.5 text-sm font-black text-white">
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1.5 text-sm font-black text-white">
                   <ShoppingBag size={16} strokeWidth={1.5} />
-                  {isMixedTableTakeout ? '一部持ち帰り' : '持ち帰り'}
+                  {isMixedTableTakeout ? '一部テイクアウト' : 'テイクアウト'}
                 </span>
               )}
             </div>
@@ -850,9 +845,9 @@ const canSelectCard =
                 </div>
 
                 {isMixedTableTakeout && item.isTakeout === true && (
-                  <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-ui px-2.5 py-1 text-[11px] font-black text-white">
+                  <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-black text-white">
                     <ShoppingBag size={12} strokeWidth={1.5} />
-                    持ち帰り
+                    テイクアウト
                   </div>
                 )}
 
