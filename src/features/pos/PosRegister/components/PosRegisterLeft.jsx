@@ -76,7 +76,9 @@ export const PosRegisterLeft = ({
   onPickCrmCandidate,
   onRecheckCrmMember,
   onClearCrmMember,
-  onOpenMemberSearch
+  onOpenMemberSearch,
+  onOpenAddItems,
+  isAddItemsOpen = false
 }) => {
   const groupedOrders = groupOrdersByCustomer(orders || []);
   const isCustomMode = checkoutSelectionMode === 'custom';
@@ -278,6 +280,22 @@ export const PosRegisterLeft = ({
             </button>
           )}
 
+          {typeof onOpenAddItems === 'function' && (
+            <button
+              type="button"
+              onClick={onOpenAddItems}
+              disabled={isAddItemsOpen}
+              className={`flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-sm font-black shadow-sm transition-colors ${
+                isAddItemsOpen
+                  ? 'border-ui bg-ui text-white'
+                  : 'border-ui bg-white text-ui hover:bg-ui-50'
+              }`}
+            >
+              <Plus size={16} strokeWidth={1.5} />
+              追加
+            </button>
+          )}
+
           <button
             onClick={() => setShowSplitModal(true)}
             className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 text-sm font-black text-gray-600 shadow-sm transition-colors hover:bg-ui-50 hover:text-ui disabled:cursor-not-allowed disabled:opacity-50"
@@ -470,7 +488,17 @@ export const PosRegisterLeft = ({
                                   ¥{((Number(item.unitPrice) || 0) * (Number(item.quantity) || 0)).toLocaleString()}
                                 </span>
 
-                                {!isItemCancelled && allowTakeout && allowsTakeout ? (
+                                {!isItemCancelled && item?.registerAddKind === 'takeout' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-bold text-white">
+                                    <ShoppingBag size={12} />
+                                    テイクアウト
+                                  </span>
+                                ) : !isItemCancelled && item?.registerAddKind === 'retail' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">
+                                    <Package size={12} />
+                                    物販
+                                  </span>
+                                ) : !isItemCancelled && allowTakeout && allowsTakeout ? (
                                   <span
                                     role="button"
                                     tabIndex={0}

@@ -23,6 +23,8 @@ import {
 import { PosRegisterLeft } from './components/PosRegisterLeft';
 import PosMemberSearchModal from '../components/PosMemberSearchModal';
 import { PosRegisterRight } from './components/PosRegisterRight';
+import { RegisterAddItemsPanel } from './components/RegisterAddItemsPanel';
+import { buildRegisterAddOrders, getRegisterTaxClass } from '../utils/registerAddOrder';
 import { PosModals } from './components/PosModals';
 import { computePaymentSplit, getSplitMethodLabel } from '../utils/paymentSplit';
 import { useTerminalCardPayment } from '../terminal/useTerminalCardPayment';
@@ -348,8 +350,13 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
   const {
     products: productMasterProducts = [],
     productCategories: productMasterCategories = [],
+    productCategoryGroups: productMasterCategoryGroups = [],
     loading: productMasterLoading
   } = useProductMasterData(storeId);
+  // 「＋ 追加」パネル（テイクアウト・物販・オプションを卓の伝票へ足す）。開いている間は右側を切り替える。
+  const [showAddItems, setShowAddItems] = useState(false);
+  const [addItemsSubmitting, setAddItemsSubmitting] = useState(false);
+  const [addItemsError, setAddItemsError] = useState('');
   const [orderRetailKeyword, setOrderRetailKeyword] = useState('');
   const [orderRetailCart, setOrderRetailCart] = useState([]);
   const [orderRetailMessage, setOrderRetailMessage] = useState(null);
@@ -732,6 +739,74 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
     setOrderRetailCart((current) => current.filter((item) => item.id !== itemId));
   };
 
+  // 物販の税率は商品カテゴリー（→所属グループ）の設定で決める（POS レジと同じ）。FOOD 等の軽減=8%、既定=標準10%。
+  const resolveRetailTaxRate = (product) => {
+    const reducedRate = Number(settings?.taxRateReduced ?? 8);
+    const standardRate = Number(settings?.taxRate ?? 10);
+    const category = (productMasterCategories || []).find((entry) => entry.id === product?.categoryId);
+    const groupId = category?.groupId || category?.categoryGroupId;
+    const group = (productMasterCategoryGroups || []).find((entry) => entry.id === groupId);
+    const ownType = category?.taxRateType && category.taxRateType !== 'inherit' ? category.taxRateType : '';
+    const type = ownType || group?.taxRateType || '';
+    return type === 'reduced' ? reducedRate : standardRate;
+  };
+
+  const openAddItems = () => {
+    setAddItemsError('');
+    setShowAddItems(true);
+  };
+
+  const closeAddItems = () => {
+    if (addItemsSubmitting) return;
+    setAddItemsError('');
+    setShowAddItems(false);
+  };
+
+  // 「＋ 追加」で選んだ品を、この卓の注文として保存する（会計前にレジを閉じても消えない）。
+  const submitAddItems = async ({ lines, sendToKitchen }) => {
+    if (!storeId || !sessionId || addItemsSubmitting) return;
+    setAddItemsSubmitting(true);
+    setAddItemsError('');
+    try {
+      const staff = auth.currentUser;
+      const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments);
+      const newOrders = buildRegisterAddOrders({
+        lines,
+        ctx: { reducedRate: Number(settings?.taxRateReduced ?? 8) },
+        sessionId,
+        tableId,
+        tableDisplayName,
+        partySize: guestCount,
+        sendToKitchen,
+        staffUid: staff?.uid || '',
+        staffName: staff?.displayName || staff?.email || '',
+        registerId: registerContext.id,
+        registerName: registerContext.name,
+        timestamp: serverTimestamp()
+      });
+      if (newOrders.length === 0) {
+        setAddItemsError('追加する品を選んでください。');
+        return;
+      }
+      const batch = writeBatch(db);
+      newOrders.forEach((order) => {
+        batch.set(doc(collection(db, 'stores', storeId, 'orders')), order);
+      });
+      batch.set(doc(db, 'stores', storeId, 'sessions', sessionId), {
+        hasOrders: true,
+        lastActivityAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      await batch.commit();
+      setShowAddItems(false);
+    } catch (error) {
+      console.error('[PosRegister] failed to add items to the table', error);
+      setAddItemsError('伝票に追加できませんでした。通信を確かめて、もう一度押してください。');
+    } finally {
+      setAddItemsSubmitting(false);
+    }
+  };
+
   const consolidatedItems = useMemo(() => {
     if (!orders || !Array.isArray(orders)) return [];
     const items = [];
@@ -750,7 +825,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         const unitPrice = Number(item.unitPrice) || 0;
         const quantity = Number(item.quantity) || 0;
         const optionsKey = Array.isArray(item.options) ? item.options.join('|') : '';
-        const key = `${item.id || name}-${unitPrice}-${optionsKey}`;
+        const key = `${item.id || name}-${unitPrice}-${optionsKey}-${getRegisterTaxClass(item)}`;
         const existing = items.find((target) => target._key === key);
         const menuSnapshot =
           menuItemSnapshotMap.byId[item.id] ||
@@ -773,6 +848,8 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           unitPrice,
           quantity,
           allowsTakeout: item.allowsTakeout !== false,
+          // 「＋ 追加」のテイクアウト・物販は税率を固定（店内価格からの換算はしない）。
+          fixedTaxClass: getRegisterTaxClass(item),
           categoryId,
           categoryName
         };
@@ -922,7 +999,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         const qty = Number(detail.quantity);
         const netUnitPrice = applyTaxRounding(menuInclPrice / (1 + standardRate / 100), taxRounding);
 
-        if (allowTakeout && detail.allowsTakeout !== false && activeTakeoutItemKeys.has(detail.key)) {
+        if (detail.fixedTaxClass === 'reduced') {
+          totalReducedIncl += menuInclPrice * qty;
+        } else if (detail.fixedTaxClass === 'standard') {
+          totalStandardIncl += menuInclPrice * qty;
+        } else if (allowTakeout && detail.allowsTakeout !== false && activeTakeoutItemKeys.has(detail.key)) {
           const takeoutInclPrice = toTaxIncludedAmount(netUnitPrice, reducedRate, taxRounding);
           totalReducedIncl += takeoutInclPrice * qty;
         } else {
@@ -1889,6 +1970,20 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
             return item;
           }
 
+          const fixedTaxClass = getRegisterTaxClass(item);
+          if (fixedTaxClass) {
+            const fixedLineIncl = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+            if (fixedTaxClass === 'reduced') rawOrderReducedIncl += fixedLineIncl;
+            else rawOrderStandardIncl += fixedLineIncl;
+            return {
+              ...item,
+              isTakeout: item.isTakeout === true,
+              taxRate: fixedTaxClass === 'reduced' ? reducedTax : standardTax,
+              paymentStatus: 'paid',
+              paidAtClient
+            };
+          }
+
           const allowsTakeout = item.allowsTakeout !== false;
           const isTakeout = allowTakeout && allowsTakeout && activeTakeoutItemKeys.has(itemKey);
           const menuPrice = Number(item.unitPrice) || 0;
@@ -1995,7 +2090,11 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
           const detailQuantity = Number(detail.quantity || 0);
           const detailNetUnitPrice = applyTaxRounding(detailUnitPrice / standardDivider, taxRounding);
 
-          if (allowTakeout && detail.allowsTakeout !== false && activeTakeoutItemKeys.has(detail.key)) {
+          if (detail.fixedTaxClass === 'reduced') {
+            rawTransactionReducedIncl += detailUnitPrice * detailQuantity;
+          } else if (detail.fixedTaxClass === 'standard') {
+            rawTransactionStandardIncl += detailUnitPrice * detailQuantity;
+          } else if (allowTakeout && detail.allowsTakeout !== false && activeTakeoutItemKeys.has(detail.key)) {
             rawTransactionReducedIncl += toTaxIncludedAmount(detailNetUnitPrice, reducedTax, taxRounding) * detailQuantity;
           } else {
             rawTransactionStandardIncl += detailUnitPrice * detailQuantity;
@@ -2121,7 +2220,17 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
       const currentPeriodSnapshot = resolveCurrentPeriodSnapshot();
       const registerContext = getActiveRegisterContext(storeId, storeSettings?.registers, storeSettings?.departments);
-      const hasOrderRetailExtras = orderRetailCart.length > 0;
+      // 「＋ 追加」で伝票に入れた物販（注文として保存済み）。在庫を減らす対象に加える。
+      const registerAddedRetailLines = consolidatedItems
+        .filter((item) => !item.isOrderRetailExtra && item.sourceType === 'retail' && item.productId)
+        .map((item) => ({
+          sourceType: 'retail',
+          productId: item.productId,
+          productGroupId: item.productGroupId || '',
+          name: item.name || '',
+          quantity: Number(item.quantity || 0)
+        }));
+      const hasOrderRetailExtras = orderRetailCart.length > 0 || registerAddedRetailLines.length > 0;
 
       const transactionItems = consolidatedItems.map((item) => {
         const categoryId =
@@ -2249,7 +2358,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
 
       const orderRetailQuantityByProductId = new Map();
       const orderRetailMetaByProductId = new Map();
-      orderRetailCart.forEach((item) => {
+      [...orderRetailCart, ...registerAddedRetailLines].forEach((item) => {
         if (item.sourceType !== 'retail' || !item.productId) return;
         const quantity = Math.max(Number(item.quantity || 0), 0);
         if (quantity <= 0) return;
@@ -2881,7 +2990,23 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         crmSessionNote={crmSessionNote}
         onPickCrmCandidate={(c) => lookupCrmMemberByPersonId?.(c.personId, { fallbackName: c.displayName || null })}
         onOpenMemberSearch={() => setMemberSearchOpen(true)}
+        onOpenAddItems={sessionId ? openAddItems : undefined}
+        isAddItemsOpen={showAddItems}
       />
+      {showAddItems ? (
+        <RegisterAddItemsPanel
+          tableDisplayName={tableDisplayName}
+          menuItems={menuItems}
+          categories={categories}
+          retailProducts={activeOrderRetailProducts}
+          resolveRetailTaxRate={resolveRetailTaxRate}
+          productMasterLoading={productMasterLoading}
+          submitting={addItemsSubmitting}
+          error={addItemsError}
+          onClose={closeAddItems}
+          onSubmit={submitAddItems}
+        />
+      ) : (
       <PosRegisterRight
         orders={orders}
         loading={isInitialLoading}
@@ -2932,6 +3057,7 @@ export const PosRegister = ({ sessionId, onBack, onComplete, onPaymentResult, on
         tableDisplayName={tableDisplayName}
         onClose={onBack}
       />
+      )}
 
       {memberSearchOpen && (
         <PosMemberSearchModal

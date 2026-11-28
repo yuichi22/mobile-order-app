@@ -14,6 +14,8 @@ export const isOrderOwnedByCustomer = (order, customerId) => (
 export const formatOrderCustomerLabel = (customerId) => {
   const normalizedCustomerId = String(customerId || '').trim();
   if (!normalizedCustomerId || normalizedCustomerId === 'guest') return 'ゲスト';
+  // テーブルの会計画面（レジ）の「＋ 追加」で足した注文。
+  if (normalizedCustomerId === 'register') return 'レジで追加';
   return `ID: ${normalizedCustomerId.slice(-6)}`;
 };
 
