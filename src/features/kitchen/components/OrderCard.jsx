@@ -613,13 +613,22 @@ const canSelectCard =
     >
   
         {isTakeoutOrder ? (
+          // 見出しの高さを卓のカードとそろえる: 小さな見出し（卓の「テーブル」の位置）→ テーブル名の位置に札 → 人数の位置にお名前。
           <div className="min-w-0">
-            <div className={`text-3xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
-              テイクアウト
+            <span className={`mb-0.5 block text-[10px] font-bold ${tableLabelClassName}`}>
+              レジ注文・会計済み
+            </span>
+
+            {/* 札の大きさは卓のカードの「テイクアウト」と同じ。テーブル名の高さ（36px）の中で上下中央に置く。 */}
+            <div className="flex h-9 items-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1.5 text-sm font-black text-white">
+                <ShoppingBag size={16} strokeWidth={1.5} />
+                テイクアウト
+              </span>
             </div>
 
-            <div className="mt-1 truncate text-sm font-bold text-gray-500">
-              {order.customerName ? `${order.customerName} 様` : 'レジ注文・会計済み'}
+            <div className="mt-1 truncate text-sm font-bold text-gray-400">
+              {order.customerName ? `${order.customerName} 様` : '\u00a0'}
             </div>
           </div>
         ) : (
