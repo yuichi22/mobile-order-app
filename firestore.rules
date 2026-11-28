@@ -548,6 +548,19 @@ service cloud.firestore {
           && request.resource.data.items is list
           && request.resource.data.items.size() > 0;
 
+        // テーブルの会計画面（レジ）の「＋ 追加」で、テイクアウト・物販・オプションを卓の伝票へ足す。
+        // 未会計（paymentStatus を持たない）・卓に付いた（sessionId あり）注文だけをスタッフが作れる。
+        // 料理は status=pending（キッチンに出す）、物販やキッチンに送らない分は status=completed。
+        allow create: if isStoreStaff(storeId)
+          && request.resource.data.orderSource == 'pos_register_add'
+          && request.resource.data.customerId == 'register'
+          && request.resource.data.sessionId is string
+          && request.resource.data.sessionId.size() > 0
+          && (request.resource.data.status == 'pending' || request.resource.data.status == 'completed')
+          && !('paymentStatus' in request.resource.data)
+          && request.resource.data.items is list
+          && request.resource.data.items.size() > 0;
+
         allow update, delete: if isStoreStaff(storeId);
       }
 
