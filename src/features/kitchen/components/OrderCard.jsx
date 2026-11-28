@@ -619,10 +619,13 @@ const canSelectCard =
               レジ注文・会計済み
             </span>
 
-            <span className="inline-flex h-9 items-center gap-2 rounded-full bg-gray-900 px-4 text-lg font-black leading-none text-white">
-              <ShoppingBag size={20} strokeWidth={1.5} />
-              テイクアウト
-            </span>
+            {/* 札の大きさは卓のカードの「テイクアウト」と同じ。テーブル名の高さ（36px）の中で上下中央に置く。 */}
+            <div className="flex h-9 items-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1.5 text-sm font-black text-white">
+                <ShoppingBag size={16} strokeWidth={1.5} />
+                テイクアウト
+              </span>
+            </div>
 
             <div className="mt-1 truncate text-sm font-bold text-gray-400">
               {order.customerName ? `${order.customerName} 様` : '\u00a0'}
