@@ -614,7 +614,7 @@ const canSelectCard =
   
         {isTakeoutOrder ? (
           <div className="min-w-0">
-            <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white">
+            <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-ui px-3 py-1 text-xs font-black text-white">
               <ShoppingBag size={14} strokeWidth={1.5} />
               持ち帰り
             </span>
@@ -628,19 +628,23 @@ const canSelectCard =
             </div>
           </div>
         ) : (
-          <div>
-            {isTableTakeoutOrder && (
-              <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white">
-                <ShoppingBag size={14} strokeWidth={1.5} />
-                {isMixedTableTakeout ? '一部持ち帰り' : '持ち帰り'}
-              </span>
-            )}
+          <div className="min-w-0">
             <span className={`mb-0.5 block text-[10px] font-bold ${tableLabelClassName}`}>
               テーブル
             </span>
 
-            <div className={`text-4xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
-              {getTableDisplayName(order)}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div className={`text-4xl font-black leading-none tracking-tight ${tableNumberClassName}`}>
+                {getTableDisplayName(order)}
+              </div>
+
+              {/* 持ち帰りの札はテーブル名の右。オレンジ系（急ぎ・遅れ・調理）と紛れないよう、操作色（スチールブルー）にする。 */}
+              {isTableTakeoutOrder && (
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ui px-3 py-1.5 text-sm font-black text-white">
+                  <ShoppingBag size={16} strokeWidth={1.5} />
+                  {isMixedTableTakeout ? '一部持ち帰り' : '持ち帰り'}
+                </span>
+              )}
             </div>
 
             <div className="mt-1 text-sm font-bold text-gray-400">
@@ -846,7 +850,7 @@ const canSelectCard =
                 </div>
 
                 {isMixedTableTakeout && item.isTakeout === true && (
-                  <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-black text-white">
+                  <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-ui px-2.5 py-1 text-[11px] font-black text-white">
                     <ShoppingBag size={12} strokeWidth={1.5} />
                     持ち帰り
                   </div>
