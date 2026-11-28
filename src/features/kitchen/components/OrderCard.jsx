@@ -190,6 +190,14 @@ const OrderCard = ({
   );
   // レジで会計したテイクアウト。店内の注文と同じ並びに出し、見出しで持ち帰りと分かるようにする。
   const isTakeoutOrder = isRegisterTakeoutOrder(order);
+  // テーブルの会計画面（レジ）の「＋ 追加」で足したテイクアウト。卓の注文のまま、見出しに「持ち帰り」を出す。
+  // 店内の品と混ざっているときは、持ち帰りの品の行にも印を付ける。
+  const activeDisplayItems = displayItems;
+  const tableTakeoutItemCount = isTakeoutOrder
+    ? 0
+    : activeDisplayItems.filter((item) => item?.isTakeout === true).length;
+  const isTableTakeoutOrder = tableTakeoutItemCount > 0;
+  const isMixedTableTakeout = isTableTakeoutOrder && tableTakeoutItemCount < activeDisplayItems.length;
   const pendingItems = matchedItems.filter((item) => resolveKitchenStatus(item) === 'pending').length;
 
   const orderKitchenStatus = resolveDisplayKitchenStatus({
@@ -621,6 +629,12 @@ const canSelectCard =
           </div>
         ) : (
           <div>
+            {isTableTakeoutOrder && (
+              <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white">
+                <ShoppingBag size={14} strokeWidth={1.5} />
+                {isMixedTableTakeout ? '一部持ち帰り' : '持ち帰り'}
+              </span>
+            )}
             <span className={`mb-0.5 block text-[10px] font-bold ${tableLabelClassName}`}>
               テーブル
             </span>
@@ -830,6 +844,13 @@ const canSelectCard =
                 <div className={`${itemNameClassName} ${itemStateNameClassName}`}>
                   {kitchenDisplayName}
                 </div>
+
+                {isMixedTableTakeout && item.isTakeout === true && (
+                  <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-black text-white">
+                    <ShoppingBag size={12} strokeWidth={1.5} />
+                    持ち帰り
+                  </div>
+                )}
 
                 {item.serviceTimingLabel && (
                   <div className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black ${getServiceTimingBadgeClassName(item.serviceTiming)}`}>
